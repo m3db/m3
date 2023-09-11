@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -51,7 +52,7 @@ const (
 )
 
 var (
-	testWriterStart    = time.Now()
+	testWriterStart    = xtime.Now()
 	testBlockSize      = 2 * time.Hour
 	testDefaultOpts    = NewOptions() // To avoid allocing pools each test exec
 	testBytesPool      pool.CheckedBytesPool
@@ -83,7 +84,7 @@ type msgpackBufReader interface {
 }
 
 func init() {
-	testBytesPool = pool.NewCheckedBytesPool([]pool.Bucket{pool.Bucket{
+	testBytesPool = pool.NewCheckedBytesPool([]pool.Bucket{{
 		Capacity: 1024,
 		Count:    10,
 	}}, nil, func(s []pool.Bucket) pool.BytesPool {
@@ -279,7 +280,7 @@ func TestReadNoCheckpointFile(t *testing.T) {
 
 	var (
 		shardDir       = ShardDataDirPath(filePathPrefix, testNs1ID, shard)
-		checkpointFile = dataFilesetPathFromTimeAndIndex(shardDir, testWriterStart, 0, checkpointFileSuffix, false)
+		checkpointFile = dataFilesetPathFromTimeAndIndex(shardDir, testWriterStart, 0, CheckpointFileSuffix, false)
 	)
 	exists, err := CompleteCheckpointFileExists(checkpointFile)
 	require.NoError(t, err)
@@ -303,7 +304,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 	defer os.RemoveAll(filePathPrefix)
 
 	shard := uint32(0)
-	start := time.Unix(1000, 0)
+	start := xtime.FromSeconds(1000)
 	shardDir := ShardDataDirPath(filePathPrefix, testNs1ID, shard)
 
 	w := newTestWriter(t, filePathPrefix)
@@ -340,7 +341,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
-			BlockStart: time.Unix(1000, 0),
+			BlockStart: xtime.FromSeconds(1000),
 		},
 	}
 	require.Error(t, r.Open(rOpenOpts))
@@ -350,11 +351,11 @@ func TestReadOpenDigestOfDigestMismatch(t *testing.T) {
 	testReadOpen(
 		t,
 		map[string][]byte{
-			infoFileSuffix:       {0x1},
+			InfoFileSuffix:       {0x1},
 			indexFileSuffix:      {0x2},
 			dataFileSuffix:       {0x3},
-			digestFileSuffix:     {0x2, 0x0, 0x2, 0x0, 0x3, 0x0, 0x3, 0x0, 0x4, 0x0, 0x4, 0x0},
-			checkpointFileSuffix: {0x12, 0x0, 0x7a, 0x0},
+			DigestFileSuffix:     {0x2, 0x0, 0x2, 0x0, 0x3, 0x0, 0x3, 0x0, 0x4, 0x0, 0x4, 0x0},
+			CheckpointFileSuffix: {0x12, 0x0, 0x7a, 0x0},
 		},
 	)
 }
@@ -363,11 +364,11 @@ func TestReadOpenInfoDigestMismatch(t *testing.T) {
 	testReadOpen(
 		t,
 		map[string][]byte{
-			infoFileSuffix:       {0xa},
+			InfoFileSuffix:       {0xa},
 			indexFileSuffix:      {0x2},
 			dataFileSuffix:       {0x3},
-			digestFileSuffix:     {0x2, 0x0, 0x2, 0x0, 0x3, 0x0, 0x3, 0x0, 0x4, 0x0, 0x4, 0x0},
-			checkpointFileSuffix: {0x13, 0x0, 0x7a, 0x0},
+			DigestFileSuffix:     {0x2, 0x0, 0x2, 0x0, 0x3, 0x0, 0x3, 0x0, 0x4, 0x0, 0x4, 0x0},
+			CheckpointFileSuffix: {0x13, 0x0, 0x7a, 0x0},
 		},
 	)
 }
@@ -387,11 +388,11 @@ func TestReadOpenIndexDigestMismatch(t *testing.T) {
 	testReadOpen(
 		t,
 		map[string][]byte{
-			infoFileSuffix:       b,
+			InfoFileSuffix:       b,
 			indexFileSuffix:      {0xa},
 			dataFileSuffix:       {0x3},
-			digestFileSuffix:     digestOfDigest,
-			checkpointFileSuffix: buf,
+			DigestFileSuffix:     digestOfDigest,
+			CheckpointFileSuffix: buf,
 		},
 	)
 }
@@ -401,7 +402,7 @@ func TestReadValidate(t *testing.T) {
 	defer os.RemoveAll(filePathPrefix)
 
 	shard := uint32(0)
-	start := time.Unix(1000, 0)
+	start := xtime.FromSeconds(1000)
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
@@ -466,7 +467,7 @@ func TestDecoderStream(t *testing.T) {
 	for i := 0; i < len(texts)-1; i++ {
 		texts[i] = str + "\n"
 		all += texts[i]
-		str += string(i%26 + 'a')
+		str += string(rune(i%26 + 'a'))
 	}
 	texts[len(texts)-1] = all
 

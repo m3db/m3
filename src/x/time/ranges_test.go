@@ -235,9 +235,11 @@ func TestRangesIter(t *testing.T) {
 func TestRangesString(t *testing.T) {
 	tr := NewRanges()
 	require.Equal(t, "[]", tr.String())
-	start := time.Unix(1465430400, 0).UTC()
+	start := ToUnixNano(time.Unix(1465430400, 0).UTC())
 	tr.AddRanges(NewRanges(
 		Range{Start: start, End: start.Add(2 * time.Hour)},
 		Range{Start: start.Add(4 * time.Hour), End: start.Add(5 * time.Hour)}))
-	require.Equal(t, "[(2016-06-09 00:00:00 +0000 UTC,2016-06-09 02:00:00 +0000 UTC),(2016-06-09 04:00:00 +0000 UTC,2016-06-09 05:00:00 +0000 UTC)]", tr.String())
+	require.Equal(
+		t, "[(2016-06-09 00:00:00 +0000 UTC,2016-06-09 02:00:00 +0000 UTC),"+
+			"(2016-06-09 04:00:00 +0000 UTC,2016-06-09 05:00:00 +0000 UTC)]", tr.String())
 }

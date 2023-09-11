@@ -21,11 +21,12 @@
 package topic
 
 import (
-	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -77,9 +78,10 @@ func TestTopicDeleteHandler(t *testing.T) {
 	mockService.
 		EXPECT().
 		Delete(DefaultTopicName).
-		Return(errors.New("not found"))
+		Return(kv.ErrNotFound)
 	handler.ServeHTTP(w, req)
 
 	resp = w.Result()
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
+		fmt.Sprintf("response: %s", w.Body.String()))
 }

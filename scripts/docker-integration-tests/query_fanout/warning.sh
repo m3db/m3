@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
 set -ex
-source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh
+source "$M3_PATH"/scripts/docker-integration-tests/common.sh
 
-COMPOSE_FILE=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/query_fanout/docker-compose.yml
+COMPOSE_FILE="$M3_PATH"/scripts/docker-integration-tests/query_fanout/docker-compose.yml
 HEADER_FILE=headers.out
 
 function write_metrics {
@@ -61,7 +61,7 @@ function test_instant_query {
   ENDPOINT=$3||""
   EXPECTED_HEADER=$4||""
   trap clean_headers EXIT
-  RESPONSE=$(curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
+  RESPONSE=$(curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" -H "M3-Limit-Require-Exhaustive: false" \
     "http://0.0.0.0:7201${ENDPOINT}/api/v1/query?query=count($METRIC_NAME)")
   ACTUAL=$(echo $RESPONSE | jq .data.result[0].value[1] | tr -d \" | tr -d \')
   ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
@@ -80,7 +80,7 @@ function test_range_query {
   start=$t
   end=$(($start+9))
 
-  RESPONSE=$(curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
+  RESPONSE=$(curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" -H "M3-Limit-Require-Exhaustive: false" \
     "http://0.0.0.0:7201/api/v1/query_range?start=$start&end=$end&step=10&query=count($METRIC_NAME)")
   ACTUAL=$(echo $RESPONSE | jq .data.result[0].values[0][1] | tr -d \" | tr -d \')
   ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
@@ -110,7 +110,7 @@ function test_search {
   EXPECTED_HEADER=$2
   trap clean_headers EXIT
 
-   curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
+   curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" -H "M3-Limit-Require-Exhaustive: false" \
     "http://0.0.0.0:7201/api/v1/search?query=val:.*"
   ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
   test "$ACTUAL_HEADER" = "$EXPECTED_HEADER"
@@ -121,7 +121,7 @@ function test_labels {
   EXPECTED_HEADER=$2
   trap clean_headers EXIT
 
-   curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
+   curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" -H "M3-Limit-Require-Exhaustive: false" \
     "http://0.0.0.0:7201/api/v1/labels"
   ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
   test "$ACTUAL_HEADER" = "$EXPECTED_HEADER"
@@ -132,7 +132,7 @@ function test_match {
   EXPECTED=$2
   EXPECTED_HEADER=$3
   trap clean_headers EXIT
-  RESPONSE=$(curl -gsSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
+  RESPONSE=$(curl -gsSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" -H "M3-Limit-Require-Exhaustive: false" \
     "http://0.0.0.0:7201/api/v1/series?match[]=$METRIC_NAME")
 
   ACTUAL=$(echo $RESPONSE | jq '.data | length')
@@ -149,7 +149,7 @@ function test_label_values {
   EXPECTED_HEADER=$2
   trap clean_headers EXIT
 
-   curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
+   curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" -H "M3-Limit-Require-Exhaustive: false" \
     "http://0.0.0.0:7201/api/v1/label/val/values"
   ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
   test "$ACTUAL_HEADER" = "$EXPECTED_HEADER"
@@ -187,7 +187,7 @@ function render_carbon {
 
   start=$(($t))
   end=$(($start+200))
-  RESPONSE=$(curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
+  RESPONSE=$(curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" -H "M3-Limit-Require-Exhaustive:false" \
     "http://localhost:7201/api/v1/graphite/render?target=countSeries($GRAPHITE.*.*)&from=$start&until=$end")
   ACTUAL=$(echo $RESPONSE | jq .[0].datapoints[0][0])
   ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
@@ -200,7 +200,7 @@ function find_carbon {
   EXPECTED_HEADER=$2
   trap clean_headers EXIT
 
-  RESPONSE=$(curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
+  RESPONSE=$(curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" -H "M3-Limit-Require-Exhaustive: false" \
     "http://localhost:7201/api/v1/graphite/metrics/find?query=$GRAPHITE.*")
   ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
   test "$ACTUAL_HEADER" = "$EXPECTED_HEADER"
@@ -346,6 +346,54 @@ function test_fanout_warning_graphite {
   ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 9 max_fetch_series_limit_applied
 }
 
+function verify_range {
+  RANGE=$1
+  PORT=$2
+  EXPECTED=$3
+  start=$(( $t - 3000 ))
+  end=$(( $t + 3000 ))
+  qs="query=sum_over_time($METRIC_NAME[$RANGE])&start=$start&end=$end&step=1s"
+  query="http://0.0.0.0:$PORT/prometheus/api/v1/query_range?$qs"
+  curl -sSLg -D $HEADER_FILE "$query" > /dev/null
+  warn=$(cat $HEADER_FILE | grep M3-Results-Limited | sed 's/M3-Results-Limited: //g')
+  warn=$(echo $warn | sed 's/ /_/g')
+  test $warn=$EXPECTED
+}
+
+function test_fanout_warning_range {
+  t=$(date +%s)
+  METRIC_NAME="quart_$t"
+  curl -X POST 0.0.0.0:9003/writetagged -d '{
+    "namespace": "agg",
+    "id": "{__name__=\"'$METRIC_NAME'\",cluster=\"coordinator-cluster-a\",val=\"1\"}",
+    "tags": [
+      {
+        "name": "__name__",
+        "value": "'$METRIC_NAME'"
+      },
+      {
+        "name": "cluster",
+        "value": "coordinator-cluster-a"
+      },
+      {
+        "name": "val",
+        "value": "1"
+      }
+    ],
+    "datapoint": {
+      "timestamp":'"$t"',
+      "value": 1
+    }
+  }'
+
+
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff verify_range 1s 7201 resolution_larger_than_query_range_range:_1s,_resolutions:_5s
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff verify_range 1s 17201 resolution_larger_than_query_range_range:_1s,_resolutions:_5s
+  
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff verify_range 10s 7201
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff verify_range 10s 17201
+}
+
 function test_fanout_warning_missing_zone {
   docker-compose -f ${COMPOSE_FILE} stop coordinator-cluster-c
 
@@ -390,5 +438,6 @@ function test_fanout_warnings {
   test_fanout_warning_fetch_id_mismatch
   export GRAPHITE="foo.bar.$t"
   test_fanout_warning_graphite
+  test_fanout_warning_range
   test_fanout_warning_missing_zone
 }

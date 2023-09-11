@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/shard"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 const (
@@ -36,12 +37,11 @@ const (
 )
 
 var (
-	errNilPlacementProto          = errors.New("nil placement proto")
-	errNilPlacementSnapshotsProto = errors.New("nil placement snapshots proto")
-	errNilPlacementInstanceProto  = errors.New("nil placement instance proto")
-	errDuplicatedShards           = errors.New("invalid placement, there are duplicated shards in one replica")
-	errUnexpectedShards           = errors.New("invalid placement, there are unexpected shard ids on instance")
-	errMirrorNotSharded           = errors.New("invalid placement, mirrored placement must be sharded")
+	errNilPlacementProto         = errors.New("nil placement proto")
+	errNilPlacementInstanceProto = errors.New("nil placement instance proto")
+	errDuplicatedShards          = errors.New("invalid placement, there are duplicated shards in one replica")
+	errUnexpectedShards          = errors.New("invalid placement, there are unexpected shard ids on instance")
+	errMirrorNotSharded          = errors.New("invalid placement, mirrored placement must be sharded")
 )
 
 type placement struct {
@@ -242,54 +242,6 @@ func (p *placement) Clone() Placement {
 		SetVersion(p.Version())
 }
 
-// Placements represents a list of placements.
-type Placements []Placement
-
-// NewPlacementsFromProto creates a list of placements from proto.
-func NewPlacementsFromProto(p *placementpb.PlacementSnapshots) (Placements, error) {
-	if p == nil {
-		return nil, errNilPlacementSnapshotsProto
-	}
-
-	placements := make([]Placement, 0, len(p.Snapshots))
-	for _, snapshot := range p.Snapshots {
-		placement, err := NewPlacementFromProto(snapshot)
-		if err != nil {
-			return nil, err
-		}
-		placements = append(placements, placement)
-	}
-	sort.Sort(placementsByCutoverAsc(placements))
-	return placements, nil
-}
-
-// Proto converts a list of Placement to a proto.
-func (placements Placements) Proto() (*placementpb.PlacementSnapshots, error) {
-	snapshots := make([]*placementpb.Placement, 0, len(placements))
-	for _, p := range placements {
-		placementProto, err := p.Proto()
-		if err != nil {
-			return nil, err
-		}
-		snapshots = append(snapshots, placementProto)
-	}
-	return &placementpb.PlacementSnapshots{
-		Snapshots: snapshots,
-	}, nil
-}
-
-// ActiveIndex finds the index of the last placement whose cutover time is no
-// later than timeNanos (a.k.a. the active placement). Assuming the cutover times
-// of the placements are sorted in ascending order (i.e., earliest time first).
-func (placements Placements) ActiveIndex(timeNanos int64) int {
-	idx := 0
-	for idx < len(placements) && placements[idx].CutoverNanos() <= timeNanos {
-		idx++
-	}
-	idx--
-	return idx
-}
-
 // Validate validates a placement to ensure:
 // - The shards on each instance are in valid state.
 // - The total number of shards match rf * num_shards_per_replica.
@@ -297,6 +249,13 @@ func (placements Placements) ActiveIndex(timeNanos int64) int {
 // - There is one Initializing shard for each Leaving shard.
 // - The instances with same shard_set_id owns the same shards.
 func Validate(p Placement) error {
+	if err := validate(p); err != nil {
+		return xerrors.NewInvalidParamsError(err)
+	}
+	return nil
+}
+
+func validate(p Placement) error {
 	if p.IsMirrored() && !p.IsSharded() {
 		return errMirrorNotSharded
 	}
@@ -311,6 +270,7 @@ func Validate(p Placement) error {
 	totalLeaving := 0
 	totalInit := 0
 	totalInitWithSourceID := 0
+	instancesLeavingShardsWithMatchingInitShards := make(map[string]map[uint32]string)
 	maxShardSetID := p.MaxShardSetID()
 	instancesByShardSetID := make(map[uint32]Instance, p.NumInstances())
 	for _, instance := range p.Instances() {
@@ -340,8 +300,52 @@ func Validate(p Placement) error {
 				totalInit++
 				shardCountMap[s.ID()] = count + 1
 				totalCapacity++
-				if s.SourceID() != "" {
+				if sourceID := s.SourceID(); sourceID != "" {
 					totalInitWithSourceID++
+
+					// Check the instance.
+					leaving, ok := p.Instance(sourceID)
+					if !ok {
+						return fmt.Errorf(
+							"instance %s has initializing shard %d with "+
+								"source ID %s but no such instance in placement",
+							instance.ID(), s.ID(), sourceID)
+					}
+
+					// Check has leaving shard.
+					leavingShard, ok := leaving.Shards().Shard(s.ID())
+					if !ok {
+						return fmt.Errorf(
+							"instance %s has initializing shard %d with "+
+								"source ID %s but leaving instance has no such shard",
+							instance.ID(), s.ID(), sourceID)
+					}
+
+					// Check the shard is leaving.
+					if state := leavingShard.State(); state != shard.Leaving {
+						return fmt.Errorf(
+							"instance %s has initializing shard %d with "+
+								"source ID %s but leaving instance has shard with state %s",
+							instance.ID(), s.ID(), sourceID, state.String())
+					}
+
+					// Make sure does not get double matched.
+					matches, ok := instancesLeavingShardsWithMatchingInitShards[sourceID]
+					if !ok {
+						matches = make(map[uint32]string)
+						instancesLeavingShardsWithMatchingInitShards[sourceID] = matches
+					}
+
+					match, ok := matches[s.ID()]
+					if ok {
+						return fmt.Errorf(
+							"instance %s has initializing shard %d with "+
+								"source ID %s but leaving instance has shard already matched by %s",
+							instance.ID(), s.ID(), sourceID, match)
+					}
+
+					// Track that it's matched.
+					matches[s.ID()] = instance.ID()
 				}
 			case shard.Leaving:
 				totalLeaving++

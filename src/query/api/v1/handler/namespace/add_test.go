@@ -21,6 +21,7 @@
 package namespace
 
 import (
+	"errors"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -29,6 +30,8 @@ import (
 
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/query/api/v1/validators"
 	"github.com/m3db/m3/src/x/instrument"
 	xjson "github.com/m3db/m3/src/x/json"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -59,6 +62,15 @@ const testAddJSON = `
 			"indexOptions": {
 				"enabled": true,
 				"blockSizeNanos": 7200000000000
+			},
+			"stagingState": {
+				"status": "INITIALIZING"
+			},
+			"extendedOptions": {
+				"type": "testExtendedOptions",
+				"options": {
+					"value": "foo"
+				}
 			}
 		}
 }
@@ -69,7 +81,7 @@ func TestNamespaceAddHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
-	addHandler := NewAddHandler(mockClient, instrument.NewOptions())
+	addHandler := NewAddHandler(mockClient, instrument.NewOptions(), validators.NamespaceValidator)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
 	// Error case where required fields are not set
@@ -90,7 +102,9 @@ func TestNamespaceAddHandler(t *testing.T) {
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	assert.Equal(t, "{\"error\":\"unable to get metadata: retention options must be set\"}\n", string(body))
+	assert.JSONEq(t,
+		`{"status":"error","error":"bad namespace metadata: retention options must be set"}`,
+		string(body))
 
 	// Test good case. Note: there is no way to tell the difference between a boolean
 	// being false and it not being set by a user.
@@ -112,8 +126,9 @@ func TestNamespaceAddHandler(t *testing.T) {
 			"registry": xjson.Map{
 				"namespaces": xjson.Map{
 					"testNamespace": xjson.Map{
+						"aggregationOptions":    nil,
 						"bootstrapEnabled":      true,
-						"cacheBlocksOnRetrieve": true,
+						"cacheBlocksOnRetrieve": false,
 						"flushEnabled":          true,
 						"writesToCommitLog":     true,
 						"cleanupEnabled":        true,
@@ -128,6 +143,7 @@ func TestNamespaceAddHandler(t *testing.T) {
 							"futureRetentionPeriodNanos":               "0",
 						},
 						"snapshotEnabled": true,
+						"stagingState":    xjson.Map{"status": "INITIALIZING"},
 						"indexOptions": xjson.Map{
 							"enabled":        true,
 							"blockSizeNanos": "7200000000000",
@@ -135,6 +151,7 @@ func TestNamespaceAddHandler(t *testing.T) {
 						"runtimeOptions":    nil,
 						"schemaOptions":     nil,
 						"coldWritesEnabled": false,
+						"extendedOptions":   xtest.NewTestExtendedOptionsJSON("foo"),
 					},
 				},
 			},
@@ -151,7 +168,7 @@ func TestNamespaceAddHandler_Conflict(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
-	addHandler := NewAddHandler(mockClient, instrument.NewOptions())
+	addHandler := NewAddHandler(mockClient, instrument.NewOptions(), validators.NamespaceValidator)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
 	// Ensure adding an existing namespace returns 409
@@ -160,7 +177,7 @@ func TestNamespaceAddHandler_Conflict(t *testing.T) {
 
 	registry := nsproto.Registry{
 		Namespaces: map[string]*nsproto.NamespaceOptions{
-			"testNamespace": &nsproto.NamespaceOptions{
+			"testNamespace": {
 				BootstrapEnabled:  true,
 				FlushEnabled:      true,
 				SnapshotEnabled:   true,
@@ -188,4 +205,58 @@ func TestNamespaceAddHandler_Conflict(t *testing.T) {
 	addHandler.ServeHTTP(svcDefaults, w, req)
 	resp := w.Result()
 	assert.Equal(t, http.StatusConflict, resp.StatusCode)
+}
+
+func TestNamespaceAddHandler_InvokesNewNamespaceValidator(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, mockKV := setupNamespaceTest(t, ctrl)
+	validator := &testNamespaceValidator{}
+	addHandler := NewAddHandler(mockClient, instrument.NewOptions(), validator)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
+
+	req := httptest.NewRequest("POST", "/namespace", strings.NewReader(testAddJSON))
+	require.NotNil(t, req)
+
+	registry := nsproto.Registry{
+		Namespaces: map[string]*nsproto.NamespaceOptions{
+			"firstNamespace": {
+				BootstrapEnabled:  true,
+				FlushEnabled:      true,
+				SnapshotEnabled:   true,
+				WritesToCommitLog: true,
+				CleanupEnabled:    false,
+				RepairEnabled:     false,
+				RetentionOptions: &nsproto.RetentionOptions{
+					RetentionPeriodNanos:                     172800000000000,
+					BlockSizeNanos:                           7200000000000,
+					BufferFutureNanos:                        600000000000,
+					BufferPastNanos:                          600000000000,
+					BlockDataExpiry:                          true,
+					BlockDataExpiryAfterNotAccessPeriodNanos: 3600000000000,
+				},
+			},
+		},
+	}
+
+	mockValue := kv.NewMockValue(ctrl)
+	mockValue.EXPECT().Unmarshal(gomock.Any()).Return(nil).SetArg(0, registry)
+	mockValue.EXPECT().Version().Return(0)
+	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(mockValue, nil)
+
+	w := httptest.NewRecorder()
+	addHandler.ServeHTTP(svcDefaults, w, req)
+	resp := w.Result()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	assert.Equal(t, 1, validator.invocationCount)
+}
+
+type testNamespaceValidator struct {
+	invocationCount int
+}
+
+func (v *testNamespaceValidator) ValidateNewNamespace(namespace.Metadata, []namespace.Metadata) error {
+	v.invocationCount++
+	return errors.New("expected validation error")
 }

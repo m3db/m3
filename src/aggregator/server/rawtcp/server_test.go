@@ -21,15 +21,16 @@
 package rawtcp
 
 import (
+	"errors"
 	"net"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/aggregator/capture"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/encoding"
-	"github.com/m3db/m3/src/metrics/encoding/msgpack"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
@@ -38,13 +39,20 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
 	xserver "github.com/m3db/m3/src/x/server"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 const (
@@ -141,11 +149,7 @@ var (
 		SourceID:          1234,
 		NumForwardedTimes: 3,
 	}
-	testPassthroughStoragePolicy = policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour)
-	testCounterWithPoliciesList = unaggregated.CounterWithPoliciesList{
-		Counter:      testCounter.Counter(),
-		PoliciesList: testDefaultPoliciesList,
-	}
+	testPassthroughStoragePolicy   = policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour)
 	testBatchTimerWithPoliciesList = unaggregated.BatchTimerWithPoliciesList{
 		BatchTimer:   testBatchTimer.BatchTimer(),
 		PoliciesList: testCustomPoliciesList,
@@ -170,6 +174,10 @@ var (
 		Metric:        testTimed,
 		TimedMetadata: testTimedMetadata,
 	}
+	testTimedMetricWithMetadatas = aggregated.TimedMetricWithMetadatas{
+		Metric:          testTimed,
+		StagedMetadatas: testDefaultMetadatas,
+	}
 	testForwardedMetricWithMetadata = aggregated.ForwardedMetricWithMetadata{
 		ForwardedMetric: testForwarded,
 		ForwardMetadata: testForwardMetadata,
@@ -184,27 +192,7 @@ var (
 	}
 )
 
-func TestRawTCPServerHandleUnaggregatedMsgpackEncoding(t *testing.T) {
-	testRawTCPServerHandleUnaggregated(t, func(int) encodingProtocol { return msgpackEncoding })
-}
-
 func TestRawTCPServerHandleUnaggregatedProtobufEncoding(t *testing.T) {
-	testRawTCPServerHandleUnaggregated(t, func(int) encodingProtocol { return protobufEncoding })
-}
-
-func TestRawTCPServerHandleUnaggregatedMixedEncoding(t *testing.T) {
-	testRawTCPServerHandleUnaggregated(t, func(workerID int) encodingProtocol {
-		if workerID%2 == 0 {
-			return msgpackEncoding
-		}
-		return protobufEncoding
-	})
-}
-
-func testRawTCPServerHandleUnaggregated(
-	t *testing.T,
-	protocolSelector func(int) encodingProtocol,
-) {
 	agg := capture.NewAggregator()
 	h := NewHandler(agg, testServerOptions())
 
@@ -224,23 +212,16 @@ func testRawTCPServerHandleUnaggregated(
 	// Now establish multiple connections and send data to the server.
 	var expectedTotalMetrics int
 	for i := 0; i < numClients; i++ {
-		i := i
 		wgClient.Add(1)
 
 		// Add test metrics to expected result.
 		expectedResult.CountersWithMetadatas = append(expectedResult.CountersWithMetadatas, testCounterWithMetadatas)
 		expectedResult.BatchTimersWithMetadatas = append(expectedResult.BatchTimersWithMetadatas, testBatchTimerWithMetadatas)
 		expectedResult.GaugesWithMetadatas = append(expectedResult.GaugesWithMetadatas, testGaugeWithMetadatas)
-
-		protocol := protocolSelector(i)
-		if protocol == protobufEncoding {
-			expectedResult.TimedMetricWithMetadata = append(expectedResult.TimedMetricWithMetadata, testTimedMetricWithMetadata)
-			expectedResult.PassthroughMetricWithMetadata = append(expectedResult.PassthroughMetricWithMetadata, testPassthroughMetricWithMetadata)
-			expectedResult.ForwardedMetricsWithMetadata = append(expectedResult.ForwardedMetricsWithMetadata, testForwardedMetricWithMetadata)
-			expectedTotalMetrics += 5
-		} else {
-			expectedTotalMetrics += 3
-		}
+		expectedResult.TimedMetricWithMetadata = append(expectedResult.TimedMetricWithMetadata, testTimedMetricWithMetadata)
+		expectedResult.PassthroughMetricWithMetadata = append(expectedResult.PassthroughMetricWithMetadata, testPassthroughMetricWithMetadata)
+		expectedResult.ForwardedMetricsWithMetadata = append(expectedResult.ForwardedMetricsWithMetadata, testForwardedMetricWithMetadata)
+		expectedTotalMetrics += 5
 
 		go func() {
 			defer wgClient.Done()
@@ -248,44 +229,33 @@ func testRawTCPServerHandleUnaggregated(
 			conn, err := net.Dial("tcp", listener.Addr().String())
 			require.NoError(t, err)
 
-			var stream []byte
-			switch protocol {
-			case msgpackEncoding:
-				encoder := msgpack.NewUnaggregatedEncoder(msgpack.NewPooledBufferedEncoder(nil))
-				require.NoError(t, encoder.EncodeCounterWithPoliciesList(testCounterWithPoliciesList))
-				require.NoError(t, encoder.EncodeBatchTimerWithPoliciesList(testBatchTimerWithPoliciesList))
-				require.NoError(t, encoder.EncodeGaugeWithPoliciesList(testGaugeWithPoliciesList))
-				stream = encoder.Encoder().Bytes()
-			case protobufEncoding:
-				encoder := protobuf.NewUnaggregatedEncoder(protobuf.NewUnaggregatedOptions())
-				require.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
-					Type:                 encoding.CounterWithMetadatasType,
-					CounterWithMetadatas: testCounterWithMetadatas,
-				}))
-				require.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
-					Type: encoding.BatchTimerWithMetadatasType,
-					BatchTimerWithMetadatas: testBatchTimerWithMetadatas,
-				}))
-				require.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
-					Type:               encoding.GaugeWithMetadatasType,
-					GaugeWithMetadatas: testGaugeWithMetadatas,
-				}))
-				require.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
-					Type: encoding.TimedMetricWithMetadataType,
-					TimedMetricWithMetadata: testTimedMetricWithMetadata,
-				}))
-				require.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
-					Type: encoding.PassthroughMetricWithMetadataType,
-					PassthroughMetricWithMetadata: testPassthroughMetricWithMetadata,
-				}))
-				require.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
-					Type: encoding.ForwardedMetricWithMetadataType,
-					ForwardedMetricWithMetadata: testForwardedMetricWithMetadata,
-				}))
-				buf := encoder.Relinquish()
-				stream = buf.Bytes()
-			}
-			_, err = conn.Write(stream)
+			encoder := protobuf.NewUnaggregatedEncoder(protobuf.NewUnaggregatedOptions())
+			require.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
+				Type:                 encoding.CounterWithMetadatasType,
+				CounterWithMetadatas: testCounterWithMetadatas,
+			}))
+			require.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
+				Type:                    encoding.BatchTimerWithMetadatasType,
+				BatchTimerWithMetadatas: testBatchTimerWithMetadatas,
+			}))
+			require.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
+				Type:               encoding.GaugeWithMetadatasType,
+				GaugeWithMetadatas: testGaugeWithMetadatas,
+			}))
+			require.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
+				Type:                    encoding.TimedMetricWithMetadataType,
+				TimedMetricWithMetadata: testTimedMetricWithMetadata,
+			}))
+			require.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
+				Type:                          encoding.PassthroughMetricWithMetadataType,
+				PassthroughMetricWithMetadata: testPassthroughMetricWithMetadata,
+			}))
+			require.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
+				Type:                        encoding.ForwardedMetricWithMetadataType,
+				ForwardedMetricWithMetadata: testForwardedMetricWithMetadata,
+			}))
+
+			_, err = conn.Write(encoder.Relinquish().Bytes())
 			require.NoError(t, err)
 		}()
 	}
@@ -304,16 +274,117 @@ func testRawTCPServerHandleUnaggregated(
 	require.True(t, cmp.Equal(expectedResult, snapshot, testCmpOpts...), expectedResult, snapshot)
 }
 
+func TestHandle_Errors(t *testing.T) {
+	cases := []struct {
+		name   string
+		msg    encoding.UnaggregatedMessageUnion
+		logMsg string
+	}{
+		{
+			name: "timed with staged metadata",
+			msg: encoding.UnaggregatedMessageUnion{
+				Type:                     encoding.TimedMetricWithMetadatasType,
+				TimedMetricWithMetadatas: testTimedMetricWithMetadatas,
+			},
+			logMsg: "error adding timed metric",
+		},
+		{
+			name: "timed with metadata",
+			msg: encoding.UnaggregatedMessageUnion{
+				Type:                    encoding.TimedMetricWithMetadataType,
+				TimedMetricWithMetadata: testTimedMetricWithMetadata,
+			},
+			logMsg: "error adding timed metric",
+		},
+		{
+			name: "gauge untimed",
+			msg: encoding.UnaggregatedMessageUnion{
+				Type:               encoding.GaugeWithMetadatasType,
+				GaugeWithMetadatas: testGaugeWithMetadatas,
+			},
+			logMsg: "error adding untimed metric",
+		},
+		{
+			name: "counter untimed",
+			msg: encoding.UnaggregatedMessageUnion{
+				Type:                 encoding.CounterWithMetadatasType,
+				CounterWithMetadatas: testCounterWithMetadatas,
+			},
+			logMsg: "error adding untimed metric",
+		},
+		{
+			name: "timer untimed",
+			msg: encoding.UnaggregatedMessageUnion{
+				Type:                    encoding.BatchTimerWithMetadatasType,
+				BatchTimerWithMetadatas: testBatchTimerWithMetadatas,
+			},
+			logMsg: "error adding untimed metric",
+		},
+		{
+			name: "forward",
+			msg: encoding.UnaggregatedMessageUnion{
+				Type:                        encoding.ForwardedMetricWithMetadataType,
+				ForwardedMetricWithMetadata: testForwardedMetricWithMetadata,
+			},
+			logMsg: "error adding forwarded metric",
+		},
+		{
+			name: "passthrough",
+			msg: encoding.UnaggregatedMessageUnion{
+				Type:                          encoding.PassthroughMetricWithMetadataType,
+				PassthroughMetricWithMetadata: testPassthroughMetricWithMetadata,
+			},
+			logMsg: "error adding passthrough metric",
+		},
+	}
+
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+	agg := aggregator.NewMockAggregator(ctrl)
+
+	aggErr := errors.New("boom")
+	agg.EXPECT().AddTimedWithStagedMetadatas(gomock.Any(), gomock.Any()).Return(aggErr).AnyTimes()
+	agg.EXPECT().AddUntimed(gomock.Any(), gomock.Any()).Return(aggErr).AnyTimes()
+	agg.EXPECT().AddForwarded(gomock.Any(), gomock.Any()).Return(aggErr).AnyTimes()
+	agg.EXPECT().AddTimed(gomock.Any(), gomock.Any()).Return(aggErr).AnyTimes()
+	agg.EXPECT().AddPassthrough(gomock.Any(), gomock.Any()).Return(aggErr).AnyTimes()
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			core, recorded := observer.New(zapcore.InfoLevel)
+			listener, err := net.Listen("tcp", testListenAddress)
+			require.NoError(t, err)
+
+			h := NewHandler(agg, testServerOptions().SetInstrumentOptions(instrument.NewOptions().
+				SetLogger(zap.New(core))))
+			s := xserver.NewServer(testListenAddress, h, xserver.NewOptions())
+			// Start server.
+			require.NoError(t, s.Serve(listener))
+
+			conn, err := net.Dial("tcp", listener.Addr().String())
+			encoder := protobuf.NewUnaggregatedEncoder(protobuf.NewUnaggregatedOptions())
+			require.NoError(t, err)
+
+			require.NoError(t, encoder.EncodeMessage(tc.msg))
+
+			_, err = conn.Write(encoder.Relinquish().Bytes())
+			require.NoError(t, err)
+			res := clock.WaitUntil(func() bool {
+				return len(recorded.FilterMessage(tc.logMsg).All()) == 1
+			}, time.Second*5)
+			if !res {
+				require.Fail(t,
+					"failed to find expected log message",
+					"expected=%v logs=%v", tc.logMsg, recorded.All())
+			}
+		})
+	}
+}
+
 func testServerOptions() Options {
 	opts := NewOptions()
 	instrumentOpts := opts.InstrumentOptions().SetReportInterval(time.Second)
 	serverOpts := xserver.NewOptions().SetRetryOptions(retry.NewOptions().SetMaxRetries(2))
 	return opts.SetInstrumentOptions(instrumentOpts).SetServerOptions(serverOpts)
 }
-
-type encodingProtocol int
-
-const (
-	msgpackEncoding encodingProtocol = iota
-	protobufEncoding
-)

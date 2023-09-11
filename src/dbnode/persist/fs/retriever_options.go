@@ -33,8 +33,8 @@ import (
 
 var (
 	// Allow max concurrency to match available CPUs.
-	defaultFetchConcurrency = runtime.NumCPU()
-	defaultCacheOnRetrieve  = true
+	defaultFetchConcurrency = runtime.GOMAXPROCS(0)
+	defaultCacheOnRetrieve  = false
 
 	errBlockLeaseManagerNotSet = errors.New("block lease manager is not set")
 )
@@ -52,7 +52,7 @@ type blockRetrieverOptions struct {
 // NewBlockRetrieverOptions creates a new set of block retriever options
 func NewBlockRetrieverOptions() BlockRetrieverOptions {
 	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{
-		pool.Bucket{Count: 4096, Capacity: 128},
+		{Count: 4096, Capacity: 128},
 	}, nil, func(s []pool.Bucket) pool.BytesPool {
 		return pool.NewBytesPool(s, nil)
 	})

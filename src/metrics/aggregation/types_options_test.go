@@ -449,32 +449,8 @@ func validateQuantiles(t *testing.T, o TypesOptions) {
 }
 
 func typeStrings(overrides map[Type][]byte) [][]byte {
-	defaultTypeStrings := map[Type][]byte{
-		Last:   []byte("last"),
-		Min:    []byte("lower"),
-		Max:    []byte("upper"),
-		Mean:   []byte("mean"),
-		Median: []byte("median"),
-		Count:  []byte("count"),
-		Sum:    []byte("sum"),
-		SumSq:  []byte("sum_sq"),
-		Stdev:  []byte("stdev"),
-		P10:    []byte("p10"),
-		P20:    []byte("p20"),
-		P30:    []byte("p30"),
-		P40:    []byte("p40"),
-		P50:    []byte("p50"),
-		P60:    []byte("p60"),
-		P70:    []byte("p70"),
-		P80:    []byte("p80"),
-		P90:    []byte("p90"),
-		P95:    []byte("p95"),
-		P99:    []byte("p99"),
-		P999:   []byte("p999"),
-		P9999:  []byte("p9999"),
-	}
 	res := make([][]byte, maxTypeID+1)
-	for t, bstr := range defaultTypeStrings {
+	for t, bstr := range typeStringNames {
 		if override, exist := overrides[t]; exist {
 			res[t.ID()] = override
 			continue

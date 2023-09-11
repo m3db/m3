@@ -20,7 +20,11 @@
 
 package config
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/m3db/m3/src/x/pool"
+)
 
 // PoolingType is a type of pooling, using runtime or mmap'd bytes pooling.
 type PoolingType string
@@ -30,16 +34,14 @@ const (
 	SimplePooling PoolingType = "simple"
 
 	defaultPoolingType = SimplePooling
+
+	defaultBlockAllocSize = 16
 )
 
-const (
-	defaultMaxFinalizerCapacity     = 4
-	defaultBlockAllocSize           = 16
-	defaultThriftBytesPoolAllocSize = 2048
-)
+var defaultThriftBytesPoolAllocSizes = []int{16, 64, 256, 512, 1024, 2048}
 
 type poolPolicyDefault struct {
-	size                int
+	size                pool.Size
 	refillLowWaterMark  float64
 	refillHighWaterMark float64
 
@@ -214,7 +216,7 @@ var (
 				{
 					Capacity: intPtr(16),
 					PoolPolicy: PoolPolicy{
-						Size:                intPtr(524288),
+						Size:                poolSizePtr(524288),
 						RefillLowWaterMark:  &defaultRefillLowWaterMark,
 						RefillHighWaterMark: &defaultRefillHighWaterMark,
 					},
@@ -222,7 +224,7 @@ var (
 				{
 					Capacity: intPtr(32),
 					PoolPolicy: PoolPolicy{
-						Size:                intPtr(262144),
+						Size:                poolSizePtr(262144),
 						RefillLowWaterMark:  &defaultRefillLowWaterMark,
 						RefillHighWaterMark: &defaultRefillHighWaterMark,
 					},
@@ -230,7 +232,7 @@ var (
 				{
 					Capacity: intPtr(64),
 					PoolPolicy: PoolPolicy{
-						Size:                intPtr(131072),
+						Size:                poolSizePtr(131072),
 						RefillLowWaterMark:  &defaultRefillLowWaterMark,
 						RefillHighWaterMark: &defaultRefillHighWaterMark,
 					},
@@ -238,7 +240,7 @@ var (
 				{
 					Capacity: intPtr(128),
 					PoolPolicy: PoolPolicy{
-						Size:                intPtr(65536),
+						Size:                poolSizePtr(65536),
 						RefillLowWaterMark:  &defaultRefillLowWaterMark,
 						RefillHighWaterMark: &defaultRefillHighWaterMark,
 					},
@@ -246,7 +248,7 @@ var (
 				{
 					Capacity: intPtr(256),
 					PoolPolicy: PoolPolicy{
-						Size:                intPtr(65536),
+						Size:                poolSizePtr(65536),
 						RefillLowWaterMark:  &defaultRefillLowWaterMark,
 						RefillHighWaterMark: &defaultRefillHighWaterMark,
 					},
@@ -254,7 +256,7 @@ var (
 				{
 					Capacity: intPtr(1440),
 					PoolPolicy: PoolPolicy{
-						Size:                intPtr(16384),
+						Size:                poolSizePtr(16384),
 						RefillLowWaterMark:  &defaultRefillLowWaterMark,
 						RefillHighWaterMark: &defaultRefillHighWaterMark,
 					},
@@ -262,7 +264,7 @@ var (
 				{
 					Capacity: intPtr(4096),
 					PoolPolicy: PoolPolicy{
-						Size:                intPtr(8192),
+						Size:                poolSizePtr(8192),
 						RefillLowWaterMark:  &defaultRefillLowWaterMark,
 						RefillHighWaterMark: &defaultRefillHighWaterMark,
 					},
@@ -463,14 +465,14 @@ func (p *PoolingPolicy) BlockAllocSizeOrDefault() int {
 	return defaultBlockAllocSize
 }
 
-// ThriftBytesPoolAllocSizeOrDefault returns the configured thrift bytes pool
+// ThriftBytesPoolAllocSizesOrDefault returns the configured thrift bytes pool
 // max alloc size if provided, or a default value otherwise.
-func (p *PoolingPolicy) ThriftBytesPoolAllocSizeOrDefault() int {
+func (p *PoolingPolicy) ThriftBytesPoolAllocSizesOrDefault() []int {
 	if p.ThriftBytesPoolAllocSize != nil {
-		return *p.ThriftBytesPoolAllocSize
+		return []int{*p.ThriftBytesPoolAllocSize}
 	}
 
-	return defaultThriftBytesPoolAllocSize
+	return defaultThriftBytesPoolAllocSizes
 }
 
 // TypeOrDefault returns the configured pooling type if provided, or a default
@@ -486,7 +488,7 @@ func (p *PoolingPolicy) TypeOrDefault() PoolingType {
 // PoolPolicy specifies a single pool policy.
 type PoolPolicy struct {
 	// The size of the pool.
-	Size *int `yaml:"size"`
+	Size *pool.Size `yaml:"size"`
 
 	// The low watermark to start refilling the pool, if zero none.
 	RefillLowWaterMark *float64 `yaml:"lowWatermark"`
@@ -525,7 +527,7 @@ func (p *PoolPolicy) initDefaultsAndValidate(poolName string) error {
 }
 
 // SizeOrDefault returns the configured size if present, or a default value otherwise.
-func (p *PoolPolicy) SizeOrDefault() int {
+func (p *PoolPolicy) SizeOrDefault() pool.Size {
 	return *p.Size
 }
 
@@ -667,4 +669,9 @@ type WriteBatchPoolPolicy struct {
 
 func intPtr(x int) *int {
 	return &x
+}
+
+func poolSizePtr(x int) *pool.Size {
+	sz := pool.Size(x)
+	return &sz
 }

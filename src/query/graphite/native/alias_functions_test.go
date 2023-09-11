@@ -25,8 +25,11 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/graphite/common"
+	"github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	xgomock "github.com/m3db/m3/src/x/test"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -47,8 +50,7 @@ func TestAlias(t *testing.T) {
 	results, err := alias(nil, singlePathSpec{
 		Values: series,
 	}, a)
-	require.Nil(t, err)
-	require.NotNil(t, results)
+	require.NoError(t, err)
 	require.Equal(t, len(series), results.Len())
 	for _, s := range results.Values {
 		assert.Equal(t, a, s.Name())
@@ -123,7 +125,7 @@ func TestAliasSubWithBackReferences(t *testing.T) {
 	}, input.pattern, input.replace)
 	require.NoError(t, err)
 	expected := []common.TestSeries{
-		common.TestSeries{Name: input.expected, Data: values},
+		{Name: input.expected, Data: values},
 	}
 	common.CompareOutputsAndExpected(t, 1000, now, expected, results.Values)
 
@@ -145,14 +147,13 @@ func TestAliasByMetric(t *testing.T) {
 		ts.NewSeries(ctx, "foo.bar.baz.foo01-foo.writes.success", now, values),
 		ts.NewSeries(ctx, "foo.bar.baz.foo02-foo.writes.success.P99", now, values),
 		ts.NewSeries(ctx, "foo.bar.baz.foo03-foo.writes.success.P75", now, values),
-		ts.NewSeries(ctx, "scale(stats.foobar.gauges.quazqux.latency_minutes.foo, 60.123))", now, values),
+		ts.NewSeries(ctx, "scale(stats.foobar.gauges.quazqux.latency_minutes.foo, 60.123)", now, values),
 	}
 
 	results, err := aliasByMetric(ctx, singlePathSpec{
 		Values: series,
 	})
-	require.Nil(t, err)
-	require.NotNil(t, results)
+	require.NoError(t, err)
 	require.Equal(t, len(series), len(results.Values))
 	assert.Equal(t, "success", results.Values[0].Name())
 	assert.Equal(t, "P99", results.Values[1].Name())
@@ -176,8 +177,7 @@ func TestAliasByNode(t *testing.T) {
 	results, err := aliasByNode(ctx, singlePathSpec{
 		Values: series,
 	}, 3, 5, 6)
-	require.Nil(t, err)
-	require.NotNil(t, results)
+	require.NoError(t, err)
 	require.Equal(t, len(series), results.Len())
 	assert.Equal(t, "foo01-foo.success", results.Values[0].Name())
 	assert.Equal(t, "foo02-foo.success.P99", results.Values[1].Name())
@@ -186,8 +186,7 @@ func TestAliasByNode(t *testing.T) {
 	results, err = aliasByNode(nil, singlePathSpec{
 		Values: series,
 	}, -1)
-	require.Nil(t, err)
-	require.NotNil(t, results)
+	require.NoError(t, err)
 	require.Equal(t, len(series), results.Len())
 	assert.Equal(t, "success", results.Values[0].Name())
 	assert.Equal(t, "P99", results.Values[1].Name())
@@ -203,17 +202,178 @@ func TestAliasByNodeWithComposition(t *testing.T) {
 	series := []*ts.Series{
 		ts.NewSeries(ctx, "derivative(servers.bob02-foo.cpu.load_5)", now, values),
 		ts.NewSeries(ctx, "derivative(derivative(servers.bob02-foo.cpu.load_5))", now, values),
-		ts.NewSeries(ctx, "~~~", now, values),
-		ts.NewSeries(ctx, "", now, values),
+		ts.NewSeries(ctx, "fooble", now, values),
 	}
 	results, err := aliasByNode(ctx, singlePathSpec{
 		Values: series,
 	}, 0, 1)
-	require.Nil(t, err)
-	require.NotNil(t, results)
+	require.NoError(t, err)
 	require.Equal(t, len(series), results.Len())
 	assert.Equal(t, "servers.bob02-foo", results.Values[0].Name())
 	assert.Equal(t, "servers.bob02-foo", results.Values[1].Name())
-	assert.Equal(t, "~~~", results.Values[2].Name())
-	assert.Equal(t, "", results.Values[3].Name())
+	assert.Equal(t, "fooble", results.Values[2].Name())
+}
+
+func TestAliasByNodeWithManyPathExpressions(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer func() { _ = ctx.Close() }()
+
+	now := time.Now()
+	values := ts.NewConstantValues(ctx, 10.0, 1000, 10)
+	series := []*ts.Series{
+		ts.NewSeries(ctx, "sumSeries(servers.bob02-foo.cpu.load_5,servers.bob01-foo.cpu.load_5)", now, values),
+		ts.NewSeries(ctx, "sumSeries(sumSeries(servers.bob04-foo.cpu.load_5,servers.bob03-foo.cpu.load_5))", now, values),
+	}
+	results, err := aliasByNode(ctx, singlePathSpec{
+		Values: series,
+	}, 0, 1)
+	require.NoError(t, err)
+	require.Equal(t, len(series), results.Len())
+	assert.Equal(t, "servers.bob02-foo", results.Values[0].Name())
+	assert.Equal(t, "servers.bob04-foo", results.Values[1].Name())
+}
+
+func TestAliasByNodeWitCallSubExpressions(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer func() { _ = ctx.Close() }()
+
+	now := time.Now()
+	values := ts.NewConstantValues(ctx, 10.0, 1000, 10)
+	series := []*ts.Series{
+		ts.NewSeries(ctx, "asPercent(foo01,sumSeries(bar,baz))", now, values),
+		ts.NewSeries(ctx, "asPercent(foo02,sumSeries(bar,baz))", now, values),
+	}
+	results, err := aliasByNode(ctx, singlePathSpec{
+		Values: series,
+	}, 0)
+	require.NoError(t, err)
+	require.Equal(t, len(series), results.Len())
+	assert.Equal(t, "foo01", results.Values[0].Name())
+	assert.Equal(t, "foo02", results.Values[1].Name())
+}
+
+// TestAliasByNodeAndTimeShift tests that the output of timeshift properly
+// quotes the time shift arg so that it appears as a string and can be used to find
+// the inner path expression without failing compilation when aliasByNode finds the
+// first path element.
+// nolint: dupl
+func TestAliasByNodeAndTimeShift(t *testing.T) {
+	ctrl := xgomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := storage.NewMockStorage(ctrl)
+
+	engine := NewEngine(store, CompileOptions{})
+
+	ctx := common.NewContext(common.ContextOptions{Start: time.Now().Add(-1 * time.Hour), End: time.Now(), Engine: engine})
+
+	stepSize := int((10 * time.Minute) / time.Millisecond)
+	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize, "foo.bar.q.zed", "foo.bar.g.zed",
+			"foo.bar.x.zed"))
+
+	expr, err := engine.Compile("aliasByNode(timeShift(foo.bar.*.zed,'-7d'), 2)")
+	require.NoError(t, err)
+
+	_, err = expr.Execute(ctx)
+	require.NoError(t, err)
+}
+
+// TestAliasByNodeAndPatternThatMatchesFunctionName test the case where the
+// return of a sub-expression ends up as a function name (i.e. identity) but
+// is not a function call it's simply a pattern returned from result of
+// something like groupByNodes.
+// nolint: dupl
+func TestAliasByNodeAndPatternThatMatchesFunctionName(t *testing.T) {
+	ctrl := xgomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := storage.NewMockStorage(ctrl)
+
+	engine := NewEngine(store, CompileOptions{})
+
+	ctx := common.NewContext(common.ContextOptions{Start: time.Now().Add(-1 * time.Hour), End: time.Now(), Engine: engine})
+
+	stepSize := int((10 * time.Minute) / time.Millisecond)
+	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize,
+			"foo.bar.a.zed",
+			"foo.bar.b.zed",
+			"foo.bar.identity.zed",
+		))
+
+	expr, err := engine.Compile("aliasByNode(summarize(groupByNode(foo.bar.*.zed, 2, 'average'), '5min', 'avg'), 0)")
+	require.NoError(t, err)
+
+	_, err = expr.Execute(ctx)
+	require.NoError(t, err)
+}
+
+// TestGroupByNodeAndAliasMetric tests the case when compiling an identifier
+// immediately in groupByNode when doing meta series grouping and finding the
+// first inner metrics path.
+// It tries to compile as function call but needs to back out when if a function
+// matches but it's actually just a pattern instead.
+// nolint: dupl
+func TestGroupByNodeAndAliasMetric(t *testing.T) {
+	ctrl := xgomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := storage.NewMockStorage(ctrl)
+
+	engine := NewEngine(store, CompileOptions{})
+
+	ctx := common.NewContext(common.ContextOptions{Start: time.Now().Add(-1 * time.Hour), End: time.Now(), Engine: engine})
+
+	stepSize := int((10 * time.Minute) / time.Millisecond)
+	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize,
+			"handler.rpc.foo.request.lat.p95",
+			"handler.rpc.foo.request.lat.max",
+			"handler.rpc.foo.request.lat.mean",
+		))
+
+	expr, err := engine.Compile("groupByNode(aliasByMetric(handler.rpc.*.request.lat.{p*,max,mean}), -1, 'max')")
+	require.NoError(t, err)
+
+	_, err = expr.Execute(ctx)
+	require.NoError(t, err)
+}
+
+// TestGroupByNodeAndAliasSubAndScopeMetric ensures that partial expressions
+// that should not be able to be successfully compiled can still have their path
+// expression extracted for use in functions like groupByNode.
+// nolint: dupl
+func TestGroupByNodeAndAliasSubAndScopeMetric(t *testing.T) {
+	ctrl := xgomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := storage.NewMockStorage(ctrl)
+
+	engine := NewEngine(store, CompileOptions{})
+
+	ctx := common.NewContext(common.ContextOptions{Start: time.Now().Add(-1 * time.Hour), End: time.Now(), Engine: engine})
+
+	stepSize := int((10 * time.Minute) / time.Millisecond)
+	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize,
+			"foo.bar.a.zed",
+			"foo.bar.b.zed",
+		))
+
+	// Note: After the aliasSub call the result will be "a.zed,0.1)" and "b.zed,0.1)"
+	// for each series name, this test ensures that partial expressions can still
+	// successfully have their first fetch expression extracted.
+	expr, err := engine.Compile("groupByNode(aliasSub(scale(foo.bar.*.zed, 0.1), \".*bar.(.*)\", '\\1'),0)")
+	require.NoError(t, err)
+
+	seriesList, err := expr.Execute(ctx)
+	require.NoError(t, err)
+
+	require.Equal(t, 2, seriesList.Len())
+	// Sort before check names.
+	seriesList, err = sortByName(ctx, singlePathSpec(seriesList), false, false)
+	require.NoError(t, err)
+	require.Equal(t, seriesList.Values[0].Name(), "a")
+	require.Equal(t, seriesList.Values[1].Name(), "b")
 }

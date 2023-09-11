@@ -302,7 +302,7 @@ clear
 #  {} 3600
 
 
-# Tests for clamp_max and clamp_min().
+# Tests for clamp_max, clamp_min(), and clamp().
 load 5m
 	test_clamp{src="clamp-a"}	-50
 	test_clamp{src="clamp-b"}	0
@@ -318,6 +318,10 @@ eval instant at 0m clamp_min(test_clamp, -25)
 	{src="clamp-b"}	0
 	{src="clamp-c"}	100
 
+#eval instant at 0m clamp(test_clamp, -25, 75)
+#	{src="clamp-a"}	-25
+#	{src="clamp-c"}	75
+
 eval instant at 0m clamp_max(clamp_min(test_clamp, -20), 70)
 	{src="clamp-a"}	-20
 	{src="clamp-b"}	0
@@ -328,6 +332,34 @@ eval instant at 0m clamp_max((clamp_min(test_clamp, (-20))), (70))
 	{src="clamp-b"}	0
 	{src="clamp-c"}	70
 
+#eval instant at 0m clamp(test_clamp, 0, NaN)
+#	{src="clamp-b"}	NaN
+#	{src="clamp-c"}	NaN
+
+#eval instant at 0m clamp(test_clamp, NaN, 0)
+#	{src="clamp-a"}	NaN
+#	{src="clamp-b"}	NaN
+#	{src="clamp-c"}	NaN
+
+#eval instant at 0m clamp(test_clamp, 5, -5)
+
+# Test cases for sgn.
+#clear
+#load 5m
+#	test_sgn{src="sgn-a"}	-Inf
+#	test_sgn{src="sgn-b"}	Inf
+#	test_sgn{src="sgn-c"}	NaN
+#	test_sgn{src="sgn-d"}	-50
+#	test_sgn{src="sgn-e"}	0
+#	test_sgn{src="sgn-f"}	100
+
+#eval instant at 0m sgn(test_sgn)
+#	{src="sgn-a"}	-1
+#	{src="sgn-b"}	1
+#	{src="sgn-c"}	NaN
+#	{src="sgn-d"}	-1
+#	{src="sgn-e"}	0
+#	{src="sgn-f"}	1
 
 # Tests for sort/sort_desc.
 clear
@@ -342,28 +374,27 @@ load 5m
 	http_requests{job="app-server", instance="0", group="canary"}		0+70x10
 	http_requests{job="app-server", instance="1", group="canary"}		0+80x10
 
-# FAILING issue #28:
-#eval_ordered instant at 50m sort(http_requests)
-#	http_requests{group="production", instance="0", job="api-server"} 100
-#	http_requests{group="production", instance="1", job="api-server"} 200
-#	http_requests{group="canary", instance="0", job="api-server"} 300
-#	http_requests{group="canary", instance="1", job="api-server"} 400
-#	http_requests{group="production", instance="0", job="app-server"} 500
-#	http_requests{group="production", instance="1", job="app-server"} 600
-#	http_requests{group="canary", instance="0", job="app-server"} 700
-#	http_requests{group="canary", instance="1", job="app-server"} 800
-#	http_requests{group="canary", instance="2", job="api-server"} NaN
+eval_ordered instant at 50m sort(http_requests)
+	http_requests{group="production", instance="0", job="api-server"} 100
+	http_requests{group="production", instance="1", job="api-server"} 200
+	http_requests{group="canary", instance="0", job="api-server"} 300
+	http_requests{group="canary", instance="1", job="api-server"} 400
+	http_requests{group="production", instance="0", job="app-server"} 500
+	http_requests{group="production", instance="1", job="app-server"} 600
+	http_requests{group="canary", instance="0", job="app-server"} 700
+	http_requests{group="canary", instance="1", job="app-server"} 800
+	http_requests{group="canary", instance="2", job="api-server"} NaN
 
-#eval_ordered instant at 50m sort_desc(http_requests)
-#	http_requests{group="canary", instance="1", job="app-server"} 800
-#	http_requests{group="canary", instance="0", job="app-server"} 700
-#	http_requests{group="production", instance="1", job="app-server"} 600
-#	http_requests{group="production", instance="0", job="app-server"} 500
-#	http_requests{group="canary", instance="1", job="api-server"} 400
-#	http_requests{group="canary", instance="0", job="api-server"} 300
-#	http_requests{group="production", instance="1", job="api-server"} 200
-#	http_requests{group="production", instance="0", job="api-server"} 100
-#	http_requests{group="canary", instance="2", job="api-server"} NaN
+eval_ordered instant at 50m sort_desc(http_requests)
+	http_requests{group="canary", instance="1", job="app-server"} 800
+	http_requests{group="canary", instance="0", job="app-server"} 700
+	http_requests{group="production", instance="1", job="app-server"} 600
+	http_requests{group="production", instance="0", job="app-server"} 500
+	http_requests{group="canary", instance="1", job="api-server"} 400
+	http_requests{group="canary", instance="0", job="api-server"} 300
+	http_requests{group="production", instance="1", job="api-server"} 200
+	http_requests{group="production", instance="0", job="api-server"} 100
+	http_requests{group="canary", instance="2", job="api-server"} NaN
 
 # Tests for holt_winters
 clear
@@ -414,8 +445,8 @@ eval instant at 1m stdvar_over_time(metric[1m])
 eval instant at 1m stddev_over_time(metric[1m])
   {} 3.249615
 
-# FAILING issue #19. eval instant at 1m stddev_over_time((metric[1m]))
-#  {} 3.249615
+eval instant at 1m stddev_over_time((metric[1m]))
+  {} 3.249615
 
 # Tests for stddev_over_time and stdvar_over_time #4927.
 clear
@@ -471,10 +502,10 @@ eval instant at 1m quantile_over_time(2, data[1m])
 	{test="three samples"} +Inf
 	{test="uneven samples"} +Inf
 
-# FAILING issue #19. eval instant at 1m (quantile_over_time(2, (data[1m])))
-#	{test="two samples"} +Inf
-#	{test="three samples"} +Inf
-#	{test="uneven samples"} +Inf
+eval instant at 1m (quantile_over_time(2, (data[1m])))
+	{test="two samples"} +Inf
+	{test="three samples"} +Inf
+	{test="uneven samples"} +Inf
 
 clear
 
@@ -562,19 +593,26 @@ load 10s
 	data{type="some_nan3"} NaN 0 1
 	data{type="only_nan"} NaN NaN NaN
 
-# Failing with keepNaN feature. eval instant at 1m min_over_time(data[1m])
-#	{type="numbers"} 0
-#	{type="some_nan"} 0
-#	{type="some_nan2"} 1
-#	{type="some_nan3"} 0
-#	{type="only_nan"} NaN
+eval instant at 1m min_over_time(data[1m])
+	{type="numbers"} 0
+	{type="some_nan"} 0
+	{type="some_nan2"} 1
+	{type="some_nan3"} 0
+	# Failing with keepNaN feature. {type="only_nan"} NaN
 
-# Failing with keepNaN feature. eval instant at 1m max_over_time(data[1m])
-#	{type="numbers"} 3
-#	{type="some_nan"} 2
-#	{type="some_nan2"} 2
-#	{type="some_nan3"} 1
-#	{type="only_nan"} NaN
+eval instant at 1m max_over_time(data[1m])
+	{type="numbers"} 3
+	{type="some_nan"} 2
+	{type="some_nan2"} 2
+	{type="some_nan3"} 1
+	# Failing with keepNaN feature. {type="only_nan"} NaN
+
+eval instant at 1m last_over_time(data[1m])
+	data{type="numbers"} 3
+	data{type="some_nan2"} 1
+	data{type="some_nan3"} 1
+	# Failing with keepNaN feature. data{type="some_nan"} NaN
+	# Failing with keepNaN feature. data{type="only_nan"} NaN
 
 clear
 

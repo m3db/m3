@@ -29,7 +29,10 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/test"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	m3ninxidx "github.com/m3db/m3/src/m3ninx/idx"
@@ -37,7 +40,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -256,6 +258,13 @@ func makeTestWriteTagged(
 ) (testSetups, closeFn, testWriteFn) {
 	nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, false, instances)
 
+	for _, node := range nodes {
+		for _, ns := range node.Namespaces() {
+			// write empty data files to disk so nodes could bootstrap
+			require.NoError(t, writeTestDataToDisk(ns, node, generate.SeriesBlocksByStart{}, 0))
+		}
+	}
+
 	testWrite := func(cLevel topology.ConsistencyLevel) error {
 		clientopts = clientopts.SetWriteConsistencyLevel(cLevel)
 		c, err := client.NewClient(clientopts)
@@ -288,7 +297,7 @@ func nodeHasTaggedWrite(t *testing.T, s TestSetup) bool {
 		return false
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.BlockingClose()
 	nsCtx := namespace.NewContextFor(testNamespaces[0], s.SchemaRegistry())
 
@@ -303,9 +312,13 @@ func nodeHasTaggedWrite(t *testing.T, s TestSetup) bool {
 	require.NoError(t, err)
 	results := res.Results
 	require.Equal(t, nsCtx.ID.String(), results.Namespace().String())
-	tags, ok := results.Map().Get(ident.StringID("quorumTest"))
-	idxFound := ok && ident.NewTagIterMatcher(ident.MustNewTagStringsIterator(
-		"foo", "bar", "boo", "baz")).Matches(tags)
+	doc, ok := results.Map().Get(ident.BytesID("quorumTest"))
+	idxFound := false
+	if ok {
+		tags := test.DocumentToTagIter(t, doc)
+		idxFound = ident.NewTagIterMatcher(ident.MustNewTagStringsIterator(
+			"foo", "bar", "boo", "baz")).Matches(tags)
+	}
 
 	if !idxFound {
 		return false
@@ -317,7 +330,9 @@ func nodeHasTaggedWrite(t *testing.T, s TestSetup) bool {
 	id := ident.StringID("quorumTest")
 	start := s.NowFn()()
 	end := s.NowFn()().Add(5 * time.Minute)
-	readers, err := s.DB().ReadEncoded(ctx, nsCtx.ID, id, start, end)
+	iter, err := s.DB().ReadEncoded(ctx, nsCtx.ID, id, start, end)
+	require.NoError(t, err)
+	readers, err := iter.ToSlices(ctx)
 	require.NoError(t, err)
 
 	mIter := s.DB().Options().MultiReaderIteratorPool().Get()

@@ -21,10 +21,10 @@
 package downsample
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
@@ -40,19 +40,18 @@ import (
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/filters"
 	"github.com/m3db/m3/src/metrics/generated/proto/aggregationpb"
-	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/generated/proto/pipelinepb"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/generated/proto/transformationpb"
 	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/metrics/matcher/cache"
+	"github.com/m3db/m3/src/metrics/matcher/namespace"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/metrics/pipeline"
-	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/rules"
 	ruleskv "github.com/m3db/m3/src/metrics/rules/store/kv"
@@ -60,6 +59,8 @@ import (
 	"github.com/m3db/m3/src/metrics/transformation"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -67,8 +68,10 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/pborman/uuid"
+	"github.com/prometheus/common/model"
 )
 
 const (
@@ -80,11 +83,22 @@ const (
 	defaultOpenTimeout             = 10 * time.Second
 	defaultBufferFutureTimedMetric = time.Minute
 	defaultVerboseErrors           = true
-	defaultMatcherCacheCapacity    = 100000
+	// defaultMatcherCacheCapacity sets the default matcher cache
+	// capacity to zero so that the cache is turned off.
+	// This is due to discovering that there is a lot of contention
+	// used by the cache and the fact that most coordinators are used
+	// in a stateless manner with a central deployment which in turn
+	// leads to an extremely low cache hit ratio anyway.
+	defaultMatcherCacheCapacity = 0
 )
 
 var (
-	numShards = runtime.NumCPU()
+	defaultMetricNameTagName    = []byte(model.MetricNameLabel)
+	numShards                   = runtime.GOMAXPROCS(0)
+	defaultNamespaceTag         = metric.M3MetricsPrefixString + "_namespace__"
+	defaultFilterOutTagPrefixes = [][]byte{
+		metric.M3MetricsPrefix,
+	}
 
 	errNoStorage                    = errors.New("downsampling enabled with storage not set")
 	errNoClusterClient              = errors.New("downsampling enabled with cluster client not set")
@@ -99,13 +113,16 @@ var (
 	errRollupRuleNoTransforms       = errors.New("rollup rule has no transforms set")
 )
 
+// CustomRuleStoreFn is a function to swap the backend used for the rule stores.
+type CustomRuleStoreFn func(clusterclient.Client, instrument.Options) (kv.TxnStore, error)
+
 // DownsamplerOptions is a set of required downsampler options.
 type DownsamplerOptions struct {
-	Storage                    storage.Storage
+	Storage                    storage.Appender
 	StorageFlushConcurrency    int
 	ClusterClient              clusterclient.Client
 	RulesKVStore               kv.Store
-	AutoMappingRules           []AutoMappingRule
+	ClusterNamespacesWatcher   m3.ClusterNamespacesWatcher
 	NameTag                    string
 	ClockOptions               clock.Options
 	InstrumentOptions          instrument.Options
@@ -117,12 +134,57 @@ type DownsamplerOptions struct {
 	TagOptions                 models.TagOptions
 	MetricsAppenderPoolOptions pool.ObjectPoolOptions
 	RWOptions                  xio.Options
+	InterruptedCh              <-chan struct{}
+}
+
+// NameTagOrDefault returns the configured name tag or the default if one is not set.
+func (o DownsamplerOptions) NameTagOrDefault() []byte {
+	if o.NameTag == "" {
+		return defaultMetricNameTagName
+	}
+	return []byte(o.NameTag)
 }
 
 // AutoMappingRule is a mapping rule to apply to metrics.
 type AutoMappingRule struct {
 	Aggregations []aggregation.Type
 	Policies     policy.StoragePolicies
+}
+
+// NewAutoMappingRules generates mapping rules from cluster namespaces.
+func NewAutoMappingRules(namespaces []m3.ClusterNamespace) ([]AutoMappingRule, error) {
+	autoMappingRules := make([]AutoMappingRule, 0, len(namespaces))
+	for _, namespace := range namespaces {
+		opts := namespace.Options()
+		attrs := opts.Attributes()
+		if attrs.MetricsType != storagemetadata.AggregatedMetricsType {
+			continue
+		}
+
+		if opts.ReadOnly() {
+			continue
+		}
+
+		downsampleOpts, err := opts.DownsampleOptions()
+		if err != nil {
+			errFmt := "unable to resolve downsample options for namespace: %v"
+			return nil, fmt.Errorf(errFmt, namespace.NamespaceID().String())
+		}
+		if downsampleOpts.All {
+			storagePolicy := policy.NewStoragePolicy(attrs.Resolution,
+				xtime.Second, attrs.Retention)
+			autoMappingRules = append(autoMappingRules, AutoMappingRule{
+				// NB(r): By default we will apply just keep all last values
+				// since coordinator only uses downsampling with Prometheus
+				// remote write endpoint.
+				// More rich static configuration mapping rules can be added
+				// in the future but they are currently not required.
+				Aggregations: []aggregation.Type{aggregation.Last},
+				Policies:     policy.StoragePolicies{storagePolicy},
+			})
+		}
+	}
+	return autoMappingRules, nil
 }
 
 // StagedMetadatas returns the corresponding staged metadatas for this mapping rule.
@@ -187,11 +249,10 @@ type agg struct {
 	aggregator   aggregator.Aggregator
 	clientRemote client.Client
 
-	defaultStagedMetadatasProtos []metricpb.StagedMetadatas
-	clockOpts                    clock.Options
-	matcher                      matcher.Matcher
-	pools                        aggPools
-	m3PrefixFilter               bool
+	clockOpts      clock.Options
+	matcher        matcher.Matcher
+	pools          aggPools
+	untimedRollups bool
 }
 
 // Configuration configurates a downsampler.
@@ -223,23 +284,30 @@ type Configuration struct {
 	// BufferPastLimits specifies the buffer past limits.
 	BufferPastLimits []BufferPastLimitConfiguration `yaml:"bufferPastLimits"`
 
-	// EntryTTL determines how long an entry remains alive before it may be expired due to inactivity.
+	// EntryTTL determines how long an entry remains alive before it may be
+	// expired due to inactivity.
 	EntryTTL time.Duration `yaml:"entryTTL"`
 
-	// DisableAutoMappingRules disables auto mapping rules.
-	DisableAutoMappingRules bool `yaml:"disableAutoMappingRules"`
+	// UntimedRollups indicates rollup rules should be untimed.
+	UntimedRollups bool `yaml:"untimedRollups"`
 }
 
 // MatcherConfiguration is the configuration for the rule matcher.
 type MatcherConfiguration struct {
 	// Cache if non-zero will set the capacity of the rules matching cache.
 	Cache MatcherCacheConfiguration `yaml:"cache"`
+	// NamespaceTag defines the namespace tag to use to select rules
+	// namespace to evaluate against. Default is "__m3_namespace__".
+	NamespaceTag string `yaml:"namespaceTag"`
+	// RequireNamespaceWatchOnInit returns the flag to ensure matcher is initialized with a loaded namespace watch.
+	// This only makes sense to use if the corresponding namespace / ruleset values are properly seeded.
+	RequireNamespaceWatchOnInit bool `yaml:"requireNamespaceWatchOnInit"`
 }
 
 // MatcherCacheConfiguration is the configuration for the rule matcher cache.
 type MatcherCacheConfiguration struct {
-	// Capacity if non-zero will set the capacity of the rules matching cache.
-	Capacity int `yaml:"capacity"`
+	// Capacity if set the capacity of the rules matching cache.
+	Capacity *int `yaml:"capacity"`
 }
 
 // RulesConfiguration is a set of rules configuration to use for downsampling.
@@ -302,6 +370,10 @@ type MappingRuleConfiguration struct {
 	// aggregation tag which is required for graphite. If a metric is of the
 	// form {__g0__:stats __g1__:metric __g2__:timer} and we have configured
 	// a P95 aggregation, this option will add __g3__:P95 to the metric.
+	// __m3_graphite_prefix__ as a tag will add the provided value as a prefix
+	// to graphite metrics.
+	// __m3_drop_timestamp__ as a tag will drop the timestamp from while
+	// writing the metric out. So effectively treat it as an untimed metric.
 	Tags []Tag `yaml:"tags"`
 
 	// Optional fields follow.
@@ -410,6 +482,10 @@ type RollupRuleConfiguration struct {
 
 	// Name is optional.
 	Name string `yaml:"name"`
+
+	// Tags are the tags to be added to the metric while applying the rollup
+	// rule. Users are free to add name/value combinations to the metric.
+	Tags []Tag `yaml:"tags"`
 }
 
 // Rule returns the rollup rule for the rollup rule configuration.
@@ -433,15 +509,30 @@ func (r RollupRuleConfiguration) Rule() (view.RollupRule, error) {
 		switch {
 		case elem.Rollup != nil:
 			cfg := elem.Rollup
+			if len(cfg.GroupBy) > 0 && len(cfg.ExcludeBy) > 0 {
+				return view.RollupRule{}, fmt.Errorf(
+					"must specify group by or exclude by tags for rollup operation not both: "+
+						"groupBy=%d, excludeBy=%d", len(cfg.GroupBy), len(cfg.ExcludeBy))
+			}
+
+			rollupType := pipelinepb.RollupOp_GROUP_BY
+			tags := cfg.GroupBy
+			if len(cfg.ExcludeBy) > 0 {
+				rollupType = pipelinepb.RollupOp_EXCLUDE_BY
+				tags = cfg.ExcludeBy
+			}
+
 			aggregationTypes, err := AggregationTypes(cfg.Aggregations).Proto()
 			if err != nil {
 				return view.RollupRule{}, err
 			}
+
 			op, err := pipeline.NewOpUnionFromProto(pipelinepb.PipelineOp{
 				Type: pipelinepb.PipelineOp_ROLLUP,
 				Rollup: &pipelinepb.RollupOp{
+					Type:             rollupType,
 					NewName:          cfg.MetricName,
-					Tags:             cfg.GroupBy,
+					Tags:             tags,
 					AggregationTypes: aggregationTypes,
 				},
 			})
@@ -492,10 +583,18 @@ func (r RollupRuleConfiguration) Rule() (view.RollupRule, error) {
 	targetPipeline := pipeline.NewPipeline(ops)
 
 	targets := []view.RollupTarget{
-		view.RollupTarget{
+		{
 			Pipeline:        targetPipeline,
 			StoragePolicies: storagePolicies,
 		},
+	}
+
+	tags := make([]models.Tag, 0, len(r.Tags))
+	for _, tag := range r.Tags {
+		tags = append(tags, models.Tag{
+			Name:  []byte(tag.Name),
+			Value: []byte(tag.Value),
+		})
 	}
 
 	return view.RollupRule{
@@ -503,6 +602,7 @@ func (r RollupRuleConfiguration) Rule() (view.RollupRule, error) {
 		Name:    name,
 		Filter:  filter,
 		Targets: targets,
+		Tags:    tags,
 	}, nil
 }
 
@@ -522,7 +622,15 @@ type RollupOperationConfiguration struct {
 
 	// GroupBy is a set of labels to group by, only these remain on the
 	// new metric name produced by the rollup operation.
+	// Note: Can only use either groupBy or excludeBy, not both, use the
+	// rollup operation "type" to specify which is used.
 	GroupBy []string `yaml:"groupBy"`
+
+	// ExcludeBy is a set of labels to exclude by, only these tags are removed
+	// from the resulting rolled up metric.
+	// Note: Can only use either groupBy or excludeBy, not both, use the
+	// rollup operation "type" to specify which is used.
+	ExcludeBy []string `yaml:"excludeBy"`
 
 	// Aggregations is a set of aggregate operations to perform.
 	Aggregations []aggregation.Type `yaml:"aggregations"`
@@ -607,14 +715,13 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	}
 
 	var (
-		storageFlushConcurrency      = defaultStorageFlushConcurrency
-		clockOpts                    = o.ClockOptions
-		instrumentOpts               = o.InstrumentOptions
-		scope                        = instrumentOpts.MetricsScope()
-		logger                       = instrumentOpts.Logger()
-		openTimeout                  = defaultOpenTimeout
-		defaultStagedMetadatasProtos []metricpb.StagedMetadatas
-		m3PrefixFilter               = false
+		storageFlushConcurrency = defaultStorageFlushConcurrency
+		clockOpts               = o.ClockOptions
+		instrumentOpts          = o.InstrumentOptions
+		scope                   = instrumentOpts.MetricsScope()
+		logger                  = instrumentOpts.Logger()
+		openTimeout             = defaultOpenTimeout
+		namespaceTag            = defaultNamespaceTag
 	)
 	if o.StorageFlushConcurrency > 0 {
 		storageFlushConcurrency = o.StorageFlushConcurrency
@@ -622,19 +729,8 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	if o.OpenTimeout > 0 {
 		openTimeout = o.OpenTimeout
 	}
-	for _, rule := range o.AutoMappingRules {
-		metadatas, err := rule.StagedMetadatas()
-		if err != nil {
-			return agg{}, err
-		}
-
-		var metadatasProto metricpb.StagedMetadatas
-		if err := metadatas.ToProto(&metadatasProto); err != nil {
-			return agg{}, err
-		}
-
-		defaultStagedMetadatasProtos =
-			append(defaultStagedMetadatasProtos, metadatasProto)
+	if cfg.Matcher.NamespaceTag != "" {
+		namespaceTag = cfg.Matcher.NamespaceTag
 	}
 
 	pools := o.newAggregatorPools()
@@ -644,7 +740,10 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		SetClockOptions(clockOpts).
 		SetInstrumentOptions(instrumentOpts).
 		SetRuleSetOptions(ruleSetOpts).
-		SetKVStore(o.RulesKVStore)
+		SetKVStore(o.RulesKVStore).
+		SetNamespaceResolver(namespace.NewResolver([]byte(namespaceTag), nil)).
+		SetRequireNamespaceWatchOnInit(cfg.Matcher.RequireNamespaceWatchOnInit).
+		SetInterruptedCh(o.InterruptedCh)
 
 	// NB(r): If rules are being explicitly set in config then we are
 	// going to use an in memory KV store for rules and explicitly set them up.
@@ -653,8 +752,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		kvTxnMemStore := mem.NewStore()
 
 		// Initialize the namespaces
-		_, err := kvTxnMemStore.Set(matcherOpts.NamespacesKey(), &rulepb.Namespaces{})
-		if err != nil {
+		if err := initStoreNamespaces(kvTxnMemStore, matcherOpts.NamespacesKey()); err != nil {
 			return agg{}, err
 		}
 
@@ -682,9 +780,6 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		rs := rules.NewEmptyRuleSet(defaultConfigInMemoryNamespace,
 			updateMetadata)
 		for _, mappingRule := range cfg.Rules.MappingRules {
-			if strings.Contains(mappingRule.Filter, metric.M3MetricsPrefixString) {
-				m3PrefixFilter = true
-			}
 			rule, err := mappingRule.Rule()
 			if err != nil {
 				return agg{}, err
@@ -697,9 +792,6 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		}
 
 		for _, rollupRule := range cfg.Rules.RollupRules {
-			if strings.Contains(rollupRule.Filter, metric.M3MetricsPrefixString) {
-				m3PrefixFilter = true
-			}
 			rule, err := rollupRule.Rule()
 			if err != nil {
 				return agg{}, err
@@ -723,8 +815,22 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	}
 
 	matcherCacheCapacity := defaultMatcherCacheCapacity
-	if v := cfg.Matcher.Cache.Capacity; v > 0 {
-		matcherCacheCapacity = v
+	if v := cfg.Matcher.Cache.Capacity; v != nil {
+		matcherCacheCapacity = *v
+	}
+
+	kvStore, err := o.ClusterClient.KV()
+	if err != nil {
+		return agg{}, err
+	}
+
+	// NB(antanas): matcher registers watcher on namespaces key. Making sure it is set, otherwise watcher times out.
+	// With RequireNamespaceWatchOnInit being true we expect namespaces to be set upfront
+	// so we do not initialize them here at all because it might potentially hide human error.
+	if !matcherOpts.RequireNamespaceWatchOnInit() {
+		if err := initStoreNamespaces(kvStore, matcherOpts.NamespacesKey()); err != nil {
+			return agg{}, err
+		}
 	}
 
 	matcher, err := o.newAggregatorMatcher(matcherOpts, matcherCacheCapacity)
@@ -753,11 +859,10 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		}
 
 		return agg{
-			clientRemote:                 client,
-			defaultStagedMetadatasProtos: defaultStagedMetadatasProtos,
-			matcher:                      matcher,
-			pools:                        pools,
-			m3PrefixFilter:               m3PrefixFilter,
+			clientRemote:   client,
+			matcher:        matcher,
+			pools:          pools,
+			untimedRollups: cfg.UntimedRollups,
 		}, nil
 	}
 
@@ -766,7 +871,11 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		SetName("downsampler").
 		SetZone("embedded")
 
-	localKVStore := mem.NewStore()
+	localKVStore := kvStore
+	// NB(antanas): to protect against running with real Etcd and overriding existing placements.
+	if !mem.IsMem(localKVStore) {
+		localKVStore = mem.NewStore()
+	}
 
 	placementManager, err := o.newAggregatorPlacementManager(serviceID, localKVStore)
 	if err != nil {
@@ -778,13 +887,13 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 			SetFlushTimesStore(localKVStore))
 
 	electionManager, err := o.newAggregatorElectionManager(serviceID,
-		placementManager, flushTimesManager)
+		placementManager, flushTimesManager, clockOpts)
 	if err != nil {
 		return agg{}, err
 	}
 
-	flushManager, flushHandler := o.newAggregatorFlushManagerAndHandler(serviceID,
-		placementManager, flushTimesManager, electionManager, instrumentOpts,
+	flushManager, flushHandler := o.newAggregatorFlushManagerAndHandler(
+		placementManager, flushTimesManager, electionManager, o.ClockOptions, instrumentOpts,
 		storageFlushConcurrency, pools)
 
 	bufferPastLimits := defaultBufferPastLimits
@@ -808,8 +917,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	}
 
 	// Finally construct all options.
-	aggregatorOpts := aggregator.NewOptions().
-		SetClockOptions(clockOpts).
+	aggregatorOpts := aggregator.NewOptions(clockOpts).
 		SetInstrumentOptions(instrumentOpts).
 		SetDefaultStoragePolicies(nil).
 		SetMetricPrefix(nil).
@@ -844,16 +952,10 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	)
 	counterElemPool := aggregator.NewCounterElemPool(counterElemPoolOpts)
 	aggregatorOpts = aggregatorOpts.SetCounterElemPool(counterElemPool)
+	// use a singleton ElemOptions to avoid allocs per elem.
+	elemOpts := aggregator.NewElemOptions(aggregatorOpts)
 	counterElemPool.Init(func() *aggregator.CounterElem {
-		return aggregator.MustNewCounterElem(
-			nil,
-			policy.EmptyStoragePolicy,
-			aggregation.DefaultTypes,
-			applied.DefaultPipeline,
-			0,
-			aggregator.WithPrefixWithSuffix,
-			aggregatorOpts,
-		)
+		return aggregator.MustNewCounterElem(aggregator.ElemData{}, elemOpts)
 	})
 
 	// Set timer elem pool.
@@ -863,15 +965,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	timerElemPool := aggregator.NewTimerElemPool(timerElemPoolOpts)
 	aggregatorOpts = aggregatorOpts.SetTimerElemPool(timerElemPool)
 	timerElemPool.Init(func() *aggregator.TimerElem {
-		return aggregator.MustNewTimerElem(
-			nil,
-			policy.EmptyStoragePolicy,
-			aggregation.DefaultTypes,
-			applied.DefaultPipeline,
-			0,
-			aggregator.WithPrefixWithSuffix,
-			aggregatorOpts,
-		)
+		return aggregator.MustNewTimerElem(aggregator.ElemData{}, elemOpts)
 	})
 
 	// Set gauge elem pool.
@@ -881,15 +975,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	gaugeElemPool := aggregator.NewGaugeElemPool(gaugeElemPoolOpts)
 	aggregatorOpts = aggregatorOpts.SetGaugeElemPool(gaugeElemPool)
 	gaugeElemPool.Init(func() *aggregator.GaugeElem {
-		return aggregator.MustNewGaugeElem(
-			nil,
-			policy.EmptyStoragePolicy,
-			aggregation.DefaultTypes,
-			applied.DefaultPipeline,
-			0,
-			aggregator.WithPrefixWithSuffix,
-			aggregatorOpts,
-		)
+		return aggregator.MustNewGaugeElem(aggregator.ElemData{}, elemOpts)
 	})
 
 	adminAggClient := newAggregatorLocalAdminClient()
@@ -919,12 +1005,19 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	}
 
 	return agg{
-		aggregator:                   aggregatorInstance,
-		defaultStagedMetadatasProtos: defaultStagedMetadatasProtos,
-		matcher:                      matcher,
-		pools:                        pools,
-		m3PrefixFilter:               m3PrefixFilter,
+		aggregator:     aggregatorInstance,
+		matcher:        matcher,
+		pools:          pools,
+		untimedRollups: cfg.UntimedRollups,
 	}, nil
+}
+
+func initStoreNamespaces(store kv.Store, nsKey string) error {
+	_, err := store.SetIfNotExists(nsKey, &rulepb.Namespaces{})
+	if errors.Is(err, kv.ErrAlreadyExists) {
+		return nil
+	}
+	return err
 }
 
 type aggPools struct {
@@ -947,7 +1040,10 @@ func (o DownsamplerOptions) newAggregatorPools() aggPools {
 		o.TagDecoderPoolOptions)
 	metricTagsIteratorPool.Init()
 
-	metricsAppenderPool := newMetricsAppenderPool(o.MetricsAppenderPoolOptions)
+	metricsAppenderPool := newMetricsAppenderPool(
+		o.MetricsAppenderPoolOptions,
+		o.TagDecoderOptions.TagSerializationLimits(),
+		o.NameTagOrDefault())
 
 	return aggPools{
 		tagEncoderPool:         tagEncoderPool,
@@ -958,30 +1054,9 @@ func (o DownsamplerOptions) newAggregatorPools() aggPools {
 }
 
 func (o DownsamplerOptions) newAggregatorRulesOptions(pools aggPools) rules.Options {
-	nameTag := defaultMetricNameTagName
-	if o.NameTag != "" {
-		nameTag = []byte(o.NameTag)
-	}
-
-	sortedTagIteratorFn := func(tagPairs []byte) id.SortedTagIterator {
-		it := pools.metricTagsIteratorPool.Get()
-		it.Reset(tagPairs)
-		return it
-	}
-
+	nameTag := o.NameTagOrDefault()
 	tagsFilterOpts := filters.TagsFilterOptions{
 		NameTagKey: nameTag,
-		NameAndTagsFn: func(id []byte) ([]byte, []byte, error) {
-			name, err := resolveEncodedTagsNameTag(id, pools.metricTagsIteratorPool,
-				nameTag)
-			if err != nil && err != errNoMetricNameTag {
-				return nil, nil, err
-			}
-			// ID is always the encoded tags for IDs in the downsampler
-			tags := id
-			return name, tags, nil
-		},
-		SortedTagIteratorFn: sortedTagIteratorFn,
 	}
 
 	isRollupIDFn := func(name []byte, tags []byte) bool {
@@ -993,8 +1068,23 @@ func (o DownsamplerOptions) newAggregatorRulesOptions(pools aggPools) rules.Opti
 	newRollupIDProviderPool.Init()
 
 	newRollupIDFn := func(newName []byte, tagPairs []id.TagPair) []byte {
+		// First filter out any tags that have a prefix that
+		// are not included in output metric IDs (such as metric
+		// type tags that are just used for filtering like __m3_type__).
+		filtered := tagPairs[:0]
+	TagPairsFilterLoop:
+		for i := range tagPairs {
+			for _, filter := range defaultFilterOutTagPrefixes {
+				if bytes.HasPrefix(tagPairs[i].Name, filter) {
+					continue TagPairsFilterLoop
+				}
+			}
+			filtered = append(filtered, tagPairs[i])
+		}
+
+		// Create the rollup using filtered tag pairs.
 		rollupIDProvider := newRollupIDProviderPool.Get()
-		id, err := rollupIDProvider.provide(newName, tagPairs)
+		id, err := rollupIDProvider.provide(newName, filtered)
 		if err != nil {
 			panic(err) // Encoding should never fail
 		}
@@ -1012,14 +1102,20 @@ func (o DownsamplerOptions) newAggregatorMatcher(
 	opts matcher.Options,
 	capacity int,
 ) (matcher.Matcher, error) {
-	cacheOpts := cache.NewOptions().
-		SetCapacity(capacity).
-		SetClockOptions(opts.ClockOptions()).
-		SetInstrumentOptions(opts.InstrumentOptions().
-			SetMetricsScope(opts.InstrumentOptions().MetricsScope().SubScope("matcher-cache")))
+	var matcherCache cache.Cache
+	if capacity > 0 {
+		scope := opts.InstrumentOptions().MetricsScope().SubScope("matcher-cache")
+		instrumentOpts := opts.InstrumentOptions().
+			SetMetricsScope(scope)
+		cacheOpts := cache.NewOptions().
+			SetCapacity(capacity).
+			SetNamespaceResolver(opts.NamespaceResolver()).
+			SetClockOptions(opts.ClockOptions()).
+			SetInstrumentOptions(instrumentOpts)
+		matcherCache = cache.NewCache(cacheOpts)
+	}
 
-	cache := cache.NewCache(cacheOpts)
-	return matcher.NewMatcher(cache, opts)
+	return matcher.NewMatcher(matcherCache, opts)
 }
 
 func (o DownsamplerOptions) newAggregatorPlacementManager(
@@ -1037,7 +1133,7 @@ func (o DownsamplerOptions) newAggregatorPlacementManager(
 
 	placementSvc := placementservice.NewPlacementService(
 		placementstorage.NewPlacementStorage(localKVStore, placementKVKey, placementOpts),
-		placementOpts)
+		placementservice.WithPlacementOptions(placementOpts))
 
 	_, err := placementSvc.BuildInitialPlacement([]placement.Instance{instance}, numShards,
 		replicationFactor)
@@ -1045,13 +1141,12 @@ func (o DownsamplerOptions) newAggregatorPlacementManager(
 		return nil, err
 	}
 
-	placementWatcherOpts := placement.NewStagedPlacementWatcherOptions().
+	placementWatcherOpts := placement.NewWatcherOptions().
 		SetStagedPlacementKey(placementKVKey).
 		SetStagedPlacementStore(localKVStore)
-	placementWatcher := placement.NewStagedPlacementWatcher(placementWatcherOpts)
 	placementManagerOpts := aggregator.NewPlacementManagerOptions().
 		SetInstanceID(instanceID).
-		SetStagedPlacementWatcher(placementWatcher)
+		SetWatcherOptions(placementWatcherOpts)
 
 	return aggregator.NewPlacementManager(placementManagerOpts), nil
 }
@@ -1060,6 +1155,7 @@ func (o DownsamplerOptions) newAggregatorElectionManager(
 	serviceID services.ServiceID,
 	placementManager aggregator.PlacementManager,
 	flushTimesManager aggregator.FlushTimesManager,
+	clockOpts clock.Options,
 ) (aggregator.ElectionManager, error) {
 	leaderValue := instanceID
 	campaignOpts, err := services.NewCampaignOptions()
@@ -1072,6 +1168,7 @@ func (o DownsamplerOptions) newAggregatorElectionManager(
 	leaderService := newLocalLeaderService(serviceID)
 
 	electionManagerOpts := aggregator.NewElectionManagerOptions().
+		SetClockOptions(clockOpts).
 		SetCampaignOptions(campaignOpts).
 		SetLeaderService(leaderService).
 		SetPlacementManager(placementManager).
@@ -1081,15 +1178,16 @@ func (o DownsamplerOptions) newAggregatorElectionManager(
 }
 
 func (o DownsamplerOptions) newAggregatorFlushManagerAndHandler(
-	serviceID services.ServiceID,
 	placementManager aggregator.PlacementManager,
 	flushTimesManager aggregator.FlushTimesManager,
 	electionManager aggregator.ElectionManager,
+	clockOpts clock.Options,
 	instrumentOpts instrument.Options,
 	storageFlushConcurrency int,
 	pools aggPools,
 ) (aggregator.FlushManager, handler.Handler) {
 	flushManagerOpts := aggregator.NewFlushManagerOptions().
+		SetClockOptions(clockOpts).
 		SetPlacementManager(placementManager).
 		SetFlushTimesManager(flushTimesManager).
 		SetElectionManager(electionManager).
@@ -1195,14 +1293,12 @@ type bufferPastLimit struct {
 	bufferPast time.Duration
 }
 
-var (
-	defaultBufferPastLimits = []bufferPastLimit{
-		{upperBound: 0, bufferPast: 15 * time.Second},
-		{upperBound: 30 * time.Second, bufferPast: 30 * time.Second},
-		{upperBound: time.Minute, bufferPast: time.Minute},
-		{upperBound: 2 * time.Minute, bufferPast: 2 * time.Minute},
-	}
-)
+var defaultBufferPastLimits = []bufferPastLimit{
+	{upperBound: 0, bufferPast: 15 * time.Second},
+	{upperBound: 30 * time.Second, bufferPast: 30 * time.Second},
+	{upperBound: time.Minute, bufferPast: time.Minute},
+	{upperBound: 2 * time.Minute, bufferPast: 2 * time.Minute},
+}
 
 func bufferForPastTimedMetric(
 	limits []bufferPastLimit,

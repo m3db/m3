@@ -34,7 +34,7 @@ const (
 	// DefaultReturnUnfulfilledForCorruptCommitLogFiles is the default
 	// value for whether to return unfulfilled when encountering corrupt
 	// commit log files.
-	DefaultReturnUnfulfilledForCorruptCommitLogFiles = true
+	DefaultReturnUnfulfilledForCorruptCommitLogFiles = false
 )
 
 var (
@@ -42,7 +42,7 @@ var (
 	errRuntimeOptsMgrNotSet          = errors.New("runtime options manager is not set")
 
 	// defaultAccumulateConcurrency determines how fast to accumulate results.
-	defaultAccumulateConcurrency = int(math.Max(float64(goruntime.NumCPU())*0.75, 1))
+	defaultAccumulateConcurrency = int(math.Max(float64(goruntime.GOMAXPROCS(0))*0.75, 1))
 )
 
 type options struct {

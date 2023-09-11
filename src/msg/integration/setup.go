@@ -46,7 +46,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -512,7 +512,9 @@ func (c *testConsumer) consumeAndAck(totalConsumed *atomic.Int64) {
 							consumer.Close()
 							return
 						}
-
+						if msg.SentAtNanos() <= 0 {
+							panic("sentAtNanos not set")
+						}
 						wp.Go(
 							func() {
 								c.Lock()
@@ -536,7 +538,10 @@ func (c *testConsumer) consumeAndAck(totalConsumed *atomic.Int64) {
 
 func testPlacementService(store kv.Store, sid services.ServiceID, isSharded bool) placement.Service {
 	opts := placement.NewOptions().SetShardStateMode(placement.StableShardStateOnly).SetIsSharded(isSharded)
-	return service.NewPlacementService(storage.NewPlacementStorage(store, sid.String(), opts), opts)
+
+	return service.NewPlacementService(
+		storage.NewPlacementStorage(store, sid.String(), opts),
+		service.WithPlacementOptions(opts))
 }
 
 func testProducer(

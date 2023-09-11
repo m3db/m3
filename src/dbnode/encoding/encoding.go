@@ -22,25 +22,16 @@ package encoding
 
 import "math/bits"
 
-// Bit is just a byte
+// Bit is just a byte.
 type Bit byte
 
-// NumSig returns the number of significant values in a uint64
+// NumSig returns the number of significant bits in a uint64.
 func NumSig(v uint64) uint8 {
-	if v == 0 {
-		return 0
-	}
-
-	numLeading := uint8(0)
-	for tmp := v; (tmp & (1 << 63)) == 0; tmp <<= 1 {
-		numLeading++
-	}
-
-	return uint8(64) - numLeading
+	return uint8(64 - bits.LeadingZeros64(v))
 }
 
 // LeadingAndTrailingZeros calculates the number of leading and trailing 0s
-// for a uint64
+// for a uint64.
 func LeadingAndTrailingZeros(v uint64) (int, int) {
 	if v == 0 {
 		return 64, 0
@@ -51,8 +42,8 @@ func LeadingAndTrailingZeros(v uint64) (int, int) {
 	return numLeading, numTrailing
 }
 
-// SignExtend sign extends the highest bit of v which has numBits (<=64)
-func SignExtend(v uint64, numBits uint) int64 {
+// SignExtend sign extends the highest bit of v which has numBits (<=64).
+func SignExtend(v uint64, numBits uint8) int64 {
 	shift := 64 - numBits
 	return (int64(v) << shift) >> shift
 }

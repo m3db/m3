@@ -21,19 +21,19 @@
 package xio
 
 import (
-	"io"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/x/resource"
+	xresource "github.com/m3db/m3/src/x/resource"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // BlockReader represents a block reader backed by a
 // SegmentReader with start time and block size.
 type BlockReader struct {
 	SegmentReader
-	Start     time.Time
+	Start     xtime.UnixNano
 	BlockSize time.Duration
 }
 
@@ -42,8 +42,8 @@ var EmptyBlockReader = BlockReader{}
 
 // SegmentReader implements the io reader interface backed by a segment.
 type SegmentReader interface {
-	io.Reader
-	resource.Finalizer
+	Reader64
+	xresource.Finalizer
 
 	// Segment gets the segment read by this reader.
 	Segment() (ts.Segment, error)
@@ -75,7 +75,7 @@ type ReaderSliceOfSlicesIterator interface {
 	Next() bool
 
 	// CurrentReaders returns the current length, start time, and block size.
-	CurrentReaders() (length int, start time.Time, blockSize time.Duration)
+	CurrentReaders() (length int, start xtime.UnixNano, blockSize time.Duration)
 
 	// CurrentReaderAt returns the current reader in the slice
 	// of readers at an index.
@@ -87,9 +87,12 @@ type ReaderSliceOfSlicesIterator interface {
 	// Size gives the size of bytes in this iterator.
 	Size() (int, error)
 
-	// Rewind returns the iterator to the beginning.
+	// RewindToIndex returns the iterator to a specific index.
 	// This operation is invalid if any of the block readers have been read.
-	Rewind()
+	RewindToIndex(idx int)
+
+	// Index returns the iterator's current index.
+	Index() int
 }
 
 // ReaderSliceOfSlicesFromBlockReadersIterator is an iterator
@@ -99,4 +102,14 @@ type ReaderSliceOfSlicesFromBlockReadersIterator interface {
 
 	// Reset resets the iterator with a new array of block readers arrays.
 	Reset(blocks [][]BlockReader)
+}
+
+// Reader64 is a reader for reading 64 bit words.
+type Reader64 interface {
+
+	// Read64 reads and returns a 64 bit word plus a number of bytes (up to 8) actually read.
+	Read64() (word uint64, n byte, err error)
+
+	// Read64 peeks and returns the next 64 bit word plus a number of bytes (up to 8) available.
+	Peek64() (word uint64, n byte, err error)
 }

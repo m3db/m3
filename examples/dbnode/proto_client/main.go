@@ -1,3 +1,23 @@
+// Copyright (c) 2020 Uber Technologies, Inc.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
 package main
 
 import (
@@ -90,12 +110,12 @@ func runUntaggedExample(session client.Session, schema *desc.MessageDescriptor) 
 	}
 
 	// Write an untagged series ID. Pass 0 for value since it is ignored.
-	if err := session.Write(namespaceID, untaggedSeriesID, time.Now(), 0, xtime.Nanosecond, marshaled); err != nil {
+	if err := session.Write(namespaceID, untaggedSeriesID, xtime.Now(), 0, xtime.Nanosecond, marshaled); err != nil {
 		log.Fatalf("unable to write untagged series: %v", err)
 	}
 
 	// Fetch data for the untagged seriesID written within the last minute.
-	seriesIter, err := session.Fetch(namespaceID, untaggedSeriesID, time.Now().Add(-time.Minute), time.Now())
+	seriesIter, err := session.Fetch(namespaceID, untaggedSeriesID, xtime.Now().Add(-time.Minute), xtime.Now())
 	if err != nil {
 		log.Fatalf("error fetching data for untagged series: %v", err)
 	}
@@ -105,7 +125,7 @@ func runUntaggedExample(session client.Session, schema *desc.MessageDescriptor) 
 		if err := m.Unmarshal(marshaledProto); err != nil {
 			log.Fatalf("error unmarshaling protobuf message: %v", err)
 		}
-		log.Printf("%s: %s", dp.Timestamp.String(), m.String())
+		log.Printf("%s: %s", dp.TimestampNanos.String(), m.String())
 	}
 	if err := seriesIter.Err(); err != nil {
 		log.Fatalf("error in series iterator: %v", err)
@@ -134,12 +154,12 @@ func runTaggedExample(session client.Session, schema *desc.MessageDescriptor) {
 	}
 
 	// Write a tagged series ID. Pass 0 for value since it is ignored.
-	if err := session.WriteTagged(namespaceID, seriesID, tagsIter, time.Now(), 0, xtime.Nanosecond, marshaled); err != nil {
+	if err := session.WriteTagged(namespaceID, seriesID, tagsIter, xtime.Now(), 0, xtime.Nanosecond, marshaled); err != nil {
 		log.Fatalf("error writing series %s, err: %v", seriesID.String(), err)
 	}
 
 	// Fetch data for the tagged seriesID using a direct ID lookup (only data written within the last minute).
-	seriesIter, err := session.Fetch(namespaceID, seriesID, time.Now().Add(-time.Minute), time.Now())
+	seriesIter, err := session.Fetch(namespaceID, seriesID, xtime.Now().Add(-time.Minute), xtime.Now())
 	if err != nil {
 		log.Fatalf("error fetching data for untagged series: %v", err)
 	}
@@ -149,7 +169,7 @@ func runTaggedExample(session client.Session, schema *desc.MessageDescriptor) {
 		if err := m.Unmarshal(marshaledProto); err != nil {
 			log.Fatalf("error unamrshaling protobuf message: %v", err)
 		}
-		log.Printf("%s: %s", dp.Timestamp.String(), m.String())
+		log.Printf("%s: %s", dp.TimestampNanos.String(), m.String())
 	}
 	if err := seriesIter.Err(); err != nil {
 		log.Fatalf("error in series iterator: %v", err)

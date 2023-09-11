@@ -27,15 +27,17 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/stores/m3db"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 )
 
 var (
-	errNotAggregatedClusterNamespace              = goerrors.New("not an aggregated cluster namespace")
-	errBothNamespaceTypeNewAndDeprecatedFieldsSet = goerrors.New("cannot specify both deprecated and non-deprecated fields for namespace type")
+	errNotAggregatedClusterNamespace = goerrors.New("not an aggregated cluster namespace")
+	errNoNamespaceInitializerSet     = goerrors.New("no namespace initializer set")
 )
 
 // ClustersStaticConfiguration is a set of static cluster configurations.
@@ -51,7 +53,7 @@ type NewClientFromConfig func(
 
 // ClusterStaticConfiguration is a static cluster configuration.
 type ClusterStaticConfiguration struct {
-	NewClientFromConfig NewClientFromConfig
+	NewClientFromConfig NewClientFromConfig                   `yaml:"-"`
 	Namespaces          []ClusterStaticNamespaceConfiguration `yaml:"namespaces"`
 	Client              client.Configuration                  `yaml:"client"`
 }
@@ -86,28 +88,19 @@ type ClusterStaticNamespaceConfiguration struct {
 	// the namespace.
 	Downsample *DownsampleClusterStaticNamespaceConfiguration `yaml:"downsample"`
 
-	// StorageMetricsType is the namespace type.
-	//
-	// Deprecated: Use "Type" field when specifying config instead, it is
-	// invalid to use both.
-	StorageMetricsType storagemetadata.MetricsType `yaml:"storageMetricsType"`
+	// ReadOnly prevents any writes to this namespace.
+	ReadOnly bool `yaml:"readOnly"`
+
+	// DataLatency is the duration after which the data is available in this namespace.
+	DataLatency time.Duration `yaml:"dataLatency"`
 }
 
 func (c ClusterStaticNamespaceConfiguration) metricsType() (storagemetadata.MetricsType, error) {
 	unset := storagemetadata.MetricsType(0)
-	if c.Type != unset && c.StorageMetricsType != unset {
-		// Don't allow both to not be default
-		return unset, errBothNamespaceTypeNewAndDeprecatedFieldsSet
-	}
 
 	if c.Type != unset {
 		// New field value set
 		return c.Type, nil
-	}
-
-	if c.StorageMetricsType != unset {
-		// Deprecated field value set
-		return c.StorageMetricsType, nil
 	}
 
 	// Both are unset
@@ -126,7 +119,7 @@ func (c ClusterStaticNamespaceConfiguration) downsampleOptions() (
 		return ClusterNamespaceDownsampleOptions{}, errNotAggregatedClusterNamespace
 	}
 	if c.Downsample == nil {
-		return defaultClusterNamespaceDownsampleOptions, nil
+		return DefaultClusterNamespaceDownsampleOptions, nil
 	}
 
 	return c.Downsample.downsampleOptions(), nil
@@ -165,12 +158,15 @@ type ClustersStaticConfigurationOptions struct {
 	AsyncSessions      bool
 	ProvidedSession    client.Session
 	CustomAdminOptions []client.CustomAdminOption
+	EncodingOptions    encoding.Options
 }
 
-// NewClusters instantiates a new Clusters instance.
-func (c ClustersStaticConfiguration) NewClusters(
+// NewStaticClusters instantiates a new Clusters instance based on
+// static configuration.
+func (c ClustersStaticConfiguration) NewStaticClusters(
 	instrumentOpts instrument.Options,
 	opts ClustersStaticConfigurationOptions,
+	clusterNamespacesWatcher ClusterNamespacesWatcher,
 ) (Clusters, error) {
 	var (
 		numUnaggregatedClusterNamespaces int
@@ -190,6 +186,7 @@ func (c ClustersStaticConfiguration) NewClusters(
 			// NB(r): Only create client session if not already provided.
 			result, err = clusterCfg.newClient(client.ConfigurationParameters{
 				InstrumentOptions: instrumentOpts,
+				EncodingOptions:   opts.EncodingOptions,
 			}, opts.CustomAdminOptions...)
 			if err != nil {
 				return nil, err
@@ -239,7 +236,7 @@ func (c ClustersStaticConfiguration) NewClusters(
 			"must be specified: specified %d", numUnaggregatedClusterNamespaces)
 	}
 
-	// Connect to all clusters in parallel
+	// Connect to all clusters in parallel.
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
@@ -272,7 +269,7 @@ func (c ClustersStaticConfiguration) NewClusters(
 		}()
 	}
 
-	// Wait
+	// Wait for connections.
 	wg.Wait()
 
 	if unaggregatedClusterNamespaceCfg.result.err != nil {
@@ -305,11 +302,118 @@ func (c ClustersStaticConfiguration) NewClusters(
 				Retention:   n.Retention,
 				Resolution:  n.Resolution,
 				Downsample:  &downsampleOpts,
+				ReadOnly:    n.ReadOnly,
+				DataLatency: n.DataLatency,
 			}
 			aggregatedClusterNamespaces = append(aggregatedClusterNamespaces, def)
 		}
 	}
 
-	return NewClusters(unaggregatedClusterNamespace,
+	clusters, err := NewClusters(unaggregatedClusterNamespace,
 		aggregatedClusterNamespaces...)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := clusterNamespacesWatcher.Update(clusters.ClusterNamespaces()); err != nil {
+		return nil, err
+	}
+
+	return clusters, nil
+}
+
+// NB(nate): exists primarily for testing.
+type newClustersFn func(DynamicClusterOptions) (Clusters, error)
+
+// NewDynamicClusters instantiates a new Clusters instance that pulls
+// cluster information from etcd.
+func (c ClustersStaticConfiguration) NewDynamicClusters(
+	instrumentOpts instrument.Options,
+	opts ClustersStaticConfigurationOptions,
+	clusterNamespacesWatcher ClusterNamespacesWatcher,
+) (Clusters, error) {
+	return c.newDynamicClusters(NewDynamicClusters, instrumentOpts, opts, clusterNamespacesWatcher)
+}
+
+func (c ClustersStaticConfiguration) newDynamicClusters(
+	newFn newClustersFn,
+	instrumentOpts instrument.Options,
+	opts ClustersStaticConfigurationOptions,
+	clusterNamespacesWatcher ClusterNamespacesWatcher,
+) (Clusters, error) {
+	clients := make([]client.Client, 0, len(c))
+	for _, clusterCfg := range c {
+		clusterClient, err := clusterCfg.newClient(client.ConfigurationParameters{
+			InstrumentOptions: instrumentOpts,
+			EncodingOptions:   opts.EncodingOptions,
+		}, opts.CustomAdminOptions...)
+		if err != nil {
+			return nil, err
+		}
+		clients = append(clients, clusterClient)
+	}
+
+	// Connect to all clusters in parallel
+	var (
+		wg   sync.WaitGroup
+		cfgs = make([]DynamicClusterNamespaceConfiguration, len(clients))
+
+		errLock  sync.Mutex
+		multiErr xerrors.MultiError
+	)
+	for i, clusterClient := range clients {
+		i := i
+		clusterClient := clusterClient
+		nsInit := clusterClient.Options().NamespaceInitializer()
+
+		// TODO(nate): move this validation to client.Options once static configuration of namespaces
+		// is no longer allowed.
+		if nsInit == nil {
+			return nil, errNoNamespaceInitializerSet
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			cfgs[i].nsInitializer = nsInit
+			if opts.ProvidedSession != nil {
+				cfgs[i].session = opts.ProvidedSession
+			} else if !opts.AsyncSessions {
+				var err error
+				session, err := clusterClient.DefaultSession()
+				if err != nil {
+					errLock.Lock()
+					multiErr = multiErr.Add(err)
+					errLock.Unlock()
+				}
+				cfgs[i].session = session
+			} else {
+				cfgs[i].session = m3db.NewAsyncSession(func() (client.Client, error) {
+					return clusterClient, nil
+				}, nil)
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	if !multiErr.Empty() {
+		// Close any created sessions on failure.
+		for _, cfg := range cfgs {
+			if cfg.session != nil {
+				// Returns an error if session is already closed which, in this case,
+				// is fine
+				_ = cfg.session.Close()
+			}
+		}
+		return nil, multiErr.FinalError()
+	}
+
+	dcOpts := NewDynamicClusterOptions().
+		SetDynamicClusterNamespaceConfiguration(cfgs).
+		SetClusterNamespacesWatcher(clusterNamespacesWatcher).
+		SetInstrumentOptions(instrumentOpts)
+
+	return newFn(dcOpts)
 }

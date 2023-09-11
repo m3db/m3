@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/compare"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -61,7 +62,7 @@ func TestQuantileFn(t *testing.T) {
 		actual[i] = bucketedQuantileFn(n, values, buckets)
 	}
 
-	test.EqualsWithNansWithDelta(t, expected, actual, math.Pow10(-5))
+	compare.EqualsWithNansWithDelta(t, expected, actual, math.Pow10(-5))
 }
 
 func TestQuantileFnMostlyNan(t *testing.T) {
@@ -88,7 +89,7 @@ func TestQuantileFnMostlyNan(t *testing.T) {
 		actual[i] = bucketedQuantileFn(n, values, buckets)
 	}
 
-	test.EqualsWithNansWithDelta(t, expected, actual, math.Pow10(-5))
+	compare.EqualsWithNansWithDelta(t, expected, actual, math.Pow10(-5))
 }
 
 func TestQuantileFnSingleNonNan(t *testing.T) {
@@ -114,7 +115,47 @@ func TestQuantileFnSingleNonNan(t *testing.T) {
 		actual[i] = bucketedQuantileFn(n, values, buckets)
 	}
 
-	test.EqualsWithNansWithDelta(t, expected, actual, math.Pow10(-5))
+	compare.EqualsWithNansWithDelta(t, expected, actual, math.Pow10(-5))
+}
+
+func TestQuantileNanAndEmptyArguments(t *testing.T) {
+	tests := []struct {
+		name   string
+		q      float64
+		values []float64
+		bucket []int
+	}{
+		{
+			name:   "q = NaN",
+			q:      math.NaN(),
+			values: []float64{0.0, 1.0},
+			bucket: []int{0, 1},
+		},
+		{
+			name:   "empty values and bucket",
+			q:      0.8,
+			values: []float64{},
+			bucket: []int{},
+		},
+		{
+			name:   "empty bucket",
+			q:      0.8,
+			values: []float64{0.0, 1.0},
+			bucket: []int{},
+		},
+		{
+			name:   "empty values",
+			q:      0.8,
+			values: []float64{},
+			bucket: []int{0, 1},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			results := bucketedQuantileFn(tt.q, tt.values, tt.bucket)
+			assert.True(t, math.IsNaN(results))
+		})
+	}
 }
 
 func TestQuantileCreationFn(t *testing.T) {
@@ -132,7 +173,7 @@ func TestQuantileCreationFn(t *testing.T) {
 	quantile := op(values, buckets)
 	// NB: expected calculated independently
 	expected := -2.838
-	test.EqualsWithNansWithDelta(t, expected, quantile, math.Pow10(-5))
+	compare.EqualsWithNansWithDelta(t, expected, quantile, math.Pow10(-5))
 }
 
 func TestQuantileFunctionFilteringWithoutA(t *testing.T) {
@@ -157,7 +198,7 @@ func TestQuantileFunctionFilteringWithoutA(t *testing.T) {
 	}
 	expectedMetaTags := test.TagSliceToTags([]models.Tag{{Name: []byte("d"), Value: []byte("4")}})
 
-	test.CompareValuesInOrder(t, sink.Metas, expectedMetas, sink.Values, expected)
+	compare.CompareValuesInOrder(t, sink.Metas, expectedMetas, sink.Values, expected)
 	assert.Equal(t, bounds, sink.Meta.Bounds)
 	assert.Equal(t, expectedMetaTags.Tags, sink.Meta.Tags.Tags)
 }

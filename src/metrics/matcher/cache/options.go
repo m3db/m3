@@ -23,6 +23,7 @@ package cache
 import (
 	"time"
 
+	"github.com/m3db/m3/src/metrics/matcher/namespace"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -96,6 +97,12 @@ type Options interface {
 
 	// InvalidationMode returns the invalidation mode.
 	InvalidationMode() InvalidationMode
+
+	// NamespaceResolver returns the namespace Resolver.
+	NamespaceResolver() namespace.Resolver
+
+	// SetNamespaceResolver set the NamespaceResolver.
+	SetNamespaceResolver(value namespace.Resolver) Options
 }
 
 type options struct {
@@ -107,6 +114,7 @@ type options struct {
 	evictionBatchSize int
 	deletionBatchSize int
 	invalidationMode  InvalidationMode
+	nsResolver        namespace.Resolver
 }
 
 // NewOptions creates a new set of options.
@@ -120,6 +128,7 @@ func NewOptions() Options {
 		evictionBatchSize: defaultEvictionBatchSize,
 		deletionBatchSize: defaultDeletionBatchSize,
 		invalidationMode:  defaultInvalidationMode,
+		nsResolver:        namespace.Default,
 	}
 }
 
@@ -201,4 +210,14 @@ func (o *options) SetInvalidationMode(value InvalidationMode) Options {
 
 func (o *options) InvalidationMode() InvalidationMode {
 	return o.invalidationMode
+}
+
+func (o *options) NamespaceResolver() namespace.Resolver {
+	return o.nsResolver
+}
+
+func (o *options) SetNamespaceResolver(value namespace.Resolver) Options {
+	opts := *o
+	opts.nsResolver = value
+	return &opts
 }

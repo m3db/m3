@@ -1,5 +1,4 @@
-listenAddress:
-  value: "0.0.0.0:7201"
+listenAddress: 0.0.0.0:7201
 
 logging:
   level: info
@@ -13,6 +12,9 @@ metrics:
   sanitization: prometheus
   samplingRate: 1.0
   extended: none
+
+http:
+  enableH2C: true
 
 clusters:
   - namespaces:
@@ -53,9 +55,14 @@ clusters:
       backgroundHealthCheckFailThrottleFactor: 0.5
 
 limits:
-  maxComputedDatapoints: 10555
   perQuery:
-    maxComputedDatapoints: 12000
-    maxFetchedDatapoints: 11000
-  global:
-    maxFetchedDatapoints: 13000
+    maxFetchedSeries: 12000
+    maxFetchedDocs: 11000
+    requireExhaustive: true
+
+query:
+  prometheus:
+    convert:
+      resolutionThresholdForCounterNormalization: 10m
+      valueDecreaseTolerance: 0.0000000001
+      valueDecreaseToleranceUntil: 2022-01-01T00:00:00Z

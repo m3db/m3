@@ -1,4 +1,4 @@
-// +build integration
+//go:build integration
 
 // Copyright (c) 2020 Uber Technologies, Inc.
 //
@@ -25,15 +25,14 @@ package integration
 import (
 	"reflect"
 	"sort"
-	"sync"
 	"testing"
 	"time"
 
+	aggclient "github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/policy"
-	"github.com/m3db/m3/src/x/clock"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
@@ -44,24 +43,18 @@ func TestOneClientPassthroughMetrics(t *testing.T) {
 		t.SkipNow()
 	}
 
-	serverOpts := newTestServerOptions()
+	aggregatorClientType, err := getAggregatorClientTypeFromEnv()
+	require.NoError(t, err)
+	if aggregatorClientType == aggclient.M3MsgAggregatorClient {
+		// m3msg client doesn't support passthrough messages
+		t.SkipNow()
+	}
+
+	serverOpts := newTestServerOptions(t)
 
 	// Clock setup.
-	var lock sync.RWMutex
-	now := time.Now().Truncate(time.Hour)
-	getNowFn := func() time.Time {
-		lock.RLock()
-		t := now
-		lock.RUnlock()
-		return t
-	}
-	setNowFn := func(t time.Time) {
-		lock.Lock()
-		now = t
-		lock.Unlock()
-	}
-	clockOpts := clock.NewOptions().SetNowFn(getNowFn)
-	serverOpts = serverOpts.SetClockOptions(clockOpts)
+	clock := newTestClock(time.Now().Truncate(time.Hour))
+	serverOpts = serverOpts.SetClockOptions(clock.Options())
 
 	// Placement setup.
 	numShards := 1024
@@ -74,8 +67,7 @@ func TestOneClientPassthroughMetrics(t *testing.T) {
 	instance := cfg.newPlacementInstance()
 	placement := newPlacement(numShards, []placement.Instance{instance})
 	placementKey := serverOpts.PlacementKVKey()
-	placementStore := serverOpts.KVStore()
-	require.NoError(t, setPlacement(placementKey, placementStore, placement))
+	setPlacement(t, placementKey, serverOpts.ClusterClient(), placement)
 
 	// Create server.
 	testServer := newTestServerSetup(t, serverOpts)
@@ -92,13 +84,12 @@ func TestOneClientPassthroughMetrics(t *testing.T) {
 	var (
 		idPrefix = "full.passthru.id"
 		numIDs   = 10
-		start    = getNowFn()
+		start    = clock.Now()
 		stop     = start.Add(10 * time.Second)
 		interval = 2 * time.Second
 	)
-	client := testServer.newClient()
+	client := testServer.newClient(t)
 	require.NoError(t, client.connect())
-	defer client.close()
 
 	ids := generateTestIDs(idPrefix, numIDs)
 	metadataFn := func(idx int) metadataUnion {
@@ -119,7 +110,7 @@ func TestOneClientPassthroughMetrics(t *testing.T) {
 	})
 
 	for _, data := range dataset {
-		setNowFn(data.timestamp)
+		clock.SetNow(data.timestamp)
 		for _, mm := range data.metricWithMetadatas {
 			require.NoError(t, client.writePassthroughMetricWithMetadata(mm.metric.passthrough, mm.metadata.passthroughMetadata))
 		}
@@ -131,8 +122,10 @@ func TestOneClientPassthroughMetrics(t *testing.T) {
 
 	// Move time forward and wait for flushing to happen.
 	finalTime := stop.Add(time.Minute + 2*time.Second)
-	setNowFn(finalTime)
+	clock.SetNow(finalTime)
 	time.Sleep(2 * time.Second)
+
+	require.NoError(t, client.close())
 
 	// Stop the server.
 	require.NoError(t, testServer.stopServer())

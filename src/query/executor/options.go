@@ -23,7 +23,6 @@ package executor
 import (
 	"time"
 
-	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/instrument"
@@ -31,7 +30,6 @@ import (
 
 type engineOptions struct {
 	instrumentOpts   instrument.Options
-	globalEnforcer   qcost.ChainedEnforcer
 	store            storage.Storage
 	parseOptions     promql.ParseOptions
 	lookbackDuration time.Duration
@@ -51,16 +49,6 @@ func (o *engineOptions) InstrumentOptions() instrument.Options {
 func (o *engineOptions) SetInstrumentOptions(v instrument.Options) EngineOptions {
 	opts := *o
 	opts.instrumentOpts = v
-	return &opts
-}
-
-func (o *engineOptions) GlobalEnforcer() qcost.ChainedEnforcer {
-	return o.globalEnforcer
-}
-
-func (o *engineOptions) SetGlobalEnforcer(v qcost.ChainedEnforcer) EngineOptions {
-	opts := *o
-	opts.globalEnforcer = v
 	return &opts
 }
 

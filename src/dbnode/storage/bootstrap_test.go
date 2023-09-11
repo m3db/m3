@@ -26,19 +26,27 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
-
-	"github.com/golang/mock/gomock"
 	xtest "github.com/m3db/m3/src/x/test"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	testDatabaseBootstrapWithBootstrapError(t, false)
+}
+
+func TestDatabaseBootstrapEnqueueWithBootstrapError(t *testing.T) {
+	testDatabaseBootstrapWithBootstrapError(t, true)
+}
+
+func testDatabaseBootstrapWithBootstrapError(t *testing.T, async bool) {
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions()
@@ -74,24 +82,42 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 			Return(fmt.Errorf("an error")).
 			Do(func(ctx context.Context, bootstrapResult bootstrap.NamespaceResult) {
 				// After returning an error, make sure we don't re-enqueue.
+				require.Equal(t, Bootstrapping, bsm.state)
 				bsm.bootstrapFn = func() error {
+					require.Equal(t, Bootstrapping, bsm.state)
 					return nil
 				}
 			}),
 	)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
-	result, err := bsm.Bootstrap()
-	require.NoError(t, err)
+	require.Equal(t, BootstrapNotStarted, bsm.state)
 
+	var result BootstrapResult
+	if async {
+		var wg sync.WaitGroup
+		wg.Add(1)
+		bsm.BootstrapEnqueue(BootstrapEnqueueOptions{
+			OnCompleteFn: func(r BootstrapResult) {
+				result = r
+				wg.Done()
+			},
+		})
+		wg.Wait()
+	} else {
+		result, err = bsm.Bootstrap()
+		require.NoError(t, err)
+	}
+
+	require.Equal(t, Bootstrapped, bsm.state)
 	require.Equal(t, 1, len(result.ErrorsBootstrap))
 	require.Equal(t, "an error", result.ErrorsBootstrap[0].Error())
 }
 
 func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions()
@@ -114,9 +140,8 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	ns.EXPECT().PrepareBootstrap(gomock.Any()).Return([]databaseShard{}, nil).AnyTimes()
-	ns.EXPECT().Metadata().Return(meta).AnyTimes()
-
+	ns.EXPECT().PrepareBootstrap(gomock.Any()).Return([]databaseShard{}, nil).Times(2)
+	ns.EXPECT().Metadata().Return(meta).Times(2)
 	ns.EXPECT().
 		Bootstrap(gomock.Any(), gomock.Any()).
 		Return(nil).
@@ -149,7 +174,7 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 }
 
 func TestDatabaseBootstrapBootstrapHooks(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions()
@@ -189,7 +214,6 @@ func TestDatabaseBootstrapBootstrapHooks(t *testing.T) {
 
 		ns.EXPECT().PrepareBootstrap(gomock.Any()).Return(shards, nil).AnyTimes()
 		ns.EXPECT().Metadata().Return(meta).AnyTimes()
-
 		ns.EXPECT().
 			Bootstrap(gomock.Any(), gomock.Any()).
 			Return(nil).

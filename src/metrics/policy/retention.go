@@ -30,7 +30,8 @@ import (
 )
 
 var (
-	errNilRetentionProto = errors.New("nil retention proto message")
+	errNilRetentionProto = errors.New("empty retention proto message")
+	emptyRetentionProto  = policypb.Retention{}
 )
 
 // Retention is the retention period for datapoints.
@@ -52,8 +53,8 @@ func (r Retention) ToProto(pb *policypb.Retention) {
 }
 
 // FromProto converts the protobuf message to a retention in place.
-func (r *Retention) FromProto(pb *policypb.Retention) error {
-	if pb == nil {
+func (r *Retention) FromProto(pb policypb.Retention) error {
+	if pb == emptyRetentionProto {
 		return errNilRetentionProto
 	}
 	*r = Retention(pb.Period)

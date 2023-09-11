@@ -22,11 +22,11 @@ package xhttp
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 
-	"github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
 	"go.uber.org/zap"
 )
 
@@ -55,7 +55,7 @@ func WriteJSONResponse(w http.ResponseWriter, data interface{}, logger *zap.Logg
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		logger.Error("unable to marshal json", zap.Error(err))
-		Error(w, err, http.StatusInternalServerError)
+		WriteError(w, err)
 		return
 	}
 
@@ -72,12 +72,14 @@ func WriteProtoMsgJSONResponse(w http.ResponseWriter, data proto.Message, logger
 	err := marshaler.Marshal(w, data)
 	if err != nil {
 		logger.Error("unable to marshal json", zap.Error(err))
-		Error(w, err, http.StatusInternalServerError)
+		WriteError(w, err)
 	}
 }
 
 // WriteUninitializedResponse writes a protobuf message to the ResponseWriter
 func WriteUninitializedResponse(w http.ResponseWriter, logger *zap.Logger) {
 	logger.Warn("request received before M3DB session is initialized")
-	Error(w, fmt.Errorf("connection to M3DB is not yet initialized"), http.StatusServiceUnavailable)
+	err := NewError(errors.New("connection to M3DB not yet initialized"),
+		http.StatusServiceUnavailable)
+	WriteError(w, err)
 }

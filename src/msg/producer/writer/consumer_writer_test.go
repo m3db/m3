@@ -21,22 +21,23 @@
 package writer
 
 import (
+	"context"
 	"io"
 	"net"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
-	"github.com/m3db/m3/src/msg/protocol/proto"
-	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/x/retry"
-	xtest "github.com/m3db/m3/src/x/test"
-
 	"github.com/fortytw2/leaktest"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+
+	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
+	"github.com/m3db/m3/src/msg/protocol/proto"
+	"github.com/m3db/m3/src/x/retry"
+	xtest "github.com/m3db/m3/src/x/test"
 )
 
 var (
@@ -385,15 +386,173 @@ func TestConsumerWriterResetWhileDecoding(t *testing.T) {
 	})
 }
 
+// Interface solely for mocking.
+//nolint:deadcode,unused
+type contextDialer interface {
+	DialContext(ctx context.Context, network string, addr string) (net.Conn, error)
+}
+
+type keepAlivableConn struct {
+	net.Conn
+	keepAlivable
+}
+
+func TestConsumerWriter_connectNoRetry(t *testing.T) {
+	type testDeps struct {
+		Ctrl       *gomock.Controller
+		MockDialer *MockcontextDialer
+		Listener   net.Listener
+	}
+
+	newTestWriter := func(deps testDeps, opts Options) *consumerWriterImpl {
+		return newConsumerWriter(
+			deps.Listener.Addr().String(),
+			nil,
+			opts,
+			testConsumerWriterMetrics(),
+		).(*consumerWriterImpl)
+	}
+
+	mustClose := func(t *testing.T, c io.ReadWriteCloser) {
+		require.NoError(t, c.Close())
+	}
+
+	setup := func(t *testing.T) testDeps {
+		ctrl := gomock.NewController(t)
+
+		lis, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, lis.Close())
+		})
+
+		return testDeps{
+			Ctrl:       ctrl,
+			Listener:   lis,
+			MockDialer: NewMockcontextDialer(ctrl),
+		}
+	}
+	type dialArgs struct {
+		Ctx     context.Context
+		Network string
+		Addr    string
+	}
+
+	// Other tests in this file cover the case where dialer isn't set explicitly (default).
+	t.Run("uses net.Dialer where dialer is unset", func(t *testing.T) {
+		defer leaktest.Check(t)()
+		tdeps := setup(t)
+		opts := testOptions()
+		w := newTestWriter(tdeps, opts.SetConnectionOptions(opts.ConnectionOptions().SetContextDialer(nil)))
+		conn, err := w.connectNoRetryWithTimeout(tdeps.Listener.Addr().String())
+		require.NoError(t, err)
+		defer mustClose(t, conn)
+
+		_, err = conn.Write([]byte("test"))
+		require.NoError(t, err)
+	})
+	t.Run("uses dialer and respects timeout", func(t *testing.T) {
+		defer leaktest.Check(t)()
+
+		tdeps := setup(t)
+		var capturedArgs dialArgs
+		tdeps.MockDialer.EXPECT().DialContext(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+			func(ctx context.Context, network string, addr string) (net.Conn, error) {
+				capturedArgs.Ctx = ctx
+				return (&net.Dialer{}).DialContext(ctx, network, addr)
+			},
+		).MinTimes(1)
+
+		const testDialTimeout = 45 * time.Second
+		opts := testOptions()
+		opts = opts.SetConnectionOptions(opts.ConnectionOptions().
+			SetContextDialer(tdeps.MockDialer.DialContext).
+			SetDialTimeout(testDialTimeout),
+		)
+
+		start := time.Now()
+		w := newTestWriter(tdeps, opts)
+		conn, err := w.connectNoRetry(tdeps.Listener.Addr().String())
+
+		require.NoError(t, err)
+		defer mustClose(t, conn)
+
+		deadline, ok := capturedArgs.Ctx.Deadline()
+		require.True(t, ok)
+		// Start is taken *before* we try to connect, so the deadline must = start + <some_time> + testDialTimeout.
+		// Therefore deadline - start >= testDialTimeout.
+		assert.True(t, deadline.Sub(start) >= testDialTimeout)
+	})
+
+	t.Run("sets KeepAlive where possible", func(t *testing.T) {
+		tdeps := setup(t)
+		// Deep mocking here is solely because it's not easy to get the keep alive off an actual TCP connection
+		// (have to drop down to the syscall layer).
+		const testKeepAlive = 56 * time.Minute
+		mockConn := NewMockkeepAlivable(tdeps.Ctrl)
+		mockConn.EXPECT().SetKeepAlivePeriod(testKeepAlive).Times(2)
+		mockConn.EXPECT().SetKeepAlive(true).Times(2)
+
+		tdeps.MockDialer.EXPECT().DialContext(gomock.Any(), gomock.Any(), gomock.Any()).Return(keepAlivableConn{
+			keepAlivable: mockConn,
+		}, nil).Times(2)
+
+		opts := testOptions()
+		opts = opts.SetConnectionOptions(opts.ConnectionOptions().
+			SetKeepAlivePeriod(testKeepAlive).
+			SetContextDialer(tdeps.MockDialer.DialContext),
+		)
+		w := newTestWriter(tdeps, opts)
+		_, err := w.connectNoRetryWithTimeout("foobar")
+		require.NoError(t, err)
+	})
+
+	t.Run("handles non TCP connections gracefully", func(t *testing.T) {
+		tdeps := setup(t)
+		tdeps.MockDialer.EXPECT().DialContext(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+			func(ctx context.Context, network string, addr string) (net.Conn, error) {
+				srv, client := net.Pipe()
+				require.NoError(t, srv.Close())
+				return client, nil
+			},
+		).MinTimes(1)
+
+		defer leaktest.Check(t)()
+
+		opts := testOptions()
+		opts = opts.SetConnectionOptions(opts.ConnectionOptions().
+			SetContextDialer(tdeps.MockDialer.DialContext),
+		)
+
+		w := newConsumerWriter(
+			"foobar",
+			nil,
+			opts,
+			testConsumerWriterMetrics(),
+		).(*consumerWriterImpl)
+		conn, err := w.connectNoRetryWithTimeout("foobar")
+		require.NoError(t, err)
+		defer mustClose(t, conn)
+
+		_, isTCPConn := conn.Conn.(*net.TCPConn)
+		assert.False(t, isTCPConn)
+	})
+}
+
 func testOptions() Options {
 	return NewOptions().
 		SetTopicName("topicName").
 		SetTopicWatchInitTimeout(100 * time.Millisecond).
 		SetPlacementWatchInitTimeout(100 * time.Millisecond).
-		SetMessagePoolOptions(pool.NewObjectPoolOptions().SetSize(1)).
 		SetMessageQueueNewWritesScanInterval(100 * time.Millisecond).
 		SetMessageQueueFullScanInterval(200 * time.Millisecond).
-		SetMessageRetryOptions(retry.NewOptions().SetInitialBackoff(100 * time.Millisecond).SetMaxBackoff(500 * time.Millisecond)).
+		SetMessageRetryNanosFn(
+			NextRetryNanosFn(
+				retry.NewOptions().
+					SetInitialBackoff(100 * time.Millisecond).
+					SetMaxBackoff(500 * time.Millisecond),
+			),
+		).
 		SetAckErrorRetryOptions(retry.NewOptions().SetInitialBackoff(200 * time.Millisecond).SetMaxBackoff(time.Second)).
 		SetConnectionOptions(testConnectionOptions())
 }

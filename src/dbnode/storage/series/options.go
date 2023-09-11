@@ -21,11 +21,11 @@
 package series
 
 import (
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/retention"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -53,7 +53,7 @@ type options struct {
 // NewOptions creates new database series options
 func NewOptions() Options {
 	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{
-		pool.Bucket{Count: 4096, Capacity: 128},
+		{Count: 4096, Capacity: 128},
 	}, nil, func(s []pool.Bucket) pool.BytesPool {
 		return pool.NewBytesPool(s, nil)
 	})

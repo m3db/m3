@@ -135,11 +135,11 @@ func TestNewPoliciesFromProto(t *testing.T) {
 	input := []*policypb.Policy{
 		&policypb.Policy{
 			StoragePolicy: &policypb.StoragePolicy{
-				Resolution: &policypb.Resolution{
+				Resolution: policypb.Resolution{
 					WindowSize: int64(10 * time.Second),
 					Precision:  int64(time.Second),
 				},
-				Retention: &policypb.Retention{
+				Retention: policypb.Retention{
 					Period: int64(24 * time.Hour),
 				},
 			},
@@ -150,11 +150,11 @@ func TestNewPoliciesFromProto(t *testing.T) {
 		},
 		&policypb.Policy{
 			StoragePolicy: &policypb.StoragePolicy{
-				Resolution: &policypb.Resolution{
+				Resolution: policypb.Resolution{
 					WindowSize: int64(time.Minute),
 					Precision:  int64(time.Minute),
 				},
-				Retention: &policypb.Retention{
+				Retention: policypb.Retention{
 					Period: int64(240 * time.Hour),
 				},
 			},
@@ -182,11 +182,11 @@ func TestParsePolicyIntoProto(t *testing.T) {
 			str: "1s:1h",
 			expected: &policypb.Policy{
 				StoragePolicy: &policypb.StoragePolicy{
-					Resolution: &policypb.Resolution{
+					Resolution: policypb.Resolution{
 						WindowSize: time.Second.Nanoseconds(),
 						Precision:  time.Second.Nanoseconds(),
 					},
-					Retention: &policypb.Retention{
+					Retention: policypb.Retention{
 						Period: time.Hour.Nanoseconds(),
 					},
 				},
@@ -196,11 +196,11 @@ func TestParsePolicyIntoProto(t *testing.T) {
 			str: "1s:1h|Mean",
 			expected: &policypb.Policy{
 				StoragePolicy: &policypb.StoragePolicy{
-					Resolution: &policypb.Resolution{
+					Resolution: policypb.Resolution{
 						WindowSize: time.Second.Nanoseconds(),
 						Precision:  time.Second.Nanoseconds(),
 					},
-					Retention: &policypb.Retention{
+					Retention: policypb.Retention{
 						Period: time.Hour.Nanoseconds(),
 					},
 				},
@@ -211,11 +211,11 @@ func TestParsePolicyIntoProto(t *testing.T) {
 			str: "60s:24h|Mean,Count",
 			expected: &policypb.Policy{
 				StoragePolicy: &policypb.StoragePolicy{
-					Resolution: &policypb.Resolution{
+					Resolution: policypb.Resolution{
 						WindowSize: time.Minute.Nanoseconds(),
 						Precision:  time.Minute.Nanoseconds(),
 					},
-					Retention: &policypb.Retention{
+					Retention: policypb.Retention{
 						Period: 24 * time.Hour.Nanoseconds(),
 					},
 				},
@@ -226,11 +226,11 @@ func TestParsePolicyIntoProto(t *testing.T) {
 			str: "1m:1d|Count,Mean",
 			expected: &policypb.Policy{
 				StoragePolicy: &policypb.StoragePolicy{
-					Resolution: &policypb.Resolution{
+					Resolution: policypb.Resolution{
 						WindowSize: time.Minute.Nanoseconds(),
 						Precision:  time.Minute.Nanoseconds(),
 					},
-					Retention: &policypb.Retention{
+					Retention: policypb.Retention{
 						Period: 24 * time.Hour.Nanoseconds(),
 					},
 				},
@@ -241,11 +241,11 @@ func TestParsePolicyIntoProto(t *testing.T) {
 			str: "1m@1s:1h|P999,P9999",
 			expected: &policypb.Policy{
 				StoragePolicy: &policypb.StoragePolicy{
-					Resolution: &policypb.Resolution{
+					Resolution: policypb.Resolution{
 						WindowSize: time.Minute.Nanoseconds(),
 						Precision:  time.Second.Nanoseconds(),
 					},
-					Retention: &policypb.Retention{
+					Retention: policypb.Retention{
 						Period: time.Hour.Nanoseconds(),
 					},
 				},

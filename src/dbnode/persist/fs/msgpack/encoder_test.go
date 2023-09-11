@@ -114,7 +114,7 @@ func testExpectedResultForIndexEntry(t *testing.T, indexEntry schema.IndexEntry)
 		indexEntry.Offset,
 		indexEntry.DataChecksum,
 		indexEntry.EncodedTags,
-		testIndexEntryChecksum, // Checksum auto-added to the end of the index entry
+		int64(testIndexEntryChecksum), // Checksum auto-added to the end of the index entry
 	}
 }
 

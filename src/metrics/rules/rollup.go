@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -26,8 +26,10 @@ import (
 
 	merrors "github.com/m3db/m3/src/metrics/errors"
 	"github.com/m3db/m3/src/metrics/filters"
+	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/rules/view"
+	"github.com/m3db/m3/src/query/models"
 
 	"github.com/pborman/uuid"
 )
@@ -45,11 +47,13 @@ type rollupRuleSnapshot struct {
 	name               string
 	tombstoned         bool
 	cutoverNanos       int64
-	filter             filters.Filter
+	filter             filters.TagsFilter
 	targets            []rollupTarget
 	rawFilter          string
 	lastUpdatedAtNanos int64
 	lastUpdatedBy      string
+	keepOriginal       bool
+	tags               []models.Tag
 }
 
 func newRollupRuleSnapshotFromProto(
@@ -102,6 +106,8 @@ func newRollupRuleSnapshotFromProto(
 		filter,
 		r.LastUpdatedAtNanos,
 		r.LastUpdatedBy,
+		r.KeepOriginal,
+		models.TagsFromProto(r.Tags),
 	), nil
 }
 
@@ -110,9 +116,11 @@ func newRollupRuleSnapshotFromFields(
 	cutoverNanos int64,
 	rawFilter string,
 	targets []rollupTarget,
-	filter filters.Filter,
+	filter filters.TagsFilter,
 	lastUpdatedAtNanos int64,
 	lastUpdatedBy string,
+	keepOriginal bool,
+	tags []models.Tag,
 ) (*rollupRuleSnapshot, error) {
 	if _, err := filters.ValidateTagsFilter(rawFilter); err != nil {
 		return nil, err
@@ -126,6 +134,8 @@ func newRollupRuleSnapshotFromFields(
 		filter,
 		lastUpdatedAtNanos,
 		lastUpdatedBy,
+		keepOriginal,
+		tags,
 	), nil
 }
 
@@ -137,9 +147,11 @@ func newRollupRuleSnapshotFromFieldsInternal(
 	cutoverNanos int64,
 	rawFilter string,
 	targets []rollupTarget,
-	filter filters.Filter,
+	filter filters.TagsFilter,
 	lastUpdatedAtNanos int64,
 	lastUpdatedBy string,
+	keepOriginal bool,
+	tags []models.Tag,
 ) *rollupRuleSnapshot {
 	return &rollupRuleSnapshot{
 		name:               name,
@@ -150,6 +162,8 @@ func newRollupRuleSnapshotFromFieldsInternal(
 		rawFilter:          rawFilter,
 		lastUpdatedAtNanos: lastUpdatedAtNanos,
 		lastUpdatedBy:      lastUpdatedBy,
+		keepOriginal:       keepOriginal,
+		tags:               tags,
 	}
 }
 
@@ -158,24 +172,28 @@ func (rrs *rollupRuleSnapshot) clone() rollupRuleSnapshot {
 	for i, t := range rrs.targets {
 		targets[i] = t.clone()
 	}
-	var filter filters.Filter
-	if rrs.filter != nil {
-		filter = rrs.filter.Clone()
-	}
+	tags := make([]models.Tag, len(rrs.tags))
+	copy(tags, rrs.tags)
 	return rollupRuleSnapshot{
 		name:               rrs.name,
 		tombstoned:         rrs.tombstoned,
 		cutoverNanos:       rrs.cutoverNanos,
-		filter:             filter,
+		filter:             rrs.filter,
 		targets:            targets,
 		rawFilter:          rrs.rawFilter,
 		lastUpdatedAtNanos: rrs.lastUpdatedAtNanos,
 		lastUpdatedBy:      rrs.lastUpdatedBy,
+		keepOriginal:       rrs.keepOriginal,
+		tags:               tags,
 	}
 }
 
 // proto returns the given MappingRuleSnapshot in protobuf form.
 func (rrs *rollupRuleSnapshot) proto() (*rulepb.RollupRuleSnapshot, error) {
+	tags := make([]*metricpb.Tag, 0, len(rrs.tags))
+	for _, tag := range rrs.tags {
+		tags = append(tags, tag.ToProto())
+	}
 	res := &rulepb.RollupRuleSnapshot{
 		Name:               rrs.name,
 		Tombstoned:         rrs.tombstoned,
@@ -183,6 +201,8 @@ func (rrs *rollupRuleSnapshot) proto() (*rulepb.RollupRuleSnapshot, error) {
 		Filter:             rrs.rawFilter,
 		LastUpdatedAtNanos: rrs.lastUpdatedAtNanos,
 		LastUpdatedBy:      rrs.lastUpdatedBy,
+		KeepOriginal:       rrs.keepOriginal,
+		Tags:               tags,
 	}
 
 	targets := make([]*rulepb.RollupTargetV2, len(rrs.targets))
@@ -310,6 +330,8 @@ func (rc *rollupRule) addSnapshot(
 	rawFilter string,
 	rollupTargets []rollupTarget,
 	meta UpdateMetadata,
+	keepOriginal bool,
+	tags []models.Tag,
 ) error {
 	snapshot, err := newRollupRuleSnapshotFromFields(
 		name,
@@ -319,6 +341,8 @@ func (rc *rollupRule) addSnapshot(
 		nil,
 		meta.updatedAtNanos,
 		meta.updatedBy,
+		keepOriginal,
+		tags,
 	)
 	if err != nil {
 		return err
@@ -347,6 +371,7 @@ func (rc *rollupRule) markTombstoned(meta UpdateMetadata) error {
 	snapshot.lastUpdatedAtNanos = meta.updatedAtNanos
 	snapshot.lastUpdatedBy = meta.updatedBy
 	snapshot.targets = nil
+	snapshot.keepOriginal = false
 	rc.snapshots = append(rc.snapshots, &snapshot)
 	return nil
 }
@@ -356,6 +381,8 @@ func (rc *rollupRule) revive(
 	rawFilter string,
 	targets []rollupTarget,
 	meta UpdateMetadata,
+	keepOriginal bool,
+	tags []models.Tag,
 ) error {
 	n, err := rc.name()
 	if err != nil {
@@ -364,7 +391,7 @@ func (rc *rollupRule) revive(
 	if !rc.tombstoned() {
 		return merrors.NewInvalidInputError(fmt.Sprintf("%s is not tombstoned", n))
 	}
-	return rc.addSnapshot(name, rawFilter, targets, meta)
+	return rc.addSnapshot(name, rawFilter, targets, meta, keepOriginal, tags)
 }
 
 func (rc *rollupRule) history() ([]view.RollupRule, error) {
@@ -401,5 +428,7 @@ func (rc *rollupRule) rollupRuleView(snapshotIdx int) (view.RollupRule, error) {
 		Targets:             targets,
 		LastUpdatedBy:       rrs.lastUpdatedBy,
 		LastUpdatedAtMillis: rrs.lastUpdatedAtNanos / nanosPerMilli,
+		KeepOriginal:        rrs.keepOriginal,
+		Tags:                rrs.tags,
 	}, nil
 }

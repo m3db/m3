@@ -110,6 +110,86 @@ func TestSummarize(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestSmartSummarize(t *testing.T) {
+	var (
+		start  = time.Unix(131, 0)
+		end    = time.Unix(251, 0)
+		ctx    = common.NewContext(common.ContextOptions{Start: start, End: end})
+		vals   = ts.NewValues(ctx, 10000, 12)
+		series = []*ts.Series{ts.NewSeries(ctx, "foo", start, vals)}
+	)
+
+	defer ctx.Close()
+
+	// 0+1+2
+	// 3+4+5
+	// 6+7+8
+	// 9+10+11
+	for i := 0; i < vals.Len(); i++ {
+		vals.SetValueAt(i, float64(i))
+	}
+
+	tests := []struct {
+		name          string
+		interval      string
+		fname         string
+		expectedStart time.Time
+		expectedEnd   time.Time
+		expectedVals  []float64
+	}{
+		{"smartSummarize(foo, \"30s\", \"sum\")",
+			"30s",
+			"",
+			start, end,
+			[]float64{3, 12, 21, 30},
+		},
+		{"smartSummarize(foo, \"1min\", \"sum\")",
+			"1min",
+			"",
+			start,
+			end,
+			[]float64{15, 51},
+		},
+		{"smartSummarize(foo, \"40s\", \"median\")",
+			"40s",
+			"median",
+			start,
+			end,
+			[]float64{1.5, 5.5, 9.5},
+		},
+		{"smartSummarize(foo, \"30s\", \"median\")",
+			"30s",
+			"median",
+			start,
+			end,
+			[]float64{1, 4, 7, 10},
+		},
+	}
+
+	for _, test := range tests {
+		outSeries, err := smartSummarize(ctx, singlePathSpec{
+			Values: series,
+		}, test.interval, test.fname)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(outSeries.Values))
+
+		out := outSeries.Values[0]
+		assert.Equal(t, test.name, out.Name(), "incorrect name for %s", test.name)
+		assert.Equal(t, test.expectedStart, out.StartTime(), "incorrect start for %s", test.name)
+		assert.Equal(t, test.expectedEnd, out.EndTime(), "incorrect end for %s", test.name)
+		require.Equal(t, len(test.expectedVals), out.Len(), "incorrect len for %s", test.name)
+
+		for i := 0; i < out.Len(); i++ {
+			assert.Equal(t, test.expectedVals[i], out.ValueAt(i), "incorrect val %d for %s", i, test.name)
+		}
+	}
+
+	_, err := smartSummarize(ctx, singlePathSpec{
+		Values: series,
+	}, "0min", "avg")
+	require.Error(t, err)
+}
+
 func TestSummarizeInvalidInterval(t *testing.T) {
 
 	var (

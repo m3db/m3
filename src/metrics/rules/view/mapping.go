@@ -49,6 +49,16 @@ func (m *MappingRule) Equal(other *MappingRule) bool {
 	if m == nil || other == nil {
 		return false
 	}
+	if len(m.Tags) != len(other.Tags) {
+		return false
+	}
+
+	for i := 0; i < len(m.Tags); i++ {
+		if !m.Tags[i].Equal(other.Tags[i]) {
+			return false
+		}
+	}
+
 	return m.ID == other.ID &&
 		m.Name == other.Name &&
 		m.Filter == other.Filter &&

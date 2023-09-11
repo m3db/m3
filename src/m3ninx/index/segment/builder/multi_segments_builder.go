@@ -21,6 +21,7 @@
 package builder
 
 import (
+	"fmt"
 	"io"
 	"sort"
 
@@ -32,8 +33,9 @@ import (
 )
 
 type builderFromSegments struct {
-	docs           []doc.Document
+	docs           []doc.Metadata
 	idSet          *IDsMap
+	filter         segment.DocumentsFilter
 	segments       []segmentMetadata
 	termsIter      *termsIterFromSegments
 	segmentsOffset postings.ID
@@ -42,11 +44,15 @@ type builderFromSegments struct {
 type segmentMetadata struct {
 	segment segment.Segment
 	offset  postings.ID
-	// duplicatesAsc is a lookup of document IDs are duplicates
-	// in this segment, that is documents that are already
-	// contained by other segments and hence should not be
-	// returned when looking up documents.
-	duplicatesAsc []postings.ID
+	// negativeOffsets is a lookup of document IDs are duplicates or should be skipped,
+	// that is documents that are already contained by other segments or should
+	// not be included in the output segment and hence should not be returned
+	// when looking up documents. If this is the case offset is -1.
+	// If a document ID is not a duplicate or skipped then the offset is
+	// the shift that should be applied when translating this postings ID
+	// to the result postings ID.
+	negativeOffsets []int64
+	skips           int64
 }
 
 // NewBuilderFromSegments returns a new builder from segments.
@@ -61,7 +67,7 @@ func NewBuilderFromSegments(opts Options) segment.SegmentsBuilder {
 
 func (b *builderFromSegments) Reset() {
 	// Reset the documents slice
-	var emptyDoc doc.Document
+	var emptyDoc doc.Metadata
 	for i := range b.docs {
 		b.docs[i] = emptyDoc
 	}
@@ -74,14 +80,34 @@ func (b *builderFromSegments) Reset() {
 	b.segmentsOffset = 0
 	var emptySegment segmentMetadata
 	for i := range b.segments {
+		// Save the offsets array.
+		negativeOffsets := b.segments[i].negativeOffsets
 		b.segments[i] = emptySegment
+		b.segments[i].negativeOffsets = negativeOffsets[:0]
 	}
 	b.segments = b.segments[:0]
 
 	b.termsIter.clear()
 }
 
+func (b *builderFromSegments) SetFilter(
+	filter segment.DocumentsFilter,
+) {
+	b.filter = filter
+}
+
 func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
+	// Order by largest -> smallest so that the first segment
+	// is the largest when iterating over term postings lists
+	// (which means it can be directly copied into the merged postings
+	// list via a union rather than needing to shift posting list
+	// IDs to take into account for duplicates).
+	// Note: This must be done first so that offset is correctly zero
+	// for the largest segment.
+	sort.Slice(segments, func(i, j int) bool {
+		return segments[i].Size() > segments[j].Size()
+	})
+
 	// numMaxDocs can sometimes be larger than the actual number of documents
 	// since some are duplicates
 	numMaxDocs := 0
@@ -92,7 +118,7 @@ func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
 	// Ensure we don't have to constantly reallocate docs slice
 	totalMaxSize := len(b.docs) + numMaxDocs
 	if cap(b.docs) < totalMaxSize {
-		b.docs = make([]doc.Document, 0, totalMaxSize)
+		b.docs = make([]doc.Metadata, 0, totalMaxSize)
 	}
 
 	// First build metadata and docs slice
@@ -102,14 +128,37 @@ func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
 			return err
 		}
 
+		var negativeOffsets []int64
+		if n := len(b.segments); cap(b.segments) > n {
+			// Take the offsets from the element we're about to reuse.
+			negativeOffsets = b.segments[:n+1][n].negativeOffsets[:0]
+		}
+		if int64(cap(negativeOffsets)) < segment.Size() {
+			negativeOffsets = make([]int64, 0, int(1.5*float64(segment.Size())))
+		}
+
 		var (
 			added      int
-			duplicates []postings.ID
+			currOffset int64
 		)
 		for iter.Next() {
 			d := iter.Current()
+			negativeOffsets = append(negativeOffsets, currOffset)
 			if b.idSet.Contains(d.ID) {
-				duplicates = append(duplicates, iter.PostingsID())
+				// Skip duplicates.
+				negativeOffsets[len(negativeOffsets)-1] = -1
+				currOffset++
+				if b.filter != nil {
+					// Callback for when duplicate doc encountered and we filter
+					// out the document from the resulting segment.
+					b.filter.OnDuplicateDoc(d)
+				}
+				continue
+			}
+			if b.filter != nil && !b.filter.ContainsDoc(d) {
+				// Actively filtering and ID is not contained.
+				negativeOffsets[len(negativeOffsets)-1] = -1
+				currOffset++
 				continue
 			}
 			b.idSet.SetUnsafe(d.ID, struct{}{}, IDsMapSetUnsafeOptions{
@@ -125,15 +174,11 @@ func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
 			return err
 		}
 
-		// Sort duplicates in ascending order
-		sort.Slice(duplicates, func(i, j int) bool {
-			return duplicates[i] < duplicates[j]
-		})
-
 		b.segments = append(b.segments, segmentMetadata{
-			segment:       segment,
-			offset:        b.segmentsOffset,
-			duplicatesAsc: duplicates,
+			segment:         segment,
+			offset:          b.segmentsOffset,
+			negativeOffsets: negativeOffsets,
+			skips:           currOffset,
 		})
 		b.segmentsOffset += postings.ID(added)
 	}
@@ -144,7 +189,26 @@ func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
 	return nil
 }
 
-func (b *builderFromSegments) Docs() []doc.Document {
+func (b *builderFromSegments) SegmentMetadatas() ([]segment.SegmentsBuilderSegmentMetadata, error) {
+	n := len(b.segments)
+	if n < 1 {
+		return nil, fmt.Errorf("segments empty: length=%d", n)
+	}
+
+	result := make([]segment.SegmentsBuilderSegmentMetadata, 0, n)
+	for _, s := range b.segments {
+		result = append(result, segment.SegmentsBuilderSegmentMetadata{
+			Segment:         s.segment,
+			Offset:          s.offset,
+			NegativeOffsets: s.negativeOffsets,
+			Skips:           s.skips,
+		})
+	}
+
+	return result, nil
+}
+
+func (b *builderFromSegments) Docs() []doc.Metadata {
 	return b.docs
 }
 
@@ -153,13 +217,17 @@ func (b *builderFromSegments) AllDocs() (index.IDDocIterator, error) {
 	return index.NewIDDocIterator(b, rangeIter), nil
 }
 
-func (b *builderFromSegments) Doc(id postings.ID) (doc.Document, error) {
+func (b *builderFromSegments) Metadata(id postings.ID) (doc.Metadata, error) {
 	idx := int(id)
 	if idx < 0 || idx >= len(b.docs) {
-		return doc.Document{}, errDocNotFound
+		return doc.Metadata{}, errDocNotFound
 	}
 
 	return b.docs[idx], nil
+}
+
+func (b *builderFromSegments) NumDocs() (int, error) {
+	return len(b.docs), nil
 }
 
 func (b *builderFromSegments) FieldsIterable() segment.FieldsIterable {

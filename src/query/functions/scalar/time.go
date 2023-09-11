@@ -77,7 +77,7 @@ func (n *timeNode) Execute(queryCtx *models.QueryContext) error {
 	}
 
 	seriesMeta := []block.SeriesMeta{
-		block.SeriesMeta{
+		{
 			Tags: models.NewTags(0, n.tagOptions),
 			Name: []byte(TimeType),
 		},
@@ -96,7 +96,7 @@ func (n *timeNode) Execute(queryCtx *models.QueryContext) error {
 			return err
 		}
 
-		timeVal := float64(t.Unix())
+		timeVal := float64(t.Seconds())
 		if err := builder.AppendValue(i, timeVal); err != nil {
 			return err
 		}

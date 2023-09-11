@@ -23,10 +23,9 @@ package common
 import (
 	"fmt"
 	"math"
-	"sort"
 
-	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	"github.com/m3db/m3/src/x/errors"
 )
 
 const (
@@ -58,66 +57,6 @@ func LessThan(v, threshold float64) bool {
 	return v < threshold
 }
 
-// SafeSort sorts the input slice and returns the number of NaNs in the input.
-func SafeSort(input []float64) int {
-	nans := 0
-	for i := 0; i < len(input); i++ {
-		if math.IsNaN(input[i]) {
-			nans++
-		}
-	}
-
-	sort.Float64s(input)
-	return nans
-}
-
-// SafeSum returns the sum of the input slice the number of NaNs in the input.
-func SafeSum(input []float64) (float64, int) {
-	nans := 0
-	sum := 0.0
-	for _, v := range input {
-		if !math.IsNaN(v) {
-			sum += v
-		} else {
-			nans += 1
-		}
-	}
-	return sum, nans
-}
-
-// SafeMax returns the maximum value of the input slice the number of NaNs in the input.
-func SafeMax(input []float64) (float64, int) {
-	nans := 0
-	max := -math.MaxFloat64
-	for _, v := range input {
-		if math.IsNaN(v) {
-			nans++
-			continue
-		}
-		if v > max {
-			max = v
-		}
-	}
-	return max, nans
-}
-
-// SafeMin returns the minimum value of the input slice the number of NaNs in the input.
-func SafeMin(input []float64) (float64, int) {
-	nans := 0
-	min := math.MaxFloat64
-	for _, v := range input {
-		if math.IsNaN(v) {
-			nans++
-			continue
-		}
-		if v < min {
-			min = v
-		}
-	}
-	return min, nans
-}
-
-
 // GetPercentile computes the percentile cut off for an array of floats
 func GetPercentile(input []float64, percentile float64, interpolate bool) float64 {
 	nans := SafeSort(input)
@@ -126,21 +65,26 @@ func GetPercentile(input []float64, percentile float64, interpolate bool) float6
 		return math.NaN()
 	}
 
-	fractionalRank := (percentile / 100.0) * (float64(len(series)))
-	rank := math.Ceil(fractionalRank)
+	fractionalRank := (percentile / 100.0) * (float64(len(series) + 1))
+	rank := int(fractionalRank)
+	rankFraction := fractionalRank - float64(rank)
 
-	rankAsInt := int(rank)
-
-	if rankAsInt <= 1 {
-		return series[0]
+	if interpolate == false {
+		rank = rank + int(math.Ceil(rankFraction))
 	}
 
-	percentileResult := series[rankAsInt-1]
+	var percentileResult float64
+	if rank == 0 {
+		percentileResult = series[0]
+	} else if rank-1 == len(series) {
+		percentileResult = series[len(series)-1]
+	} else {
+		percentileResult = series[rank-1]
+	}
 
-	if interpolate {
-		prevValue := series[rankAsInt-2]
-		fraction := fractionalRank - (rank - 1)
-		percentileResult = prevValue + (fraction * (percentileResult - prevValue))
+	if interpolate && rank != len(series) {
+		nextValue := series[rank]
+		percentileResult = percentileResult + (rankFraction * (nextValue - percentileResult))
 	}
 
 	return percentileResult

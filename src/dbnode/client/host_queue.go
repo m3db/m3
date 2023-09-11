@@ -22,14 +22,16 @@ package client
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"math"
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
@@ -38,7 +40,14 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 )
 
-const workerPoolKillProbability = 0.01
+const _defaultHostQueueOpsArraySize = 8
+
+var (
+	// ErrCallMissingContext returned when call is missing required context.
+	ErrCallMissingContext = errors.New("call missing context")
+	// ErrCallWithoutDeadline returned when call context has no deadline.
+	ErrCallWithoutDeadline = errors.New("call context without deadline")
+)
 
 type queue struct {
 	sync.WaitGroup
@@ -76,14 +85,12 @@ func newHostQueue(
 	hostQueueOpts hostQueueOpts,
 ) (hostQueue, error) {
 	var (
-		opts               = hostQueueOpts.opts
-		iOpts              = opts.InstrumentOptions()
-		scopeWithoutHostID = iOpts.MetricsScope().SubScope("hostqueue")
-		scope              = scopeWithoutHostID.Tagged(map[string]string{
-			"hostID": host.ID(),
-		})
+		opts  = hostQueueOpts.opts
+		iOpts = opts.InstrumentOptions()
+		scope = iOpts.MetricsScope().SubScope("hostqueue")
 	)
 	iOpts = iOpts.SetMetricsScope(scope)
+	opts = opts.SetInstrumentOptions(iOpts.SetMetricsScope(scope))
 
 	writeOpBatchSizeBuckets, err := tally.ExponentialValueBuckets(1, 2, 15)
 	if err != nil {
@@ -97,31 +104,33 @@ func newHostQueue(
 	}
 	fetchOpBatchSizeBuckets = append(tally.ValueBuckets{0}, fetchOpBatchSizeBuckets...)
 
-	workerPoolOpts := xsync.NewPooledWorkerPoolOptions().
-		SetGrowOnDemand(true).
-		SetKillWorkerProbability(workerPoolKillProbability).
-		SetInstrumentOptions(iOpts)
-	workerPool, err := xsync.NewPooledWorkerPool(
-		int(workerPoolOpts.NumShards()),
-		workerPoolOpts,
-	)
+	newHostQueuePooledWorker := opts.HostQueueNewPooledWorkerFn()
+	workerPool, err := newHostQueuePooledWorker(xsync.NewPooledWorkerOptions{
+		InstrumentOptions: iOpts,
+	})
 	if err != nil {
 		return nil, err
 	}
 	workerPool.Init()
 
-	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
+	var (
+		opsArrayLen     = _defaultHostQueueOpsArraySize
+		opArrayPoolSize = opts.HostQueueOpsArrayPoolSize()
+		opArrayPoolOpts = pool.NewObjectPoolOptions().
+				SetInstrumentOptions(
+				opts.InstrumentOptions().SetMetricsScope(scope.SubScope("op-array-pool")),
+			).
+			SetSize(int(opArrayPoolSize)).
+			SetDynamic(opArrayPoolSize.IsDynamic())
+	)
 
-	size := opts.HostQueueOpsFlushSize()
+	if !opArrayPoolSize.IsDynamic() {
+		// for static pools, keep channel buffer size the same as pool size to preserve backwards-compat
+		opsArrayLen = int(opArrayPoolSize)
+	}
 
-	opsArraysLen := opts.HostQueueOpsArrayPoolSize()
-	opArrayPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(opsArraysLen).
-		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
-			scope.SubScope("op-array-pool"),
-		))
-	opArrayPoolCapacity := int(math.Max(float64(size), float64(opts.WriteBatchSize())))
-	opArrayPool := newOpArrayPool(opArrayPoolOpts, opArrayPoolCapacity)
+	opArrayPoolElemCapacity := int(math.Max(float64(opts.HostQueueOpsFlushSize()), float64(opts.WriteBatchSize())))
+	opArrayPool := newOpArrayPool(opArrayPoolOpts, opArrayPoolElemCapacity)
 	opArrayPool.Init()
 
 	return &queue{
@@ -140,12 +149,12 @@ func newHostQueue(
 		fetchBatchRawV2RequestPool:                   hostQueueOpts.fetchBatchRawV2RequestPool,
 		fetchBatchRawV2RequestElementArrayPool:       hostQueueOpts.fetchBatchRawV2RequestElementArrayPool,
 		workerPool:                                   workerPool,
-		size:                                         size,
+		size:                                         opts.HostQueueOpsFlushSize(),
 		ops:                                          opArrayPool.Get(),
 		opsArrayPool:                                 opArrayPool,
-		writeOpBatchSize:                             scopeWithoutHostID.Histogram("write-op-batch-size", writeOpBatchSizeBuckets),
-		fetchOpBatchSize:                             scopeWithoutHostID.Histogram("fetch-op-batch-size", fetchOpBatchSizeBuckets),
-		drainIn:                                      make(chan []op, opsArraysLen),
+		writeOpBatchSize:                             scope.Histogram("write-op-batch-size", writeOpBatchSizeBuckets),
+		fetchOpBatchSize:                             scope.Histogram("fetch-op-batch-size", fetchOpBatchSizeBuckets),
+		drainIn:                                      make(chan []op, opsArrayLen),
 		serverSupportsV2APIs:                         opts.UseV2BatchAPIs(),
 	}, nil
 }
@@ -268,10 +277,6 @@ func (q *queue) drain() {
 				} else {
 					q.asyncFetch(v)
 				}
-			case *fetchTaggedOp:
-				q.asyncFetchTagged(v)
-			case *aggregateOp:
-				q.asyncAggregate(v)
 			case *truncateOp:
 				q.asyncTruncate(v)
 			default:
@@ -535,7 +540,7 @@ func (q *queue) asyncTaggedWrite(
 		// NB(bl): host is passed to writeState to determine the state of the
 		// shard on the node we're writing to
 
-		client, err := q.connPool.NextClient()
+		client, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
 			callAllCompletionFns(ops, q.host, err)
@@ -595,7 +600,7 @@ func (q *queue) asyncTaggedWriteV2(
 
 		// NB(bl): host is passed to writeState to determine the state of the
 		// shard on the node we're writing to.
-		client, err := q.connPool.NextClient()
+		client, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
 			callAllCompletionFns(ops, q.host, err)
@@ -660,7 +665,7 @@ func (q *queue) asyncWrite(
 		// NB(bl): host is passed to writeState to determine the state of the
 		// shard on the node we're writing to
 
-		client, err := q.connPool.NextClient()
+		client, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
 			callAllCompletionFns(ops, q.host, err)
@@ -719,7 +724,7 @@ func (q *queue) asyncWriteV2(
 
 		// NB(bl): host is passed to writeState to determine the state of the
 		// shard on the node we're writing to.
-		client, err := q.connPool.NextClient()
+		client, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available.
 			callAllCompletionFns(ops, q.host, err)
@@ -772,7 +777,7 @@ func (q *queue) asyncFetch(op *fetchBatchOp) {
 			q.Done()
 		}
 
-		client, err := q.connPool.NextClient()
+		client, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
 			op.completeAll(nil, err)
@@ -825,7 +830,7 @@ func (q *queue) asyncFetchV2(
 			q.Done()
 		}
 
-		client, err := q.connPool.NextClient()
+		client, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available.
 			callAllCompletionFns(ops, nil, err)
@@ -864,27 +869,40 @@ func (q *queue) asyncFetchV2(
 }
 
 func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
+	// Note: No worker pool required for fetch tagged queries, they do
+	// not benefit from goroutine re-use the same way the write
+	// code path does which frequently runs into stack splitting due to
+	// how deep the stacks are in the write code path.
+	// Context on stack splitting (a lot of other material out there too):
+	// https://medium.com/a-journey-with-go/go-how-does-the-goroutine-stack-size-evolve-447fc02085e5
 	q.Add(1)
-	q.workerPool.Go(func() {
-		// NB(r): Defer is slow in the hot path unfortunately
-		cleanup := func() {
+
+	// NB(r): Need to perform any completion function in async
+	// goroutine since caller may hold the lock while enqueing the op
+	// which is required to access the completion fn with op.CompletionFn().
+	go func() {
+		defer func() {
 			op.decRef()
 			q.Done()
-		}
+		}()
 
-		client, err := q.connPool.NextClient()
+		// All fetch tagged calls are required to provide a context with a deadline.
+		ctx, err := q.mustWrapAndCheckContext(op.context, "fetchTagged")
 		if err != nil {
-			// No client available
 			op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
-			cleanup()
 			return
 		}
 
-		ctx, _ := thrift.NewContext(q.opts.FetchRequestTimeout())
+		client, _, err := q.connPool.NextClient()
+		if err != nil {
+			// No client available
+			op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
+			return
+		}
+
 		result, err := client.FetchTagged(ctx, &op.request)
 		if err != nil {
 			op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
-			cleanup()
 			return
 		}
 
@@ -892,32 +910,44 @@ func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
 			host:     q.host,
 			response: result,
 		}, err)
-		cleanup()
-	})
+	}()
 }
 
 func (q *queue) asyncAggregate(op *aggregateOp) {
+	// Note: No worker pool required for aggregate queries, they do
+	// not benefit from goroutine re-use the same way the write
+	// code path does which frequently runs into stack splitting due to
+	// how deep the stacks are in the write code path.
+	// Context on stack splitting (a lot of other material out there too):
+	// https://medium.com/a-journey-with-go/go-how-does-the-goroutine-stack-size-evolve-447fc02085e5
 	q.Add(1)
-	q.workerPool.Go(func() {
-		// NB(r): Defer is slow in the hot path unfortunately
-		cleanup := func() {
+
+	// NB(r): Need to perform any completion function in async
+	// goroutine since caller may hold the lock while enqueing the op
+	// which is required to access the completion fn with op.CompletionFn().
+	go func() {
+		defer func() {
 			op.decRef()
 			q.Done()
-		}
+		}()
 
-		client, err := q.connPool.NextClient()
+		// All aggregate calls are required to provide a context with a deadline.
+		ctx, err := q.mustWrapAndCheckContext(op.context, "aggregate")
 		if err != nil {
-			// No client available
 			op.CompletionFn()(aggregateResultAccumulatorOpts{host: q.host}, err)
-			cleanup()
 			return
 		}
 
-		ctx, _ := thrift.NewContext(q.opts.FetchRequestTimeout())
+		client, _, err := q.connPool.NextClient()
+		if err != nil {
+			// No client available
+			op.CompletionFn()(aggregateResultAccumulatorOpts{host: q.host}, err)
+			return
+		}
+
 		result, err := client.AggregateRaw(ctx, &op.request)
 		if err != nil {
 			op.CompletionFn()(aggregateResultAccumulatorOpts{host: q.host}, err)
-			cleanup()
 			return
 		}
 
@@ -925,8 +955,7 @@ func (q *queue) asyncAggregate(op *aggregateOp) {
 			host:     q.host,
 			response: result,
 		}, err)
-		cleanup()
-	})
+	}()
 }
 
 func (q *queue) asyncTruncate(op *truncateOp) {
@@ -935,7 +964,7 @@ func (q *queue) asyncTruncate(op *truncateOp) {
 	q.workerPool.Go(func() {
 		cleanup := q.Done
 
-		client, err := q.connPool.NextClient()
+		client, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
 			op.completionFn(nil, err)
@@ -954,6 +983,27 @@ func (q *queue) asyncTruncate(op *truncateOp) {
 	})
 }
 
+func (q *queue) mustWrapAndCheckContext(
+	callingContext context.Context,
+	method string,
+) (thrift.Context, error) {
+	if callingContext == nil {
+		return nil, fmt.Errorf(
+			"%w in host queue: method=%s", ErrCallMissingContext, method)
+	}
+
+	// Use the original context for the call.
+	_, ok := callingContext.Deadline()
+	if !ok {
+		return nil, fmt.Errorf(
+			"%w in host queue: method=%s", ErrCallWithoutDeadline, method)
+	}
+
+	// Create thrift context.
+	newThriftContext := q.opts.ThriftContextFn()
+	return newThriftContext(callingContext), nil
+}
+
 func (q *queue) Len() int {
 	q.RLock()
 	v := q.opsSumSize
@@ -961,24 +1011,49 @@ func (q *queue) Len() int {
 	return v
 }
 
+func (q *queue) validateOpenWithLock() error {
+	if q.status != statusOpen {
+		return errQueueNotOpen(q.host.ID())
+	}
+	return nil
+}
+
 func (q *queue) Enqueue(o op) error {
 	switch sOp := o.(type) {
-	case *fetchBatchOp:
-		// Need to take ownership if its a fetch batch op
-		sOp.IncRef()
 	case *fetchTaggedOp:
 		// Need to take ownership if its a fetch tagged op
 		sOp.incRef()
+		// No queueing for fetchTagged op
+		q.RLock()
+		if err := q.validateOpenWithLock(); err != nil {
+			q.RUnlock()
+			return err
+		}
+		q.asyncFetchTagged(sOp)
+		q.RUnlock()
+		return nil
 	case *aggregateOp:
 		// Need to take ownership if its an aggregate op
 		sOp.incRef()
+		// No queueing for aggregate op
+		q.RLock()
+		if err := q.validateOpenWithLock(); err != nil {
+			q.RUnlock()
+			return err
+		}
+		q.asyncAggregate(sOp)
+		q.RUnlock()
+		return nil
+	case *fetchBatchOp:
+		// Need to take ownership if its a fetch batch op
+		sOp.IncRef()
 	}
 
 	var needsDrain []op
 	q.Lock()
-	if q.status != statusOpen {
+	if err := q.validateOpenWithLock(); err != nil {
 		q.Unlock()
-		return errQueueNotOpen(q.host.ID())
+		return err
 	}
 	q.ops = append(q.ops, o)
 	q.opsSumSize += o.Size()
@@ -1007,7 +1082,7 @@ func (q *queue) ConnectionPool() connectionPool {
 	return q.connPool
 }
 
-func (q *queue) BorrowConnection(fn withConnectionFn) error {
+func (q *queue) BorrowConnection(fn WithConnectionFn) error {
 	q.RLock()
 	if q.status != statusOpen {
 		q.RUnlock()
@@ -1018,12 +1093,12 @@ func (q *queue) BorrowConnection(fn withConnectionFn) error {
 	defer q.Done()
 	q.RUnlock()
 
-	conn, err := q.connPool.NextClient()
+	conn, ch, err := q.connPool.NextClient()
 	if err != nil {
 		return err
 	}
 
-	fn(conn)
+	fn(conn, ch)
 	return nil
 }
 

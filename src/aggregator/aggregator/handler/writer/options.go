@@ -26,16 +26,12 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 )
 
-const (
-	defaultEncodingTimeSamplingRate = 0
-)
-
 // Options provide a set of options for the writer.
 type Options interface {
-	// SetClockOptions sets the clock options.
+	// SetClockOptions is deprecated
 	SetClockOptions(value clock.Options) Options
 
-	// ClockOptions returns the clock options.
+	// ClockOptions is deprecated
 	ClockOptions() clock.Options
 
 	// SetInstrumentOptions sets the instrument options.
@@ -50,14 +46,10 @@ type Options interface {
 	// BytesPool returns the bytes pool.
 	BytesPool() pool.BytesPool
 
-	// SetEncodingTimeSampleRate sets the sampling rate at which the encoding time is
-	// included in the encoded data. A value of 0 means the encoding time is never included,
-	// and a value of 1 means the encoding time is always included.
+	// SetEncodingTimeSamplingRate is deprecated
 	SetEncodingTimeSamplingRate(value float64) Options
 
-	// EncodingTimeSamplingRate returns the sampling rate at which the encoding time is
-	// included in the encoded data. A value of 0 means the encoding time is never included,
-	// and a value of 1 means the encoding time is always included.
+	// EncodingTimeSamplingRate is deprecated
 	EncodingTimeSamplingRate() float64
 }
 
@@ -71,9 +63,8 @@ type options struct {
 // NewOptions provide a set of writer options.
 func NewOptions() Options {
 	return &options{
-		clockOpts:                clock.NewOptions(),
-		instrumentOpts:           instrument.NewOptions(),
-		encodingTimeSamplingRate: defaultEncodingTimeSamplingRate,
+		clockOpts:      clock.NewOptions(),
+		instrumentOpts: instrument.NewOptions(),
 	}
 }
 
@@ -108,11 +99,9 @@ func (o *options) BytesPool() pool.BytesPool {
 }
 
 func (o *options) SetEncodingTimeSamplingRate(value float64) Options {
-	opts := *o
-	opts.encodingTimeSamplingRate = value
-	return &opts
+	return o
 }
 
 func (o *options) EncodingTimeSamplingRate() float64 {
-	return o.encodingTimeSamplingRate
+	return 0
 }

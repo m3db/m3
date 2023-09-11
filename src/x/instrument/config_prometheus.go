@@ -21,7 +21,10 @@
 package instrument
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -86,12 +89,17 @@ type PrometheusConfigurationOptions struct {
 	ExternalRegistries []PrometheusExternalRegistry
 	// HandlerListener is the listener to register the server handler on.
 	HandlerListener net.Listener
+	// DefaultServeMux is the ServeMux to use if no HandlerListener or
+	// ListenAddress on PrometheusConfiguration is specified.
+	DefaultServeMux *http.ServeMux
 	// HandlerOpts is the reporter HTTP handler options, not specifying will
 	// use defaults.
 	HandlerOpts promhttp.HandlerOpts
 	// OnError allows for customization of what to do when a metric
 	// registration error fails, the default is to panic.
 	OnError func(e error)
+	// CommonLabels will be appended to every metric gathered.
+	CommonLabels map[string]string
 }
 
 // PrometheusExternalRegistry is an external Prometheus registry
@@ -104,14 +112,33 @@ type PrometheusExternalRegistry struct {
 	SubScope string
 }
 
+type reporterCloser struct {
+	closeFn func() error
+}
+
+func newReporterCloser() reporterCloser {
+	return reporterCloser{
+		closeFn: func() error {
+			return nil
+		},
+	}
+}
+
+func (r reporterCloser) Close() error {
+	return r.closeFn()
+}
+
 // NewReporter creates a new M3 Prometheus reporter from this configuration.
 func (c PrometheusConfiguration) NewReporter(
 	configOpts PrometheusConfigurationOptions,
-) (prometheus.Reporter, error) {
-	var opts prometheus.Options
-
-	if configOpts.Registry != nil {
-		opts.Registerer = configOpts.Registry
+) (prometheus.Reporter, io.Closer, error) {
+	registry := configOpts.Registry
+	if registry == nil {
+		registry = prom.NewRegistry()
+	}
+	opts := prometheus.Options{
+		Registerer: registry,
+		Gatherer:   registry,
 	}
 
 	if configOpts.OnError != nil {
@@ -165,17 +192,20 @@ func (c PrometheusConfiguration) NewReporter(
 		path = handlerPath
 	}
 
-	handler := reporter.HTTPHandler()
-	if configOpts.Registry != nil {
-		gatherer := newMultiGatherer(configOpts.Registry, configOpts.ExternalRegistries)
-		handler = promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{})
-	}
+	gatherer := newMultiGatherer(registry, configOpts.ExternalRegistries, configOpts.CommonLabels)
+	handler := promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{})
 
 	addr := strings.TrimSpace(c.ListenAddress)
+	closer := newReporterCloser()
 	if addr == "" && configOpts.HandlerListener == nil {
 		// If address not specified and server not specified, register
 		// on default mux.
-		http.Handle(path, handler)
+		if configOpts.DefaultServeMux == nil {
+			return nil, nil, errors.New(
+				"must specify a DefaultServeMux option when not specifying a listener",
+			)
+		}
+		configOpts.DefaultServeMux.Handle(path, handler)
 	} else {
 		mux := http.NewServeMux()
 		mux.Handle(path, handler)
@@ -186,37 +216,43 @@ func (c PrometheusConfiguration) NewReporter(
 			var err error
 			listener, err = net.Listen("tcp", addr)
 			if err != nil {
-				return nil, fmt.Errorf(
+				return nil, nil, fmt.Errorf(
 					"prometheus handler listen address error: %v", err)
 			}
 		}
 
+		server := &http.Server{Handler: mux}
 		go func() {
-			server := &http.Server{Handler: mux}
-			if err := server.Serve(listener); err != nil {
+			if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				opts.OnRegisterError(err)
 			}
 		}()
+		closer.closeFn = func() error {
+			return server.Shutdown(context.Background())
+		}
 	}
 
-	return reporter, nil
+	return reporter, closer, nil
 }
 
 func newMultiGatherer(
 	primary *prom.Registry,
 	ext []PrometheusExternalRegistry,
+	commonLabels map[string]string,
 ) prom.Gatherer {
 	return &multiGatherer{
-		primary: primary,
-		ext:     ext,
+		primary:      primary,
+		ext:          ext,
+		commonLabels: commonLabels,
 	}
 }
 
 var _ prom.Gatherer = (*multiGatherer)(nil)
 
 type multiGatherer struct {
-	primary *prom.Registry
-	ext     []PrometheusExternalRegistry
+	primary      *prom.Registry
+	ext          []PrometheusExternalRegistry
+	commonLabels map[string]string
 }
 
 func (g *multiGatherer) Gather() ([]*dto.MetricFamily, error) {
@@ -224,6 +260,8 @@ func (g *multiGatherer) Gather() ([]*dto.MetricFamily, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	appendLabelsToMetrics(g.commonLabels, results)
 
 	if len(g.ext) == 0 {
 		return results, nil
@@ -319,6 +357,8 @@ func (g *multiGatherer) Gather() ([]*dto.MetricFamily, error) {
 					metricEntry.Label = append(metricEntry.Label, labelEntry)
 				}
 
+				appendLabels(g.commonLabels, metricEntry)
+
 				entry.Metric = append(entry.Metric, metricEntry)
 			}
 
@@ -327,4 +367,22 @@ func (g *multiGatherer) Gather() ([]*dto.MetricFamily, error) {
 	}
 
 	return results, nil
+}
+
+func appendLabels(commonLabels map[string]string, metric *dto.Metric) {
+	for name, value := range commonLabels {
+		name := name
+		value := value
+		metric.Label = append(metric.Label, &dto.LabelPair{Name: &name, Value: &value})
+	}
+}
+
+func appendLabelsToMetrics(commonLabels map[string]string, results []*dto.MetricFamily) {
+	if len(commonLabels) > 0 {
+		for _, metricFamily := range results {
+			for _, metric := range metricFamily.Metric {
+				appendLabels(commonLabels, metric)
+			}
+		}
+	}
 }

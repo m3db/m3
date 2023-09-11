@@ -40,28 +40,28 @@ var (
 	testMemSegmentOptions     = mem.NewOptions()
 	testBuilderSegmentOptions = builder.NewOptions()
 
-	testDocuments = []doc.Document{
-		doc.Document{
+	testDocuments = []doc.Metadata{
+		{
 			ID: []byte("one"),
 			Fields: []doc.Field{
-				doc.Field{
+				{
 					Name:  []byte("fruit"),
 					Value: []byte("banana"),
 				},
-				doc.Field{
+				{
 					Name:  []byte("color"),
 					Value: []byte("yellow"),
 				},
 			},
 		},
-		doc.Document{
+		{
 			ID: []byte("two"),
 			Fields: []doc.Field{
-				doc.Field{
+				{
 					Name:  []byte("fruit"),
 					Value: []byte("apple"),
 				},
-				doc.Field{
+				{
 					Name:  []byte("color"),
 					Value: []byte("red"),
 				},
@@ -69,15 +69,15 @@ var (
 		},
 	}
 
-	testDocsMaxBatch = 8
-	testDocsPool     = doc.NewDocumentArrayPool(doc.DocumentArrayPoolOpts{
+	testMetadataMaxBatch = 8
+	testMetadataPool     = doc.NewMetadataArrayPool(doc.MetadataArrayPoolOpts{
 		Options:  pool.NewObjectPoolOptions().SetSize(1),
-		Capacity: testDocsMaxBatch,
+		Capacity: testMetadataMaxBatch,
 	})
 )
 
 func init() {
-	testDocsPool.Init()
+	testMetadataPool.Init()
 }
 
 func TestCompactorSingleMutableSegment(t *testing.T) {
@@ -90,16 +90,16 @@ func TestCompactorSingleMutableSegment(t *testing.T) {
 	_, err = seg.Insert(testDocuments[1])
 	require.NoError(t, err)
 
-	compactor, err := NewCompactor(testDocsPool, testDocsMaxBatch,
+	compactor, err := NewCompactor(testMetadataPool, testMetadataMaxBatch,
 		testBuilderSegmentOptions, testFSTSegmentOptions, CompactorOptions{})
 	require.NoError(t, err)
 
-	compacted, err := compactor.Compact([]segment.Segment{
+	result, err := compactor.Compact([]segment.Segment{
 		mustSeal(t, seg),
-	}, mmap.ReporterOptions{})
+	}, nil, mmap.ReporterOptions{})
 	require.NoError(t, err)
 
-	assertContents(t, compacted, testDocuments)
+	assertContents(t, result.Compacted, testDocuments)
 
 	require.NoError(t, compactor.Close())
 }
@@ -114,18 +114,18 @@ func TestCompactorSingleMutableSegmentWithMmapDocsData(t *testing.T) {
 	_, err = seg.Insert(testDocuments[1])
 	require.NoError(t, err)
 
-	compactor, err := NewCompactor(testDocsPool, testDocsMaxBatch,
+	compactor, err := NewCompactor(testMetadataPool, testMetadataMaxBatch,
 		testBuilderSegmentOptions, testFSTSegmentOptions, CompactorOptions{
 			MmapDocsData: true,
 		})
 	require.NoError(t, err)
 
-	compacted, err := compactor.Compact([]segment.Segment{
+	result, err := compactor.Compact([]segment.Segment{
 		mustSeal(t, seg),
-	}, mmap.ReporterOptions{})
+	}, nil, mmap.ReporterOptions{})
 	require.NoError(t, err)
 
-	assertContents(t, compacted, testDocuments)
+	assertContents(t, result.Compacted, testDocuments)
 
 	require.NoError(t, compactor.Close())
 }
@@ -143,17 +143,17 @@ func TestCompactorManySegments(t *testing.T) {
 	_, err = seg2.Insert(testDocuments[1])
 	require.NoError(t, err)
 
-	compactor, err := NewCompactor(testDocsPool, testDocsMaxBatch,
+	compactor, err := NewCompactor(testMetadataPool, testMetadataMaxBatch,
 		testBuilderSegmentOptions, testFSTSegmentOptions, CompactorOptions{})
 	require.NoError(t, err)
 
-	compacted, err := compactor.Compact([]segment.Segment{
+	result, err := compactor.Compact([]segment.Segment{
 		mustSeal(t, seg1),
 		mustSeal(t, seg2),
-	}, mmap.ReporterOptions{})
+	}, nil, mmap.ReporterOptions{})
 	require.NoError(t, err)
 
-	assertContents(t, compacted, testDocuments)
+	assertContents(t, result.Compacted, testDocuments)
 
 	require.NoError(t, compactor.Close())
 }
@@ -174,22 +174,22 @@ func TestCompactorCompactDuplicateIDsNoError(t *testing.T) {
 	_, err = seg2.Insert(testDocuments[1])
 	require.NoError(t, err)
 
-	compactor, err := NewCompactor(testDocsPool, testDocsMaxBatch,
+	compactor, err := NewCompactor(testMetadataPool, testMetadataMaxBatch,
 		testBuilderSegmentOptions, testFSTSegmentOptions, CompactorOptions{})
 	require.NoError(t, err)
 
-	compacted, err := compactor.Compact([]segment.Segment{
+	result, err := compactor.Compact([]segment.Segment{
 		mustSeal(t, seg1),
 		mustSeal(t, seg2),
-	}, mmap.ReporterOptions{})
+	}, nil, mmap.ReporterOptions{})
 	require.NoError(t, err)
 
-	assertContents(t, compacted, testDocuments)
+	assertContents(t, result.Compacted, testDocuments)
 
 	require.NoError(t, compactor.Close())
 }
 
-func assertContents(t *testing.T, seg segment.Segment, docs []doc.Document) {
+func assertContents(t *testing.T, seg segment.Segment, docs []doc.Metadata) {
 	// Ensure has contents
 	require.Equal(t, int64(len(docs)), seg.Size())
 	reader, err := seg.Reader()

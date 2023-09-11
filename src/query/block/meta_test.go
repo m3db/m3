@@ -21,7 +21,9 @@
 package block
 
 import (
+	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/query/models"
 
@@ -92,6 +94,70 @@ func TestMergeEmptyWarnings(t *testing.T) {
 	assert.Equal(t, "foo_bar", merge.Warnings[0].Header())
 }
 
+func TestMergeResultMetricMetadata(t *testing.T) {
+	r1 := ResultMetricMetadata{
+		WithSamples: 100,
+		NoSamples:   20,
+		Aggregated:  10,
+	}
+	r2 := ResultMetricMetadata{
+		WithSamples:  1,
+		Aggregated:   2,
+		Unaggregated: 3,
+	}
+	r1.Merge(r2)
+	assert.Equal(t, 101, r1.WithSamples)
+	assert.Equal(t, 20, r1.NoSamples)
+	assert.Equal(t, 12, r1.Aggregated)
+	assert.Equal(t, 3, r1.Unaggregated)
+}
+
+func TestCombineMetadataWithMetricMetadataMaps(t *testing.T) {
+	r1 := NewResultMetadata()
+	r2 := NewResultMetadata()
+	a := []byte("a")
+	b := []byte("b")
+	c := []byte("c")
+	noname := []byte{}
+
+	r1.ByName(a).WithSamples = 5
+	r1.ByName(c).Aggregated = 1
+	r1.ByName(noname).Unaggregated = 19
+
+	r2.ByName(nil).Aggregated = 99
+	r2.ByName(a).WithSamples = 6
+	r2.ByName(a).NoSamples = 1
+	r2.ByName(b).NoSamples = 1
+	r2.ByName(b).Unaggregated = 15
+	r2.ByName(c).Aggregated = 2
+
+	r := r1.CombineMetadata(r2)
+	assert.Equal(t, &ResultMetricMetadata{
+		NoSamples:   1,
+		WithSamples: 11,
+	}, r.ByName(a))
+	assert.Equal(t, &ResultMetricMetadata{
+		NoSamples:    1,
+		Unaggregated: 15,
+	}, r.ByName(b))
+	assert.Equal(t, &ResultMetricMetadata{
+		Aggregated: 3,
+	}, r.ByName(c))
+	assert.Equal(t, &ResultMetricMetadata{
+		Unaggregated: 19,
+		Aggregated:   99,
+	}, r.ByName(nil))
+
+	// Sanity check that accessing by nil or by an empty name
+	// yields the same result.
+	assert.Equal(t, r.ByName(nil), r.ByName(noname))
+
+	// And finally it should marshal to JSON without error.
+	js, err := json.Marshal(r)
+	assert.Nil(t, err)
+	assert.NotEmpty(t, string(js))
+}
+
 func TestMergeIntoEmptyWarnings(t *testing.T) {
 	r := NewResultMetadata()
 	rTwo := NewResultMetadata()
@@ -104,7 +170,7 @@ func TestMergeIntoEmptyWarnings(t *testing.T) {
 }
 
 func TestMergeResolutions(t *testing.T) {
-	expected := []int64{1, 2, 3}
+	expected := []time.Duration{1, 2, 3}
 	r := ResultMetadata{}
 	rTwo := ResultMetadata{}
 	merge := r.CombineMetadata(rTwo)
@@ -127,10 +193,37 @@ func TestMergeResolutions(t *testing.T) {
 	require.Equal(t, 3, len(merge.Resolutions))
 	assert.Equal(t, expected, merge.Resolutions)
 
-	rTwo = ResultMetadata{Resolutions: []int64{4, 5, 6}}
+	rTwo = ResultMetadata{Resolutions: []time.Duration{4, 5, 6}}
 	merge = r.CombineMetadata(rTwo)
 	assert.Equal(t, 3, len(r.Resolutions))
 	assert.Equal(t, 3, len(rTwo.Resolutions))
 	require.Equal(t, 6, len(merge.Resolutions))
-	assert.Equal(t, []int64{1, 2, 3, 4, 5, 6}, merge.Resolutions)
+	assert.Equal(t, []time.Duration{1, 2, 3, 4, 5, 6}, merge.Resolutions)
+}
+
+func TestVerifyTemporalRange(t *testing.T) {
+	r := ResultMetadata{
+		Exhaustive:  true,
+		Resolutions: []time.Duration{5, 10},
+	}
+
+	ex0 := "resolution larger than query range_range: 1ns, resolutions: 10ns, 5ns"
+	ex1 := "resolution larger than query range_range: 6ns, resolutions: 10ns"
+
+	r.VerifyTemporalRange(11)
+	assert.Equal(t, 0, len(r.WarningStrings()))
+
+	r.VerifyTemporalRange(1)
+	require.Equal(t, 1, len(r.WarningStrings()))
+	assert.Equal(t, ex0, r.WarningStrings()[0])
+
+	r.VerifyTemporalRange(6)
+	require.Equal(t, 2, len(r.WarningStrings()))
+	assert.Equal(t, ex0, r.WarningStrings()[0])
+	assert.Equal(t, ex1, r.WarningStrings()[1])
+
+	r.VerifyTemporalRange(11)
+	require.Equal(t, 2, len(r.WarningStrings()))
+	assert.Equal(t, ex0, r.WarningStrings()[0])
+	assert.Equal(t, ex1, r.WarningStrings()[1])
 }

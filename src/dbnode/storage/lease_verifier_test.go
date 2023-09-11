@@ -25,9 +25,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,13 +37,13 @@ var (
 	testBlockDescriptor = block.LeaseDescriptor{
 		Namespace:  ident.StringID("test-ns"),
 		Shard:      0,
-		BlockStart: time.Now().Truncate(2 * time.Hour),
+		BlockStart: xtime.Now().Truncate(2 * time.Hour),
 	}
 	testBlockLeaseState = block.LeaseState{Volume: 0}
 )
 
 func TestLeaseVerifierVerifyLeaseHandlesErrors(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -59,7 +61,7 @@ func TestLeaseVerifierVerifyLeaseHandlesErrors(t *testing.T) {
 }
 
 func TestLeaseVerifierVerifyLeaseReturnsErrorIfNotLatestVolume(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -77,7 +79,7 @@ func TestLeaseVerifierVerifyLeaseReturnsErrorIfNotLatestVolume(t *testing.T) {
 }
 
 func TestLeaseVerifierVerifyLeaseSuccessIfVolumeIsLatest(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -96,7 +98,7 @@ func TestLeaseVerifierVerifyLeaseSuccessIfVolumeIsLatest(t *testing.T) {
 }
 
 func TestLeaseVerifierLatestStateHandlesErrors(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -114,7 +116,7 @@ func TestLeaseVerifierLatestStateHandlesErrors(t *testing.T) {
 }
 
 func TestLeaseVerifierLatestStateSuccess(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (

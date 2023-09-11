@@ -138,7 +138,7 @@ func NewTagsFilter(
 	filters TagFilterValueMap,
 	op LogicalOp,
 	opts TagsFilterOptions,
-) (Filter, error) {
+) (TagsFilter, error) {
 	var (
 		nameFilter Filter
 		tagFilters = make([]tagFilter, 0, len(filters))
@@ -159,12 +159,12 @@ func NewTagsFilter(
 		}
 	}
 	sort.Sort(tagFiltersByNameAsc(tagFilters))
-	return newImmutableFilter(&tagsFilter{
+	return &tagsFilter{
 		nameFilter: nameFilter,
 		tagFilters: tagFilters,
 		op:         op,
 		opts:       opts,
-	}), nil
+	}, nil
 }
 
 func (f *tagsFilter) String() string {
@@ -186,33 +186,38 @@ func (f *tagsFilter) String() string {
 	return buf.String()
 }
 
-func (f *tagsFilter) Matches(id []byte) bool {
+func (f *tagsFilter) Matches(id []byte, opts TagMatchOptions) (bool, error) {
 	if f.nameFilter == nil && len(f.tagFilters) == 0 {
-		return true
+		return true, nil
 	}
 
-	name, tags, err := f.opts.NameAndTagsFn(id)
+	name, tags, err := opts.NameAndTagsFn(id)
 	if err != nil {
-		return false
+		return false, err
 	}
 	if f.nameFilter != nil {
 		match := f.nameFilter.Matches(name)
 		if match && f.op == Disjunction {
-			return true
+			return true, nil
 		}
 		if !match && f.op == Conjunction {
-			return false
+			return false, nil
 		}
 	}
 
-	iter := f.opts.SortedTagIteratorFn(tags)
-	defer iter.Close()
+	iter := opts.SortedTagIteratorFn(tags)
 
 	currIdx := 0
+
+	// Iterate over each of the metric's tags and rule's tag filters. They're both in sorted order.
 	for iter.Next() && currIdx < len(f.tagFilters) {
 		name, value := iter.Current()
 
+		// Check if the current metric tag matches the current tag filter
 		comparison := bytes.Compare(name, f.tagFilters[currIdx].name)
+
+		// If the tags don't match, we move onto the next metric tag.
+		// This is correct because not every one of the metric tag's need be represented in the rule.
 		if comparison < 0 {
 			continue
 		}
@@ -220,7 +225,7 @@ func (f *tagsFilter) Matches(id []byte) bool {
 		if comparison > 0 {
 			if f.op == Conjunction {
 				// For AND, if the current filter tag doesn't exist, bail immediately.
-				return false
+				return false, nil
 			}
 
 			// Iterate tagFilters for the OR case.
@@ -230,8 +235,8 @@ func (f *tagsFilter) Matches(id []byte) bool {
 			}
 
 			if currIdx == len(f.tagFilters) {
-				// Past all tagFilters.
-				return false
+				// Past all tagFilters without covering all of the metric's tags
+				return false, nil
 			}
 
 			if bytes.Compare(name, f.tagFilters[currIdx].name) < 0 {
@@ -239,23 +244,28 @@ func (f *tagsFilter) Matches(id []byte) bool {
 			}
 		}
 
+		// Now check that the metric's underlying tag value passes the corresponding filter's value
 		match := f.tagFilters[currIdx].valueFilter.Matches(value)
 		if match && f.op == Disjunction {
-			return true
+			return true, nil
 		}
 
 		if !match && f.op == Conjunction {
-			return false
+			return false, nil
 		}
 
 		currIdx++
 	}
 
-	if iter.Err() != nil || f.op == Disjunction {
-		return false
+	if iter.Err() != nil {
+		return false, iter.Err()
 	}
 
-	return currIdx == len(f.tagFilters)
+	if f.op == Disjunction {
+		return false, nil
+	}
+
+	return currIdx == len(f.tagFilters), nil
 }
 
 // ValidateTagsFilter validates whether a given string is a valid tags filter,

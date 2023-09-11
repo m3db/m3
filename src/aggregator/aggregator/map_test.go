@@ -22,7 +22,6 @@ package aggregator
 
 import (
 	"fmt"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -86,7 +85,7 @@ func TestMetricMapAddUntimedNoRateLimit(t *testing.T) {
 	// Add a counter metric and assert there is one entry afterwards.
 	key := entryKey{
 		metricCategory: untimedMetric,
-		metricType:     metric.CounterType,
+		metricType:     metricType(metric.CounterType),
 		idHash:         hash.Murmur3Hash128(testCounterID),
 	}
 	require.NoError(t, m.AddUntimed(testCounter, policies))
@@ -96,7 +95,7 @@ func TestMetricMapAddUntimedNoRateLimit(t *testing.T) {
 	elem, exists := m.entries[key]
 	require.True(t, exists)
 	entry := elem.Value.(hashedEntry)
-	require.Equal(t, int32(0), atomic.LoadInt32(&entry.entry.numWriters))
+	require.Equal(t, int32(0), entry.entry.numWriters.Load())
 	require.Equal(t, key, entry.key)
 	require.Equal(t, 2, m.metricLists.Len())
 
@@ -108,14 +107,14 @@ func TestMetricMapAddUntimedNoRateLimit(t *testing.T) {
 	require.True(t, exists)
 	entry2 := elem2.Value.(hashedEntry)
 	require.Equal(t, entry, entry2)
-	require.Equal(t, int32(0), atomic.LoadInt32(&entry2.entry.numWriters))
+	require.Equal(t, int32(0), entry2.entry.numWriters.Load())
 	require.Equal(t, 2, m.metricLists.Len())
 
 	// Add a metric with different type and assert there are
 	// now two entries.
 	key2 := entryKey{
 		metricCategory: untimedMetric,
-		metricType:     metric.GaugeType,
+		metricType:     metricType(metric.GaugeType),
 		idHash:         hash.Murmur3Hash128(testCounterID),
 	}
 	metricWithDifferentType := unaggregated.MetricUnion{
@@ -163,11 +162,11 @@ func TestMetricMapSetRuntimeOptions(t *testing.T) {
 	require.NoError(t, m.AddUntimed(testBatchTimer, testDefaultStagedMetadatas))
 	require.NoError(t, m.AddUntimed(testGauge, testDefaultStagedMetadatas))
 
-	// Assert no entries have rate limiters.
+	// Assert no entries have rate limits.
 	runtimeOpts := runtime.NewOptions()
 	require.Equal(t, runtimeOpts, m.runtimeOpts)
 	for elem := m.entryList.Front(); elem != nil; elem = elem.Next() {
-		require.Nil(t, elem.Value.(hashedEntry).entry.rateLimiter)
+		require.Equal(t, int64(0), elem.Value.(hashedEntry).entry.rateLimiter.Limit())
 	}
 
 	// Update runtime options and assert all entries now have rate limiters.
@@ -274,7 +273,7 @@ func TestMetricMapAddTimedNoRateLimit(t *testing.T) {
 	}
 	key := entryKey{
 		metricCategory: timedMetric,
-		metricType:     metric.CounterType,
+		metricType:     metricType(metric.CounterType),
 		idHash:         hash.Murmur3Hash128(am.ID),
 	}
 	require.NoError(t, m.AddTimed(am, testTimedMetadata))
@@ -284,7 +283,7 @@ func TestMetricMapAddTimedNoRateLimit(t *testing.T) {
 	elem, exists := m.entries[key]
 	require.True(t, exists)
 	entry := elem.Value.(hashedEntry)
-	require.Equal(t, int32(0), atomic.LoadInt32(&entry.entry.numWriters))
+	require.Equal(t, int32(0), entry.entry.numWriters.Load())
 	require.Equal(t, key, entry.key)
 	require.Equal(t, 1, m.metricLists.Len())
 
@@ -296,7 +295,7 @@ func TestMetricMapAddTimedNoRateLimit(t *testing.T) {
 	require.True(t, exists)
 	entry2 := elem2.Value.(hashedEntry)
 	require.Equal(t, entry, entry2)
-	require.Equal(t, int32(0), atomic.LoadInt32(&entry2.entry.numWriters))
+	require.Equal(t, int32(0), entry2.entry.numWriters.Load())
 	require.Equal(t, 1, m.metricLists.Len())
 
 	// Add a metric with a different metric category and assert a new entry is added.
@@ -307,7 +306,7 @@ func TestMetricMapAddTimedNoRateLimit(t *testing.T) {
 	}
 	key2 := entryKey{
 		metricCategory: untimedMetric,
-		metricType:     metric.CounterType,
+		metricType:     metricType(metric.CounterType),
 		idHash:         hash.Murmur3Hash128(um.ID),
 	}
 	require.NoError(t, m.AddUntimed(um, testStagedMetadatas))
@@ -329,7 +328,7 @@ func TestMetricMapAddTimedNoRateLimit(t *testing.T) {
 	}
 	key3 := entryKey{
 		metricCategory: timedMetric,
-		metricType:     metric.GaugeType,
+		metricType:     metricType(metric.GaugeType),
 		idHash:         hash.Murmur3Hash128(metricWithDifferentType.ID),
 	}
 	require.NoError(t, m.AddTimed(metricWithDifferentType, testTimedMetadata))
@@ -349,7 +348,7 @@ func TestMetricMapAddTimedNoRateLimit(t *testing.T) {
 	}
 	key4 := entryKey{
 		metricCategory: timedMetric,
-		metricType:     metric.GaugeType,
+		metricType:     metricType(metric.GaugeType),
 		idHash:         hash.Murmur3Hash128(metricWithDifferentID.ID),
 	}
 	require.NoError(t, m.AddTimed(metricWithDifferentID, testTimedMetadata))
@@ -377,7 +376,7 @@ func TestMetricMapAddForwardedNoRateLimit(t *testing.T) {
 	}
 	key := entryKey{
 		metricCategory: forwardedMetric,
-		metricType:     metric.CounterType,
+		metricType:     metricType(metric.CounterType),
 		idHash:         hash.Murmur3Hash128(am.ID),
 	}
 	require.NoError(t, m.AddForwarded(am, testForwardMetadata))
@@ -387,7 +386,7 @@ func TestMetricMapAddForwardedNoRateLimit(t *testing.T) {
 	elem, exists := m.entries[key]
 	require.True(t, exists)
 	entry := elem.Value.(hashedEntry)
-	require.Equal(t, int32(0), atomic.LoadInt32(&entry.entry.numWriters))
+	require.Equal(t, int32(0), entry.entry.numWriters.Load())
 	require.Equal(t, key, entry.key)
 	require.Equal(t, 1, m.metricLists.Len())
 
@@ -399,7 +398,7 @@ func TestMetricMapAddForwardedNoRateLimit(t *testing.T) {
 	require.True(t, exists)
 	entry2 := elem2.Value.(hashedEntry)
 	require.Equal(t, entry, entry2)
-	require.Equal(t, int32(0), atomic.LoadInt32(&entry2.entry.numWriters))
+	require.Equal(t, int32(0), entry2.entry.numWriters.Load())
 	require.Equal(t, 1, m.metricLists.Len())
 
 	// Add a metric with a different metric category and assert a new entry is added.
@@ -410,7 +409,7 @@ func TestMetricMapAddForwardedNoRateLimit(t *testing.T) {
 	}
 	key2 := entryKey{
 		metricCategory: untimedMetric,
-		metricType:     metric.CounterType,
+		metricType:     metricType(metric.CounterType),
 		idHash:         hash.Murmur3Hash128(um.ID),
 	}
 	require.NoError(t, m.AddUntimed(um, testStagedMetadatas))
@@ -432,7 +431,7 @@ func TestMetricMapAddForwardedNoRateLimit(t *testing.T) {
 	}
 	key3 := entryKey{
 		metricCategory: forwardedMetric,
-		metricType:     metric.GaugeType,
+		metricType:     metricType(metric.GaugeType),
 		idHash:         hash.Murmur3Hash128(metricWithDifferentType.ID),
 	}
 	require.NoError(t, m.AddForwarded(metricWithDifferentType, testForwardMetadata))
@@ -452,7 +451,7 @@ func TestMetricMapAddForwardedNoRateLimit(t *testing.T) {
 	}
 	key4 := entryKey{
 		metricCategory: forwardedMetric,
-		metricType:     metric.GaugeType,
+		metricType:     metricType(metric.GaugeType),
 		idHash:         hash.Murmur3Hash128(metricWithDifferentID.ID),
 	}
 	require.NoError(t, m.AddForwarded(metricWithDifferentID, testForwardMetadata))
@@ -497,7 +496,7 @@ func TestMetricMapDeleteExpired(t *testing.T) {
 	numEntries := 500
 	for i := 0; i < numEntries; i++ {
 		key := entryKey{
-			metricType: metric.CounterType,
+			metricType: metricType(metric.CounterType),
 			idHash:     hash.Murmur3Hash128([]byte(fmt.Sprintf("%d", i))),
 		}
 		if i%2 == 0 {

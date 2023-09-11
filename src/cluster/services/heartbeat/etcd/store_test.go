@@ -28,9 +28,9 @@ import (
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 
-	"go.etcd.io/etcd/clientv3"
-	"go.etcd.io/etcd/integration"
+	integration "github.com/m3db/m3/src/integration/resources/docker/dockerexternal/etcdintegration"
 	"github.com/stretchr/testify/require"
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 func TestKeys(t *testing.T) {
@@ -438,7 +438,8 @@ func TestWatchNonBlocking(t *testing.T) {
 }
 
 func testStore(t *testing.T, sid services.ServiceID) (*clientv3.Client, Options, func()) {
-	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
+	integration.BeforeTestExternal(t)
+	ecluster := integration.NewCluster(t, &integration.ClusterConfig{Size: 1})
 	ec := ecluster.RandClient()
 
 	closer := func() {

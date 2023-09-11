@@ -31,6 +31,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
@@ -38,7 +39,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
+	"github.com/m3db/m3/src/dbnode/testdata/prototest"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -49,14 +52,15 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 	xwatch "github.com/m3db/m3/src/x/watch"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3/src/dbnode/testdata/prototest"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/assert"
@@ -68,9 +72,9 @@ var (
 	defaultTestNs1ID         = ident.StringID("testns1")
 	defaultTestNs2ID         = ident.StringID("testns2")
 	defaultTestRetentionOpts = retention.NewOptions().SetBufferFuture(10 * time.Minute).SetBufferPast(10 * time.Minute).
-		SetBlockSize(2 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
+					SetBlockSize(2 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
 	defaultTestNs2RetentionOpts = retention.NewOptions().SetBufferFuture(10 * time.Minute).SetBufferPast(10 * time.Minute).
-		SetBlockSize(4 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
+					SetBlockSize(4 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
 	defaultTestNs1Opts = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
 	defaultTestNs2Opts = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
 	testSchemaHistory  = prototest.NewSchemaHistory()
@@ -209,7 +213,7 @@ func dbAddNewMockNamespace(
 }
 
 func TestDatabaseOpen(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)
@@ -223,7 +227,7 @@ func TestDatabaseOpen(t *testing.T) {
 }
 
 func TestDatabaseClose(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -237,7 +241,7 @@ func TestDatabaseClose(t *testing.T) {
 }
 
 func TestDatabaseTerminate(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -250,26 +254,28 @@ func TestDatabaseTerminate(t *testing.T) {
 	require.Equal(t, errDatabaseAlreadyClosed, d.Close())
 }
 
-func TestDatabaseReadEncodedNamespaceNotOwned(t *testing.T) {
-	ctrl := gomock.NewController(t)
+func TestDatabaseReadEncodedNamespaceNonExistent(t *testing.T) {
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
-	_, err := d.ReadEncoded(ctx, ident.StringID("nonexistent"), ident.StringID("foo"), time.Now(), time.Now())
+	now := xtime.Now()
+	_, err := d.ReadEncoded(ctx, ident.StringID("nonexistent"),
+		ident.StringID("foo"), now, now)
 	require.True(t, dberrors.IsUnknownNamespaceError(err))
 }
 
-func TestDatabaseReadEncodedNamespaceOwned(t *testing.T) {
-	ctrl := gomock.NewController(t)
+func TestDatabaseReadEncoded(t *testing.T) {
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -279,7 +285,7 @@ func TestDatabaseReadEncodedNamespaceOwned(t *testing.T) {
 
 	ns := ident.StringID("testns1")
 	id := ident.StringID("bar")
-	end := time.Now()
+	end := xtime.Now()
 	start := end.Add(-time.Hour)
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
 	mockNamespace.EXPECT().ReadEncoded(ctx, id, start, end).Return(nil, nil)
@@ -290,11 +296,11 @@ func TestDatabaseReadEncodedNamespaceOwned(t *testing.T) {
 	require.Nil(t, err)
 }
 
-func TestDatabaseFetchBlocksNamespaceNotOwned(t *testing.T) {
-	ctrl := gomock.NewController(t)
+func TestDatabaseFetchBlocksNamespaceNonExistent(t *testing.T) {
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -302,18 +308,18 @@ func TestDatabaseFetchBlocksNamespaceNotOwned(t *testing.T) {
 		close(mapCh)
 	}()
 
-	now := time.Now()
-	starts := []time.Time{now, now.Add(time.Second), now.Add(-time.Second)}
+	now := xtime.Now()
+	starts := []xtime.UnixNano{now, now.Add(time.Second), now.Add(-time.Second)}
 	res, err := d.FetchBlocks(ctx, ident.StringID("non-existent-ns"), 0, ident.StringID("foo"), starts)
 	require.Nil(t, res)
 	require.True(t, xerrors.IsInvalidParams(err))
 }
 
-func TestDatabaseFetchBlocksNamespaceOwned(t *testing.T) {
-	ctrl := gomock.NewController(t)
+func TestDatabaseFetchBlocks(t *testing.T) {
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -324,8 +330,8 @@ func TestDatabaseFetchBlocksNamespaceOwned(t *testing.T) {
 	ns := ident.StringID("testns1")
 	id := ident.StringID("bar")
 	shardID := uint32(0)
-	now := time.Now()
-	starts := []time.Time{now, now.Add(time.Second), now.Add(-time.Second)}
+	now := xtime.Now()
+	starts := []xtime.UnixNano{now, now.Add(time.Second), now.Add(-time.Second)}
 	expected := []block.FetchBlockResult{block.NewFetchBlockResult(starts[0], nil, nil)}
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
 	mockNamespace.EXPECT().FetchBlocks(ctx, shardID, id, starts).Return(expected, nil)
@@ -337,7 +343,7 @@ func TestDatabaseFetchBlocksNamespaceOwned(t *testing.T) {
 }
 
 func TestDatabaseNamespaces(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -357,7 +363,7 @@ func TestDatabaseNamespaces(t *testing.T) {
 }
 
 func TestOwnedNamespacesErrorIfClosed(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -373,7 +379,7 @@ func TestOwnedNamespacesErrorIfClosed(t *testing.T) {
 }
 
 func TestDatabaseAssignShardSet(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -403,10 +409,11 @@ func TestDatabaseAssignShardSet(t *testing.T) {
 	require.True(t, d.lastReceivedNewShards.After(t1))
 
 	wg.Wait()
+	assertFileOpsEnabled(t, d)
 }
 
-func TestDatabaseAssignShardSetBehaviorNoNewShards(t *testing.T) {
-	ctrl := gomock.NewController(t)
+func TestDatabaseAssignShardSetEnqueueBootstrapWhenMediatorClosed(t *testing.T) {
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -414,33 +421,54 @@ func TestDatabaseAssignShardSetBehaviorNoNewShards(t *testing.T) {
 		close(mapCh)
 	}()
 
-	// Set a mock mediator to be certain that bootstrap is not called when
-	// no new shards are assigned.
-	mediator := NewMockdatabaseMediator(ctrl)
-	d.mediator = mediator
+	mockMediator := NewMockdatabaseMediator(ctrl)
+	mockMediator.EXPECT().IsOpen().Return(false)
+	mockMediator.EXPECT().BootstrapEnqueue(gomock.Any())
+	d.mediator = mockMediator
+	d.bootstraps = 1
 
 	var ns []*MockdatabaseNamespace
-	ns = append(ns, dbAddNewMockNamespace(ctrl, d, "testns1"))
-	ns = append(ns, dbAddNewMockNamespace(ctrl, d, "testns2"))
+	ns = append(ns,
+		dbAddNewMockNamespace(ctrl, d, "testns1"),
+		dbAddNewMockNamespace(ctrl, d, "testns2"))
+
+	shards := append(sharding.NewShards([]uint32{0, 1}, shard.Available),
+		sharding.NewShards([]uint32{2}, shard.Initializing)...)
+	shardSet, err := sharding.NewShardSet(shards, nil)
+	require.NoError(t, err)
 
 	var wg sync.WaitGroup
 	wg.Add(len(ns))
 	for _, n := range ns {
-		n.EXPECT().AssignShardSet(d.shardSet).Do(func(_ sharding.ShardSet) {
+		n.EXPECT().AssignShardSet(shardSet).Do(func(_ sharding.ShardSet) {
 			wg.Done()
 		})
 	}
 
 	t1 := d.lastReceivedNewShards
-	d.AssignShardSet(d.shardSet)
-	// Ensure that lastReceivedNewShards is not updated if no new shards are assigned.
-	require.True(t, d.lastReceivedNewShards.Equal(t1))
+	d.AssignShardSet(shardSet)
+	require.True(t, d.lastReceivedNewShards.After(t1))
 
 	wg.Wait()
 }
 
+func TestDatabaseAssignShardSetBehaviorNoNewShards(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
+	t1 := d.lastReceivedNewShards
+	d.AssignShardSet(d.shardSet)
+	// Ensure that lastReceivedNewShards is not updated if no new shards are assigned.
+	require.True(t, d.lastReceivedNewShards.Equal(t1))
+}
+
 func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -451,7 +479,12 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
 
 	mediator := NewMockdatabaseMediator(ctrl)
-	mediator.EXPECT().Bootstrap().Return(BootstrapResult{}, nil)
+	mediator.EXPECT().IsOpen().Return(true).AnyTimes()
+	mediator.EXPECT().DisableFileOpsAndWait().AnyTimes()
+	mediator.EXPECT().EnableFileOps().AnyTimes()
+	mediator.EXPECT().Bootstrap().DoAndReturn(func() (BootstrapResult, error) {
+		return BootstrapResult{}, nil
+	})
 	d.mediator = mediator
 
 	assert.NoError(t, d.Bootstrap())
@@ -465,17 +498,132 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	mediator.EXPECT().Bootstrap().Return(BootstrapResult{}, nil).Do(func() {
-		wg.Done()
-	})
+	mediator.EXPECT().
+		BootstrapEnqueue(gomock.Any()).
+		Do(func(_ BootstrapEnqueueOptions) {
+			wg.Done()
+		})
 
 	d.AssignShardSet(shardSet)
 
 	wg.Wait()
 }
 
+func TestDatabaseAssignShardSetDuringBootstrap(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var wgBootstrap, wgAssignShards sync.WaitGroup
+	wgBootstrap.Add(3)
+	wgAssignShards.Add(1)
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
+	ns := dbAddNewMockNamespace(ctrl, d, "testns")
+
+	newShards := append(sharding.NewShards([]uint32{0}, shard.Available),
+		shard.NewShard(1).SetState(shard.Leaving),
+		shard.NewShard(2).SetState(shard.Initializing))
+
+	newShardSet, err := sharding.NewShardSet(newShards, nil)
+	require.NoError(t, err)
+
+	ns.EXPECT().AssignShardSet(newShardSet)
+
+	mediator := NewMockdatabaseMediator(ctrl)
+	mediator.EXPECT().IsOpen().Return(true).AnyTimes()
+	mediator.EXPECT().DisableFileOpsAndWait().AnyTimes()
+	mediator.EXPECT().EnableFileOps().AnyTimes()
+	mediator.EXPECT().
+		BootstrapEnqueue(gomock.Any()).
+		Do(func(_ BootstrapEnqueueOptions) {
+			wgBootstrap.Done()
+		})
+	mediator.EXPECT().Bootstrap().DoAndReturn(func() (BootstrapResult, error) {
+		go func() {
+			// make sure bootstrap not finished before assigning new shards.
+			wgAssignShards.Done()
+			d.AssignShardSet(newShardSet)
+			wgBootstrap.Done()
+		}()
+		wgAssignShards.Wait()
+		time.Sleep(time.Second)
+		// AssignShardSet should wait on lock and not update new shardset yet.
+		require.NotEqual(t, newShardSet, d.shardSet)
+		return BootstrapResult{}, nil
+	})
+	d.mediator = mediator
+
+	go func() {
+		require.NoError(t, d.Bootstrap())
+		wgBootstrap.Done()
+	}()
+	wgBootstrap.Wait()
+	require.Equal(t, newShardSet, d.shardSet)
+}
+
+func TestDatabaseUpdateOwnedNamespacesDuringBootstrap(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var wgBootstrap, wgUpdateNs sync.WaitGroup
+	wgBootstrap.Add(3)
+	wgUpdateNs.Add(1)
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
+	// check initial namespaces
+	require.Len(t, d.Namespaces(), 2)
+
+	md1, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	require.NoError(t, err)
+	md2, err := namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts)
+	require.NoError(t, err)
+	md3, err := namespace.NewMetadata(ident.StringID("ns3"), defaultTestNs2Opts)
+	require.NoError(t, err)
+	nsMap, err := namespace.NewMap([]namespace.Metadata{md1, md2, md3})
+	require.NoError(t, err)
+
+	mediator := NewMockdatabaseMediator(ctrl)
+	mediator.EXPECT().IsOpen().Return(true).AnyTimes()
+	mediator.EXPECT().DisableFileOpsAndWait().AnyTimes()
+	mediator.EXPECT().EnableFileOps().AnyTimes()
+	mediator.EXPECT().
+		BootstrapEnqueue(gomock.Any()).
+		Do(func(_ BootstrapEnqueueOptions) {
+			wgBootstrap.Done()
+		})
+	mediator.EXPECT().Bootstrap().DoAndReturn(func() (BootstrapResult, error) {
+		go func() {
+			// make sure bootstrap not finished before updating namespaces.
+			wgUpdateNs.Done()
+			require.NoError(t, d.UpdateOwnedNamespaces(nsMap))
+			wgBootstrap.Done()
+		}()
+		wgUpdateNs.Wait()
+		time.Sleep(time.Second)
+		// UpdateOwnedNamespaces should wait on lock and not update namespaces yet.
+		require.Len(t, d.Namespaces(), 2)
+		return BootstrapResult{}, nil
+	})
+	d.mediator = mediator
+
+	go func() {
+		require.NoError(t, d.Bootstrap())
+		wgBootstrap.Done()
+	}()
+	wgBootstrap.Wait()
+	require.Len(t, d.Namespaces(), 3)
+}
+
 func TestDatabaseRemoveNamespace(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, testReporter := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -519,7 +667,7 @@ func TestDatabaseRemoveNamespace(t *testing.T) {
 }
 
 func TestDatabaseAddNamespace(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, testReporter := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -537,15 +685,7 @@ func TestDatabaseAddNamespace(t *testing.T) {
 	nses := d.Namespaces()
 	require.Len(t, nses, 2)
 
-	// construct new namespace Map
-	md1, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
-	require.NoError(t, err)
-	md2, err := namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts)
-	require.NoError(t, err)
-	md3, err := namespace.NewMetadata(ident.StringID("and1"), defaultTestNs1Opts)
-	require.NoError(t, err)
-	nsMap, err := namespace.NewMap([]namespace.Metadata{md1, md2, md3})
-	require.NoError(t, err)
+	md1, md2, _, nsMap := addNamespace(t, "and1")
 
 	// update the database watch with new Map
 	mapCh <- nsMap
@@ -577,10 +717,177 @@ func TestDatabaseAddNamespace(t *testing.T) {
 	ns3, ok := d.Namespace(ident.StringID("and1"))
 	require.True(t, ok)
 	require.Equal(t, md1.Options(), ns3.Options())
+	assertFileOpsEnabled(t, d)
+}
+
+type testNamespaceHooks struct {
+	sync.Mutex
+	adds int
+}
+
+func (th *testNamespaceHooks) addCount() int {
+	th.Lock()
+	defer th.Unlock()
+	return th.adds
+}
+
+func (th *testNamespaceHooks) OnCreatedNamespace(Namespace, GetNamespaceFn) error {
+	th.Lock()
+	defer th.Unlock()
+	th.adds++
+	return nil
+}
+
+func TestDatabaseAddNamespaceBootstrapEnqueue(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	require.NoError(t, d.Open())
+	defer func() {
+		close(mapCh)
+		require.NoError(t, d.Close())
+		leaktest.CheckTimeout(t, time.Second)()
+	}()
+
+	// retrieve the update channel to track propatation
+	updateCh := d.opts.NamespaceInitializer().(*mockNsInitializer).updateCh
+
+	nsHooks := &testNamespaceHooks{}
+	d.opts = d.opts.SetNamespaceHooks(nsHooks)
+	d.bootstraps++
+
+	// check initial namespaces
+	nses := d.Namespaces()
+	require.Len(t, nses, 2)
+
+	_, _, md3, nsMap := addNamespace(t, "nsNew")
+
+	// update the database watch with new Map
+	mapCh <- nsMap
+
+	// wait till the update has propagated
+	<-updateCh
+	<-updateCh
+
+	// Because ns update will be enqueued and performed later, we need to wait for more time in theory.
+	// Usually this update should complete in a few seconds.
+	require.True(t, xclock.WaitUntil(func() bool {
+		return nsHooks.addCount() == 1
+	}, 1*time.Minute))
+	require.True(t, xclock.WaitUntil(func() bool {
+		return len(d.Namespaces()) == 3
+	}, 2*time.Second))
+
+	// ensure the expected namespaces exist
+	nses = d.Namespaces()
+	require.Len(t, nses, 3)
+	ns3, ok := d.Namespace(ident.StringID("nsNew"))
+	require.True(t, ok)
+	require.Equal(t, md3.Options(), ns3.Options())
+	assertFileOpsEnabled(t, d)
+}
+
+type errorNamespaceHooks struct{}
+
+func (th *errorNamespaceHooks) OnCreatedNamespace(Namespace, GetNamespaceFn) error {
+	return errors.New("failed to create namespace")
+}
+
+func TestDatabaseAddNamespaceErrorAfterWaitForFileOps(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	require.NoError(t, d.Open())
+	defer func() {
+		close(mapCh)
+		require.NoError(t, d.Close())
+		leaktest.CheckTimeout(t, time.Second)()
+	}()
+
+	nsHooks := &errorNamespaceHooks{}
+	d.opts = d.opts.SetNamespaceHooks(nsHooks)
+
+	_, _, _, nsMap := addNamespace(t, "testns3")
+	d.bootstraps = 1
+
+	require.Error(t, d.UpdateOwnedNamespaces(nsMap))
+	assertFileOpsEnabled(t, d)
+}
+
+func TestDatabaseAddNamespaceBootstrapEnqueueMediatorClosed(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	require.NoError(t, d.Open())
+	mediator := d.mediator
+	defer func() {
+		close(mapCh)
+		d.mediator = mediator
+		require.NoError(t, d.Close())
+		leaktest.CheckTimeout(t, time.Second)()
+	}()
+
+	// retrieve the update channel to track propatation
+	updateCh := d.opts.NamespaceInitializer().(*mockNsInitializer).updateCh
+
+	nsHooks := &testNamespaceHooks{}
+	d.opts = d.opts.SetNamespaceHooks(nsHooks)
+	mockMediator := NewMockdatabaseMediator(ctrl)
+	mockMediator.EXPECT().IsOpen().Return(false).AnyTimes()
+	mockMediator.EXPECT().BootstrapEnqueue(gomock.Any())
+	d.mediator = mockMediator
+
+	// check initial namespaces
+	nses := d.Namespaces()
+	require.Len(t, nses, 2)
+
+	_, _, md3, nsMap := addNamespace(t, "testns3")
+	d.bootstraps = 1
+	// update the database watch with new Map
+	mapCh <- nsMap
+
+	// wait till the update has propagated
+	<-updateCh
+	<-updateCh
+
+	// Because ns update will be enqueued and performed later, we need to wait for more time in theory.
+	// Usually this update should complete in a few seconds.
+	require.True(t, xclock.WaitUntil(func() bool {
+		return nsHooks.addCount() == 1
+	}, time.Minute))
+	require.True(t, xclock.WaitUntil(func() bool {
+		return len(d.Namespaces()) == 3
+	}, 2*time.Second))
+
+	// ensure the expected namespaces exist
+	nses = d.Namespaces()
+	require.Len(t, nses, 3)
+	ns3, ok := d.Namespace(ident.StringID("testns3"))
+	require.True(t, ok)
+	require.Equal(t, md3.Options(), ns3.Options())
+}
+
+func addNamespace(
+	t *testing.T,
+	ns string,
+) (namespace.Metadata, namespace.Metadata, namespace.Metadata, namespace.Map) {
+	// construct new namespace Map
+	md1, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	require.NoError(t, err)
+	md2, err := namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts)
+	require.NoError(t, err)
+	md3, err := namespace.NewMetadata(ident.StringID(ns), defaultTestNs1Opts)
+	require.NoError(t, err)
+	nsMap, err := namespace.NewMap([]namespace.Metadata{md1, md2, md3})
+	require.NoError(t, err)
+	return md1, md2, md3, nsMap
 }
 
 func TestDatabaseUpdateNamespace(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -637,7 +944,7 @@ func TestDatabaseCreateSchemaNotSet(t *testing.T) {
 	protoTestDatabaseOptions := DefaultTestOptions().
 		SetSchemaRegistry(namespace.NewSchemaRegistry(true, nil))
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	// Start the database with two namespaces, one miss configured (missing schema).
@@ -672,7 +979,7 @@ func TestDatabaseUpdateNamespaceSchemaNotSet(t *testing.T) {
 	protoTestDatabaseOptions := DefaultTestOptions().
 		SetSchemaRegistry(namespace.NewSchemaRegistry(true, nil))
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	// Start db with no namespaces.
@@ -763,7 +1070,7 @@ func TestDatabaseNamespaceIndexFunctionsNoCommitlog(t *testing.T) {
 }
 
 func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)
@@ -771,7 +1078,7 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 		close(mapCh)
 	}()
 
-	commitlog := d.commitLog
+	commitLog := d.commitLog
 	if !commitlogEnabled {
 		// We don't mock the commitlog so set this to nil to ensure its
 		// not being used as the test will panic if any methods are called
@@ -785,13 +1092,14 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 
 	ns.EXPECT().OwnedShards().Return([]databaseShard{}).AnyTimes()
 	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	ns.EXPECT().BootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
+	ns.EXPECT().ShardBootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
 	ns.EXPECT().Options().Return(nsOptions).AnyTimes()
 	require.NoError(t, d.Open())
 
 	var (
+		now         = xtime.Now()
 		namespace   = ident.StringID("testns")
-		ctx         = context.NewContext()
+		ctx         = context.NewBackground()
 		id          = ident.StringID("foo")
 		tagsIter    = ident.EmptyTagIterator
 		seriesWrite = SeriesWrite{
@@ -809,15 +1117,15 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
 	ns.EXPECT().WriteTagged(gomock.Any(), ident.NewIDMatcher("foo"), gomock.Any(),
-		time.Time{}, 1.0, xtime.Second, nil).Return(seriesWrite, nil)
+		now, 1.0, xtime.Second, nil).Return(seriesWrite, nil)
 	require.NoError(t, d.WriteTagged(ctx, namespace,
-		id, tagsIter, time.Time{},
+		id, convert.NewTagsIterMetadataResolver(tagsIter), now,
 		1.0, xtime.Second, nil))
 
 	ns.EXPECT().WriteTagged(gomock.Any(), ident.NewIDMatcher("foo"), gomock.Any(),
-		time.Time{}, 1.0, xtime.Second, nil).Return(SeriesWrite{}, fmt.Errorf("random err"))
+		now, 1.0, xtime.Second, nil).Return(SeriesWrite{}, fmt.Errorf("random err"))
 	require.Error(t, d.WriteTagged(ctx, namespace,
-		ident.StringID("foo"), ident.EmptyTagIterator, time.Time{},
+		ident.StringID("foo"), convert.EmptyTagMetadataResolver, now,
 		1.0, xtime.Second, nil))
 
 	var (
@@ -851,21 +1159,28 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 	ns.EXPECT().Close().Return(nil)
 
 	// Ensure commitlog is set before closing because this will call commitlog.Close()
-	d.commitLog = commitlog
+	d.commitLog = commitLog
 	require.NoError(t, d.Close())
 
 	sp.Finish()
 	spans := mtr.FinishedSpans()
-	require.Len(t, spans, 5)
-	assert.Equal(t, tracepoint.DBQueryIDs, spans[0].OperationName)
-	assert.Equal(t, tracepoint.DBQueryIDs, spans[1].OperationName)
-	assert.Equal(t, tracepoint.DBAggregateQuery, spans[2].OperationName)
-	assert.Equal(t, tracepoint.DBAggregateQuery, spans[3].OperationName)
-	assert.Equal(t, "root", spans[4].OperationName)
+	spanStrs := make([]string, 0, len(spans))
+	for _, s := range spans {
+		spanStrs = append(spanStrs, s.OperationName)
+	}
+	exSpans := []string{
+		tracepoint.DBQueryIDs,
+		tracepoint.DBQueryIDs,
+		tracepoint.DBAggregateQuery,
+		tracepoint.DBAggregateQuery,
+		"root",
+	}
+
+	assert.Equal(t, exSpans, spanStrs)
 }
 
 func TestDatabaseWriteBatchNoNamespace(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)
@@ -881,14 +1196,14 @@ func TestDatabaseWriteBatchNoNamespace(t *testing.T) {
 	_, err := d.BatchWriter(notExistNamespace, batchSize)
 	require.Error(t, err)
 
-	err = d.WriteBatch(context.NewContext(), notExistNamespace, nil, nil)
+	err = d.WriteBatch(context.NewBackground(), notExistNamespace, nil, nil)
 	require.Error(t, err)
 
 	require.NoError(t, d.Close())
 }
 
 func TestDatabaseWriteTaggedBatchNoNamespace(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)
@@ -904,7 +1219,7 @@ func TestDatabaseWriteTaggedBatchNoNamespace(t *testing.T) {
 	_, err := d.BatchWriter(notExistNamespace, batchSize)
 	require.Error(t, err)
 
-	err = d.WriteTaggedBatch(context.NewContext(), notExistNamespace, nil, nil)
+	err = d.WriteTaggedBatch(context.NewBackground(), notExistNamespace, nil, nil)
 	require.Error(t, err)
 
 	require.NoError(t, d.Close())
@@ -947,7 +1262,7 @@ type indexedErr struct {
 
 func testDatabaseWriteBatch(t *testing.T,
 	tagged bool, commitlogEnabled bool, skipAll bool) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)
@@ -955,7 +1270,7 @@ func testDatabaseWriteBatch(t *testing.T,
 		close(mapCh)
 	}()
 
-	commitlog := d.commitLog
+	commitLog := d.commitLog
 	if !commitlogEnabled {
 		// We don't mock the commitlog so set this to nil to ensure its
 		// not being used as the test will panic if any methods are called
@@ -969,14 +1284,14 @@ func testDatabaseWriteBatch(t *testing.T,
 
 	ns.EXPECT().OwnedShards().Return([]databaseShard{}).AnyTimes()
 	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	ns.EXPECT().BootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
+	ns.EXPECT().ShardBootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
 	ns.EXPECT().Options().Return(nsOptions).AnyTimes()
 	ns.EXPECT().Close().Return(nil).Times(1)
 	require.NoError(t, d.Open())
 
 	var (
 		namespace = ident.StringID("testns")
-		ctx       = context.NewContext()
+		ctx       = context.NewBackground()
 		tags      = ident.NewTags(ident.Tag{
 			Name:  ident.StringID("foo"),
 			Value: ident.StringID("bar"),
@@ -999,44 +1314,44 @@ func testDatabaseWriteBatch(t *testing.T,
 
 	testWrites := []struct {
 		series string
-		t      time.Time
+		t      xtime.UnixNano
 		v      float64
 		skip   bool
 		err    error
 	}{
 		{
 			series: "won't appear - always skipped",
-			t:      time.Time{}.Add(0 * time.Second),
+			t:      xtime.UnixNano(0 * time.Second),
 			skip:   true,
 			v:      0.0,
 		},
 		{
 			series: "foo",
-			t:      time.Time{}.Add(10 * time.Second),
+			t:      xtime.UnixNano(10 * time.Second),
 			skip:   skipAll,
 			v:      1.0,
 		},
 		{
 			series: "bar",
-			t:      time.Time{}.Add(20 * time.Second),
+			t:      xtime.UnixNano(20 * time.Second),
 			skip:   skipAll,
 			v:      2.0,
 		},
 		{
 			series: "baz",
-			t:      time.Time{}.Add(20 * time.Second),
+			t:      xtime.UnixNano(20 * time.Second),
 			skip:   skipAll,
 			v:      3.0,
 		},
 		{
 			series: "qux",
-			t:      time.Time{}.Add(30 * time.Second),
+			t:      xtime.UnixNano(30 * time.Second),
 			skip:   skipAll,
 			v:      4.0,
 		},
 		{
 			series: "won't appear - always skipped",
-			t:      time.Time{}.Add(40 * time.Second),
+			t:      xtime.UnixNano(40 * time.Second),
 			skip:   true,
 			v:      5.0,
 		},
@@ -1056,7 +1371,7 @@ func testDatabaseWriteBatch(t *testing.T,
 		// in the WriteBatch slice.
 		if tagged {
 			batchWriter.AddTagged(i*2, ident.StringID(write.series),
-				tagsIter.Duplicate(), encodedTags.Bytes(), write.t, write.v, xtime.Second, nil)
+				encodedTags.Bytes(), write.t, write.v, xtime.Second, nil)
 			wasWritten := write.err == nil
 			ns.EXPECT().
 				WriteTagged(ctx, ident.NewIDMatcher(write.series), gomock.Any(),
@@ -1101,12 +1416,12 @@ func testDatabaseWriteBatch(t *testing.T,
 	require.Equal(t, (i-1)*2, errHandler.errs[0].index)
 
 	// Ensure commitlog is set before closing because this will call commitlog.Close()
-	d.commitLog = commitlog
+	d.commitLog = commitLog
 	require.NoError(t, d.Close())
 }
 
 func TestDatabaseBootstrapState(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -1115,11 +1430,11 @@ func TestDatabaseBootstrapState(t *testing.T) {
 	}()
 
 	ns1 := dbAddNewMockNamespace(ctrl, d, "testns1")
-	ns1.EXPECT().BootstrapState().Return(ShardBootstrapStates{
+	ns1.EXPECT().ShardBootstrapState().Return(ShardBootstrapStates{
 		1: Bootstrapping,
 	})
 	ns2 := dbAddNewMockNamespace(ctrl, d, "testns2")
-	ns2.EXPECT().BootstrapState().Return(ShardBootstrapStates{
+	ns2.EXPECT().ShardBootstrapState().Return(ShardBootstrapStates{
 		2: Bootstrapped,
 	})
 
@@ -1137,7 +1452,7 @@ func TestDatabaseBootstrapState(t *testing.T) {
 }
 
 func TestDatabaseFlushState(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -1147,7 +1462,7 @@ func TestDatabaseFlushState(t *testing.T) {
 
 	var (
 		shardID            = uint32(0)
-		blockStart         = time.Now().Truncate(2 * time.Hour)
+		blockStart         = xtime.Now().Truncate(2 * time.Hour)
 		expectedFlushState = fileOpState{
 			ColdVersionRetrievable: 2,
 		}
@@ -1165,7 +1480,7 @@ func TestDatabaseFlushState(t *testing.T) {
 }
 
 func TestDatabaseIsBootstrapped(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
@@ -1173,17 +1488,17 @@ func TestDatabaseIsBootstrapped(t *testing.T) {
 		close(mapCh)
 	}()
 
-	mediator := NewMockdatabaseMediator(ctrl)
-	mediator.EXPECT().IsBootstrapped().Return(true)
-	mediator.EXPECT().IsBootstrapped().Return(false)
-	d.mediator = mediator
+	md := NewMockdatabaseMediator(ctrl)
+	md.EXPECT().IsBootstrapped().Return(true)
+	md.EXPECT().IsBootstrapped().Return(false)
+	d.mediator = md
 
 	assert.True(t, d.IsBootstrapped())
 	assert.False(t, d.IsBootstrapped())
 }
 
 func TestUpdateBatchWriterBasedOnShardResults(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)
@@ -1191,7 +1506,7 @@ func TestUpdateBatchWriterBasedOnShardResults(t *testing.T) {
 		close(mapCh)
 	}()
 
-	commitlog := d.commitLog
+	commitLog := d.commitLog
 	d.commitLog = nil
 
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
@@ -1199,14 +1514,14 @@ func TestUpdateBatchWriterBasedOnShardResults(t *testing.T) {
 		SetWritesToCommitLog(false)
 	ns.EXPECT().OwnedShards().Return([]databaseShard{}).AnyTimes()
 	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	ns.EXPECT().BootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
+	ns.EXPECT().ShardBootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
 	ns.EXPECT().Options().Return(nsOptions).AnyTimes()
 	ns.EXPECT().Close().Return(nil).Times(1)
 	require.NoError(t, d.Open())
 
 	var (
 		namespace    = ident.StringID("testns")
-		ctx          = context.NewContext()
+		ctx          = context.NewBackground()
 		seriesWrite1 = SeriesWrite{Series: ts.Series{UniqueIndex: 0}, WasWritten: true}
 		seriesWrite2 = SeriesWrite{Series: ts.Series{UniqueIndex: 1}, WasWritten: true}
 		seriesWrite3 = SeriesWrite{Series: ts.Series{UniqueIndex: 2}, WasWritten: false}
@@ -1261,12 +1576,12 @@ func TestUpdateBatchWriterBasedOnShardResults(t *testing.T) {
 	require.Equal(t, 2, len(errHandler.errs))
 	require.Equal(t, err, errHandler.errs[0].err)
 	require.Equal(t, err, errHandler.errs[1].err)
-	d.commitLog = commitlog
+	d.commitLog = commitLog
 	require.NoError(t, d.Close())
 }
 
 func TestDatabaseIsOverloaded(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)
@@ -1289,8 +1604,11 @@ func TestDatabaseIsOverloaded(t *testing.T) {
 }
 
 func TestDatabaseAggregateTiles(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
+
+	ctx := context.NewBackground()
+	defer ctx.Close()
 
 	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
@@ -1300,38 +1618,188 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 	var (
 		sourceNsID = ident.StringID("source")
 		targetNsID = ident.StringID("target")
-		ctx        = context.NewContext()
-		pm         = d.opts.PersistManager()
-		start      = time.Now().Truncate(time.Hour)
+		start      = xtime.Now().Truncate(time.Hour)
+		process    = AggregateTilesAPI
 	)
 
-	opts, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute, true)
+	opts, err := NewAggregateTilesOptions(
+		start, start.Add(-time.Second), time.Minute, targetNsID, process,
+		false, false, nil, d.opts.InstrumentOptions())
 	require.Error(t, err)
+	opts.InsOptions = d.opts.InstrumentOptions()
 
 	sourceNs := dbAddNewMockNamespace(ctrl, d, sourceNsID.String())
 	targetNs := dbAddNewMockNamespace(ctrl, d, targetNsID.String())
-	targetNs.EXPECT().AggregateTiles(ctx, sourceNs, opts, pm).Return(int64(4), nil)
+	targetNs.EXPECT().AggregateTiles(ctx, sourceNs, opts).Return(int64(4), nil)
 
-	processedBlockCount, err := d.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
+	processedTileCount, err := d.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
 	require.NoError(t, err)
-	assert.Equal(t, int64(4), processedBlockCount)
+	assert.Equal(t, int64(4), processedTileCount)
 }
 
 func TestNewAggregateTilesOptions(t *testing.T) {
-	start := time.Now().Truncate(time.Hour)
+	var (
+		start    = xtime.Now().Truncate(time.Hour)
+		end      = start.Add(time.Second)
+		targetNs = ident.StringID("target")
+		insOpts  = instrument.NewOptions()
+		process  = AggregateTilesRegular
+	)
 
-	_, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute, false)
+	_, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute, targetNs, process,
+		false, false, nil, insOpts)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start, time.Minute, false)
+	_, err = NewAggregateTilesOptions(start, start, time.Minute, targetNs, process,
+		false, false, nil, insOpts)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), -time.Minute, false)
+	_, err = NewAggregateTilesOptions(start, end, -time.Minute, targetNs, process,
+		false, false, nil, insOpts)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), 0, false)
+	_, err = NewAggregateTilesOptions(start, end, 0, targetNs, process,
+		false, false, nil, insOpts)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), time.Minute, false)
+	_, err = NewAggregateTilesOptions(start, end, time.Minute, targetNs, process,
+		false, false, nil, insOpts)
 	assert.NoError(t, err)
+
+	_, err = NewAggregateTilesOptions(start, end, time.Minute, targetNs, process,
+		true, false, nil, insOpts)
+	assert.Error(t, err)
+
+	_, err = NewAggregateTilesOptions(start, end, time.Minute, targetNs, process,
+		false, true, nil, insOpts)
+	assert.Error(t, err)
+
+	_, err = NewAggregateTilesOptions(start, end, time.Minute, targetNs, process,
+		true, true, nil, insOpts)
+	assert.Error(t, err)
+
+	_, err = NewAggregateTilesOptions(start, end, time.Minute, targetNs, process,
+		true, true, map[string]annotation.Payload{}, insOpts)
+	assert.NoError(t, err)
+}
+
+func TestShardsDelta(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.NewBackground()
+	defer ctx.Close()
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
+	shards := append(sharding.NewShards([]uint32{0, 1}, shard.Available),
+		sharding.NewShards([]uint32{2}, shard.Initializing)...)
+	shardSet, err := sharding.NewShardSet(shards, nil)
+	require.NoError(t, err)
+
+	d.shardSet = shardSet
+
+	t.Run("unchanged", func(t *testing.T) {
+		incoming := append(sharding.NewShards([]uint32{0, 1}, shard.Available),
+			sharding.NewShards([]uint32{2}, shard.Initializing)...)
+		shardSet, err = sharding.NewShardSet(incoming, nil)
+		require.NoError(t, err)
+
+		added, removed, updated := d.shardsDeltaWithLock(shardSet)
+		require.False(t, added)
+		require.False(t, removed)
+		require.False(t, updated)
+	})
+
+	t.Run("added-updated-deleted", func(t *testing.T) {
+		incomingAddedRemovedUpdated := append(sharding.NewShards([]uint32{1, 2}, shard.Available),
+			sharding.NewShards([]uint32{3}, shard.Initializing)...)
+		shardSet, err = sharding.NewShardSet(incomingAddedRemovedUpdated, nil)
+		require.NoError(t, err)
+		added, removed, updated := d.shardsDeltaWithLock(shardSet)
+		require.True(t, added)
+		require.True(t, removed)
+		require.True(t, updated)
+	})
+
+	t.Run("added", func(t *testing.T) {
+		incomingAdded := append(sharding.NewShards([]uint32{0, 1}, shard.Available),
+			sharding.NewShards([]uint32{2, 3}, shard.Initializing)...)
+		shardSet, err = sharding.NewShardSet(incomingAdded, nil)
+		require.NoError(t, err)
+		added, removed, updated := d.shardsDeltaWithLock(shardSet)
+		require.True(t, added)
+		require.False(t, removed)
+		require.False(t, updated)
+	})
+
+	t.Run("updated", func(t *testing.T) {
+		incomingUpdated := sharding.NewShards([]uint32{0, 1, 2}, shard.Available)
+		shardSet, err = sharding.NewShardSet(incomingUpdated, nil)
+		require.NoError(t, err)
+		added, removed, updated := d.shardsDeltaWithLock(shardSet)
+		require.False(t, added)
+		require.False(t, removed)
+		require.True(t, updated)
+	})
+
+	t.Run("removed", func(t *testing.T) {
+		incomingRemoved := sharding.NewShards([]uint32{0, 1}, shard.Available)
+		shardSet, err = sharding.NewShardSet(incomingRemoved, nil)
+		require.NoError(t, err)
+		added, removed, updated := d.shardsDeltaWithLock(shardSet)
+		require.False(t, added)
+		require.True(t, removed)
+		require.False(t, updated)
+	})
+
+	t.Run("added-updated", func(t *testing.T) {
+		incomingAddedUpdated := append(sharding.NewShards([]uint32{0, 1, 2}, shard.Available),
+			sharding.NewShards([]uint32{3}, shard.Initializing)...)
+		shardSet, err = sharding.NewShardSet(incomingAddedUpdated, nil)
+		require.NoError(t, err)
+		added, removed, updated := d.shardsDeltaWithLock(shardSet)
+		require.True(t, added)
+		require.False(t, removed)
+		require.True(t, updated)
+	})
+
+	t.Run("added-removed", func(t *testing.T) {
+		incomingAddedRemoved := append(sharding.NewShards([]uint32{1}, shard.Available),
+			sharding.NewShards([]uint32{3}, shard.Initializing)...)
+		shardSet, err = sharding.NewShardSet(incomingAddedRemoved, nil)
+		require.NoError(t, err)
+		added, removed, updated := d.shardsDeltaWithLock(shardSet)
+		require.True(t, added)
+		require.True(t, removed)
+		require.False(t, updated)
+	})
+
+	t.Run("updated-removed", func(t *testing.T) {
+		incomingUpdatedRemoved := append(sharding.NewShards([]uint32{0}, shard.Available),
+			sharding.NewShards([]uint32{1}, shard.Initializing)...)
+		shardSet, err = sharding.NewShardSet(incomingUpdatedRemoved, nil)
+		require.NoError(t, err)
+		added, removed, updated := d.shardsDeltaWithLock(shardSet)
+		require.False(t, added)
+		require.True(t, removed)
+		require.True(t, updated)
+	})
+}
+
+func assertFileOpsEnabled(t *testing.T, d *db) {
+	mediator := d.mediator.(*mediator)
+	coldFlushManager := mediator.databaseColdFlushManager.(*coldFlushManager)
+	fileSystemManager := mediator.databaseFileSystemManager.(*fileSystemManager)
+
+	coldFlushManager.RLock()
+	require.True(t, coldFlushManager.enabled)
+	coldFlushManager.RUnlock()
+
+	fileSystemManager.RLock()
+	require.True(t, fileSystemManager.enabled)
+	fileSystemManager.RUnlock()
 }

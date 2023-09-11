@@ -41,6 +41,7 @@ import (
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestShardTickReadFnRace(t *testing.T) {
@@ -81,7 +82,8 @@ func testShardTickReadFnRace(t *testing.T, ids []ident.ID, tickBatchSize int, fn
 
 	wg.Add(2)
 	go func() {
-		shard.Tick(context.NewNoOpCanncellable(), time.Now(), namespace.Context{})
+		_, err := shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
+		require.NoError(t, err)
 		wg.Done()
 	}()
 
@@ -96,9 +98,9 @@ func testShardTickReadFnRace(t *testing.T, ids []ident.ID, tickBatchSize int, fn
 type testShardReadFn func(shard *dbShard)
 
 var fetchBlocksMetadataV2ShardFn testShardReadFn = func(shard *dbShard) {
-	ctx := context.NewContext()
-	start := time.Time{}
-	end := time.Now()
+	ctx := context.NewBackground()
+	start := xtime.UnixNano(0)
+	end := xtime.Now()
 	shard.FetchBlocksMetadataV2(ctx, start, end, 100, nil, block.FetchBlocksMetadataOptions{
 		IncludeChecksums: true,
 		IncludeLastRead:  true,
@@ -185,8 +187,8 @@ func testShardTickWriteRace(t *testing.T, tickBatchSize, numSeries int) {
 		go func() {
 			defer doneFn()
 			<-barrier
-			ctx := context.NewContext()
-			now := time.Now()
+			ctx := context.NewBackground()
+			now := xtime.Now()
 			seriesWrite, err := shard.Write(ctx, id, now, 1.0, xtime.Second, nil, series.WriteOptions{})
 			assert.NoError(t, err)
 			assert.True(t, seriesWrite.WasWritten)
@@ -203,7 +205,7 @@ func testShardTickWriteRace(t *testing.T, tickBatchSize, numSeries int) {
 	go func() {
 		defer doneFn()
 		<-barrier
-		_, err := shard.Tick(context.NewNoOpCanncellable(), time.Now(), namespace.Context{})
+		_, err := shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
 		assert.NoError(t, err)
 	}()
 
@@ -273,7 +275,7 @@ func TestShardTickBootstrapWriteRace(t *testing.T) {
 		wg.Done()
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	assert.NoError(t, shard.Bootstrap(ctx, namespace.Context{ID: ident.StringID("foo")}))
@@ -282,8 +284,8 @@ func TestShardTickBootstrapWriteRace(t *testing.T) {
 		go func() {
 			defer doneFn()
 			<-barrier
-			ctx := context.NewContext()
-			now := time.Now()
+			ctx := context.NewBackground()
+			now := xtime.Now()
 			seriesWrite, err := shard.Write(ctx, id, now, 1.0, xtime.Second, nil, series.WriteOptions{})
 			assert.NoError(t, err)
 			assert.True(t, seriesWrite.WasWritten)
@@ -301,7 +303,7 @@ func TestShardTickBootstrapWriteRace(t *testing.T) {
 	go func() {
 		defer doneFn()
 		<-barrier
-		_, err := shard.Tick(context.NewNoOpCanncellable(), time.Now(), namespace.Context{})
+		_, err := shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
 		assert.NoError(t, err)
 	}()
 

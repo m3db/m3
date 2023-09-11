@@ -21,19 +21,82 @@
 package aggregation
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/compare"
 	"github.com/m3db/m3/src/query/test/executor"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestTakeInstantFn(t *testing.T) {
+	valuesMin := []float64{1.1, 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 8.1, 9.1}
+	buckets := [][]int{{0, 1, 2, 3}, {4}, {5, 6, 7, 8}}
+
+	var (
+		seriesMetasTakeOrdered = []block.SeriesMeta{
+			{Tags: test.StringTagsToTags(test.StringTags{{N: "job", V: "api-server"}, {N: "instance", V: "0"}, {N: "group", V: "production"}})},
+			{Tags: test.StringTagsToTags(test.StringTags{{N: "job", V: "api-server"}, {N: "instance", V: "1"}, {N: "group", V: "production"}})},
+			{Tags: test.StringTagsToTags(test.StringTags{{N: "job", V: "api-server"}, {N: "instance", V: "2"}, {N: "group", V: "production"}})},
+			{Tags: test.StringTagsToTags(test.StringTags{{N: "job", V: "api-server"}, {N: "instance", V: "0"}, {N: "group", V: "canary"}})},
+			{Tags: test.StringTagsToTags(test.StringTags{{N: "job", V: "api-server"}, {N: "instance", V: "1"}, {N: "group", V: "canary"}})},
+			{Tags: test.StringTagsToTags(test.StringTags{{N: "job", V: "app-server"}, {N: "instance", V: "0"}, {N: "group", V: "production"}})},
+			{Tags: test.StringTagsToTags(test.StringTags{{N: "job", V: "app-server"}, {N: "instance", V: "1"}, {N: "group", V: "production"}})},
+			{Tags: test.StringTagsToTags(test.StringTags{{N: "job", V: "app-server"}, {N: "instance", V: "0"}, {N: "group", V: "canary"}})},
+			{Tags: test.StringTagsToTags(test.StringTags{{N: "job", V: "app-server"}, {N: "instance", V: "1"}, {N: "group", V: "canary"}})},
+		}
+	)
+
+	expectedMin := []valueAndMeta{
+		{val: 1.1, seriesMeta: seriesMetasTakeOrdered[0]},
+		{val: 2.1, seriesMeta: seriesMetasTakeOrdered[1]},
+		{val: 3.1, seriesMeta: seriesMetasTakeOrdered[2]},
+
+		{val: 5.1, seriesMeta: seriesMetasTakeOrdered[4]},
+
+		{val: 6.1, seriesMeta: seriesMetasTakeOrdered[5]},
+		{val: 7.1, seriesMeta: seriesMetasTakeOrdered[6]},
+		{val: 8.1, seriesMeta: seriesMetasTakeOrdered[7]},
+	}
+
+	size := 3
+	minHeap := utils.NewFloatHeap(false, size)
+	actual := takeInstantFn(minHeap, valuesMin, buckets, seriesMetasTakeOrdered) //9
+
+	actualString := fmt.Sprint(actual)
+	expectedString := fmt.Sprint(expectedMin)
+
+	assert.EqualValues(t, expectedString, actualString)
+
+	valuesMax := []float64{1.1, 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 8.1, 9.1}
+	expectedMax := []valueAndMeta{
+		{val: 4.1, seriesMeta: seriesMetasTakeOrdered[3]},
+		{val: 3.1, seriesMeta: seriesMetasTakeOrdered[2]},
+		{val: 2.1, seriesMeta: seriesMetasTakeOrdered[1]},
+
+		{val: 5.1, seriesMeta: seriesMetasTakeOrdered[4]},
+
+		{val: 9.1, seriesMeta: seriesMetasTakeOrdered[8]},
+		{val: 8.1, seriesMeta: seriesMetasTakeOrdered[7]},
+		{val: 7.1, seriesMeta: seriesMetasTakeOrdered[6]},
+	}
+
+	maxHeap := utils.NewFloatHeap(true, size)
+	actual = takeInstantFn(maxHeap, valuesMax, buckets, seriesMetasTakeOrdered)
+	actualString = fmt.Sprint(actual)
+	expectedString = fmt.Sprint(expectedMax)
+
+	assert.EqualValues(t, expectedString, actualString)
+}
 
 func TestTakeFn(t *testing.T) {
 	valuesMin := []float64{1.1, 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 8.1}
@@ -43,27 +106,27 @@ func TestTakeFn(t *testing.T) {
 	minHeap := utils.NewFloatHeap(false, size)
 
 	actual := takeFn(minHeap, valuesMin, buckets)
-	test.EqualsWithNans(t, expectedMin, actual)
-	test.EqualsWithNans(t, expectedMin, valuesMin)
+	compare.EqualsWithNans(t, expectedMin, actual)
+	compare.EqualsWithNans(t, expectedMin, valuesMin)
 
 	valuesMax := []float64{1.1, 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 8.1}
 	expectedMax := []float64{math.NaN(), 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 8.1}
 
 	maxHeap := utils.NewFloatHeap(true, size)
 	actual = takeFn(maxHeap, valuesMax, buckets)
-	test.EqualsWithNans(t, expectedMax, actual)
-	test.EqualsWithNans(t, expectedMax, valuesMax)
+	compare.EqualsWithNans(t, expectedMax, actual)
+	compare.EqualsWithNans(t, expectedMax, valuesMax)
 
 	valuesQuantile := []float64{1.1, 2.1, 3.1, 4.1, 5.1}
 	actualQ := bucketedQuantileFn(0, valuesQuantile, []int{0, 1, 2, 3})
-	test.EqualsWithNans(t, 1.1, actualQ)
+	compare.EqualsWithNans(t, 1.1, actualQ)
 }
 
 func processTakeOp(t *testing.T, op parser.Params) *executor.SinkNode {
 	bl := test.NewBlockFromValuesWithSeriesMeta(bounds, seriesMetas, v)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	node := op.(takeOp).Node(c, transform.Options{})
-	err := node.Process(models.NoopQueryContext(), parser.NodeID(0), bl)
+	err := node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), bl)
 	require.NoError(t, err)
 	return sink
 }
@@ -88,7 +151,7 @@ func TestTakeBottomFunctionFilteringWithoutA(t *testing.T) {
 
 	// Should have the same metas as when started
 	assert.Equal(t, seriesMetas, sink.Metas)
-	test.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
+	compare.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
 	assert.Equal(t, bounds, sink.Meta.Bounds)
 }
 
@@ -98,6 +161,7 @@ func TestTakeTopFunctionFilteringWithoutA(t *testing.T) {
 	})
 	require.NoError(t, err)
 	sink := processTakeOp(t, op)
+
 	expected := [][]float64{
 		// Taking bottomk(1) of first two series, keeping both series
 		{0, math.NaN(), math.NaN(), math.NaN(), math.NaN()},
@@ -112,7 +176,7 @@ func TestTakeTopFunctionFilteringWithoutA(t *testing.T) {
 
 	// Should have the same metas as when started
 	assert.Equal(t, seriesMetas, sink.Metas)
-	test.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
+	compare.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
 	assert.Equal(t, bounds, sink.Meta.Bounds)
 }
 
@@ -136,6 +200,14 @@ func TestTakeTopFunctionFilteringWithoutALessThanOne(t *testing.T) {
 
 	// Should have the same metas as when started
 	assert.Equal(t, seriesMetas, sink.Metas)
-	test.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
+	compare.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
 	assert.Equal(t, bounds, sink.Meta.Bounds)
+}
+
+func TestTakeOpParamIsNaN(t *testing.T) {
+	op, err := NewTakeOp(TopKType, NodeParams{
+		Parameter: math.NaN(),
+	})
+	require.NoError(t, err)
+	assert.True(t, op.(takeOp).k < 0)
 }

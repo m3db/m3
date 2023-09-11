@@ -20,22 +20,53 @@
 
 package ts
 
-// MetricType is the enum for metric types.
-type MetricType int
+// M3MetricType is the enum for M3 metric types.
+// NB: the current use case for this is Graphite metrics. Also see PromMetricType (below).
+// In future, it is worth considering a merge of these two enumerations.
+type M3MetricType uint8
 
 const (
-	// MetricTypeGauge is the gauge metric type.
-	MetricTypeGauge MetricType = iota
+	// M3MetricTypeGauge is the gauge metric type.
+	M3MetricTypeGauge M3MetricType = iota
 
-	// MetricTypeCounter is the counter metric type.
-	MetricTypeCounter
+	// M3MetricTypeCounter is the counter metric type.
+	M3MetricTypeCounter
 
-	// MetricTypeTimer is the timer metric type.
-	MetricTypeTimer
+	// M3MetricTypeTimer is the timer metric type.
+	M3MetricTypeTimer
+)
+
+// PromMetricType is the enum for Prometheus metric types.
+type PromMetricType uint8
+
+const (
+	// PromMetricTypeUnknown is the unknown Prometheus metric type.
+	PromMetricTypeUnknown PromMetricType = iota
+
+	// PromMetricTypeCounter is the counter Prometheus metric type.
+	PromMetricTypeCounter
+
+	// PromMetricTypeGauge is the gauge Prometheus metric type.
+	PromMetricTypeGauge
+
+	// PromMetricTypeHistogram is the histogram Prometheus metric type.
+	PromMetricTypeHistogram
+
+	// PromMetricTypeGaugeHistogram is the gauge histogram Prometheus metric type.
+	PromMetricTypeGaugeHistogram
+
+	// PromMetricTypeSummary is the summary Prometheus metric type.
+	PromMetricTypeSummary
+
+	// PromMetricTypeInfo is the info Prometheus metric type.
+	PromMetricTypeInfo
+
+	// PromMetricTypeStateSet is the state set Prometheus metric type.
+	PromMetricTypeStateSet
 )
 
 // SourceType is the enum for metric source types.
-type SourceType int
+type SourceType uint8
 
 const (
 	// SourceTypePrometheus is the prometheus source type.
@@ -43,20 +74,22 @@ const (
 
 	// SourceTypeGraphite is the graphite source type.
 	SourceTypeGraphite
+
+	// SourceTypeOpenMetrics is the Open Metrics source type.
+	SourceTypeOpenMetrics
 )
 
 // SeriesAttributes has attributes about the time series.
 type SeriesAttributes struct {
-	Type   MetricType
-	Source SourceType
+	M3Type            M3MetricType
+	PromType          PromMetricType
+	Source            SourceType
+	HandleValueResets bool
 }
 
 // DefaultSeriesAttributes returns a default series attributes.
 func DefaultSeriesAttributes() SeriesAttributes {
-	return SeriesAttributes{
-		Type:   MetricTypeGauge,
-		Source: SourceTypePrometheus,
-	}
+	return SeriesAttributes{}
 }
 
 // Metadata is metadata associated with a time series.

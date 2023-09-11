@@ -21,11 +21,17 @@
 package encoding
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestNumSig(t *testing.T) {
+	require.Equal(t, uint8(0), NumSig(uint64(0)))
+	require.Equal(t, uint8(1), NumSig(uint64(1)))
 	require.Equal(t, uint8(4), NumSig(uint64(12)))
+	require.Equal(t, uint8(63), NumSig(uint64(math.MaxUint64>>1)))
+	require.Equal(t, uint8(64), NumSig(uint64(math.MaxUint64)))
+	require.Equal(t, uint8(64), NumSig(uint64(math.MaxUint64-1)))
 }

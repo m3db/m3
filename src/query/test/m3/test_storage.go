@@ -25,10 +25,10 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
-	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/sync"
@@ -67,7 +67,7 @@ func NewStorageAndSession(
 	require.NoError(t, err)
 	writePool.Init()
 	tagOptions := models.NewTagOptions().SetMetricName([]byte("name"))
-	opts := m3db.NewOptions().
+	opts := m3.NewOptions(encoding.NewOptions()).
 		SetWriteWorkerPool(writePool).
 		SetTagOptions(tagOptions).
 		SetLookbackDuration(defaultLookbackDuration)
@@ -101,7 +101,7 @@ func NewStorageAndSessionWithAggregatedNamespaces(
 	require.NoError(t, err)
 	writePool.Init()
 	tagOptions := models.NewTagOptions().SetMetricName([]byte("name"))
-	opts := m3db.NewOptions().
+	opts := m3.NewOptions(encoding.NewOptions()).
 		SetWriteWorkerPool(writePool).
 		SetTagOptions(tagOptions).
 		SetLookbackDuration(defaultLookbackDuration)

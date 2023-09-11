@@ -35,6 +35,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/pborman/uuid"
@@ -48,10 +49,10 @@ var (
 )
 
 func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	testBlockStart := time.Now().Truncate(2 * time.Hour)
+	testBlockStart := xtime.Now().Truncate(2 * time.Hour)
 	testSnapshotUUID0 := uuid.Parse("a6367b49-9c83-4706-bd5c-400a4a9ec77c")
 	require.NotNil(t, testSnapshotUUID0)
 
@@ -197,7 +198,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 						AbsoluteFilePaths: []string{fmt.Sprintf("/snapshots/%s/snapshot-filepath-%d", namespace, shard)},
 						// Zero these out so it will try to look them up and return an error, indicating the files
 						// are corrupt.
-						CachedSnapshotTime: time.Time{},
+						CachedSnapshotTime: 0,
 						CachedSnapshotID:   nil,
 					},
 				}, nil
@@ -275,7 +276,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.title, func(t *testing.T) {
-			ts := timeFor(36000)
+			ts := timeFor()
 			rOpts := retention.NewOptions().
 				SetRetentionPeriod(21600 * time.Second).
 				SetBlockSize(7200 * time.Second)
@@ -286,6 +287,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 			for i := 0; i < 3; i++ {
 				shard := NewMockdatabaseShard(ctrl)
 				shard.EXPECT().ID().Return(uint32(i)).AnyTimes()
+				shard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 				shard.EXPECT().CleanupExpiredFileSets(gomock.Any()).Return(nil).AnyTimes()
 				shard.EXPECT().CleanupCompactedFileSets().Return(nil).AnyTimes()
 
@@ -318,7 +320,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 				return nil
 			}
 
-			err := cleanup(mgr, ts, true)
+			err := cleanup(mgr, ts)
 			if tc.expectErr {
 				require.Error(t, err)
 			} else {
@@ -331,10 +333,10 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 }
 
 func TestCleanupManagerNamespaceCleanupBootstrapped(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	ts := timeFor(36000)
+	ts := timeFor()
 	rOpts := retentionOptions.
 		SetRetentionPeriod(21600 * time.Second).
 		SetBlockSize(3600 * time.Second)
@@ -345,14 +347,20 @@ func TestCleanupManagerNamespaceCleanupBootstrapped(t *testing.T) {
 			SetEnabled(true).
 			SetBlockSize(7200 * time.Second))
 
+	shard := NewMockdatabaseShard(ctrl)
+	shard.EXPECT().ID().Return(uint32(42)).AnyTimes()
+	shard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
+	shard.EXPECT().CleanupExpiredFileSets(gomock.Eq(ts.Add(-rOpts.RetentionPeriod()))).Return(nil)
+	shard.EXPECT().CleanupCompactedFileSets().Return(nil)
+
 	ns := NewMockdatabaseNamespace(ctrl)
 	ns.EXPECT().ID().Return(ident.StringID("ns")).AnyTimes()
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
-	ns.EXPECT().OwnedShards().Return(nil).AnyTimes()
+	ns.EXPECT().OwnedShards().Return([]databaseShard{shard}).AnyTimes()
 
 	idx := NewMockNamespaceIndex(ctrl)
-	ns.EXPECT().Index().Times(2).Return(idx, nil)
+	ns.EXPECT().Index().Times(3).Return(idx, nil)
 
 	nses := []databaseNamespace{ns}
 	db := newMockdatabase(ctrl, ns)
@@ -360,15 +368,16 @@ func TestCleanupManagerNamespaceCleanupBootstrapped(t *testing.T) {
 
 	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
 	idx.EXPECT().CleanupExpiredFileSets(ts).Return(nil)
-	idx.EXPECT().CleanupDuplicateFileSets().Return(nil)
-	require.NoError(t, cleanup(mgr, ts, true))
+	idx.EXPECT().CleanupCorruptedFileSets().Return(nil)
+	idx.EXPECT().CleanupDuplicateFileSets([]uint32{42}).Return(nil)
+	require.NoError(t, cleanup(mgr, ts))
 }
 
 func TestCleanupManagerNamespaceCleanupNotBootstrapped(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	ts := timeFor(36000)
+	ts := timeFor()
 	rOpts := retentionOptions.
 		SetRetentionPeriod(21600 * time.Second).
 		SetBlockSize(3600 * time.Second)
@@ -379,25 +388,31 @@ func TestCleanupManagerNamespaceCleanupNotBootstrapped(t *testing.T) {
 			SetEnabled(true).
 			SetBlockSize(7200 * time.Second))
 
+	idx := NewMockNamespaceIndex(ctrl)
+	idx.EXPECT().CleanupExpiredFileSets(gomock.Any()).Return(nil)
+	idx.EXPECT().CleanupCorruptedFileSets().Return(nil)
+	idx.EXPECT().CleanupDuplicateFileSets(gomock.Any()).Return(nil)
+
 	ns := NewMockdatabaseNamespace(ctrl)
 	ns.EXPECT().ID().Return(ident.StringID("ns")).AnyTimes()
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 	ns.EXPECT().OwnedShards().Return(nil).AnyTimes()
+	ns.EXPECT().Index().Return(idx, nil).AnyTimes()
 
 	nses := []databaseNamespace{ns}
 	db := newMockdatabase(ctrl, ns)
 	db.EXPECT().OwnedNamespaces().Return(nses, nil).AnyTimes()
 
 	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
-	require.NoError(t, cleanup(mgr, ts, false))
+	require.NoError(t, cleanup(mgr, ts))
 }
 
 // Test NS doesn't cleanup when flag is present
 func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
-	ts := timeFor(36000)
+	ts := timeFor()
 	rOpts := retentionOptions.
 		SetRetentionPeriod(21600 * time.Second).
 		SetBlockSize(7200 * time.Second)
@@ -423,24 +438,28 @@ func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
 		return nil
 	}
 
-	require.NoError(t, cleanup(mgr, ts, true))
+	require.NoError(t, cleanup(mgr, ts))
 }
 
 func TestCleanupDataAndSnapshotFileSetFiles(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
-	ts := timeFor(36000)
+	ts := timeFor()
 
 	nsOpts := namespaceOptions
 	ns := NewMockdatabaseNamespace(ctrl)
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 
 	shard := NewMockdatabaseShard(ctrl)
+	shardNotBootstrapped := NewMockdatabaseShard(ctrl)
+	shardNotBootstrapped.EXPECT().IsBootstrapped().Return(false).AnyTimes()
+	shardNotBootstrapped.EXPECT().ID().Return(uint32(1)).AnyTimes()
 	expectedEarliestToRetain := retention.FlushTimeStart(ns.Options().RetentionOptions(), ts)
+	shard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 	shard.EXPECT().CleanupExpiredFileSets(expectedEarliestToRetain).Return(nil)
 	shard.EXPECT().CleanupCompactedFileSets().Return(nil)
 	shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
-	ns.EXPECT().OwnedShards().Return([]databaseShard{shard}).AnyTimes()
+	ns.EXPECT().OwnedShards().Return([]databaseShard{shard, shardNotBootstrapped}).AnyTimes()
 	ns.EXPECT().ID().Return(ident.StringID("nsID")).AnyTimes()
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 	namespaces := []databaseNamespace{ns}
@@ -449,7 +468,7 @@ func TestCleanupDataAndSnapshotFileSetFiles(t *testing.T) {
 	db.EXPECT().OwnedNamespaces().Return(namespaces, nil).AnyTimes()
 	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
 
-	require.NoError(t, cleanup(mgr, ts, true))
+	require.NoError(t, cleanup(mgr, ts))
 }
 
 type deleteInactiveDirectoriesCall struct {
@@ -458,9 +477,9 @@ type deleteInactiveDirectoriesCall struct {
 }
 
 func TestDeleteInactiveDataAndSnapshotFileSetFiles(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
-	ts := timeFor(36000)
+	ts := timeFor()
 
 	nsOpts := namespaceOptions.
 		SetCleanupEnabled(false)
@@ -469,6 +488,7 @@ func TestDeleteInactiveDataAndSnapshotFileSetFiles(t *testing.T) {
 
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
+	shard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 	ns.EXPECT().OwnedShards().Return([]databaseShard{shard}).AnyTimes()
 	ns.EXPECT().ID().Return(ident.StringID("nsID")).AnyTimes()
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
@@ -488,18 +508,18 @@ func TestDeleteInactiveDataAndSnapshotFileSetFiles(t *testing.T) {
 	}
 	mgr.deleteInactiveDirectoriesFn = deleteInactiveDirectoriesFn
 
-	require.NoError(t, cleanup(mgr, ts, true))
+	require.NoError(t, cleanup(mgr, ts))
 
 	expectedCalls := []deleteInactiveDirectoriesCall{
-		deleteInactiveDirectoriesCall{
+		{
 			parentDirPath:  "data/nsID",
 			activeDirNames: []string{"0"},
 		},
-		deleteInactiveDirectoriesCall{
+		{
 			parentDirPath:  "snapshots/nsID",
 			activeDirNames: []string{"0"},
 		},
-		deleteInactiveDirectoriesCall{
+		{
 			parentDirPath:  "data",
 			activeDirNames: []string{"nsID"},
 		},
@@ -518,10 +538,10 @@ func TestDeleteInactiveDataAndSnapshotFileSetFiles(t *testing.T) {
 }
 
 func TestCleanupManagerPropagatesOwnedNamespacesError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	ts := timeFor(36000)
+	ts := timeFor()
 
 	db := NewMockdatabase(ctrl)
 	db.EXPECT().Options().Return(DefaultTestOptions()).AnyTimes()
@@ -533,11 +553,11 @@ func TestCleanupManagerPropagatesOwnedNamespacesError(t *testing.T) {
 	require.NoError(t, db.Open())
 	require.NoError(t, db.Terminate())
 
-	require.Error(t, cleanup(mgr, ts, true))
+	require.Error(t, cleanup(mgr, ts))
 }
 
-func timeFor(s int64) time.Time {
-	return time.Unix(s, 0)
+func timeFor() xtime.UnixNano {
+	return xtime.FromSeconds(36000)
 }
 
 type fakeActiveLogs struct {
@@ -560,11 +580,10 @@ func newFakeActiveLogs(activeLogs persist.CommitLogFiles) fakeActiveLogs {
 
 func cleanup(
 	mgr databaseCleanupManager,
-	t time.Time,
-	isBootstrapped bool,
+	t xtime.UnixNano,
 ) error {
 	multiErr := xerrors.NewMultiError()
-	multiErr = multiErr.Add(mgr.WarmFlushCleanup(t, isBootstrapped))
-	multiErr = multiErr.Add(mgr.ColdFlushCleanup(t, isBootstrapped))
+	multiErr = multiErr.Add(mgr.WarmFlushCleanup(t))
+	multiErr = multiErr.Add(mgr.ColdFlushCleanup(t))
 	return multiErr.FinalError()
 }

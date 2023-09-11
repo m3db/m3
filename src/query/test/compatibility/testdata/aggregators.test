@@ -101,13 +101,11 @@ load 5m
   http_requests{job="api-server", instance="1", group="production"} 0+1.33x10
   http_requests{job="api-server", instance="0", group="canary"} 0+1.33x10
 
-# FAILING issue #10. (it is almost zero)
-#eval instant at 50m stddev(http_requests)
-#  {} 0.0
+eval instant at 50m stddev(http_requests)
+  {} 0.0
 
-# FAILING issue #11. (it is almost zero)
-#eval instant at 50m stdvar(http_requests)
-#  {} 0.0
+eval instant at 50m stdvar(http_requests)
+  {} 0.0
 
 
 
@@ -161,64 +159,63 @@ load 5m
 	http_requests{job="app-server", instance="1", group="canary"}		0+80x10
 	foo 3+0x10
 
-# FAILING issue #12. All topk and bottomk tests are failing.
-#eval_ordered instant at 50m topk(3, http_requests)
-#	http_requests{group="canary", instance="1", job="app-server"} 800
-#	http_requests{group="canary", instance="0", job="app-server"} 700
-#	http_requests{group="production", instance="1", job="app-server"} 600
+eval_ordered instant at 50m topk(3, http_requests)
+	http_requests{group="canary", instance="1", job="app-server"} 800
+	http_requests{group="canary", instance="0", job="app-server"} 700
+	http_requests{group="production", instance="1", job="app-server"} 600
 
-#eval_ordered instant at 50m topk((3), (http_requests))
-#	http_requests{group="canary", instance="1", job="app-server"} 800
-#	http_requests{group="canary", instance="0", job="app-server"} 700
-#	http_requests{group="production", instance="1", job="app-server"} 600
+eval_ordered instant at 50m topk((3), (http_requests))
+	http_requests{group="canary", instance="1", job="app-server"} 800
+	http_requests{group="canary", instance="0", job="app-server"} 700
+	http_requests{group="production", instance="1", job="app-server"} 600
 
-#eval_ordered instant at 50m topk(5, http_requests{group="canary",job="app-server"})
-#	http_requests{group="canary", instance="1", job="app-server"} 800
-#	http_requests{group="canary", instance="0", job="app-server"} 700
+eval_ordered instant at 50m topk(5, http_requests{group="canary",job="app-server"})
+	http_requests{group="canary", instance="1", job="app-server"} 800
+	http_requests{group="canary", instance="0", job="app-server"} 700
 
-#eval_ordered instant at 50m bottomk(3, http_requests)
-#	http_requests{group="production", instance="0", job="api-server"} 100
-#	http_requests{group="production", instance="1", job="api-server"} 200
-#	http_requests{group="canary", instance="0", job="api-server"} 300
+eval_ordered instant at 50m bottomk(3, http_requests)
+	http_requests{group="production", instance="0", job="api-server"} 100
+	http_requests{group="production", instance="1", job="api-server"} 200
+	http_requests{group="canary", instance="0", job="api-server"} 300
 
-#eval_ordered instant at 50m bottomk(5, http_requests{group="canary",job="app-server"})
-#	http_requests{group="canary", instance="0", job="app-server"} 700
-#	http_requests{group="canary", instance="1", job="app-server"} 800
+eval_ordered instant at 50m bottomk(5, http_requests{group="canary",job="app-server"})
+	http_requests{group="canary", instance="0", job="app-server"} 700
+	http_requests{group="canary", instance="1", job="app-server"} 800
 
 eval instant at 50m topk by (group) (1, http_requests)
   http_requests{group="production", instance="1", job="app-server"} 600
   http_requests{group="canary", instance="1", job="app-server"} 800
 
-#eval instant at 50m bottomk by (group) (2, http_requests)
-#  http_requests{group="canary", instance="0", job="api-server"} 300
-#  http_requests{group="canary", instance="1", job="api-server"} 400
-#  http_requests{group="production", instance="0", job="api-server"} 100
-#  http_requests{group="production", instance="1", job="api-server"} 200
+eval instant at 50m bottomk by (group) (2, http_requests)
+  http_requests{group="canary", instance="0", job="api-server"} 300
+  http_requests{group="canary", instance="1", job="api-server"} 400
+  http_requests{group="production", instance="0", job="api-server"} 100
+  http_requests{group="production", instance="1", job="api-server"} 200
 
-#eval_ordered instant at 50m bottomk by (group) (2, http_requests{group="production"})
-#  http_requests{group="production", instance="0", job="api-server"} 100
-#  http_requests{group="production", instance="1", job="api-server"} 200
+eval_ordered instant at 50m bottomk by (group) (2, http_requests{group="production"})
+  http_requests{group="production", instance="0", job="api-server"} 100
+  http_requests{group="production", instance="1", job="api-server"} 200
 
 # Test NaN is sorted away from the top/bottom.
-#eval_ordered instant at 50m topk(3, http_requests{job="api-server",group="production"})
-#	http_requests{job="api-server", instance="1", group="production"}	200
-#	http_requests{job="api-server", instance="0", group="production"}	100
-#	http_requests{job="api-server", instance="2", group="production"}	NaN
+eval_ordered instant at 50m topk(3, http_requests{job="api-server",group="production"})
+	http_requests{job="api-server", instance="1", group="production"}	200
+	http_requests{job="api-server", instance="0", group="production"}	100
+	http_requests{job="api-server", instance="2", group="production"}	NaN
 
-#eval_ordered instant at 50m bottomk(3, http_requests{job="api-server",group="production"})
-#	http_requests{job="api-server", instance="0", group="production"}	100
-#	http_requests{job="api-server", instance="1", group="production"}	200
-#	http_requests{job="api-server", instance="2", group="production"}	NaN
+eval_ordered instant at 50m bottomk(3, http_requests{job="api-server",group="production"})
+	http_requests{job="api-server", instance="0", group="production"}	100
+	http_requests{job="api-server", instance="1", group="production"}	200
+	http_requests{job="api-server", instance="2", group="production"}	NaN
 
 # Test topk and bottomk allocate min(k, input_vector) for results vector
-#eval_ordered instant at 50m bottomk(9999999999, http_requests{job="app-server",group="canary"})
-#	http_requests{group="canary", instance="0", job="app-server"} 700
-#	http_requests{group="canary", instance="1", job="app-server"} 800
+eval_ordered instant at 50m bottomk(9999999999, http_requests{job="app-server",group="canary"})
+	http_requests{group="canary", instance="0", job="app-server"} 700
+	http_requests{group="canary", instance="1", job="app-server"} 800
 
-#eval_ordered instant at 50m topk(9999999999, http_requests{job="api-server",group="production"})
-#	http_requests{job="api-server", instance="1", group="production"}	200
-#	http_requests{job="api-server", instance="0", group="production"}	100
-#	http_requests{job="api-server", instance="2", group="production"}	NaN
+eval_ordered instant at 50m topk(9999999999, http_requests{job="api-server",group="production"})
+	http_requests{job="api-server", instance="1", group="production"}	200
+	http_requests{job="api-server", instance="0", group="production"}	100
+	http_requests{job="api-server", instance="2", group="production"}	NaN
 
 # Bug #5276.
 #eval_ordered instant at 50m topk(scalar(foo), http_requests)
@@ -240,24 +237,22 @@ load 5m
 	version{job="app-server", instance="0", group="canary"}		7
 	version{job="app-server", instance="1", group="canary"}		7
 
-# FAILING issue #14 (count_values)
-#eval instant at 5m count_values("version", version)
-#	{version="6"} 5
-#	{version="7"} 2
-#	{version="8"} 2
+eval instant at 5m count_values("version", version)
+	{version="6"} 5
+	{version="7"} 2
+	{version="8"} 2
+
+eval instant at 5m count_values(((("version"))), version)
+       {version="6"} 5
+       {version="7"} 2
+       {version="8"} 2
 
 
-#eval instant at 5m count_values(((("version"))), version)
-#       {version="6"} 5
-#       {version="7"} 2
-#       {version="8"} 2
-
-
-#eval instant at 5m count_values without (instance)("version", version)
-#	{job="api-server", group="production", version="6"} 3
-#	{job="api-server", group="canary", version="8"} 2
-#	{job="app-server", group="production", version="6"} 2
-#	{job="app-server", group="canary", version="7"} 2
+eval instant at 5m count_values without (instance)("version", version)
+	{job="api-server", group="production", version="6"} 3
+	{job="api-server", group="canary", version="8"} 2
+	{job="app-server", group="production", version="6"} 2
+	{job="app-server", group="canary", version="7"} 2
 
 # Overwrite label with output. Don't do this.
 #eval instant at 5m count_values without (instance)("job", version)
@@ -286,13 +281,12 @@ load 10s
 	data{test="uneven samples",point="c"} 4
 	foo .8
 
-# FAILING issue #8 (quantile)
-#eval instant at 1m quantile without(point)(0.8, data)
-#	{test="two samples"} 0.8
-#	{test="three samples"} 1.6
-#	{test="uneven samples"} 2.8
+eval instant at 1m quantile without(point)(0.8, data)
+	{test="two samples"} 0.8
+	{test="three samples"} 1.6
+	{test="uneven samples"} 2.8
 
-# Bug #5276.
+# FAILING issue #56. scalar() as a quantile()/topk()/bottomk() argument produces NaN
 #eval instant at 1m quantile without(point)(scalar(foo), data)
 #	{test="two samples"} 0.8
 #	{test="three samples"} 1.6

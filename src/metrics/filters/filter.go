@@ -24,6 +24,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+
+	"github.com/m3db/m3/src/metrics/metric/id"
 )
 
 var (
@@ -77,6 +79,23 @@ type Filter interface {
 	filter
 
 	Clone() Filter
+}
+
+// TagsFilter matches a string of tags against certain conditions.
+type TagsFilter interface {
+	// Matches returns true if the conditions are met.
+	Matches(val []byte, opts TagMatchOptions) (bool, error)
+}
+
+// TagMatchOptions are the options for a TagsFilter match.
+type TagMatchOptions struct {
+	// Function to extract name and tags from an id.
+	NameAndTagsFn id.NameAndTagsFn
+
+	// Function to get a sorted tag iterator from id tags.
+	// The caller of Matches is the owner of the Iterator and is responsible for closing it, this allows reusing the
+	// same Iterator across many Matches.
+	SortedTagIteratorFn id.SortedTagIteratorFn
 }
 
 type filter interface {
@@ -566,14 +585,43 @@ func (f *multiCharSequenceFilter) matches(val []byte) ([]byte, bool) {
 		return nil, false
 	}
 
+	var matchIndex int
+	var bestPattern []byte
 	for _, pattern := range f.patterns {
-		if f.backwards && bytes.HasSuffix(val, pattern) {
-			return val[:len(val)-len(pattern)], true
+		if len(pattern) > len(val) {
+			continue
 		}
 
-		if !f.backwards && bytes.HasPrefix(val, pattern) {
-			return val[len(pattern):], true
+		if f.backwards {
+			if bytes.HasSuffix(val, pattern) {
+				if len(pattern) > len(bestPattern) {
+					bestPattern = pattern
+					matchIndex = len(val) - len(pattern)
+					// No need to continue searching through remaining patterns if a complete match is found
+					if len(bestPattern) == len(val) {
+						break
+					}
+				}
+			}
+		} else {
+			if bytes.HasPrefix(val, pattern) {
+				if len(pattern) > len(bestPattern) {
+					bestPattern = pattern
+					matchIndex = len(pattern)
+					// No need to continue searching through remaining patterns if a complete match is found
+					if len(bestPattern) == len(val) {
+						break
+					}
+				}
+			}
 		}
+	}
+
+	if bestPattern != nil {
+		if f.backwards {
+			return val[:matchIndex], true
+		}
+		return val[matchIndex:], true
 	}
 
 	return nil, false

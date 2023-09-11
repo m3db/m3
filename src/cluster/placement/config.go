@@ -23,8 +23,11 @@ package placement
 import (
 	"time"
 
+	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/x/instrument"
+
+	"gopkg.in/yaml.v2"
 )
 
 // Configuration is configuration for placement options.
@@ -35,6 +38,7 @@ type Configuration struct {
 	IsSharded           *bool           `yaml:"isSharded"`
 	ShardStateMode      *ShardStateMode `yaml:"shardStateMode"`
 	IsMirrored          *bool           `yaml:"isMirrored"`
+	SkipPortMirroring   *bool           `yaml:"skipPortMirroring"`
 	IsStaged            *bool           `yaml:"isStaged"`
 	ValidZone           *string         `yaml:"validZone"`
 }
@@ -60,6 +64,9 @@ func (c *Configuration) NewOptions() Options {
 	if value := c.IsMirrored; value != nil {
 		opts = opts.SetIsMirrored(*value)
 	}
+	if value := c.SkipPortMirroring; value != nil {
+		opts = opts.SetSkipPortMirroring(*value)
+	}
 	if value := c.IsStaged; value != nil {
 		opts = opts.SetIsStaged(*value)
 	}
@@ -67,6 +74,35 @@ func (c *Configuration) NewOptions() Options {
 		opts = opts.SetValidZone(*value)
 	}
 	return opts
+}
+
+// DeepCopy makes a deep copy of the configuration.
+func (c Configuration) DeepCopy() (Configuration, error) {
+	b, err := yaml.Marshal(c)
+	if err != nil {
+		return Configuration{}, err
+	}
+	var res Configuration
+	if err := yaml.Unmarshal(b, &res); err != nil {
+		return Configuration{}, err
+	}
+	return res, nil
+}
+
+// ApplyOverride applys the override values.
+func (c Configuration) ApplyOverride(opts *placementpb.Options) Configuration {
+	if opts == nil {
+		return c
+	}
+	if opts.IsSharded != nil {
+		isShardedValueCopy := opts.IsSharded.Value
+		c.IsSharded = &isShardedValueCopy
+	}
+	if opts.SkipPortMirroring != nil {
+		skipPortMirroringCopy := opts.SkipPortMirroring.Value
+		c.SkipPortMirroring = &skipPortMirroringCopy
+	}
+	return c
 }
 
 // WatcherConfiguration contains placement watcher configuration.
@@ -82,8 +118,8 @@ type WatcherConfiguration struct {
 func (c *WatcherConfiguration) NewOptions(
 	store kv.Store,
 	instrumentOpts instrument.Options,
-) StagedPlacementWatcherOptions {
-	opts := NewStagedPlacementWatcherOptions().
+) WatcherOptions {
+	opts := NewWatcherOptions().
 		SetInstrumentOptions(instrumentOpts).
 		SetStagedPlacementKey(c.Key).
 		SetStagedPlacementStore(store)

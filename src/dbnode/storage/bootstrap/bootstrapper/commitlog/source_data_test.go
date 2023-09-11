@@ -23,6 +23,7 @@ package commitlog
 import (
 	"errors"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,9 +37,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -48,8 +51,10 @@ import (
 
 var (
 	testNamespaceID    = ident.StringID("commitlog_test_ns")
-	testDefaultRunOpts = bootstrap.NewRunOptions().
-				SetInitialTopologyState(&topology.StateSnapshot{})
+	testDefaultRunOpts = bootstrap.NewRunOptions().SetInitialTopologyState(&topology.StateSnapshot{})
+
+	shortAnnotation = ts.Annotation("annot")
+	longAnnotation  = ts.Annotation(strings.Repeat("x", ts.OptimizedAnnotationLen*3))
 )
 
 func testNsMetadata(t *testing.T) namespace.Metadata {
@@ -58,11 +63,20 @@ func testNsMetadata(t *testing.T) namespace.Metadata {
 	return md
 }
 
+func testCache(t *testing.T) bootstrap.Cache {
+	cache, err := bootstrap.NewCache(bootstrap.NewCacheOptions().
+		SetFilesystemOptions(fs.NewOptions()).
+		SetInstrumentOptions(instrument.NewOptions()))
+	require.NoError(t, err)
+
+	return cache
+}
+
 func TestAvailableEmptyRangeError(t *testing.T) {
 	var (
 		opts     = testDefaultOpts
 		src      = newCommitLogSource(opts, fs.Inspection{})
-		res, err = src.AvailableData(testNsMetadata(t), result.NewShardTimeRanges(), testDefaultRunOpts)
+		res, err = src.AvailableData(testNsMetadata(t), result.NewShardTimeRanges(), testCache(t), testDefaultRunOpts)
 	)
 	require.NoError(t, err)
 	require.True(t, result.NewShardTimeRanges().Equal(res))
@@ -94,7 +108,7 @@ func TestReadOnlyOnce(t *testing.T) {
 	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 
 	blockSize := md.Options().RetentionOptions().BlockSize()
-	now := time.Now()
+	now := xtime.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now.Truncate(blockSize)
 
@@ -105,12 +119,12 @@ func TestReadOnlyOnce(t *testing.T) {
 	baz := ts.Series{Namespace: nsCtx.ID, Shard: 2, ID: ident.StringID("baz")}
 
 	values := testValues{
-		{foo, start, 1.0, xtime.Second, nil},
-		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, nil},
-		{bar, start.Add(2 * time.Minute), 1.0, xtime.Second, nil},
-		{bar, start.Add(3 * time.Minute), 2.0, xtime.Second, nil},
+		{foo, start, 1.0, xtime.Second, shortAnnotation},
+		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, longAnnotation},
+		{bar, start.Add(2 * time.Minute), 1.0, xtime.Second, longAnnotation},
+		{bar, start.Add(3 * time.Minute), 2.0, xtime.Second, shortAnnotation},
 		// "baz" is in shard 2 and should not be returned
-		{baz, start.Add(4 * time.Minute), 1.0, xtime.Second, nil},
+		{baz, start.Add(4 * time.Minute), 1.0, xtime.Second, shortAnnotation},
 	}
 
 	var commitLogReads int
@@ -150,17 +164,18 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 		return nil, nil, errors.New("an error")
 	}
 
-	ranges := xtime.NewRanges(xtime.Range{Start: time.Now(), End: time.Now().Add(time.Hour)})
+	now := xtime.Now()
+	ranges := xtime.NewRanges(xtime.Range{Start: now, End: now.Add(time.Hour)})
 
 	md := testNsMetadata(t)
 	target := result.NewShardTimeRanges().Set(0, ranges)
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, target, md)
 	defer tester.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
-	res, err := src.Read(ctx, tester.Namespaces)
+	res, err := src.Read(ctx, tester.Namespaces, tester.Cache)
 	require.Error(t, err)
 	require.Nil(t, res.Results)
 	tester.EnsureNoLoadedBlocks()
@@ -179,7 +194,7 @@ func testReadOrderedValues(t *testing.T, opts Options, md namespace.Metadata, se
 	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 
 	blockSize := md.Options().RetentionOptions().BlockSize()
-	now := time.Now()
+	now := xtime.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now.Truncate(blockSize)
 
@@ -190,8 +205,8 @@ func testReadOrderedValues(t *testing.T, opts Options, md namespace.Metadata, se
 	baz := ts.Series{Namespace: nsCtx.ID, Shard: 2, ID: ident.StringID("baz")}
 
 	values := testValues{
-		{foo, start, 1.0, xtime.Second, nil},
-		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, nil},
+		{foo, start, 1.0, xtime.Second, longAnnotation},
+		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, shortAnnotation},
 		{bar, start.Add(2 * time.Minute), 1.0, xtime.Second, nil},
 		{bar, start.Add(3 * time.Minute), 2.0, xtime.Second, nil},
 		// "baz" is in shard 2 and should not be returned
@@ -231,7 +246,7 @@ func testReadUnorderedValues(t *testing.T, opts Options, md namespace.Metadata, 
 	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 
 	blockSize := md.Options().RetentionOptions().BlockSize()
-	now := time.Now()
+	now := xtime.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now.Truncate(blockSize)
 
@@ -240,9 +255,9 @@ func testReadUnorderedValues(t *testing.T, opts Options, md namespace.Metadata, 
 	foo := ts.Series{Namespace: nsCtx.ID, Shard: 0, ID: ident.StringID("foo")}
 
 	values := testValues{
-		{foo, start.Add(10 * time.Minute), 1.0, xtime.Second, nil},
+		{foo, start.Add(10 * time.Minute), 1.0, xtime.Second, shortAnnotation},
 		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, nil},
-		{foo, start.Add(2 * time.Minute), 3.0, xtime.Second, nil},
+		{foo, start.Add(2 * time.Minute), 3.0, xtime.Second, longAnnotation},
 		{foo, start.Add(3 * time.Minute), 4.0, xtime.Second, nil},
 		{foo, start, 5.0, xtime.Second, nil},
 	}
@@ -283,7 +298,7 @@ func TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t *testing.T) {
 	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 
 	blockSize := md.Options().RetentionOptions().BlockSize()
-	now := time.Now()
+	now := xtime.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now.Truncate(blockSize)
 
@@ -343,16 +358,16 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 		nsCtx     = namespace.NewContextFrom(md)
 		src       = newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 		blockSize = md.Options().RetentionOptions().BlockSize()
-		now       = time.Now()
+		now       = xtime.Now()
 		start     = now.Truncate(blockSize).Add(-blockSize)
 		end       = now.Truncate(blockSize)
 		ranges    = xtime.NewRanges()
 
 		foo             = ts.Series{Namespace: nsCtx.ID, Shard: 0, ID: ident.StringID("foo")}
 		commitLogValues = testValues{
-			{foo, start.Add(2 * time.Minute), 1.0, xtime.Nanosecond, nil},
+			{foo, start.Add(2 * time.Minute), 1.0, xtime.Nanosecond, shortAnnotation},
 			{foo, start.Add(3 * time.Minute), 2.0, xtime.Nanosecond, nil},
-			{foo, start.Add(4 * time.Minute), 3.0, xtime.Nanosecond, nil},
+			{foo, start.Add(4 * time.Minute), 3.0, xtime.Nanosecond, longAnnotation},
 		}
 	)
 	if setAnn != nil {
@@ -416,13 +431,13 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 	encoder.Reset(snapshotValues[0].t, 10, nsCtx.Schema)
 	for _, value := range snapshotValues {
 		dp := ts.Datapoint{
-			Timestamp: value.t,
-			Value:     value.v,
+			TimestampNanos: value.t,
+			Value:          value.v,
 		}
 		encoder.Encode(dp, value.u, value.a)
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	reader, ok := encoder.Stream(ctx)
@@ -431,9 +446,9 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 	seg, err := reader.Segment()
 	require.NoError(t, err)
 
-	bytes := make([]byte, seg.Len())
-	_, err = reader.Read(bytes)
-	require.NoError(t, err)
+	bytes, err := xio.ToBytes(reader)
+	require.Equal(t, io.EOF, err)
+	require.Equal(t, seg.Len(), len(bytes))
 
 	mockReader.EXPECT().Read().Return(
 		foo.ID,
@@ -457,6 +472,7 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 		testDefaultRunOpts,
 		targetRanges,
 		opts.ResultOptions().DatabaseBlockOptions().MultiReaderIteratorPool(),
+		fs.NewOptions(),
 		md,
 	)
 
@@ -482,7 +498,7 @@ type annotationEqual func([]byte, []byte) bool
 
 type testValue struct {
 	s ts.Series
-	t time.Time
+	t xtime.UnixNano
 	v float64
 	u xtime.Unit
 	a ts.Annotation
@@ -551,7 +567,7 @@ func (i *testCommitLogIterator) Current() commitlog.LogEntry {
 	v := i.values[idx]
 	return commitlog.LogEntry{
 		Series:     v.s,
-		Datapoint:  ts.Datapoint{Timestamp: v.t, Value: v.v},
+		Datapoint:  ts.Datapoint{TimestampNanos: v.t, Value: v.v},
 		Unit:       v.u,
 		Annotation: v.a,
 		Metadata: commitlog.LogEntryMetadata{

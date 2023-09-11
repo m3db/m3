@@ -64,27 +64,34 @@ type Options interface {
 	// when performing a bootstrap run with persistence enabled.
 	PersistManager() persist.Manager
 
+	// SetIndexClaimsManager sets the index claims manager.
+	SetIndexClaimsManager(value fs.IndexClaimsManager) Options
+
+	// IndexClaimsManager returns the index claims manager. It's used to manage
+	// concurrent claims for volume indices per ns and block start.
+	IndexClaimsManager() fs.IndexClaimsManager
+
 	// SetCompactor sets the compactor used to compact segment builders into segments.
 	SetCompactor(value *compaction.Compactor) Options
 
 	// Compactor returns the compactor used to compact segment builders into segments.
 	Compactor() *compaction.Compactor
 
-	// SetBoostrapDataNumProcessors sets the number of processors for CPU-bound
-	// work for bootstrapping data file sets.
-	SetBoostrapDataNumProcessors(value int) Options
+	// SetIndexSegmentConcurrency sets the concurrency for
+	// building index segments.
+	SetIndexSegmentConcurrency(value int) Options
 
-	// BoostrapDataNumProcessors returns the number of processors for CPU-bound
-	// work for bootstrapping data file sets.
-	BoostrapDataNumProcessors() int
+	// IndexSegmentConcurrency returns the concurrency for
+	// building index segments.
+	IndexSegmentConcurrency() int
 
-	// SetBoostrapIndexNumProcessors sets the number of processors for CPU-bound
-	// work for bootstrapping data file sets.
-	SetBoostrapIndexNumProcessors(value int) Options
+	// SetIndexSegmentsVerify sets the value for whether to verify bootstrapped
+	// index segments.
+	SetIndexSegmentsVerify(value bool) Options
 
-	// BoostrapIndexNumProcessors returns the number of processors for CPU-bound
-	// work for bootstrapping data file sets.
-	BoostrapIndexNumProcessors() int
+	// IndexSegmentsVerify returns the value for whether to verify bootstrapped
+	// index segments.
+	IndexSegmentsVerify() bool
 
 	// SetRuntimeOptionsManager sets the runtime options manager.
 	SetRuntimeOptionsManager(value runtime.OptionsManager) Options

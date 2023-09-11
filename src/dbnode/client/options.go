@@ -22,12 +22,10 @@ package client
 
 import (
 	"errors"
-	"io"
 	"math"
 	"runtime"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/encoding/proto"
@@ -38,7 +36,8 @@ import (
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
-	xclose "github.com/m3db/m3/src/x/close"
+	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -48,7 +47,7 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 
-	tchannel "github.com/uber/tchannel-go"
+	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 )
 
@@ -92,8 +91,8 @@ const (
 	// defaultWriteShardsInitializing is the default write to shards intializing value
 	defaultWriteShardsInitializing = true
 
-	// defaultIdentifierPoolSize is the default identifier pool size
-	defaultIdentifierPoolSize = 8192
+	// defaultShardsLeavingCountTowardsConsistency is the default shards leaving count towards consistency
+	defaultShardsLeavingCountTowardsConsistency = false
 
 	// defaultWriteOpPoolSize is the default write op pool size
 	defaultWriteOpPoolSize = 65536
@@ -120,7 +119,7 @@ const (
 	defaultHostQueueOpsArrayPoolSize = 8
 
 	// defaultHostQueueEmitsHealthStatus is false
-	defaultHostQueueEmitsHealthStatus = false
+	defaultHostQueueEmitsHealthStatus = true
 
 	// defaultBackgroundConnectInterval is the default background connect interval
 	defaultBackgroundConnectInterval = 4 * time.Second
@@ -172,21 +171,26 @@ const (
 	// defaultUseV2BatchAPIs is the default setting for whether the v2 version of the batch APIs should
 	// be used.
 	defaultUseV2BatchAPIs = false
+
+	// defaultHostQueueWorkerPoolKillProbability is the default host queue worker pool
+	// kill probability.
+	defaultHostQueueWorkerPoolKillProbability = 0.01
 )
 
 var (
-	// defaultIdentifierPoolBytesPoolSizes is the default bytes pool sizes for the identifier pool
-	defaultIdentifierPoolBytesPoolSizes = []pool.Bucket{
-		{Capacity: 256, Count: defaultIdentifierPoolSize},
+	// defaultCheckedBytesPoolBucketSizes is the default bytes pool sizes
+	// used for both regular bytes pool as well as backs the identifier pool.
+	defaultCheckedBytesPoolBucketSizes = []pool.Bucket{
+		// Capacity 32 bucket mainly used for allocating for annotations.
+		{Capacity: 32, Count: 8192},
+		// Capacity 256 bucket mainly used for allocating IDs.
+		{Capacity: 256, Count: 8192},
 	}
 
 	// defaultFetchSeriesBlocksBatchConcurrency is the default fetch series blocks in batch parallel concurrency limit
-	defaultFetchSeriesBlocksBatchConcurrency = int(math.Max(1, float64(runtime.NumCPU())/2))
+	defaultFetchSeriesBlocksBatchConcurrency = int(math.Max(1, float64(runtime.GOMAXPROCS(0))/2))
 
-	// defaultSeriesIteratorArrayPoolBuckets is the default pool buckets for the series iterator array pool
-	defaultSeriesIteratorArrayPoolBuckets = []pool.Bucket{}
-
-	// defaulWriteRetrier is the default write retrier for write attempts
+	// defaultWriteRetrier is the default write retrier for write attempts
 	defaultWriteRetrier = xretry.NewRetrier(
 		xretry.NewOptions().
 			SetInitialBackoff(500 * time.Millisecond).
@@ -217,6 +221,9 @@ var (
 		IdleCheckInterval: 5 * time.Minute,
 	}
 
+	// defaultThriftContextFn is the default thrift context function.
+	defaultThriftContextFn = thrift.Wrap
+
 	errNoTopologyInitializerSet    = errors.New("no topology initializer set")
 	errNoReaderIteratorAllocateSet = errors.New("no reader iterator allocator set, encoding not set")
 )
@@ -225,6 +232,8 @@ type options struct {
 	runtimeOptsMgr                          m3dbruntime.OptionsManager
 	clockOpts                               clock.Options
 	instrumentOpts                          instrument.Options
+	logHostWriteErrorSampleRate             sampler.Rate
+	logHostFetchErrorSampleRate             sampler.Rate
 	logErrorSampleRate                      sampler.Rate
 	topologyInitializer                     topology.Initializer
 	readConsistencyLevel                    topology.ReadConsistencyLevel
@@ -246,28 +255,30 @@ type options struct {
 	backgroundHealthCheckFailLimit          int
 	backgroundHealthCheckFailThrottleFactor float64
 	tagEncoderOpts                          serialize.TagEncoderOptions
-	tagEncoderPoolSize                      int
+	tagEncoderPoolSize                      pool.Size
 	tagDecoderOpts                          serialize.TagDecoderOptions
-	tagDecoderPoolSize                      int
+	tagDecoderPoolSize                      pool.Size
 	writeRetrier                            xretry.Retrier
 	fetchRetrier                            xretry.Retrier
 	streamBlocksRetrier                     xretry.Retrier
 	writeShardsInitializing                 bool
+	shardsLeavingCountTowardsConsistency    bool
 	newConnectionFn                         NewConnectionFn
 	readerIteratorAllocate                  encoding.ReaderIteratorAllocate
-	writeOperationPoolSize                  int
-	writeTaggedOperationPoolSize            int
-	fetchBatchOpPoolSize                    int
+	writeOperationPoolSize                  pool.Size
+	writeTaggedOperationPoolSize            pool.Size
+	fetchBatchOpPoolSize                    pool.Size
 	writeBatchSize                          int
 	fetchBatchSize                          int
+	checkedBytesPool                        pool.CheckedBytesPool
 	identifierPool                          ident.Pool
 	hostQueueOpsFlushSize                   int
 	hostQueueOpsFlushInterval               time.Duration
-	hostQueueOpsArrayPoolSize               int
+	hostQueueOpsArrayPoolSize               pool.Size
+	hostQueueNewPooledWorkerFn              xsync.NewPooledWorkerFn
 	hostQueueEmitsHealthStatus              bool
-	seriesIteratorPoolSize                  int
-	seriesIteratorArrayPoolBuckets          []pool.Bucket
-	checkedBytesWrapperPoolSize             int
+	seriesIteratorPoolSize                  pool.Size
+	checkedBytesWrapperPoolSize             pool.Size
 	contextPool                             context.Pool
 	origin                                  topology.Host
 	fetchSeriesBlocksMaxBlockRetries        int
@@ -283,6 +294,8 @@ type options struct {
 	useV2BatchAPIs                          bool
 	iterationOptions                        index.IterationOptions
 	writeTimestampOffset                    time.Duration
+	namespaceInitializer                    namespace.Initializer
+	thriftContextFn                         ThriftContextFn
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -313,9 +326,16 @@ func NewOptionsForAsyncClusters(opts Options, topoInits []topology.Initializer, 
 }
 
 func defaultNewConnectionFn(
-	channelName string, address string, opts Options,
-) (xclose.SimpleCloser, rpc.TChanNode, error) {
-	channel, err := tchannel.NewChannel(channelName, opts.ChannelOptions())
+	channelName string, address string, clientOpts Options,
+) (Channel, rpc.TChanNode, error) {
+	// NB(r): Keep ref to a local channel options since it's actually modified
+	// by TChannel itself to set defaults.
+	var opts *tchannel.ChannelOptions
+	if chanOpts := clientOpts.ChannelOptions(); chanOpts != nil {
+		immutableOpts := *chanOpts
+		opts = &immutableOpts
+	}
+	channel, err := tchannel.NewChannel(channelName, opts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -326,15 +346,22 @@ func defaultNewConnectionFn(
 }
 
 func newOptions() *options {
-	buckets := defaultIdentifierPoolBytesPoolSizes
+	buckets := defaultCheckedBytesPoolBucketSizes
 	bytesPool := pool.NewCheckedBytesPool(buckets, nil,
 		func(sizes []pool.Bucket) pool.BytesPool {
 			return pool.NewBytesPool(sizes, nil)
 		})
 	bytesPool.Init()
 
+	idPoolSize := 0
+	for _, bucket := range buckets {
+		if v := int(bucket.Count); v > idPoolSize {
+			idPoolSize = v
+		}
+	}
+
 	poolOpts := pool.NewObjectPoolOptions().
-		SetSize(defaultIdentifierPoolSize)
+		SetSize(idPoolSize)
 
 	idPool := ident.NewPool(bytesPool, ident.PoolOptions{
 		IDPoolOptions:           poolOpts,
@@ -345,6 +372,22 @@ func newOptions() *options {
 	contextPool := context.NewPool(context.NewOptions().
 		SetContextPoolOptions(poolOpts).
 		SetFinalizerPoolOptions(poolOpts))
+
+	hostQueueNewPooledWorkerFn := func(
+		opts xsync.NewPooledWorkerOptions,
+	) (xsync.PooledWorkerPool, error) {
+		if opts.InstrumentOptions == nil {
+			return nil, errors.New("instrument options required for new pooled worker fn")
+		}
+
+		workerPoolOpts := xsync.NewPooledWorkerPoolOptions().
+			SetGrowOnDemand(true).
+			SetKillWorkerProbability(defaultHostQueueWorkerPoolKillProbability).
+			SetInstrumentOptions(opts.InstrumentOptions)
+		return xsync.NewPooledWorkerPool(
+			int(workerPoolOpts.NumShards()),
+			workerPoolOpts)
+	}
 
 	opts := &options{
 		clockOpts:                               clock.NewOptions(),
@@ -370,6 +413,7 @@ func newOptions() *options {
 		writeRetrier:                            defaultWriteRetrier,
 		fetchRetrier:                            defaultFetchRetrier,
 		writeShardsInitializing:                 defaultWriteShardsInitializing,
+		shardsLeavingCountTowardsConsistency:    defaultShardsLeavingCountTowardsConsistency,
 		tagEncoderPoolSize:                      defaultTagEncoderPoolSize,
 		tagEncoderOpts:                          serialize.NewTagEncoderOptions(),
 		tagDecoderPoolSize:                      defaultTagDecoderPoolSize,
@@ -381,13 +425,14 @@ func newOptions() *options {
 		fetchBatchOpPoolSize:                    defaultFetchBatchOpPoolSize,
 		writeBatchSize:                          DefaultWriteBatchSize,
 		fetchBatchSize:                          defaultFetchBatchSize,
+		checkedBytesPool:                        bytesPool,
 		identifierPool:                          idPool,
 		hostQueueOpsFlushSize:                   defaultHostQueueOpsFlushSize,
 		hostQueueOpsFlushInterval:               defaultHostQueueOpsFlushInterval,
 		hostQueueOpsArrayPoolSize:               defaultHostQueueOpsArrayPoolSize,
+		hostQueueNewPooledWorkerFn:              hostQueueNewPooledWorkerFn,
 		hostQueueEmitsHealthStatus:              defaultHostQueueEmitsHealthStatus,
 		seriesIteratorPoolSize:                  defaultSeriesIteratorPoolSize,
-		seriesIteratorArrayPoolBuckets:          defaultSeriesIteratorArrayPoolBuckets,
 		checkedBytesWrapperPoolSize:             defaultCheckedBytesWrapperPoolSize,
 		contextPool:                             contextPool,
 		fetchSeriesBlocksMaxBlockRetries:        defaultFetchSeriesBlocksMaxBlockRetries,
@@ -399,6 +444,7 @@ func newOptions() *options {
 		asyncTopologyInitializers:               []topology.Initializer{},
 		asyncWriteMaxConcurrency:                defaultAsyncWriteMaxConcurrency,
 		useV2BatchAPIs:                          defaultUseV2BatchAPIs,
+		thriftContextFn:                         defaultThriftContextFn,
 	}
 	return opts.SetEncodingM3TSZ().(*options)
 }
@@ -430,6 +476,12 @@ func validate(opts *options) error {
 	); err != nil {
 		return err
 	}
+	if err := opts.logHostWriteErrorSampleRate.Validate(); err != nil {
+		return err
+	}
+	if err := opts.logHostFetchErrorSampleRate.Validate(); err != nil {
+		return err
+	}
 	return opts.logErrorSampleRate.Validate()
 }
 
@@ -439,16 +491,17 @@ func (o *options) Validate() error {
 
 func (o *options) SetEncodingM3TSZ() Options {
 	opts := *o
-	opts.readerIteratorAllocate = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
-	}
+	opts.readerIteratorAllocate = m3tsz.DefaultReaderIteratorAllocFn(encoding.NewOptions())
 	opts.isProtoEnabled = false
 	return &opts
 }
 
 func (o *options) SetEncodingProto(encodingOpts encoding.Options) Options {
 	opts := *o
-	opts.readerIteratorAllocate = func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
+	opts.readerIteratorAllocate = func(
+		r xio.Reader64,
+		descr namespace.SchemaDescr,
+	) encoding.ReaderIterator {
 		return proto.NewIterator(r, descr, encodingOpts)
 	}
 	opts.isProtoEnabled = true
@@ -497,6 +550,26 @@ func (o *options) SetLogErrorSampleRate(value sampler.Rate) Options {
 
 func (o *options) LogErrorSampleRate() sampler.Rate {
 	return o.logErrorSampleRate
+}
+
+func (o *options) SetLogHostWriteErrorSampleRate(value sampler.Rate) Options {
+	opts := *o
+	opts.logHostWriteErrorSampleRate = value
+	return &opts
+}
+
+func (o *options) LogHostWriteErrorSampleRate() sampler.Rate {
+	return o.logHostWriteErrorSampleRate
+}
+
+func (o *options) SetLogHostFetchErrorSampleRate(value sampler.Rate) Options {
+	opts := *o
+	opts.logHostFetchErrorSampleRate = value
+	return &opts
+}
+
+func (o *options) LogHostFetchErrorSampleRate() sampler.Rate {
+	return o.logHostFetchErrorSampleRate
 }
 
 func (o *options) SetTopologyInitializer(value topology.Initializer) Options {
@@ -719,6 +792,16 @@ func (o *options) WriteShardsInitializing() bool {
 	return o.writeShardsInitializing
 }
 
+func (o *options) SetShardsLeavingCountTowardsConsistency(value bool) Options {
+	opts := *o
+	opts.shardsLeavingCountTowardsConsistency = value
+	return &opts
+}
+
+func (o *options) ShardsLeavingCountTowardsConsistency() bool {
+	return o.shardsLeavingCountTowardsConsistency
+}
+
 func (o *options) SetTagEncoderOptions(value serialize.TagEncoderOptions) Options {
 	opts := *o
 	opts.tagEncoderOpts = value
@@ -729,13 +812,13 @@ func (o *options) TagEncoderOptions() serialize.TagEncoderOptions {
 	return o.tagEncoderOpts
 }
 
-func (o *options) SetTagEncoderPoolSize(value int) Options {
+func (o *options) SetTagEncoderPoolSize(value pool.Size) Options {
 	opts := *o
 	opts.tagEncoderPoolSize = value
 	return &opts
 }
 
-func (o *options) TagEncoderPoolSize() int {
+func (o *options) TagEncoderPoolSize() pool.Size {
 	return o.tagEncoderPoolSize
 }
 
@@ -749,13 +832,13 @@ func (o *options) TagDecoderOptions() serialize.TagDecoderOptions {
 	return o.tagDecoderOpts
 }
 
-func (o *options) SetTagDecoderPoolSize(value int) Options {
+func (o *options) SetTagDecoderPoolSize(value pool.Size) Options {
 	opts := *o
 	opts.tagDecoderPoolSize = value
 	return &opts
 }
 
-func (o *options) TagDecoderPoolSize() int {
+func (o *options) TagDecoderPoolSize() pool.Size {
 	return o.tagDecoderPoolSize
 }
 
@@ -779,33 +862,33 @@ func (o *options) NewConnectionFn() NewConnectionFn {
 	return o.newConnectionFn
 }
 
-func (o *options) SetWriteOpPoolSize(value int) Options {
+func (o *options) SetWriteOpPoolSize(value pool.Size) Options {
 	opts := *o
 	opts.writeOperationPoolSize = value
 	return &opts
 }
 
-func (o *options) WriteOpPoolSize() int {
+func (o *options) WriteOpPoolSize() pool.Size {
 	return o.writeOperationPoolSize
 }
 
-func (o *options) SetWriteTaggedOpPoolSize(value int) Options {
+func (o *options) SetWriteTaggedOpPoolSize(value pool.Size) Options {
 	opts := *o
 	opts.writeTaggedOperationPoolSize = value
 	return &opts
 }
 
-func (o *options) WriteTaggedOpPoolSize() int {
+func (o *options) WriteTaggedOpPoolSize() pool.Size {
 	return o.writeTaggedOperationPoolSize
 }
 
-func (o *options) SetFetchBatchOpPoolSize(value int) Options {
+func (o *options) SetFetchBatchOpPoolSize(value pool.Size) Options {
 	opts := *o
 	opts.fetchBatchOpPoolSize = value
 	return &opts
 }
 
-func (o *options) FetchBatchOpPoolSize() int {
+func (o *options) FetchBatchOpPoolSize() pool.Size {
 	return o.fetchBatchOpPoolSize
 }
 
@@ -839,6 +922,16 @@ func (o *options) FetchBatchSize() int {
 	return o.fetchBatchSize
 }
 
+func (o *options) SetCheckedBytesPool(value pool.CheckedBytesPool) Options {
+	opts := *o
+	opts.checkedBytesPool = value
+	return &opts
+}
+
+func (o *options) CheckedBytesPool() pool.CheckedBytesPool {
+	return o.checkedBytesPool
+}
+
 func (o *options) SetIdentifierPool(value ident.Pool) Options {
 	opts := *o
 	opts.identifierPool = value
@@ -849,13 +942,13 @@ func (o *options) IdentifierPool() ident.Pool {
 	return o.identifierPool
 }
 
-func (o *options) SetCheckedBytesWrapperPoolSize(value int) Options {
+func (o *options) SetCheckedBytesWrapperPoolSize(value pool.Size) Options {
 	opts := *o
 	opts.checkedBytesWrapperPoolSize = value
 	return &opts
 }
 
-func (o *options) CheckedBytesWrapperPoolSize() int {
+func (o *options) CheckedBytesWrapperPoolSize() pool.Size {
 	return o.checkedBytesWrapperPoolSize
 }
 
@@ -879,14 +972,24 @@ func (o *options) HostQueueOpsFlushInterval() time.Duration {
 	return o.hostQueueOpsFlushInterval
 }
 
-func (o *options) SetHostQueueOpsArrayPoolSize(value int) Options {
+func (o *options) SetHostQueueOpsArrayPoolSize(value pool.Size) Options {
 	opts := *o
 	opts.hostQueueOpsArrayPoolSize = value
 	return &opts
 }
 
-func (o *options) HostQueueOpsArrayPoolSize() int {
+func (o *options) HostQueueOpsArrayPoolSize() pool.Size {
 	return o.hostQueueOpsArrayPoolSize
+}
+
+func (o *options) SetHostQueueNewPooledWorkerFn(value xsync.NewPooledWorkerFn) Options {
+	opts := *o
+	opts.hostQueueNewPooledWorkerFn = value
+	return &opts
+}
+
+func (o *options) HostQueueNewPooledWorkerFn() xsync.NewPooledWorkerFn {
+	return o.hostQueueNewPooledWorkerFn
 }
 
 func (o *options) SetHostQueueEmitsHealthStatus(value bool) Options {
@@ -899,24 +1002,14 @@ func (o *options) HostQueueEmitsHealthStatus() bool {
 	return o.hostQueueEmitsHealthStatus
 }
 
-func (o *options) SetSeriesIteratorPoolSize(value int) Options {
+func (o *options) SetSeriesIteratorPoolSize(value pool.Size) Options {
 	opts := *o
 	opts.seriesIteratorPoolSize = value
 	return &opts
 }
 
-func (o *options) SeriesIteratorPoolSize() int {
+func (o *options) SeriesIteratorPoolSize() pool.Size {
 	return o.seriesIteratorPoolSize
-}
-
-func (o *options) SetSeriesIteratorArrayPoolBuckets(value []pool.Bucket) Options {
-	opts := *o
-	opts.seriesIteratorArrayPoolBuckets = value
-	return &opts
-}
-
-func (o *options) SeriesIteratorArrayPoolBuckets() []pool.Bucket {
-	return o.seriesIteratorArrayPoolBuckets
 }
 
 func (o *options) SetReaderIteratorAllocate(value encoding.ReaderIteratorAllocate) Options {
@@ -1057,4 +1150,24 @@ func (o *options) SetWriteTimestampOffset(value time.Duration) AdminOptions {
 
 func (o *options) WriteTimestampOffset() time.Duration {
 	return o.writeTimestampOffset
+}
+
+func (o *options) SetNamespaceInitializer(value namespace.Initializer) Options {
+	opts := *o
+	opts.namespaceInitializer = value
+	return &opts
+}
+
+func (o *options) NamespaceInitializer() namespace.Initializer {
+	return o.namespaceInitializer
+}
+
+func (o *options) SetThriftContextFn(value ThriftContextFn) Options {
+	opts := *o
+	opts.thriftContextFn = value
+	return &opts
+}
+
+func (o *options) ThriftContextFn() ThriftContextFn {
+	return o.thriftContextFn
 }

@@ -1,21 +1,4 @@
-listenAddress:
-  value: "0.0.0.0:7202"
-
-logging:
-  level: info
-
-metrics:
-  scope:
-    prefix: "coordinator"
-  prometheus:
-    handlerPath: /metrics
-    listenAddress: 0.0.0.0:7203 # until https://github.com/m3db/m3/issues/682 is resolved
-  sanitization: prometheus
-  samplingRate: 1.0
-  extended: none
-
-tagOptions:
-  idScheme: quoted
+listenAddress: 0.0.0.0:7202
 
 carbon:
   ingester:
@@ -29,15 +12,7 @@ carbon:
             retention: 6h
 
 clusters:
-  - namespaces:
-      - namespace: agg
-        type: aggregated
-        resolution: 10s
-        retention: 6h
-      - namespace: unagg
-        type: unaggregated
-        retention: 1s
-    client:
+  - client:
       config:
         service:
           env: default_env
@@ -46,10 +21,10 @@ clusters:
           cacheDir: /var/lib/m3kv
           etcdClusters:
             - zone: embedded
+              autoSyncInterval: 10m
+              dialTimeout: 1m
               endpoints:
                 - dbnode01:2379
-      writeConsistencyLevel: majority
-      readConsistencyLevel: unstrict_majority
 
 downsample:
   rules:
@@ -82,18 +57,13 @@ downsample:
               namespaces:
                 placement: /placement
             connection:
-              numConnections: 4
-            messagePool:
-              size: 16384
-              watermark:
-                low: 0.2
-                high: 0.5
+              numConnections: 1
 
 ingest:
   ingester:
-    workerPoolSize: 10000
+    workerPoolSize: 50
     opPool:
-      size: 10000
+      size: dynamic
     retry:
       maxRetries: 3
       jitter: true
@@ -102,5 +72,7 @@ ingest:
     server:
       listenAddress: "0.0.0.0:7507"
       retry:
-        maxBackoff: 10s
+        maxBackoff: 1s
         jitter: true
+
+storeMetricsType: true

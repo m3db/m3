@@ -125,9 +125,83 @@ func GetInnerInvalidParamsError(err error) error {
 		if _, ok := err.(invalidParamsError); ok {
 			return InnerError(err)
 		}
+		// nolint:errorlint
+		if multiErr, ok := err.(MultiError); ok {
+			for _, e := range multiErr.Errors() {
+				if inner := GetInnerInvalidParamsError(e); err != nil {
+					return inner
+				}
+			}
+		}
 		err = InnerError(err)
 	}
 	return nil
+}
+
+type resourceExhaustedError struct {
+	containedError
+}
+
+// NewResourceExhaustedError creates a new resource exhausted error
+func NewResourceExhaustedError(inner error) error {
+	return resourceExhaustedError{containedError{inner}}
+}
+
+func (e resourceExhaustedError) Error() string {
+	return e.inner.Error()
+}
+
+func (e resourceExhaustedError) InnerError() error {
+	return e.inner
+}
+
+// IsResourceExhausted returns true if this is a resource exhausted error.
+func IsResourceExhausted(err error) bool {
+	return GetInnerResourceExhaustedError(err) != nil
+}
+
+// GetInnerResourceExhaustedError returns an inner resource exhausted error
+// if contained by this error, nil otherwise.
+func GetInnerResourceExhaustedError(err error) error {
+	for err != nil {
+		// nolint:errorlint
+		if _, ok := err.(resourceExhaustedError); ok {
+			return InnerError(err)
+		}
+		// nolint:errorlint
+		if multiErr, ok := err.(MultiError); ok {
+			for _, e := range multiErr.Errors() {
+				if inner := GetInnerResourceExhaustedError(e); err != nil {
+					return inner
+				}
+			}
+		}
+		err = InnerError(err)
+	}
+	return nil
+}
+
+// Is checks if the error is or contains the corresponding target error.
+// It's intended to mimic the errors.Is functionality, but also consider xerrors' MultiError / InnerError
+// wrapping functionality.
+func Is(err, target error) bool {
+	for err != nil {
+		if errors.Is(err, target) {
+			return true
+		}
+
+		// nolint:errorlint
+		if multiErr, ok := err.(MultiError); ok {
+			for _, e := range multiErr.Errors() {
+				if Is(e, target) {
+					return true
+				}
+			}
+		}
+
+		err = InnerError(err)
+	}
+	return false
 }
 
 type retryableError struct {
@@ -158,6 +232,14 @@ func GetInnerRetryableError(err error) error {
 	for err != nil {
 		if _, ok := err.(retryableError); ok {
 			return InnerError(err)
+		}
+		// nolint:errorlint
+		if multiErr, ok := err.(MultiError); ok {
+			for _, e := range multiErr.Errors() {
+				if inner := GetInnerRetryableError(e); err != nil {
+					return inner
+				}
+			}
 		}
 		err = InnerError(err)
 	}
@@ -193,9 +275,35 @@ func GetInnerNonRetryableError(err error) error {
 		if _, ok := err.(nonRetryableError); ok {
 			return InnerError(err)
 		}
+		// nolint:errorlint
+		if multiErr, ok := err.(MultiError); ok {
+			for _, e := range multiErr.Errors() {
+				if inner := GetInnerNonRetryableError(e); err != nil {
+					return inner
+				}
+			}
+		}
 		err = InnerError(err)
 	}
 	return nil
+}
+
+// IsMultiError returns true if this is a multi-error error.
+func IsMultiError(err error) bool {
+	_, ok := GetInnerMultiError(err)
+	return ok
+}
+
+// GetInnerMultiError returns an inner multi-error error
+// if contained by this error, nil otherwise.
+func GetInnerMultiError(err error) (MultiError, bool) {
+	for err != nil {
+		if v, ok := err.(MultiError); ok {
+			return v, true
+		}
+		err = InnerError(err)
+	}
+	return MultiError{}, false
 }
 
 // MultiError is an immutable error that packages a list of errors.
@@ -244,6 +352,19 @@ func (e MultiError) Errors() []error {
 	result[0] = e.err
 	copy(result[1:], e.errors)
 	return result
+}
+
+// Contains returns true if any of the errors match the provided error using the Is check.
+func (e MultiError) Contains(err error) bool {
+	if errors.Is(e.err, err) {
+		return true
+	}
+	for _, e := range e.errors {
+		if errors.Is(e, err) {
+			return true
+		}
+	}
+	return false
 }
 
 // Add adds an error returns a new MultiError object.

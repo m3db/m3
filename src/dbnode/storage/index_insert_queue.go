@@ -26,10 +26,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
+	"github.com/m3db/m3/src/x/clock"
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/uber-go/tally"
@@ -69,6 +69,7 @@ type nsIndexInsertQueue struct {
 	indexBatchFn nsIndexInsertBatchFn
 	nowFn        clock.NowFn
 	sleepFn      func(time.Duration)
+	coreFn       xsync.CoreFn
 	notifyInsert chan struct{}
 	closeCh      chan struct{}
 
@@ -78,7 +79,7 @@ type nsIndexInsertQueue struct {
 }
 
 type newNamespaceIndexInsertQueueFn func(
-	nsIndexInsertBatchFn, namespace.Metadata, clock.NowFn, tally.Scope) namespaceIndexInsertQueue
+	nsIndexInsertBatchFn, namespace.Metadata, clock.NowFn, xsync.CoreFn, tally.Scope) namespaceIndexInsertQueue
 
 // newNamespaceIndexInsertQueue returns a new index insert queue.
 // Note: No limit appears on the index insert queue since any items making
@@ -93,6 +94,7 @@ func newNamespaceIndexInsertQueue(
 	indexBatchFn nsIndexInsertBatchFn,
 	namespaceMetadata namespace.Metadata,
 	nowFn clock.NowFn,
+	coreFn xsync.CoreFn,
 	scope tally.Scope,
 ) namespaceIndexInsertQueue {
 	subscope := scope.SubScope("insert-queue")
@@ -102,6 +104,7 @@ func newNamespaceIndexInsertQueue(
 		indexBatchFn:      indexBatchFn,
 		nowFn:             nowFn,
 		sleepFn:           time.Sleep,
+		coreFn:            coreFn,
 		// NB(r): Use 2 * num cores so that each CPU insert queue which
 		// is 1 per num CPU core can always enqueue a notification without
 		// it being lost.
@@ -181,7 +184,7 @@ func (q *nsIndexInsertQueue) InsertBatch(
 	// Note: since inserts by CPU core is allocated when
 	// nsIndexInsertBatch is constructed and then never modified
 	// it is safe to concurently read (but not modify obviously).
-	inserts := q.currBatch.insertsByCPUCore[xsync.CPUCore()]
+	inserts := q.currBatch.insertsByCPUCore[q.coreFn()]
 	inserts.Lock()
 	firstInsert := len(inserts.shardInserts) == 0
 	inserts.shardInserts = append(inserts.shardInserts, batch)
@@ -211,7 +214,7 @@ func (q *nsIndexInsertQueue) InsertPending(
 	// Note: since inserts by CPU core is allocated when
 	// nsIndexInsertBatch is constructed and then never modified
 	// it is safe to concurently read (but not modify obviously).
-	inserts := q.currBatch.insertsByCPUCore[xsync.CPUCore()]
+	inserts := q.currBatch.insertsByCPUCore[q.coreFn()]
 	inserts.Lock()
 	firstInsert := len(inserts.batchInserts) == 0
 	inserts.batchInserts = append(inserts.batchInserts, pending...)
@@ -330,6 +333,7 @@ func newNsIndexInsertBatch(
 			metrics: newNamespaceIndexInsertsByCPUCoreMetrics(i, scope),
 		})
 	}
+
 	b.allocateAllInserts()
 	b.Rotate(nil)
 	return b

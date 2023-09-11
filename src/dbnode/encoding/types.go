@@ -21,7 +21,6 @@
 package encoding
 
 import (
-	"io"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -65,30 +64,33 @@ type Encoder interface {
 	// an error is returned.
 	LastEncoded() (ts.Datapoint, error)
 
-	// LastAnnotation returns the last encoded datapoint, useful for
+	// LastAnnotationChecksum returns the checksum of the last annotation, useful for
 	// de-duplicating encoded values. If there are no previously encoded values
 	// an error is returned.
-	LastAnnotation() (ts.Annotation, error)
+	LastAnnotationChecksum() (uint64, error)
+
+	// Empty returns true when encoder is considered empty.
+	Empty() bool
 
 	// Len returns the length of the encoded stream as returned by a call to Stream().
 	Len() int
 
 	// Reset resets the start time of the encoder and the internal state.
 	// Reset sets up the schema for schema-aware encoders such as proto encoders.
-	Reset(t time.Time, capacity int, schema namespace.SchemaDescr)
+	Reset(t xtime.UnixNano, capacity int, schema namespace.SchemaDescr)
 
-	// Close closes the encoder and if pooled will return to the pool.
+	// Close closes the encoder and if pooled will return it to the pool.
 	Close()
 
-	// Discard will take ownership of the encoder data and if pooled will return to the pool.
+	// Discard will take ownership of the encoder data and if pooled will return the encoder to the pool.
 	Discard() ts.Segment
 
-	// DiscardReset will take ownership of the encoder data and reset the encoder for use.
+	// DiscardReset will take ownership of the encoder data and reset the encoder for reuse.
 	// DiscardReset sets up the schema for schema-aware encoders such as proto encoders.
-	DiscardReset(t time.Time, capacity int, schema namespace.SchemaDescr) ts.Segment
+	DiscardReset(t xtime.UnixNano, capacity int, schema namespace.SchemaDescr) ts.Segment
 }
 
-// NewEncoderFn creates a new encoder
+// NewEncoderFn creates a new encoder.
 type NewEncoderFn func(start time.Time, bytes []byte) Encoder
 
 // Options represents different options for encoding time as well as markers.
@@ -106,10 +108,10 @@ type Options interface {
 	TimeEncodingSchemes() TimeEncodingSchemes
 
 	// SetMarkerEncodingScheme sets the marker encoding scheme.
-	SetMarkerEncodingScheme(value MarkerEncodingScheme) Options
+	SetMarkerEncodingScheme(value *MarkerEncodingScheme) Options
 
 	// MarkerEncodingScheme returns the marker encoding scheme.
-	MarkerEncodingScheme() MarkerEncodingScheme
+	MarkerEncodingScheme() *MarkerEncodingScheme
 
 	// SetEncoderPool sets the encoder pool.
 	SetEncoderPool(value EncoderPool) Options
@@ -151,21 +153,27 @@ type Options interface {
 	// ByteFieldDictionaryLRUSize returns the ByteFieldDictionaryLRUSize.
 	ByteFieldDictionaryLRUSize() int
 
-	// SetIStreamReaderSizeM3TSZ sets the istream bufio reader size
+	// SetIStreamReaderSizeM3TSZ sets the IStream bufio reader size
 	// for m3tsz encoding iteration.
 	SetIStreamReaderSizeM3TSZ(value int) Options
 
-	// IStreamReaderSizeM3TSZ returns the istream bufio reader size
+	// IStreamReaderSizeM3TSZ returns the IStream bufio reader size
 	// for m3tsz encoding iteration.
 	IStreamReaderSizeM3TSZ() int
 
-	// SetIStreamReaderSizeProto sets the istream bufio reader size
+	// SetIStreamReaderSizeProto sets the IStream bufio reader size
 	// for proto encoding iteration.
 	SetIStreamReaderSizeProto(value int) Options
 
-	// SetIStreamReaderSizeProto returns the istream bufio reader size
+	// IStreamReaderSizeProto returns the IStream bufio reader size
 	// for proto encoding iteration.
 	IStreamReaderSizeProto() int
+
+	// SetMetrics sets the encoding metrics.
+	SetMetrics(value Metrics) Options
+
+	// Metrics returns the encoding metrics.
+	Metrics() Metrics
 }
 
 // Iterator is the generic interface for iterating over encoded data.
@@ -178,7 +186,7 @@ type Iterator interface {
 	// object as it may get invalidated when the iterator calls Next().
 	Current() (ts.Datapoint, xtime.Unit, ts.Annotation)
 
-	// Err returns the error encountered
+	// Err returns the error encountered.
 	Err() error
 
 	// Close closes the iterator and if pooled will return to the pool.
@@ -191,7 +199,7 @@ type ReaderIterator interface {
 
 	// Reset resets the iterator to read from a new reader with
 	// a new schema (for schema aware iterators).
-	Reset(reader io.Reader, schema namespace.SchemaDescr)
+	Reset(reader xio.Reader64, schema namespace.SchemaDescr)
 }
 
 // MultiReaderIterator is an iterator that iterates in order over
@@ -202,10 +210,10 @@ type MultiReaderIterator interface {
 
 	// Reset resets the iterator to read from a slice of readers
 	// with a new schema (for schema aware iterators).
-	Reset(readers []xio.SegmentReader, start time.Time,
+	Reset(readers []xio.SegmentReader, start xtime.UnixNano,
 		blockSize time.Duration, schema namespace.SchemaDescr)
 
-	// Reset resets the iterator to read from a slice of slice readers
+	// ResetSliceOfSlices resets the iterator to read from a slice of slice readers
 	// with a new schema (for schema aware iterators).
 	ResetSliceOfSlices(
 		readers xio.ReaderSliceOfSlicesIterator,
@@ -216,7 +224,7 @@ type MultiReaderIterator interface {
 	// for this MultiReaderIterator.
 	Readers() xio.ReaderSliceOfSlicesIterator
 
-	// Schema exposes the underlying SchemaDescr for this MutliReaderIterator.
+	// Schema exposes the underlying SchemaDescr for this MultiReaderIterator.
 	Schema() namespace.SchemaDescr
 }
 
@@ -243,10 +251,15 @@ type SeriesIterator interface {
 	Namespace() ident.ID
 
 	// Start returns the start time filter specified for the iterator.
-	Start() time.Time
+	Start() xtime.UnixNano
 
 	// End returns the end time filter specified for the iterator.
-	End() time.Time
+	End() xtime.UnixNano
+
+	// FirstAnnotation returns the value of the first annotation (disregarding the filter)
+	// on the underlying iterators. Only use after the first call to Next() has returned true.
+	// Consumers must make a copy of the returned slice as it will be invalidated by Reset.
+	FirstAnnotation() ts.Annotation
 
 	// Reset resets the iterator to read from a set of iterators from different
 	// replicas, one  must note that this can be an array with nil entries if
@@ -254,6 +267,9 @@ type SeriesIterator interface {
 	// NB: the SeriesIterator assumes ownership of the provided ids, this
 	// includes calling `id.Finalize()` upon iter.Close().
 	Reset(opts SeriesIteratorOptions)
+
+	// IterateEqualTimestampStrategy returns the current strategy.
+	IterateEqualTimestampStrategy() IterateEqualTimestampStrategy
 
 	// SetIterateEqualTimestampStrategy sets the equal timestamp strategy of how
 	// to select a value when the timestamp matches differing values with the same
@@ -318,9 +334,6 @@ type MutableSeriesIterators interface {
 	// Reset the iters collection to a size for reuse.
 	Reset(size int)
 
-	// Cap returns the capacity of the iters.
-	Cap() int
-
 	// SetAt sets a SeriesIterator to the given index.
 	SetAt(idx int, iter SeriesIterator)
 }
@@ -328,7 +341,7 @@ type MutableSeriesIterators interface {
 // Decoder is the generic interface for different types of decoders.
 type Decoder interface {
 	// Decode decodes the encoded data in the reader.
-	Decode(reader io.Reader) ReaderIterator
+	Decode(reader xio.Reader64) ReaderIterator
 }
 
 // NewDecoderFn creates a new decoder.
@@ -338,38 +351,13 @@ type NewDecoderFn func() Decoder
 type EncoderAllocate func() Encoder
 
 // ReaderIteratorAllocate allocates a ReaderIterator for a pool.
-type ReaderIteratorAllocate func(reader io.Reader, descr namespace.SchemaDescr) ReaderIterator
-
-// IStream encapsulates a readable stream.
-type IStream interface {
-	// Read reads len(b) bytes.
-	Read([]byte) (int, error)
-
-	// ReadBit reads the next Bit.
-	ReadBit() (Bit, error)
-
-	// ReadByte reads the next Byte.
-	ReadByte() (byte, error)
-
-	// ReadBits reads the next Bits.
-	ReadBits(numBits uint) (uint64, error)
-
-	// PeekBits looks at the next Bits, but doesn't move the pos.
-	PeekBits(numBits uint) (uint64, error)
-
-	// RemainingBitsInCurrentByte returns the number of bits remaining to
-	// be read in the current byte.
-	RemainingBitsInCurrentByte() uint
-
-	// Reset resets the IStream.
-	Reset(r io.Reader)
-}
+type ReaderIteratorAllocate func(reader xio.Reader64, descr namespace.SchemaDescr) ReaderIterator
 
 // OStream encapsulates a writable stream.
 type OStream interface {
-	// Len returns the length of the OStream
+	// Len returns the length of the OStream.
 	Len() int
-	// Empty returns whether the OStream is empty
+	// Empty returns whether the OStream is empty.
 	Empty() bool
 
 	// WriteBit writes the last bit of v.
@@ -456,18 +444,6 @@ type SeriesIteratorPool interface {
 	Put(iter SeriesIterator)
 }
 
-// MutableSeriesIteratorsPool provides a pool for MutableSeriesIterators.
-type MutableSeriesIteratorsPool interface {
-	// Init initializes the pool.
-	Init()
-
-	// Get provides a MutableSeriesIterators from the pool.
-	Get(size int) MutableSeriesIterators
-
-	// Put returns a MutableSeriesIterators to the pool.
-	Put(iters MutableSeriesIterators)
-}
-
 // MultiReaderIteratorArrayPool provides a pool for MultiReaderIterator arrays.
 type MultiReaderIteratorArrayPool interface {
 	// Init initializes the pool.
@@ -488,9 +464,6 @@ type IteratorPools interface {
 
 	// MultiReaderIterator exposes the session MultiReaderIteratorPool.
 	MultiReaderIterator() MultiReaderIteratorPool
-
-	// MutableSeriesIterators exposes the session MutableSeriesIteratorsPool.
-	MutableSeriesIterators() MutableSeriesIteratorsPool
 
 	// SeriesIterator exposes the session SeriesIteratorPool.
 	SeriesIterator() SeriesIteratorPool

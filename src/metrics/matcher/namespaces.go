@@ -29,9 +29,14 @@ import (
 	"github.com/m3db/m3/src/cluster/kv/util/runtime"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
+	"github.com/m3db/m3/src/metrics/matcher/namespace"
 	"github.com/m3db/m3/src/metrics/metric"
+	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/rules"
+	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/x/clock"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	xos "github.com/m3db/m3/src/x/os"
 	"github.com/m3db/m3/src/x/watch"
 
 	"github.com/uber-go/tally"
@@ -46,26 +51,12 @@ var (
 // Namespaces manages runtime updates to registered namespaces and provides
 // API to match metic ids against rules in the corresponding namespaces.
 type Namespaces interface {
+	rules.ActiveSet
 	// Open opens the namespaces and starts watching runtime rule updates
 	Open() error
 
-	// Version returns the current version for a give namespace.
+	// Version returns the current version for a given namespace.
 	Version(namespace []byte) int
-
-	// ForwardMatch forward matches the matching policies for a given id in a given namespace
-	// between [fromNanos, toNanos).
-	ForwardMatch(namespace, id []byte, fromNanos, toNanos int64) rules.MatchResult
-
-	// ReverseMatch reverse matches the matching policies for a given id in a given namespace
-	// between [fromNanos, toNanos), taking into account the metric type and aggregation type for the given id.
-	ReverseMatch(
-		namespace, id []byte,
-		fromNanos, toNanos int64,
-		mt metric.Type,
-		at aggregation.Type,
-		isMultiAggregationTypesAllowed bool,
-		aggTypesOpts aggregation.TypesOptions,
-	) rules.MatchResult
 
 	// Close closes the namespaces.
 	Close()
@@ -112,42 +103,50 @@ type namespaces struct {
 	onNamespaceAddedFn   OnNamespaceAddedFn
 	onNamespaceRemovedFn OnNamespaceRemovedFn
 
-	proto   *rulepb.Namespaces
-	rules   *namespaceRuleSetsMap
-	metrics namespacesMetrics
+	proto                       *rulepb.Namespaces
+	rules                       *namespaceRuleSetsMap
+	metrics                     namespacesMetrics
+	nsResolver                  namespace.Resolver
+	requireNamespaceWatchOnInit bool
 }
 
 // NewNamespaces creates a new namespaces object.
 func NewNamespaces(key string, opts Options) Namespaces {
 	instrumentOpts := opts.InstrumentOptions()
 	n := &namespaces{
-		key:                  key,
-		store:                opts.KVStore(),
-		opts:                 opts,
-		nowFn:                opts.ClockOptions().NowFn(),
-		log:                  instrumentOpts.Logger(),
-		ruleSetKeyFn:         opts.RuleSetKeyFn(),
-		matchRangePast:       opts.MatchRangePast(),
-		onNamespaceAddedFn:   opts.OnNamespaceAddedFn(),
-		onNamespaceRemovedFn: opts.OnNamespaceRemovedFn(),
-		proto:                &rulepb.Namespaces{},
-		rules:                newNamespaceRuleSetsMap(namespaceRuleSetsMapOptions{}),
-		metrics:              newNamespacesMetrics(instrumentOpts.MetricsScope()),
+		key:                         key,
+		store:                       opts.KVStore(),
+		opts:                        opts,
+		nowFn:                       opts.ClockOptions().NowFn(),
+		log:                         instrumentOpts.Logger(),
+		ruleSetKeyFn:                opts.RuleSetKeyFn(),
+		matchRangePast:              opts.MatchRangePast(),
+		onNamespaceAddedFn:          opts.OnNamespaceAddedFn(),
+		onNamespaceRemovedFn:        opts.OnNamespaceRemovedFn(),
+		proto:                       &rulepb.Namespaces{},
+		rules:                       newNamespaceRuleSetsMap(namespaceRuleSetsMapOptions{}),
+		metrics:                     newNamespacesMetrics(instrumentOpts.MetricsScope()),
+		requireNamespaceWatchOnInit: opts.RequireNamespaceWatchOnInit(),
+		nsResolver:                  opts.NamespaceResolver(),
 	}
 	valueOpts := runtime.NewOptions().
 		SetInstrumentOptions(instrumentOpts).
 		SetInitWatchTimeout(opts.InitWatchTimeout()).
 		SetKVStore(n.store).
 		SetUnmarshalFn(n.toNamespaces).
-		SetProcessFn(n.process)
+		SetProcessFn(n.process).
+		SetInterruptedCh(opts.InterruptedCh())
 	n.Value = runtime.NewValue(key, valueOpts)
 	return n
 }
 
 func (n *namespaces) Open() error {
 	err := n.Watch()
+	var interruptErr *xos.InterruptError
 	if err == nil {
 		return nil
+	} else if errors.As(err, &interruptErr) {
+		return err
 	}
 
 	errCreateWatch, ok := err.(watch.CreateWatchError)
@@ -160,10 +159,15 @@ func (n *namespaces) Open() error {
 	// to be more resilient to error conditions preventing process
 	// from starting up.
 	n.metrics.initWatchErrors.Inc(1)
+	if n.requireNamespaceWatchOnInit {
+		return err
+	}
+
 	n.opts.InstrumentOptions().Logger().With(
 		zap.String("key", n.key),
 		zap.Error(err),
 	).Error("error initializing namespaces values, retrying in the background")
+
 	return nil
 }
 
@@ -177,25 +181,37 @@ func (n *namespaces) Version(namespace []byte) int {
 	return ruleSet.Version()
 }
 
-func (n *namespaces) ForwardMatch(namespace, id []byte, fromNanos, toNanos int64) rules.MatchResult {
+func (n *namespaces) LatestRollupRules(namespace []byte, timeNanos int64) ([]view.RollupRule, error) {
 	ruleSet, exists := n.ruleSet(namespace)
 	if !exists {
-		return rules.EmptyMatchResult
+		return nil, errors.New("ruleset not found for namespace")
 	}
-	return ruleSet.ForwardMatch(id, fromNanos, toNanos)
+
+	return ruleSet.LatestRollupRules(namespace, timeNanos)
+}
+
+func (n *namespaces) ForwardMatch(id id.ID, fromNanos, toNanos int64,
+	opts rules.MatchOptions) (rules.MatchResult, error) {
+	namespace := n.nsResolver.Resolve(id)
+	ruleSet, exists := n.ruleSet(namespace)
+	if !exists {
+		return rules.EmptyMatchResult, nil
+	}
+	return ruleSet.ForwardMatch(id, fromNanos, toNanos, opts)
 }
 
 func (n *namespaces) ReverseMatch(
-	namespace, id []byte,
+	id id.ID,
 	fromNanos, toNanos int64,
 	mt metric.Type,
 	at aggregation.Type,
 	isMultiAggregationTypesAllowed bool,
 	aggTypesOpts aggregation.TypesOptions,
-) rules.MatchResult {
+) (rules.MatchResult, error) {
+	namespace := n.nsResolver.Resolve(id)
 	ruleSet, exists := n.ruleSet(namespace)
 	if !exists {
-		return rules.EmptyMatchResult
+		return rules.EmptyMatchResult, nil
 	}
 	return ruleSet.ReverseMatch(id, fromNanos, toNanos, mt, at, isMultiAggregationTypesAllowed, aggTypesOpts)
 }
@@ -255,7 +271,12 @@ func (n *namespaces) process(value interface{}) error {
 	n.Lock()
 	defer n.Unlock()
 
-	var watchWg sync.WaitGroup
+	var (
+		watchWg  sync.WaitGroup
+		multiErr xerrors.MultiError
+		errLock  sync.Mutex
+	)
+
 	for _, entry := range incoming.Iter() {
 		namespace, elem := entry.Key(), rules.Namespace(entry.Value())
 		nsName, snapshots := elem.Name(), elem.Snapshots()
@@ -302,6 +323,13 @@ func (n *namespaces) process(value interface{}) error {
 					n.log.Error("failed to watch ruleset updates",
 						zap.String("ruleSetKey", ruleSet.Key()),
 						zap.Error(err))
+
+					// Track errors if we explicitly want to ensure watches succeed.
+					if n.requireNamespaceWatchOnInit {
+						errLock.Lock()
+						multiErr = multiErr.Add(err)
+						errLock.Unlock()
+					}
 				}
 			}()
 		}
@@ -312,6 +340,11 @@ func (n *namespaces) process(value interface{}) error {
 	}
 
 	watchWg.Wait()
+
+	if !multiErr.Empty() {
+		return multiErr.FinalError()
+	}
+
 	for _, entry := range n.rules.Iter() {
 		namespace, ruleSet := entry.Key(), entry.Value()
 		_, exists := incoming.Get(namespace)

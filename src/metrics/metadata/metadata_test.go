@@ -239,11 +239,11 @@ var (
 	testSmallForwardMetadataProto = metricpb.ForwardMetadata{
 		AggregationId: aggregationpb.AggregationID{Id: 0},
 		StoragePolicy: policypb.StoragePolicy{
-			Resolution: &policypb.Resolution{
+			Resolution: policypb.Resolution{
 				WindowSize: time.Minute.Nanoseconds(),
 				Precision:  time.Minute.Nanoseconds(),
 			},
-			Retention: &policypb.Retention{
+			Retention: policypb.Retention{
 				Period: (12 * time.Hour).Nanoseconds(),
 			},
 		},
@@ -251,7 +251,7 @@ var (
 			Ops: []pipelinepb.AppliedPipelineOp{
 				{
 					Type: pipelinepb.AppliedPipelineOp_ROLLUP,
-					Rollup: &pipelinepb.AppliedRollupOp{
+					Rollup: pipelinepb.AppliedRollupOp{
 						Id:            []byte("foo"),
 						AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Count)[0]},
 					},
@@ -264,11 +264,11 @@ var (
 	testLargeForwardMetadataProto = metricpb.ForwardMetadata{
 		AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Sum)[0]},
 		StoragePolicy: policypb.StoragePolicy{
-			Resolution: &policypb.Resolution{
+			Resolution: policypb.Resolution{
 				WindowSize: 10 * time.Second.Nanoseconds(),
 				Precision:  time.Second.Nanoseconds(),
 			},
-			Retention: &policypb.Retention{
+			Retention: policypb.Retention{
 				Period: (6 * time.Hour).Nanoseconds(),
 			},
 		},
@@ -276,13 +276,13 @@ var (
 			Ops: []pipelinepb.AppliedPipelineOp{
 				{
 					Type: pipelinepb.AppliedPipelineOp_TRANSFORMATION,
-					Transformation: &pipelinepb.TransformationOp{
+					Transformation: pipelinepb.TransformationOp{
 						Type: transformationpb.TransformationType_ABSOLUTE,
 					},
 				},
 				{
 					Type: pipelinepb.AppliedPipelineOp_ROLLUP,
-					Rollup: &pipelinepb.AppliedRollupOp{
+					Rollup: pipelinepb.AppliedRollupOp{
 						Id:            []byte("bar"),
 						AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Last, aggregation.Sum)[0]},
 					},
@@ -297,11 +297,11 @@ var (
 		AggregationId: aggregationpb.AggregationID{Id: 0},
 		StoragePolicies: []policypb.StoragePolicy{
 			{
-				Resolution: &policypb.Resolution{
+				Resolution: policypb.Resolution{
 					WindowSize: time.Minute.Nanoseconds(),
 					Precision:  time.Minute.Nanoseconds(),
 				},
-				Retention: &policypb.Retention{
+				Retention: policypb.Retention{
 					Period: (6 * time.Hour).Nanoseconds(),
 				},
 			},
@@ -310,7 +310,7 @@ var (
 			Ops: []pipelinepb.AppliedPipelineOp{
 				{
 					Type: pipelinepb.AppliedPipelineOp_TRANSFORMATION,
-					Transformation: &pipelinepb.TransformationOp{
+					Transformation: pipelinepb.TransformationOp{
 						Type: transformationpb.TransformationType_PERSECOND,
 					},
 				},
@@ -321,20 +321,20 @@ var (
 		AggregationId: aggregationpb.AggregationID{Id: 0},
 		StoragePolicies: []policypb.StoragePolicy{
 			{
-				Resolution: &policypb.Resolution{
+				Resolution: policypb.Resolution{
 					WindowSize: time.Minute.Nanoseconds(),
 					Precision:  time.Minute.Nanoseconds(),
 				},
-				Retention: &policypb.Retention{
+				Retention: policypb.Retention{
 					Period: (12 * time.Hour).Nanoseconds(),
 				},
 			},
 			{
-				Resolution: &policypb.Resolution{
+				Resolution: policypb.Resolution{
 					WindowSize: time.Hour.Nanoseconds(),
 					Precision:  time.Hour.Nanoseconds(),
 				},
-				Retention: &policypb.Retention{
+				Retention: policypb.Retention{
 					Period: (30 * 24 * time.Hour).Nanoseconds(),
 				},
 			},
@@ -343,13 +343,13 @@ var (
 			Ops: []pipelinepb.AppliedPipelineOp{
 				{
 					Type: pipelinepb.AppliedPipelineOp_TRANSFORMATION,
-					Transformation: &pipelinepb.TransformationOp{
+					Transformation: pipelinepb.TransformationOp{
 						Type: transformationpb.TransformationType_ABSOLUTE,
 					},
 				},
 				{
 					Type: pipelinepb.AppliedPipelineOp_ROLLUP,
-					Rollup: &pipelinepb.AppliedRollupOp{
+					Rollup: pipelinepb.AppliedRollupOp{
 						Id:            []byte("foo"),
 						AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Last, aggregation.Sum)[0]},
 					},
@@ -373,11 +373,11 @@ var (
 							AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Sum)[0]},
 							StoragePolicies: []policypb.StoragePolicy{
 								{
-									Resolution: &policypb.Resolution{
+									Resolution: policypb.Resolution{
 										WindowSize: time.Second.Nanoseconds(),
 										Precision:  time.Second.Nanoseconds(),
 									},
-									Retention: &policypb.Retention{
+									Retention: policypb.Retention{
 										Period: time.Hour.Nanoseconds(),
 									},
 								},
@@ -387,11 +387,11 @@ var (
 							AggregationId: aggregationpb.AggregationID{Id: 0},
 							StoragePolicies: []policypb.StoragePolicy{
 								{
-									Resolution: &policypb.Resolution{
+									Resolution: policypb.Resolution{
 										WindowSize: 10 * time.Second.Nanoseconds(),
 										Precision:  time.Second.Nanoseconds(),
 									},
-									Retention: &policypb.Retention{
+									Retention: policypb.Retention{
 										Period: time.Hour.Nanoseconds(),
 									},
 								},
@@ -400,10 +400,72 @@ var (
 								Ops: []pipelinepb.AppliedPipelineOp{
 									{
 										Type: pipelinepb.AppliedPipelineOp_ROLLUP,
-										Rollup: &pipelinepb.AppliedRollupOp{
+										Rollup: pipelinepb.AppliedRollupOp{
 											Id:            []byte("baz"),
 											AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Mean)[0]},
 										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	testSmallStagedMetadatasWithLargeStoragePoliciesProto = metricpb.StagedMetadatas{
+		Metadatas: []metricpb.StagedMetadata{
+			{
+				CutoverNanos: 4567,
+				Tombstoned:   true,
+				Metadata: metricpb.Metadata{
+					Pipelines: []metricpb.PipelineMetadata{
+						{
+							AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Sum)[0]},
+							StoragePolicies: []policypb.StoragePolicy{
+								{
+									Resolution: policypb.Resolution{
+										WindowSize: time.Second.Nanoseconds(),
+										Precision:  time.Second.Nanoseconds(),
+									},
+									Retention: policypb.Retention{
+										Period: 10 * time.Second.Nanoseconds(),
+									},
+								},
+								{
+									Resolution: policypb.Resolution{
+										WindowSize: 10 * time.Second.Nanoseconds(),
+										Precision:  time.Second.Nanoseconds(),
+									},
+									Retention: policypb.Retention{
+										Period: time.Hour.Nanoseconds(),
+									},
+								},
+								{
+									Resolution: policypb.Resolution{
+										WindowSize: 10 * time.Minute.Nanoseconds(),
+										Precision:  time.Second.Nanoseconds(),
+									},
+									Retention: policypb.Retention{
+										Period: time.Minute.Nanoseconds(),
+									},
+								},
+								{
+									Resolution: policypb.Resolution{
+										WindowSize: 10 * time.Minute.Nanoseconds(),
+										Precision:  time.Second.Nanoseconds(),
+									},
+									Retention: policypb.Retention{
+										Period: time.Second.Nanoseconds(),
+									},
+								},
+								{
+									Resolution: policypb.Resolution{
+										WindowSize: 10 * time.Hour.Nanoseconds(),
+										Precision:  time.Second.Nanoseconds(),
+									},
+									Retention: policypb.Retention{
+										Period: time.Second.Nanoseconds(),
 									},
 								},
 							},
@@ -428,11 +490,11 @@ var (
 							AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Count)[0]},
 							StoragePolicies: []policypb.StoragePolicy{
 								{
-									Resolution: &policypb.Resolution{
+									Resolution: policypb.Resolution{
 										WindowSize: time.Second.Nanoseconds(),
 										Precision:  time.Second.Nanoseconds(),
 									},
-									Retention: &policypb.Retention{
+									Retention: policypb.Retention{
 										Period: time.Hour.Nanoseconds(),
 									},
 								},
@@ -442,20 +504,20 @@ var (
 							AggregationId: aggregationpb.AggregationID{Id: 0},
 							StoragePolicies: []policypb.StoragePolicy{
 								{
-									Resolution: &policypb.Resolution{
+									Resolution: policypb.Resolution{
 										WindowSize: time.Minute.Nanoseconds(),
 										Precision:  time.Minute.Nanoseconds(),
 									},
-									Retention: &policypb.Retention{
+									Retention: policypb.Retention{
 										Period: (6 * time.Hour).Nanoseconds(),
 									},
 								},
 								{
-									Resolution: &policypb.Resolution{
+									Resolution: policypb.Resolution{
 										WindowSize: time.Hour.Nanoseconds(),
 										Precision:  time.Hour.Nanoseconds(),
 									},
-									Retention: &policypb.Retention{
+									Retention: policypb.Retention{
 										Period: (30 * 24 * time.Hour).Nanoseconds(),
 									},
 								},
@@ -464,13 +526,13 @@ var (
 								Ops: []pipelinepb.AppliedPipelineOp{
 									{
 										Type: pipelinepb.AppliedPipelineOp_TRANSFORMATION,
-										Transformation: &pipelinepb.TransformationOp{
+										Transformation: pipelinepb.TransformationOp{
 											Type: transformationpb.TransformationType_ABSOLUTE,
 										},
 									},
 									{
 										Type: pipelinepb.AppliedPipelineOp_ROLLUP,
-										Rollup: &pipelinepb.AppliedRollupOp{
+										Rollup: pipelinepb.AppliedRollupOp{
 											Id:            []byte("foo"),
 											AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Last, aggregation.Sum)[0]},
 										},
@@ -492,13 +554,13 @@ var (
 								Ops: []pipelinepb.AppliedPipelineOp{
 									{
 										Type: pipelinepb.AppliedPipelineOp_TRANSFORMATION,
-										Transformation: &pipelinepb.TransformationOp{
+										Transformation: pipelinepb.TransformationOp{
 											Type: transformationpb.TransformationType_PERSECOND,
 										},
 									},
 									{
 										Type: pipelinepb.AppliedPipelineOp_ROLLUP,
-										Rollup: &pipelinepb.AppliedRollupOp{
+										Rollup: pipelinepb.AppliedRollupOp{
 											Id:            []byte("bar"),
 											AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.P99)[0]},
 										},
@@ -700,7 +762,10 @@ func TestStagedMetadatasIsDefault(t *testing.T) {
 	}
 
 	for _, input := range inputs {
-		require.Equal(t, input.expected, input.metadatas.IsDefault())
+		input := input
+		t.Run(fmt.Sprintf("%v", input.metadatas), func(t *testing.T) {
+			require.Equal(t, input.expected, input.metadatas.IsDefault())
+		})
 	}
 }
 
@@ -1010,10 +1075,13 @@ func TestStagedMetadatasFromProto(t *testing.T) {
 	}
 
 	for _, input := range inputs {
-		var res StagedMetadatas
+		var resOpt, resReference StagedMetadatas
 		for i, pb := range input.sequence {
-			require.NoError(t, res.FromProto(pb))
-			require.Equal(t, input.expected[i], res)
+			require.NoError(t, resReference.fromProto(pb))
+			require.NoError(t, resOpt.FromProto(pb))
+			require.Equal(t, input.expected[i], resOpt)
+			require.Equal(t, input.expected[i], resReference)
+			require.Equal(t, resOpt, resReference)
 		}
 	}
 }
@@ -1063,6 +1131,7 @@ func TestVersionedStagedMetadatasMarshalJSON(t *testing.T) {
 				Metadata: Metadata{
 					Pipelines: []PipelineMetadata{
 						{
+							ResendEnabled: true,
 							AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
 							StoragePolicies: []policy.StoragePolicy{
 								policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
@@ -1083,14 +1152,15 @@ func TestVersionedStagedMetadatasMarshalJSON(t *testing.T) {
 	res, err := json.Marshal(vs)
 	require.NoError(t, err)
 
-	expected :=
-		`{"version":12,` +
-			`"stagedMetadatas":` +
-			`[{"metadata":{"pipelines":[` +
-			`{"aggregation":["Sum"],"storagePolicies":["1s:1h","1m:12h"],"tags":null,"graphitePrefix":null},` +
-			`{"aggregation":null,"storagePolicies":["10s:1h"],"tags":null,"graphitePrefix":null}]},` +
-			`"cutoverNanos":4567,` +
-			`"tombstoned":true}]}`
+	expected := `{` +
+		`"stagedMetadatas":` +
+		`[{"metadata":{"pipelines":[` +
+		`{"storagePolicies":["1s:1h","1m:12h"],"aggregation":["Sum"],"resendEnabled":true},` +
+		`{"storagePolicies":["10s:1h"],"aggregation":null}]},` +
+		`"cutoverNanos":4567,` +
+		`"tombstoned":true}],` +
+		`"version":12` +
+		`}`
 	require.Equal(t, expected, string(res))
 }
 
@@ -1178,6 +1248,11 @@ func TestApplyOrRemoveDropPoliciesDropIfOnlyMatchEffective(t *testing.T) {
 	output, result := input.ApplyOrRemoveDropPolicies()
 	require.Equal(t, AppliedEffectiveDropPolicyResult, result)
 	require.True(t, output.Equal(DropPipelineMetadatas))
+
+	// Ensure that modifying output does not affect DropPipelineMetadatas,
+	// to prevent regressions where global variables are returned.
+	output[0].AggregationID = aggregation.MustCompressTypes(aggregation.Count)
+	require.False(t, output.Equal(DropPipelineMetadatas))
 }
 
 func TestApplyOrRemoveDropPoliciesDropIfOnlyMatchMiddleIneffective(t *testing.T) {

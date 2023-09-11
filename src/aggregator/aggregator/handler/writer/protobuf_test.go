@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/producer"
-	"github.com/m3db/m3/src/x/clock"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -108,12 +107,7 @@ func TestProtobufWriterWriteClosed(t *testing.T) {
 }
 
 func TestProtobufWriterWrite(t *testing.T) {
-	now := time.Now()
-	nowFn := func() time.Time { return now }
-	opts := NewOptions().
-		SetClockOptions(clock.NewOptions().SetNowFn(nowFn)).
-		SetEncodingTimeSamplingRate(0.5)
-
+	opts := NewOptions()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	writer := testProtobufWriter(t, ctrl, opts)
@@ -121,10 +115,9 @@ func TestProtobufWriterWrite(t *testing.T) {
 	actualData := make(map[uint32][]decodeData)
 	writer.p.(*producer.MockProducer).EXPECT().Produce(gomock.Any()).Do(func(m producer.Message) error {
 		d := protobuf.NewAggregatedDecoder(nil)
-		d.Decode(m.Bytes())
+		require.NoError(t, d.Decode(m.Bytes()))
 		s := m.Shard()
-		sp, err := d.StoragePolicy()
-		require.NoError(t, err)
+		sp := d.StoragePolicy()
 		actualData[s] = append(actualData[s], decodeData{
 			MetricWithStoragePolicy: aggregated.MetricWithStoragePolicy{
 				Metric: aggregated.Metric{
@@ -134,7 +127,6 @@ func TestProtobufWriterWrite(t *testing.T) {
 				},
 				StoragePolicy: sp,
 			},
-			encodedAtNanos: d.EncodeNanos(),
 		})
 		return nil
 	}).AnyTimes()
@@ -148,14 +140,6 @@ func TestProtobufWriterWrite(t *testing.T) {
 		require.Fail(t, "unexpected chunked id %v", id)
 		return 0
 	}
-	var iter int
-	writer.randFn = func() float64 {
-		iter++
-		if iter%2 == 0 {
-			return 0.1
-		}
-		return 0.9
-	}
 
 	inputs := []aggregated.ChunkedMetricWithStoragePolicy{
 		testChunkedMetricWithStoragePolicy,
@@ -166,27 +150,21 @@ func TestProtobufWriterWrite(t *testing.T) {
 	for _, input := range inputs {
 		require.NoError(t, writer.Write(input))
 	}
-
-	encodedAtNanos := now.UnixNano()
 	expectedData := map[uint32][]decodeData{
-		1: []decodeData{
+		1: {
 			{
 				MetricWithStoragePolicy: testMetricWithStoragePolicy,
-				encodedAtNanos:          0,
 			},
 			{
 				MetricWithStoragePolicy: testMetricWithStoragePolicy,
-				encodedAtNanos:          encodedAtNanos,
 			},
 		},
-		2: []decodeData{
+		2: {
 			{
 				MetricWithStoragePolicy: testMetricWithStoragePolicy2,
-				encodedAtNanos:          encodedAtNanos,
 			},
 			{
 				MetricWithStoragePolicy: testMetricWithStoragePolicy2,
-				encodedAtNanos:          0,
 			},
 		},
 	}
@@ -206,6 +184,4 @@ func testProtobufWriter(t *testing.T, ctrl *gomock.Controller, opts Options) *pr
 
 type decodeData struct {
 	aggregated.MetricWithStoragePolicy
-
-	encodedAtNanos int64
 }

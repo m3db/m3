@@ -23,12 +23,14 @@ package remote
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/remote"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 )
 
 // Options contains options for remote clients.
@@ -49,12 +51,28 @@ func NewStorage(c remote.Client, opts Options) storage.Storage {
 	return &remoteStorage{client: c, opts: opts}
 }
 
+func (s *remoteStorage) QueryStorageMetadataAttributes(
+	ctx context.Context,
+	queryStart, queryEnd time.Time,
+	opts *storage.FetchOptions,
+) ([]storagemetadata.Attributes, error) {
+	return s.client.QueryStorageMetadataAttributes(ctx, queryStart, queryEnd, opts)
+}
+
 func (s *remoteStorage) FetchProm(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (storage.PromResult, error) {
 	return s.client.FetchProm(ctx, query, options)
+}
+
+func (s *remoteStorage) FetchCompressed(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (consolidators.MultiFetchResult, error) {
+	return s.client.FetchCompressed(ctx, query, options)
 }
 
 func (s *remoteStorage) FetchBlocks(

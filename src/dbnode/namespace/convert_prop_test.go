@@ -22,13 +22,14 @@ package namespace_test
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"math/rand"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/leanovate/gopter"
@@ -51,7 +52,8 @@ func TestConvert(t *testing.T) {
 
 	props.Property("Conversion rooted at metadata is bijective", prop.ForAll(
 		func(nsMap namespace.Map) (bool, error) {
-			reg := namespace.ToProto(nsMap)
+			reg, err := namespace.ToProto(nsMap)
+			require.NoError(t, err)
 			cmd, err := namespace.FromProto(*reg)
 			if err != nil {
 				return false, err

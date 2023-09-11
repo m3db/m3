@@ -1,141 +1,198 @@
 module github.com/m3db/m3
 
-go 1.13
+go 1.18
 
 require (
-	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
-	github.com/CAFxX/gcnotifier v0.0.0-20190112062741-224a280d589d // indirect
-	github.com/DataDog/datadog-go v3.7.1+incompatible // indirect
-	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/MichaelTJones/pcg v0.0.0-20180122055547-df440c6ed7ed
-	github.com/Microsoft/go-winio v0.4.14 // indirect
-	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/RoaringBitmap/roaring v0.4.21
-	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
-	github.com/apache/thrift v0.13.0
-	github.com/apex/log v1.3.0 // indirect
-	github.com/bmatcuk/doublestar v1.3.1 // indirect
-	github.com/bmizerany/perks v0.0.0-20141205001514-d9a9656a3a4b // indirect
-	github.com/briandowns/spinner v1.11.1 // indirect
 	github.com/c2h5oh/datasize v0.0.0-20171227191756-4eba002a5eae
-	github.com/cespare/xxhash/v2 v2.1.1
-	github.com/cheekybits/genny v1.0.0 // indirect
-	github.com/containerd/continuity v0.0.0-20200413184840-d3ef23f19fbb // indirect
-	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
+	github.com/cenkalti/backoff/v3 v3.0.0
+	github.com/cespare/xxhash/v2 v2.1.2
 	github.com/davecgh/go-spew v1.1.1
-	github.com/docker/go-connections v0.4.0 // indirect
-	github.com/fortytw2/leaktest v1.2.1-0.20180901000122-b433bbd6d743
-	github.com/fossas/fossa-cli v1.0.30
-	github.com/garethr/kubeval v0.0.0-20180821130434-c44f5193dc94
+	github.com/fortytw2/leaktest v1.3.0
 	github.com/ghodss/yaml v1.0.0
-	github.com/gnewton/jargo v0.0.0-20150417131352-41f5f186a805 // indirect
 	github.com/go-kit/kit v0.10.0
-	github.com/go-ole/go-ole v1.2.4 // indirect
-	github.com/go-playground/universal-translator v0.17.0 // indirect
-	github.com/gogo/protobuf v1.3.1
-	github.com/golang/mock v1.4.3
-	github.com/golang/protobuf v1.3.3
-	github.com/golang/snappy v0.0.1
-	github.com/google/go-cmp v0.4.0
-	github.com/google/go-jsonnet v0.16.0
-	github.com/google/uuid v1.1.2-0.20190416172445-c2e93f3ae59f // indirect
-	github.com/gorilla/handlers v1.4.2 // indirect
-	github.com/gorilla/mux v1.7.3
-	github.com/gotestyourself/gotestyourself v2.2.0+incompatible // indirect
-	github.com/hashicorp/hcl v1.0.1-0.20190611123218-cf7d376da96d // indirect
+	github.com/gogo/protobuf v1.3.2
+	github.com/golang/mock v1.6.0
+	github.com/golang/protobuf v1.5.2
+	github.com/golang/snappy v0.0.4
+	github.com/google/go-cmp v0.5.7
+	github.com/google/uuid v1.3.0
+	github.com/gorilla/mux v1.8.0
 	github.com/hydrogen18/stalecucumber v0.0.0-20151102144322-9b38526d4bdf
-	github.com/influxdata/influxdb v1.7.7
+	github.com/influxdata/influxdb v1.9.5
 	github.com/jhump/protoreflect v1.6.1
-	github.com/json-iterator/go v1.1.9
+	github.com/jonboulle/clockwork v0.2.2
+	github.com/json-iterator/go v1.1.12
+	github.com/klauspost/compress v1.14.2
 	github.com/leanovate/gopter v0.2.8
-	github.com/lib/pq v1.6.0 // indirect
 	github.com/lightstep/lightstep-tracer-go v0.18.1
 	github.com/m3db/bitset v2.0.0+incompatible
 	github.com/m3db/bloom/v4 v4.0.0-20200901140942-52efb8544fe9
-	github.com/m3db/build-tools v0.0.0-20181013000606-edd1bdd1df8a
-	github.com/m3db/m3x v0.0.0-20190408051622-ebf3c7b94afd // indirect
-	github.com/m3db/prometheus_client_golang v0.8.1
-	github.com/m3db/prometheus_client_model v0.0.0-20180517145114-8b2299a4bf7d
-	github.com/m3db/prometheus_common v0.0.0-20180517030744-25aaa3dff79b
+	github.com/m3db/prometheus_client_golang v1.12.8
+	github.com/m3db/prometheus_client_model v0.2.1
+	github.com/m3db/prometheus_common v0.34.7
 	github.com/m3db/prometheus_procfs v0.8.1
 	github.com/m3db/stackadler32 v0.0.0-20180104200216-bfebcd73ef6f
 	github.com/m3db/stackmurmur3/v2 v2.0.2
-	github.com/m3db/tools v0.0.0-20181008195521-c6ded3f34878
 	github.com/m3dbx/pilosa v1.4.1
-	github.com/m3dbx/vellum v0.0.0-20200826162549-f94c029903de
+	github.com/m3dbx/vellum v0.0.0-20201119082309-5b47f7a70f69
 	github.com/mauricelam/genny v0.0.0-20180903214747-eb2c5232c885
-	github.com/mjibson/esc v0.1.0
-	github.com/opencontainers/image-spec v1.0.1 // indirect
-	github.com/opencontainers/runc v0.1.1 // indirect
-	github.com/opentracing-contrib/go-stdlib v0.0.0-20190519235532-cf7a6c988dc9
+	github.com/opentracing-contrib/go-stdlib v1.0.0
 	github.com/opentracing/opentracing-go v1.2.0
-	github.com/ory/dockertest v3.3.5+incompatible
+	github.com/ory/dockertest/v3 v3.6.3
 	github.com/pborman/getopt v0.0.0-20160216163137-ec82d864f599
 	github.com/pborman/uuid v1.2.0
-	github.com/pelletier/go-toml v1.5.0 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/profile v1.2.1
-	github.com/pointlander/compress v1.1.0 // indirect
-	github.com/pointlander/jetset v1.0.0 // indirect
-	github.com/pointlander/peg v1.0.0
-	github.com/prashantv/protectmem v0.0.0-20171002184600-e20412882b3a // indirect
-	github.com/prometheus/client_golang v1.5.1
-	github.com/prometheus/common v0.9.1
-	github.com/prometheus/prometheus v1.8.2-0.20200420081721-18254838fbe2
+	github.com/prometheus/client_golang v1.12.1
+	github.com/prometheus/common v0.34.0
+	github.com/prometheus/prometheus v0.0.0-20211110084043-4ef8c7c1d8e4
 	github.com/rakyll/statik v0.1.6
-	github.com/remeh/sizedwaitgroup v1.0.0 // indirect
-	github.com/rhysd/go-github-selfupdate v1.2.2 // indirect
-	github.com/robskillington/gorename v0.0.0-20180424020013-52c7307cddd2
-	github.com/rveen/ogdl v0.0.0-20200522080342-eeeda1a978e7 // indirect
-	github.com/satori/go.uuid v1.2.0
 	github.com/sergi/go-diff v1.1.0
-	github.com/shirou/gopsutil v2.20.5+incompatible // indirect
-	github.com/spf13/cast v1.3.1-0.20190531151931-f31dc0aaab5a // indirect
-	github.com/spf13/cobra v0.0.5
-	github.com/spf13/jwalterweatherman v1.1.0 // indirect
-	github.com/spf13/pflag v1.0.5
-	github.com/spf13/viper v1.7.1
-	github.com/streadway/quantile v0.0.0-20150917103942-b0c588724d25 // indirect
-	github.com/stretchr/testify v1.6.1
-	github.com/subosito/gotenv v1.2.1-0.20190917103637-de67a6614a4d // indirect
+	github.com/spf13/cobra v1.3.0
+	github.com/stretchr/testify v1.7.0
 	github.com/twotwotwo/sorts v0.0.0-20160814051341-bf5c1f2b8553
-	github.com/uber-go/atomic v0.0.0-00010101000000-000000000000 // indirect
-	github.com/uber-go/tally v3.3.13+incompatible
-	github.com/uber/jaeger-client-go v2.25.0+incompatible
-	github.com/uber/jaeger-lib v2.2.0+incompatible
-	github.com/uber/tchannel-go v1.12.0
+	github.com/uber-go/tally v3.5.0+incompatible
+	github.com/uber/jaeger-client-go v2.29.1+incompatible
+	github.com/uber/jaeger-lib v2.4.1+incompatible
+	github.com/uber/tchannel-go v1.31.1-0.20220504180658-be708aa1a97d
 	github.com/valyala/tcplisten v0.0.0-20161114210144-ceec8f93295a
-	github.com/willf/bitset v1.1.10
-	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
-
-	// This is 3.4.13. Note: we need to specify the version this way due to the issue
-	// described in https://github.com/etcd-io/etcd/issues/11154 .
-	// Version string was obtained by the method described in
-	// https://github.com/etcd-io/etcd/issues/11154#issuecomment-568587798
-	go.etcd.io/etcd v0.5.0-alpha.5.0.20200824191128-ae9734ed278b
-	go.uber.org/atomic v1.6.0
+	github.com/willf/bitset v1.1.11
+	// etcd is currently on an alpha version to accomodate a GRPC version upgrade. See
+	// https://github.com/m3db/m3/issues/4090 for the followup task to move back to a stable version.
+	//  Gory details (why we're doing this):
+	//
+	//    - We import etcd/server/v3 via etcd/embed and etcd/testing/v3/frameworks/integration.
+	//    - etcd/server/v3 in 3.5.2 depends on pre 1.0 opentelemetry. Bleeding edge etcd depends on 1.0 opentelemetry
+	//    - M3 depends on 1.0 opentelemetry — this conflicts with etcd 3.5.2, but not bleeding edge etcd
+	go.etcd.io/etcd/api/v3 v3.6.0-alpha.0
+	go.etcd.io/etcd/client/pkg/v3 v3.6.0-alpha.0
+	go.etcd.io/etcd/client/v3 v3.6.0-alpha.0
+	go.etcd.io/etcd/server/v3 v3.6.0-alpha.0
+	go.opentelemetry.io/collector v0.45.0
+	go.opentelemetry.io/otel v1.4.1
+	go.opentelemetry.io/otel/bridge/opentracing v1.4.1
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.4.1
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.4.1
+	go.opentelemetry.io/otel/sdk v1.4.1
+	go.uber.org/atomic v1.9.0
 	go.uber.org/config v1.4.0
-	go.uber.org/zap v1.13.0
-	golang.org/x/lint v0.0.0-20191125180803-fdd1cda4f05f // indirect
-	golang.org/x/net v0.0.0-20200822124328-c89045814202
-	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
-	golang.org/x/sys v0.0.0-20200831180312-196b9ba8737a
-	golang.org/x/tools v0.0.0-20200601175630-2caf76543d99 // indirect
-	google.golang.org/grpc v1.27.1
-	gopkg.in/go-ini/ini.v1 v1.57.0 // indirect
-	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
-	gopkg.in/go-playground/validator.v9 v9.7.0
-	gopkg.in/ini.v1 v1.51.1 // indirect
-	gopkg.in/russross/blackfriday.v2 v2.0.0
-	gopkg.in/src-d/go-git.v4 v4.13.1 // indirect
+	go.uber.org/goleak v1.1.12
+	go.uber.org/zap v1.21.0
+	golang.org/x/net v0.0.0-20220225172249-27dd8689420f
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
+	golang.org/x/sys v0.0.0-20220422013727-9388b58f7150
+	google.golang.org/grpc v1.44.0
+	google.golang.org/protobuf v1.27.1
+	gopkg.in/go-playground/validator.v9 v9.29.1
 	gopkg.in/validator.v2 v2.0.0-20160201165114-3e4f037f12a1
 	gopkg.in/vmihailenco/msgpack.v2 v2.8.3
-	gopkg.in/yaml.v2 v2.2.8
-	gotest.tools v2.2.0+incompatible
+	gopkg.in/yaml.v2 v2.4.0
 )
 
-// branch 0.9.3-pool-read-binary-3
-replace github.com/apache/thrift => github.com/m3db/thrift v0.0.0-20190820191926-05b5a2227fe4
+require (
+	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
+	github.com/CAFxX/gcnotifier v0.0.0-20190112062741-224a280d589d // indirect
+	github.com/DataDog/datadog-go v3.7.1+incompatible // indirect
+	github.com/Microsoft/go-winio v0.4.17 // indirect
+	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
+	github.com/StackExchange/wmi v0.0.0-20210224194228-fe8f1750fd46 // indirect
+	github.com/alecthomas/units v0.0.0-20210927113745-59d0afb8317a // indirect
+	github.com/aws/aws-sdk-go v1.41.7 // indirect
+	github.com/benbjohnson/clock v1.3.0 // indirect
+	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/cenkalti/backoff/v4 v4.1.2 // indirect
+	github.com/containerd/continuity v0.1.0 // indirect
+	github.com/coreos/go-semver v0.3.0 // indirect
+	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
+	github.com/dennwc/varint v1.0.0 // indirect
+	github.com/docker/go-connections v0.4.0 // indirect
+	github.com/docker/go-units v0.4.0 // indirect
+	github.com/dustin/go-humanize v1.0.0 // indirect
+	github.com/edsrzf/mmap-go v1.0.0 // indirect
+	github.com/felixge/httpsnoop v1.0.2 // indirect
+	github.com/glycerine/go-unsnap-stream v0.0.0-20181221182339-f9677308dec2 // indirect
+	github.com/go-kit/log v0.2.0 // indirect
+	github.com/go-logfmt/logfmt v0.5.1 // indirect
+	github.com/go-logr/logr v1.2.2 // indirect
+	github.com/go-logr/stdr v1.2.2 // indirect
+	github.com/go-playground/locales v0.13.0 // indirect
+	github.com/go-playground/universal-translator v0.17.0 // indirect
+	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
+	github.com/google/btree v1.0.1 // indirect
+	github.com/gorilla/handlers v1.5.1 // indirect
+	github.com/gorilla/websocket v1.4.2 // indirect
+	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
+	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
+	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
+	github.com/hashicorp/hcl v1.0.1-0.20190611123218-cf7d376da96d // indirect
+	github.com/inconshreveable/mousetrap v1.0.0 // indirect
+	github.com/jmespath/go-jmespath v0.4.0 // indirect
+	github.com/jpillora/backoff v1.0.0 // indirect
+	github.com/knadh/koanf v1.4.0 // indirect
+	github.com/leodido/go-urn v1.2.1 // indirect
+	github.com/lib/pq v1.9.0 // indirect
+	github.com/lightstep/lightstep-tracer-common/golang/gogo v0.0.0-20190605223551-bc2310a04743 // indirect
+	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
+	github.com/mitchellh/copystructure v1.2.0 // indirect
+	github.com/mitchellh/mapstructure v1.4.3 // indirect
+	github.com/mitchellh/reflectwalk v1.0.2 // indirect
+	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6 // indirect
+	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
+	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/mostynb/go-grpc-compression v1.1.16 // indirect
+	github.com/mschoch/smat v0.0.0-20160514031455-90eadee771ae // indirect
+	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
+	github.com/oklog/ulid v1.3.1 // indirect
+	github.com/onsi/ginkgo v1.14.2 // indirect
+	github.com/onsi/gomega v1.10.4 // indirect
+	github.com/opencontainers/go-digest v1.0.0 // indirect
+	github.com/opencontainers/image-spec v1.0.1 // indirect
+	github.com/opencontainers/runc v1.0.2 // indirect
+	github.com/philhofer/fwd v1.0.0 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/prometheus/client_model v0.2.0 // indirect
+	github.com/prometheus/common/sigv4 v0.1.0 // indirect
+	github.com/prometheus/procfs v0.7.3 // indirect
+	github.com/rs/cors v1.8.2 // indirect
+	github.com/shirou/gopsutil v3.21.6+incompatible // indirect
+	github.com/sirupsen/logrus v1.8.1 // indirect
+	github.com/soheilhy/cmux v0.1.5 // indirect
+	github.com/spf13/cast v1.4.1 // indirect
+	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/stretchr/objx v0.3.0 // indirect
+	github.com/tinylib/msgp v1.1.0 // indirect
+	github.com/tmc/grpc-websocket-proxy v0.0.0-20201229170055-e5319fda7802 // indirect
+	github.com/twmb/murmur3 v1.1.6 // indirect
+	github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 // indirect
+	go.etcd.io/bbolt v1.3.6 // indirect
+	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0 // indirect
+	go.etcd.io/etcd/pkg/v3 v3.6.0-alpha.0 // indirect
+	go.etcd.io/etcd/raft/v3 v3.6.0-alpha.0 // indirect
+	go.opencensus.io v0.23.0 // indirect
+	go.opentelemetry.io/collector/model v0.45.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.28.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.28.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.4.1 // indirect
+	go.opentelemetry.io/otel/internal/metric v0.27.0 // indirect
+	go.opentelemetry.io/otel/metric v0.27.0 // indirect
+	go.opentelemetry.io/otel/trace v1.4.1 // indirect
+	go.opentelemetry.io/proto/otlp v0.12.0 // indirect
+	go.uber.org/multierr v1.7.0 // indirect
+	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5 // indirect
+	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
+	golang.org/x/oauth2 v0.0.0-20220223155221-ee480838109b // indirect
+	golang.org/x/text v0.3.7 // indirect
+	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
+	golang.org/x/tools v0.1.7 // indirect
+	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
+	google.golang.org/appengine v1.6.7 // indirect
+	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa // indirect
+	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
+	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
+	sigs.k8s.io/yaml v1.2.0 // indirect
+)
 
 // NB(nate): upgrading to the latest msgpack is not backwards compatibile as msgpack will no longer attempt to automatically
 // write an integer into the smallest number of bytes it will fit in. We rely on this behavior by having helper methods
@@ -149,16 +206,25 @@ replace gopkg.in/vmihailenco/msgpack.v2 => github.com/vmihailenco/msgpack v2.8.3
 
 replace github.com/stretchr/testify => github.com/stretchr/testify v1.1.4-0.20160305165446-6fe211e49392
 
-replace github.com/prometheus/common => github.com/prometheus/common v0.9.1
+replace github.com/google/flatbuffers => github.com/google/flatbuffers v1.12.1
 
 // Fix legacy import path - https://github.com/uber-go/atomic/pull/60
 replace github.com/uber-go/atomic => github.com/uber-go/atomic v1.4.0
 
-// Pull in https://github.com/etcd-io/bbolt/pull/220, required for go 1.14 compatibility
-//
-// etcd 3.14.13 depends on v1.3.3, but everything before v1.3.5 has unsafe misuses, and fails hard on go 1.14
-// TODO: remove after etcd pulls in the change to a new release on 3.4 branch
-replace go.etcd.io/bbolt => go.etcd.io/bbolt v1.3.5
+replace google.golang.org/grpc => google.golang.org/grpc v1.40.1
 
-// https://github.com/ory/dockertest/issues/212
-replace golang.org/x/sys => golang.org/x/sys v0.0.0-20200826173525-f9321e4c35a6
+// TODO: this can be removed once M3 is on Go 1.17.x
+// This is here because of a dependency chain that makes client/v2 hard dependent on Go 1.17. Specifically:
+//~ /Code/m3 $ go mod why sigs.k8s.io/json
+// # sigs.k8s.io/json
+// github.com/m3db/m3/src/aggregator/integration
+// go.etcd.io/etcd/tests/v3/framework/integration
+// go.etcd.io/etcd/server/v3/etcdserver
+// go.etcd.io/etcd/server/v3/etcdserver/api/v2discovery
+// go.etcd.io/etcd/client/v2
+// sigs.k8s.io/json
+// This dependency chain is recently added,
+// (in https://github.com/etcd-io/etcd/commit/b5e4c2d3c483d9c3d03a0f97ae7b07607f38a5cc)
+// and not actually relevant to anything used by M3 (we are on client/v3).
+// Therefore, replace client/v2 to avoid the bad dependency chain until we upgrade.
+replace go.etcd.io/etcd/client/v2 => go.etcd.io/etcd/client/v2 v2.305.0-alpha.0.0.20211029212747-6656181d312a

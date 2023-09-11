@@ -29,7 +29,9 @@ import (
 
 	raggregation "github.com/m3db/m3/src/aggregator/aggregation"
 	maggregation "github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
+	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	mpipeline "github.com/m3db/m3/src/metrics/pipeline"
@@ -37,9 +39,11 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/transformation"
 	"github.com/m3db/m3/src/x/pool"
-	"go.uber.org/zap"
+	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/uber-go/tally"
 	"github.com/willf/bitset"
+	"go.uber.org/zap"
 )
 
 const (
@@ -49,18 +53,25 @@ const (
 	// Default initial number of sources.
 	defaultNumSources = 1024
 
+	// Default number of versions.
+	defaultNumVersions = 4
+
 	// Maximum transformation derivative order that is supported.
 	// A default value of 1 means we currently only support transformations that
 	// compute first-order derivatives. This applies to the most common usecases
 	// without imposing significant bookkeeping overhead.
 	maxSupportedTransformationDerivativeOrder = 1
+	listTypeLabel                             = "list-type"
+	resolutionLabel                           = "resolution"
+	flushTypeLabel                            = "flush-type"
 )
 
 var (
-	nan                          = math.NaN()
-	errElemClosed                = errors.New("element is closed")
-	errAggregationClosed         = errors.New("aggregation is closed")
-	errDuplicateForwardingSource = errors.New("duplicate forwarding source")
+	nan                                   = math.NaN()
+	errElemClosed                         = errors.New("element is closed")
+	errAggregationClosed                  = errors.New("aggregation is closed")
+	errClosedBeforeResendEnabledMigration = errors.New("aggregation closed before resendEnabled migration")
+	errDuplicateForwardingSource          = errors.New("duplicate forwarding source")
 )
 
 // isEarlierThanFn determines whether the timestamps of the metrics in a given
@@ -87,29 +98,23 @@ const (
 	NoPrefixNoSuffix
 )
 
+type forwardType int
+
+const (
+	// NB(vytenis): keep this zero-indexed
+	forwardTypeLocal forwardType = iota
+	forwardTypeRemote
+	forwardTypeInvalid // must be the last value in the list - used as a sentinel value for metric scope generation
+)
+
 // metricElem is the common interface for metric elements.
 type metricElem interface {
-	// Type returns the metric type.
-	Type() metric.Type
-
+	Registerable
 	// ID returns the metric id.
 	ID() id.RawID
 
-	// ForwardedID returns the id of the forwarded metric if applicable.
-	ForwardedID() (id.RawID, bool)
-
-	// ForwardedAggregationKey returns the forwarded aggregation key if applicable.
-	ForwardedAggregationKey() (aggregationKey, bool)
-
 	// ResetSetData resets the element and sets data.
-	ResetSetData(
-		id id.RawID,
-		sp policy.StoragePolicy,
-		aggTypes maggregation.Types,
-		pipeline applied.Pipeline,
-		numForwardedTimes int,
-		idPrefixSuffixType IDPrefixSuffixType,
-	) error
+	ResetSetData(data ElemData) error
 
 	// SetForwardedCallbacks sets the callback functions to write forwarded
 	// metrics for elements producing such forwarded metrics.
@@ -119,15 +124,15 @@ type metricElem interface {
 	)
 
 	// AddUnion adds a metric value union at a given timestamp.
-	AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) error
+	AddUnion(timestamp time.Time, mu unaggregated.MetricUnion, resendEnabled bool) error
 
 	// AddMetric adds a metric value at a given timestamp.
-	AddValue(timestamp time.Time, value float64) error
+	AddValue(timestamp time.Time, value float64, annotation []byte) error
 
 	// AddUnique adds a metric value from a given source at a given timestamp.
-	// If previous values from the same source have already been added to the
+	// If previous values from the same source/version have already been added to the
 	// same aggregation, the incoming value is discarded.
-	AddUnique(timestamp time.Time, values []float64, sourceID uint32) error
+	AddUnique(timestamp time.Time, metric aggregated.ForwardedMetric, metadata metadata.ForwardMetadata) error
 
 	// Consume consumes values before a given time and removes
 	// them from the element after they are consumed, returning whether
@@ -136,9 +141,12 @@ type metricElem interface {
 		targetNanos int64,
 		isEarlierThanFn isEarlierThanFn,
 		timestampNanosFn timestampNanosFn,
+		targetNanosFn targetNanosFn,
 		flushLocalFn flushLocalMetricFn,
 		flushForwardedFn flushForwardedMetricFn,
 		onForwardedFlushedFn onForwardingElemFlushedFn,
+		jitter time.Duration,
+		flushType flushType,
 	) bool
 
 	// MarkAsTombstoned marks an element as tombstoned, which means this element
@@ -147,6 +155,17 @@ type metricElem interface {
 
 	// Close closes the element.
 	Close()
+}
+
+// ElemData are initialization parameters for an element.
+type ElemData struct {
+	ID                 id.RawID
+	AggTypes           maggregation.Types
+	Pipeline           applied.Pipeline
+	StoragePolicy      policy.StoragePolicy
+	NumForwardedTimes  int
+	IDPrefixSuffixType IDPrefixSuffixType
+	ListType           metricListType
 }
 
 // nolint: maligned
@@ -158,7 +177,6 @@ type elemBase struct {
 	aggTypesOpts                    maggregation.TypesOptions
 	id                              id.RawID
 	sp                              policy.StoragePolicy
-	useDefaultAggregation           bool
 	aggTypes                        maggregation.Types
 	aggOpts                         raggregation.Options
 	parsedPipeline                  parsedPipeline
@@ -166,48 +184,289 @@ type elemBase struct {
 	idPrefixSuffixType              IDPrefixSuffixType
 	writeForwardedMetricFn          writeForwardedMetricFn
 	onForwardedAggregationWrittenFn onForwardedAggregationDoneFn
+	metrics                         *elemMetrics
+	bufferForPastTimedMetricFn      BufferForPastTimedMetricFn
+	listType                        metricListType
 
 	// Mutable states.
-	tombstoned           bool
-	closed               bool
-	cachedSourceSetsLock sync.Mutex       // nolint: structcheck
-	cachedSourceSets     []*bitset.BitSet // nolint: structcheck
+	cachedSourceSets []map[uint32]*bitset.BitSet // nolint: structcheck
+	// a cache of the flush metrics that don't require grabbing a lock to access.
+	flushMetricsCache     map[flushKey]*flushMetrics
+	writeMetrics          writeMetrics
+	tombstoned            bool
+	closed                bool
+	useDefaultAggregation bool // really immutable, but packed w/ the rest of bools
 }
 
-func newElemBase(opts Options) elemBase {
-	return elemBase{
-		opts:         opts,
-		aggTypesOpts: opts.AggregationTypesOptions(),
-		aggOpts:      raggregation.NewOptions(opts.InstrumentOptions()),
+// consumeState is transient state for a timedAggregation that can change every flush round.
+// this state is thrown away after the timedAggregation is processed in a flush round.
+type consumeState struct {
+	// the annotation copied from the lockedAgg.
+	annotation []byte
+	// the values copied from the lockedAgg.
+	values []float64
+	// the start time of the aggregation.
+	startAt xtime.UnixNano
+	// the start aligned timestamp of the previous aggregation. used to lookup the consumedValues of the previous
+	// aggregation for binary transformations.
+	prevStartTime xtime.UnixNano
+	// the lastUpdatedAt time copied from the lockedAgg.
+	lastUpdatedAt xtime.UnixNano
+	// the dirty bit copied from the lockedAgg.
+	dirty bool
+	// the resendEnabled bit copied from the lockedAgg
+	resendEnabled bool
+}
+
+// Reset resets the consume state for reuse.
+func (c *consumeState) Reset() {
+	*c = consumeState{
+		annotation: c.annotation[:0],
+		values:     c.values[:0],
 	}
 }
 
+// mutable state for a timedAggregation that is local to the flusher. does not need to be synchronized.
+// this state is kept around for the lifetime of the timedAggregation.
+type flushState struct {
+	// the consumed values from the previous flush. used for binary transformations. note these are the values before
+	// transformation. emittedValues are after transformation.
+	consumedValues []float64
+	// the emitted values from the previous flush. used to determine if the emitted values have not changed and
+	// can be skipped.
+	emittedValues []float64
+	// true if this aggregation has ever been flushed.
+	flushed bool
+	// true if the aggregation was flushed with resendEnabled. this is copied from the lockedAggregation at the time
+	// of flush. this value can change on a lockedAggregation while it's still open, so this only represents the state
+	// at the time of the last flush.
+	latestResendEnabled bool
+}
+
+var isDirty = func(state *consumeState) bool {
+	return state.dirty
+}
+
+// close is called when the aggregation has expired and is no longer needed.
+func (f *flushState) close() {
+	f.consumedValues = f.consumedValues[:0]
+	f.emittedValues = f.emittedValues[:0]
+}
+
+type writeMetrics struct {
+	writes        tally.Counter
+	updatedValues tally.Counter
+}
+
+func newWriteMetrics(scope tally.Scope) writeMetrics {
+	return writeMetrics{
+		updatedValues: scope.Counter("updated-values"),
+		writes:        scope.Counter("writes"),
+	}
+}
+
+// flushMetrics are the metrics produced by a flush task processing the metric element.
+type flushMetrics struct {
+	// count of element scanned.
+	elemsScanned tally.Counter
+	// count of values (i.e aggregated timestamps) processed.
+	valuesProcessed tally.Counter
+	// count of values expired.
+	valuesExpired tally.Counter
+	// the difference between actual and expected processing for a value.
+	jitteredForwardLags    [int(forwardTypeInvalid)]tally.Histogram
+	nonJitteredForwardLags [int(forwardTypeInvalid)]tally.Histogram
+}
+
+func newFlushMetrics(scope tally.Scope) *flushMetrics {
+	forwardLagBuckets := tally.DurationBuckets{
+		10 * time.Millisecond,
+		500 * time.Millisecond,
+		time.Second,
+		2 * time.Second,
+		5 * time.Second,
+		10 * time.Second,
+		15 * time.Second,
+		20 * time.Second,
+		25 * time.Second,
+		30 * time.Second,
+		35 * time.Second,
+		40 * time.Second,
+		45 * time.Second,
+		60 * time.Second,
+		90 * time.Second,
+		120 * time.Second,
+	}
+
+	m := flushMetrics{
+		elemsScanned:    scope.Counter("elements-scanned"),
+		valuesProcessed: scope.Counter("values-processed"),
+		valuesExpired:   scope.Counter("values-expired"),
+	}
+	// forwardTypeInvalid is a sentinel value, marking the maximum index for forwardMetricType consts
+	for i := 0; i < int(forwardTypeInvalid); i++ {
+		tv := forwardType(i)
+		m.jitteredForwardLags[i] = scope.
+			Tagged(forwardKey{fwdType: tv, jitter: true}.toTags()).
+			Histogram("forward-lag", forwardLagBuckets)
+		m.nonJitteredForwardLags[i] = scope.
+			Tagged(forwardKey{fwdType: tv, jitter: false}.toTags()).
+			Histogram("forward-lag", forwardLagBuckets)
+	}
+	return &m
+}
+
+func (f flushMetrics) forwardLag(key forwardKey) tally.Histogram {
+	if key.jitter {
+		return f.jitteredForwardLags[key.fwdType]
+	}
+
+	return f.nonJitteredForwardLags[key.fwdType]
+}
+
+// flushKey identifies a flush task.
+type flushKey struct {
+	resolution time.Duration
+	listType   metricListType
+	flushType  flushType
+}
+
+// forwardKey identifies a type of forwarding lag.
+type forwardKey struct {
+	fwdType forwardType
+	jitter  bool
+}
+
+func (f forwardKey) toTags() map[string]string {
+	jitter := "false"
+	if f.jitter {
+		jitter = "true"
+	}
+	fwdType := "local"
+	if f.fwdType == forwardTypeRemote {
+		fwdType = "remote"
+	}
+	return map[string]string{
+		"type":   fwdType,
+		"jitter": jitter,
+	}
+}
+
+func (f flushKey) toTags() map[string]string {
+	return map[string]string{
+		resolutionLabel: f.resolution.String(),
+		listTypeLabel:   f.listType.String(),
+		flushTypeLabel:  f.flushType.String(),
+	}
+}
+
+type elemMetrics struct {
+	scope tally.Scope
+	write [int(invalidMetricListType)]writeMetrics
+	flush map[flushKey]*flushMetrics
+	mtx   sync.RWMutex
+}
+
+func newElemMetrics(scope tally.Scope) *elemMetrics {
+	m := elemMetrics{
+		scope: scope,
+		flush: make(map[flushKey]*flushMetrics),
+	}
+	// invalidMetricListType is a sentinel value, marking the maximum index for metricListType consts
+	for i := 0; i < int(invalidMetricListType); i++ {
+		m.write[i] = newWriteMetrics(scope.Tagged(map[string]string{listTypeLabel: (metricListType)(i).String()}))
+	}
+	return &m
+}
+
+func (e *elemMetrics) flushMetrics(key flushKey) *flushMetrics {
+	e.mtx.RLock()
+	if m, ok := e.flush[key]; ok {
+		e.mtx.RUnlock()
+		return m
+	}
+	e.mtx.RUnlock()
+
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
+	if m, ok := e.flush[key]; ok {
+		return m
+	}
+
+	m := newFlushMetrics(e.scope.Tagged(key.toTags()))
+	e.flush[key] = m
+
+	return m
+}
+
+func (e *elemMetrics) writeMetrics(key metricListType) writeMetrics {
+	return e.write[key]
+}
+
+// ElemOptions are the parameters for constructing a new elemBase.
+type ElemOptions struct {
+	aggregatorOpts  Options
+	elemMetrics     *elemMetrics
+	aggregationOpts raggregation.Options
+}
+
+// NewElemOptions constructs a new ElemOptions
+func NewElemOptions(aggregatorOpts Options) ElemOptions {
+	scope := aggregatorOpts.InstrumentOptions().MetricsScope()
+	return ElemOptions{
+		aggregatorOpts:  aggregatorOpts,
+		aggregationOpts: raggregation.NewOptions(aggregatorOpts.InstrumentOptions()),
+		elemMetrics:     newElemMetrics(scope),
+	}
+}
+
+func newElemBase(opts ElemOptions) elemBase {
+	return elemBase{
+		opts:                       opts.aggregatorOpts,
+		aggTypesOpts:               opts.aggregatorOpts.AggregationTypesOptions(),
+		aggOpts:                    opts.aggregationOpts,
+		metrics:                    opts.elemMetrics,
+		bufferForPastTimedMetricFn: opts.aggregatorOpts.BufferForPastTimedMetricFn(),
+		flushMetricsCache:          make(map[flushKey]*flushMetrics),
+	}
+}
+
+func (e *elemBase) flushMetrics(resolution time.Duration, flushType flushType) *flushMetrics {
+	key := flushKey{
+		resolution: resolution,
+		flushType:  flushType,
+		listType:   e.listType,
+	}
+	m, ok := e.flushMetricsCache[key]
+	if !ok {
+		// if not cached locally, get from the singleton map that requires locking.
+		m = e.metrics.flushMetrics(key)
+		e.flushMetricsCache[key] = m
+	}
+	return m
+}
+
 // resetSetData resets the element base and sets data.
-func (e *elemBase) resetSetData(
-	id id.RawID,
-	sp policy.StoragePolicy,
-	aggTypes maggregation.Types,
-	useDefaultAggregation bool,
-	pipeline applied.Pipeline,
-	numForwardedTimes int,
-	idPrefixSuffixType IDPrefixSuffixType,
-) error {
-	parsed, err := newParsedPipeline(pipeline)
+func (e *elemBase) resetSetData(data ElemData, useDefaultAggregation bool) error {
+	parsed, err := newParsedPipeline(data.Pipeline)
 	if err != nil {
 		l := e.opts.InstrumentOptions().Logger()
 		l.Error("error parsing pipeline", zap.Error(err))
 		return err
 	}
-	e.id = id
-	e.sp = sp
-	e.aggTypes = aggTypes
+	e.id = data.ID
+	e.sp = data.StoragePolicy
+	e.aggTypes = data.AggTypes
 	e.useDefaultAggregation = useDefaultAggregation
-	e.aggOpts.ResetSetData(aggTypes)
+	e.aggOpts.ResetSetData(data.AggTypes)
 	e.parsedPipeline = parsed
-	e.numForwardedTimes = numForwardedTimes
+	e.numForwardedTimes = data.NumForwardedTimes
 	e.tombstoned = false
 	e.closed = false
-	e.idPrefixSuffixType = idPrefixSuffixType
+	e.idPrefixSuffixType = data.IDPrefixSuffixType
+	e.listType = data.ListType
+	e.writeMetrics = e.metrics.writeMetrics(e.listType)
 	return nil
 }
 
@@ -481,4 +740,77 @@ func newParsedPipeline(pipeline applied.Pipeline) (parsedPipeline, error) {
 		Remainder:              remainder,
 		Rollup:                 rollup,
 	}, nil
+}
+
+// Placeholder to make compiler happy about generic elem base.
+// NB: lockedAggregationFromPool and not newLockedAggregation to avoid yet another rename hack in makefile
+func lockedAggregationFromPool(
+	aggregation typeSpecificAggregation,
+	sourcesSeen map[uint32]*bitset.BitSet,
+) *lockedAggregation {
+	return &lockedAggregation{
+		aggregation: aggregation,
+		sourcesSeen: sourcesSeen,
+	}
+}
+
+func (l *lockedAggregation) close() {
+	l.aggregation.Close()
+}
+
+var lockedCounterAggregationPool = sync.Pool{New: func() interface{} { return &lockedCounterAggregation{} }}
+
+func lockedCounterAggregationFromPool(
+	aggregation counterAggregation,
+	sourcesSeen map[uint32]*bitset.BitSet,
+) *lockedCounterAggregation {
+	l := lockedCounterAggregationPool.Get().(*lockedCounterAggregation)
+	l.aggregation = aggregation
+	l.sourcesSeen = sourcesSeen
+
+	return l
+}
+
+func (l *lockedCounterAggregation) close() {
+	l.aggregation.Close()
+	*l = lockedCounterAggregation{}
+	lockedCounterAggregationPool.Put(l)
+}
+
+var lockedGaugeAggregationPool = sync.Pool{New: func() interface{} { return &lockedGaugeAggregation{} }}
+
+func lockedGaugeAggregationFromPool(
+	aggregation gaugeAggregation,
+	sourcesSeen map[uint32]*bitset.BitSet,
+) *lockedGaugeAggregation {
+	l := lockedGaugeAggregationPool.Get().(*lockedGaugeAggregation)
+	l.aggregation = aggregation
+	l.sourcesSeen = sourcesSeen
+
+	return l
+}
+
+func (l *lockedGaugeAggregation) close() {
+	l.aggregation.Close()
+	*l = lockedGaugeAggregation{}
+	lockedGaugeAggregationPool.Put(l)
+}
+
+var lockedTimerAggregationPool = sync.Pool{New: func() interface{} { return &lockedTimerAggregation{} }}
+
+func lockedTimerAggregationFromPool(
+	aggregation timerAggregation,
+	sourcesSeen map[uint32]*bitset.BitSet,
+) *lockedTimerAggregation {
+	l := lockedTimerAggregationPool.Get().(*lockedTimerAggregation)
+	l.aggregation = aggregation
+	l.sourcesSeen = sourcesSeen
+
+	return l
+}
+
+func (l *lockedTimerAggregation) close() {
+	l.aggregation.Close()
+	*l = lockedTimerAggregation{}
+	lockedTimerAggregationPool.Put(l)
 }

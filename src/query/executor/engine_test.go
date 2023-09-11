@@ -28,14 +28,13 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/cost"
-	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -45,13 +44,11 @@ import (
 func newEngine(
 	s storage.Storage,
 	lookbackDuration time.Duration,
-	enforcer qcost.ChainedEnforcer,
 	instrumentOpts instrument.Options,
 ) Engine {
 	engineOpts := NewEngineOptions().
 		SetStore(s).
 		SetLookbackDuration(lookbackDuration).
-		SetGlobalEnforcer(enforcer).
 		SetInstrumentOptions(instrumentOpts)
 
 	return NewEngine(engineOpts)
@@ -60,12 +57,12 @@ func newEngine(
 func TestExecute(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	store, session := m3.NewStorageAndSession(t, ctrl)
-	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(),
+	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any(),
 		gomock.Any()).Return(nil, client.FetchResponseMetadata{Exhaustive: false}, fmt.Errorf("dummy"))
 	session.EXPECT().IteratorPools().Return(nil, nil)
 
 	// Results is closed by execute
-	engine := newEngine(store, time.Minute, nil, instrument.NewOptions())
+	engine := newEngine(store, time.Minute, instrument.NewOptions())
 	_, err := engine.ExecuteProm(context.TODO(),
 		&storage.FetchQuery{}, &QueryOptions{}, storage.NewFetchOptions())
 	assert.NotNil(t, err)
@@ -74,12 +71,6 @@ func TestExecute(t *testing.T) {
 func TestExecuteExpr(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
-
-	mockEnforcer := cost.NewMockChainedEnforcer(ctrl)
-	mockEnforcer.EXPECT().Close().Times(1)
-
-	mockParent := cost.NewMockChainedEnforcer(ctrl)
-	mockParent.EXPECT().Child(gomock.Any()).Return(mockEnforcer)
 
 	parser, err := promql.Parse("foo", time.Second,
 		models.NewTagOptions(), promql.NewParseOptions())
@@ -91,11 +82,11 @@ func TestExecuteExpr(t *testing.T) {
 			Blocks: []block.Block{block.NewMockBlock(ctrl)},
 		}, nil)
 	engine := newEngine(store, defaultLookbackDuration,
-		mockParent, instrument.NewOptions())
+		instrument.NewOptions())
 	_, err = engine.ExecuteExpr(context.TODO(), parser,
 		&QueryOptions{}, storage.NewFetchOptions(), models.RequestParams{
-			Start: time.Now().Add(-2 * time.Second),
-			End:   time.Now(),
+			Start: xtime.Now().Add(-2 * time.Second),
+			End:   xtime.Now(),
 			Step:  time.Second,
 		})
 

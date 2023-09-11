@@ -21,6 +21,7 @@
 package fst
 
 import (
+	"github.com/m3db/m3/src/m3ninx/generated/proto/fswriter"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	postingsroaring "github.com/m3db/m3/src/m3ninx/postings/roaring"
@@ -78,6 +79,10 @@ func (f *fstTermsPostingsIter) reset(
 	f.termsIter = termsIter
 }
 
+func (f *fstTermsPostingsIter) Empty() bool {
+	return f.termsIter.Empty()
+}
+
 func (f *fstTermsPostingsIter) Next() bool {
 	if f.err != nil {
 		return false
@@ -92,8 +97,17 @@ func (f *fstTermsPostingsIter) Next() bool {
 	currOffset := f.termsIter.CurrentOffset()
 
 	f.seg.RLock()
-	f.err = f.seg.unmarshalPostingsListBitmapNotClosedMaybeFinalizedWithLock(f.bitmap,
-		currOffset)
+	if f.termsIter.opts.fieldsFST {
+		var fieldsData fswriter.FieldData
+		fieldsData, f.err = f.seg.unmarshalFieldDataNotClosedMaybeFinalizedWithRLock(currOffset)
+		currOffset = fieldsData.FieldPostingsListOffset
+	}
+	if f.err == nil {
+		// Only attempt if the previous unmarshal definitely succeeded
+		// if we are operating on a fields FST.
+		f.err = f.seg.unmarshalPostingsListBitmapNotClosedMaybeFinalizedWithLock(f.bitmap,
+			currOffset)
+	}
 	f.seg.RUnlock()
 
 	return f.err == nil

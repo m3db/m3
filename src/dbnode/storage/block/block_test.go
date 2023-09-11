@@ -41,7 +41,7 @@ import (
 
 func testDatabaseBlock(ctrl *gomock.Controller) *dbBlock {
 	opts := NewOptions()
-	b := NewDatabaseBlock(time.Now(), 0, ts.Segment{}, opts, namespace.Context{}).(*dbBlock)
+	b := NewDatabaseBlock(xtime.Now(), 0, ts.Segment{}, opts, namespace.Context{}).(*dbBlock)
 	return b
 }
 
@@ -49,7 +49,7 @@ func testDatabaseSeriesBlocks() *databaseSeriesBlocks {
 	return NewDatabaseSeriesBlocks(0).(*databaseSeriesBlocks)
 }
 
-func testDatabaseSeriesBlocksWithTimes(times []time.Time, sizes []time.Duration) *databaseSeriesBlocks {
+func testDatabaseSeriesBlocksWithTimes(times []xtime.UnixNano, sizes []time.Duration) *databaseSeriesBlocks {
 	opts := NewOptions()
 	blocks := testDatabaseSeriesBlocks()
 	for i := range times {
@@ -60,13 +60,14 @@ func testDatabaseSeriesBlocksWithTimes(times []time.Time, sizes []time.Duration)
 	return blocks
 }
 
-func validateBlocks(t *testing.T, blocks *databaseSeriesBlocks, minTime, maxTime time.Time, expectedTimes []time.Time, expectedSizes []time.Duration) {
-	require.True(t, minTime.Equal(blocks.MinTime()))
-	require.True(t, maxTime.Equal(blocks.MaxTime()))
+func validateBlocks(t *testing.T, blocks *databaseSeriesBlocks, minTime,
+	maxTime xtime.UnixNano, expectedTimes []xtime.UnixNano, expectedSizes []time.Duration) {
+	require.Equal(t, minTime, blocks.MinTime())
+	require.Equal(t, maxTime, blocks.MaxTime())
 	allBlocks := blocks.elems
 	require.Equal(t, len(expectedTimes), len(allBlocks))
 	for i, timestamp := range expectedTimes {
-		block, exists := allBlocks[xtime.ToUnixNano(timestamp)]
+		block, exists := allBlocks[timestamp]
 		require.True(t, exists)
 		assert.Equal(t, block.BlockSize(), expectedSizes[i])
 	}
@@ -76,7 +77,7 @@ func TestDatabaseBlockReadFromClosedBlock(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	block := testDatabaseBlock(ctrl)
@@ -117,15 +118,15 @@ func TestDatabaseBlockMerge(t *testing.T) {
 	defer ctrl.Finish()
 
 	// Test data
-	curr := time.Now()
+	curr := xtime.Now()
 	data := []ts.Datapoint{
 		ts.Datapoint{
-			Timestamp: curr,
-			Value:     0,
+			TimestampNanos: curr,
+			Value:          0,
 		},
 		ts.Datapoint{
-			Timestamp: curr.Add(time.Second),
-			Value:     1,
+			TimestampNanos: curr.Add(time.Second),
+			Value:          1,
 		},
 	}
 	durations := []time.Duration{
@@ -152,15 +153,17 @@ func TestDatabaseBlockMerge(t *testing.T) {
 	encodingOpts := encoding.NewOptions()
 
 	// Create the two blocks we plan to merge
-	encoder := m3tsz.NewEncoder(data[0].Timestamp, nil, true, encodingOpts)
+	encoder := m3tsz.NewEncoder(data[0].TimestampNanos, nil, true, encodingOpts)
 	encoder.Encode(data[0], xtime.Second, nil)
 	seg := encoder.Discard()
-	block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts, namespace.Context{}).(*dbBlock)
+	block1 := NewDatabaseBlock(data[0].TimestampNanos, durations[0], seg,
+		blockOpts, namespace.Context{}).(*dbBlock)
 
-	encoder.Reset(data[1].Timestamp, 10, nil)
+	encoder.Reset(data[1].TimestampNanos, 10, nil)
 	encoder.Encode(data[1], xtime.Second, nil)
 	seg = encoder.Discard()
-	block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts, namespace.Context{}).(*dbBlock)
+	block2 := NewDatabaseBlock(data[1].TimestampNanos, durations[1], seg,
+		blockOpts, namespace.Context{}).(*dbBlock)
 
 	// Lazily merge the two blocks
 	block1.Merge(block2)
@@ -215,15 +218,15 @@ func TestDatabaseBlockMergeRace(t *testing.T) {
 	for i := 0; i < numRuns; i++ {
 		func() {
 			// Test data
-			curr := time.Now()
+			curr := xtime.Now()
 			data := []ts.Datapoint{
 				ts.Datapoint{
-					Timestamp: curr,
-					Value:     0,
+					TimestampNanos: curr,
+					Value:          0,
 				},
 				ts.Datapoint{
-					Timestamp: curr.Add(time.Second),
-					Value:     1,
+					TimestampNanos: curr.Add(time.Second),
+					Value:          1,
 				},
 			}
 			durations := []time.Duration{
@@ -236,15 +239,15 @@ func TestDatabaseBlockMergeRace(t *testing.T) {
 			encodingOpts := encoding.NewOptions()
 
 			// Create the two blocks we plan to merge
-			encoder := m3tsz.NewEncoder(data[0].Timestamp, nil, true, encodingOpts)
+			encoder := m3tsz.NewEncoder(data[0].TimestampNanos, nil, true, encodingOpts)
 			encoder.Encode(data[0], xtime.Second, nil)
 			seg := encoder.Discard()
-			block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts, namespace.Context{}).(*dbBlock)
+			block1 := NewDatabaseBlock(data[0].TimestampNanos, durations[0], seg, blockOpts, namespace.Context{}).(*dbBlock)
 
-			encoder.Reset(data[1].Timestamp, 10, nil)
+			encoder.Reset(data[1].TimestampNanos, 10, nil)
 			encoder.Encode(data[1], xtime.Second, nil)
 			seg = encoder.Discard()
-			block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts, namespace.Context{}).(*dbBlock)
+			block2 := NewDatabaseBlock(data[1].TimestampNanos, durations[1], seg, blockOpts, namespace.Context{}).(*dbBlock)
 
 			// Lazily merge the two blocks
 			block1.Merge(block2)
@@ -300,19 +303,19 @@ func TestDatabaseBlockMergeChained(t *testing.T) {
 	defer ctrl.Finish()
 
 	// Test data
-	curr := time.Now()
+	curr := xtime.Now()
 	data := []ts.Datapoint{
 		ts.Datapoint{
-			Timestamp: curr,
-			Value:     0,
+			TimestampNanos: curr,
+			Value:          0,
 		},
 		ts.Datapoint{
-			Timestamp: curr.Add(time.Second),
-			Value:     1,
+			TimestampNanos: curr.Add(time.Second),
+			Value:          1,
 		},
 		ts.Datapoint{
-			Timestamp: curr.Add(2 * time.Second),
-			Value:     2,
+			TimestampNanos: curr.Add(2 * time.Second),
+			Value:          2,
 		},
 	}
 	durations := []time.Duration{
@@ -340,20 +343,20 @@ func TestDatabaseBlockMergeChained(t *testing.T) {
 	encodingOpts := encoding.NewOptions()
 
 	// Create the two blocks we plan to merge
-	encoder := m3tsz.NewEncoder(data[0].Timestamp, nil, true, encodingOpts)
+	encoder := m3tsz.NewEncoder(data[0].TimestampNanos, nil, true, encodingOpts)
 	encoder.Encode(data[0], xtime.Second, nil)
 	seg := encoder.Discard()
-	block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts, namespace.Context{}).(*dbBlock)
+	block1 := NewDatabaseBlock(data[0].TimestampNanos, durations[0], seg, blockOpts, namespace.Context{}).(*dbBlock)
 
-	encoder.Reset(data[1].Timestamp, 10, nil)
+	encoder.Reset(data[1].TimestampNanos, 10, nil)
 	encoder.Encode(data[1], xtime.Second, nil)
 	seg = encoder.Discard()
-	block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts, namespace.Context{}).(*dbBlock)
+	block2 := NewDatabaseBlock(data[1].TimestampNanos, durations[1], seg, blockOpts, namespace.Context{}).(*dbBlock)
 
-	encoder.Reset(data[2].Timestamp, 10, nil)
+	encoder.Reset(data[2].TimestampNanos, 10, nil)
 	encoder.Encode(data[2], xtime.Second, nil)
 	seg = encoder.Discard()
-	block3 := NewDatabaseBlock(data[2].Timestamp, durations[2], seg, blockOpts, namespace.Context{}).(*dbBlock)
+	block3 := NewDatabaseBlock(data[2].TimestampNanos, durations[2], seg, blockOpts, namespace.Context{}).(*dbBlock)
 
 	// Lazily merge two blocks into block1
 	block1.Merge(block2)
@@ -400,7 +403,7 @@ func TestDatabaseBlockMergeErrorFromDisk(t *testing.T) {
 
 	// Setup
 	var (
-		curr      = time.Now()
+		curr      = xtime.Now()
 		blockOpts = NewOptions()
 	)
 
@@ -425,15 +428,15 @@ func TestDatabaseBlockChecksumMergesAndRecalculates(t *testing.T) {
 	defer ctrl.Finish()
 
 	// Test data
-	curr := time.Now()
+	curr := xtime.Now()
 	data := []ts.Datapoint{
 		ts.Datapoint{
-			Timestamp: curr,
-			Value:     0,
+			TimestampNanos: curr,
+			Value:          0,
 		},
 		ts.Datapoint{
-			Timestamp: curr.Add(time.Second),
-			Value:     1,
+			TimestampNanos: curr.Add(time.Second),
+			Value:          1,
 		},
 	}
 	durations := []time.Duration{
@@ -446,15 +449,15 @@ func TestDatabaseBlockChecksumMergesAndRecalculates(t *testing.T) {
 	encodingOpts := encoding.NewOptions()
 
 	// Create the two blocks we plan to merge
-	encoder := m3tsz.NewEncoder(data[0].Timestamp, nil, true, encodingOpts)
+	encoder := m3tsz.NewEncoder(data[0].TimestampNanos, nil, true, encodingOpts)
 	encoder.Encode(data[0], xtime.Second, nil)
 	seg := encoder.Discard()
-	block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts, namespace.Context{}).(*dbBlock)
+	block1 := NewDatabaseBlock(data[0].TimestampNanos, durations[0], seg, blockOpts, namespace.Context{}).(*dbBlock)
 
-	encoder.Reset(data[1].Timestamp, 10, nil)
+	encoder.Reset(data[1].TimestampNanos, 10, nil)
 	encoder.Encode(data[1], xtime.Second, nil)
 	seg = encoder.Discard()
-	block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts, namespace.Context{}).(*dbBlock)
+	block2 := NewDatabaseBlock(data[1].TimestampNanos, durations[1], seg, blockOpts, namespace.Context{}).(*dbBlock)
 
 	// Keep track of the old checksum so we can make sure it changed
 	oldChecksum, err := block1.Checksum()
@@ -499,15 +502,15 @@ func TestDatabaseBlockStreamMergePerformsCopy(t *testing.T) {
 	defer ctrl.Finish()
 
 	// Test data
-	curr := time.Now()
+	curr := xtime.Now()
 	data := []ts.Datapoint{
 		ts.Datapoint{
-			Timestamp: curr,
-			Value:     0,
+			TimestampNanos: curr,
+			Value:          0,
 		},
 		ts.Datapoint{
-			Timestamp: curr.Add(time.Second),
-			Value:     1,
+			TimestampNanos: curr.Add(time.Second),
+			Value:          1,
 		},
 	}
 	durations := []time.Duration{
@@ -520,15 +523,15 @@ func TestDatabaseBlockStreamMergePerformsCopy(t *testing.T) {
 	encodingOpts := encoding.NewOptions()
 
 	// Create the two blocks we plan to merge
-	encoder := m3tsz.NewEncoder(data[0].Timestamp, nil, true, encodingOpts)
+	encoder := m3tsz.NewEncoder(data[0].TimestampNanos, nil, true, encodingOpts)
 	encoder.Encode(data[0], xtime.Second, nil)
 	seg := encoder.Discard()
-	block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts, namespace.Context{}).(*dbBlock)
+	block1 := NewDatabaseBlock(data[0].TimestampNanos, durations[0], seg, blockOpts, namespace.Context{}).(*dbBlock)
 
-	encoder.Reset(data[1].Timestamp, 10, nil)
+	encoder.Reset(data[1].TimestampNanos, 10, nil)
 	encoder.Encode(data[1], xtime.Second, nil)
 	seg = encoder.Discard()
-	block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts, namespace.Context{}).(*dbBlock)
+	block2 := NewDatabaseBlock(data[1].TimestampNanos, durations[1], seg, blockOpts, namespace.Context{}).(*dbBlock)
 
 	err := block1.Merge(block2)
 	require.NoError(t, err)
@@ -555,8 +558,8 @@ func TestDatabaseBlockStreamMergePerformsCopy(t *testing.T) {
 func TestDatabaseBlockCloseIfFromDisk(t *testing.T) {
 	var (
 		blockOpts        = NewOptions()
-		blockNotFromDisk = NewDatabaseBlock(time.Time{}, time.Hour, ts.Segment{}, blockOpts, namespace.Context{}).(*dbBlock)
-		blockFromDisk    = NewDatabaseBlock(time.Time{}, time.Hour, ts.Segment{}, blockOpts, namespace.Context{}).(*dbBlock)
+		blockNotFromDisk = NewDatabaseBlock(0, time.Hour, ts.Segment{}, blockOpts, namespace.Context{}).(*dbBlock)
+		blockFromDisk    = NewDatabaseBlock(0, time.Hour, ts.Segment{}, blockOpts, namespace.Context{}).(*dbBlock)
 	)
 	blockFromDisk.wasRetrievedFromDisk = true
 
@@ -565,16 +568,22 @@ func TestDatabaseBlockCloseIfFromDisk(t *testing.T) {
 }
 
 func TestDatabaseSeriesBlocksAddBlock(t *testing.T) {
-	now := time.Now()
-	blockTimes := []time.Time{now, now.Add(time.Second), now.Add(time.Minute), now.Add(-time.Second), now.Add(-time.Hour)}
-	blockSizes := []time.Duration{time.Minute, time.Hour, time.Second, time.Microsecond, time.Millisecond}
+	now := xtime.Now()
+	blockTimes := []xtime.UnixNano{
+		now, now.Add(time.Second),
+		now.Add(time.Minute), now.Add(-time.Second), now.Add(-time.Hour),
+	}
+	blockSizes := []time.Duration{
+		time.Minute, time.Hour, time.Second,
+		time.Microsecond, time.Millisecond,
+	}
 	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes, blockSizes)
 	validateBlocks(t, blocks, blockTimes[4], blockTimes[2], blockTimes, blockSizes)
 }
 
 func TestDatabaseSeriesBlocksAddSeries(t *testing.T) {
-	now := time.Now()
-	blockTimes := [][]time.Time{
+	now := xtime.Now()
+	blockTimes := [][]xtime.UnixNano{
 		{now, now.Add(time.Second), now.Add(time.Minute), now.Add(-time.Second), now.Add(-time.Hour)},
 		{now.Add(-time.Minute), now.Add(time.Hour)},
 	}
@@ -585,7 +594,7 @@ func TestDatabaseSeriesBlocksAddSeries(t *testing.T) {
 	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes[0], blockSizes[0])
 	other := testDatabaseSeriesBlocksWithTimes(blockTimes[1], blockSizes[1])
 	blocks.AddSeries(other)
-	var expectedTimes []time.Time
+	var expectedTimes []xtime.UnixNano
 	for _, bt := range blockTimes {
 		expectedTimes = append(expectedTimes, bt...)
 	}
@@ -598,8 +607,8 @@ func TestDatabaseSeriesBlocksAddSeries(t *testing.T) {
 }
 
 func TestDatabaseSeriesBlocksGetBlockAt(t *testing.T) {
-	now := time.Now()
-	blockTimes := []time.Time{now, now.Add(time.Second), now.Add(-time.Hour)}
+	now := xtime.Now()
+	blockTimes := []xtime.UnixNano{now, now.Add(time.Second), now.Add(-time.Hour)}
 	blockSizes := []time.Duration{time.Minute, time.Hour, time.Second}
 
 	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes, blockSizes)
@@ -613,8 +622,8 @@ func TestDatabaseSeriesBlocksGetBlockAt(t *testing.T) {
 }
 
 func TestDatabaseSeriesBlocksRemoveBlockAt(t *testing.T) {
-	now := time.Now()
-	blockTimes := []time.Time{now, now.Add(-time.Second), now.Add(time.Hour)}
+	now := xtime.Now()
+	blockTimes := []xtime.UnixNano{now, now.Add(-time.Second), now.Add(time.Hour)}
 	blockSizes := []time.Duration{time.Minute, time.Hour, time.Second}
 
 	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes, blockSizes)
@@ -622,13 +631,13 @@ func TestDatabaseSeriesBlocksRemoveBlockAt(t *testing.T) {
 	validateBlocks(t, blocks, blockTimes[1], blockTimes[2], blockTimes, blockSizes)
 
 	expected := []struct {
-		min      time.Time
-		max      time.Time
-		allTimes []time.Time
+		min      xtime.UnixNano
+		max      xtime.UnixNano
+		allTimes []xtime.UnixNano
 	}{
 		{blockTimes[1], blockTimes[2], blockTimes[1:]},
 		{blockTimes[2], blockTimes[2], blockTimes[2:]},
-		{timeZero, timeZero, []time.Time{}},
+		{timeZero, timeZero, []xtime.UnixNano{}},
 	}
 	for i, bt := range blockTimes {
 		blocks.RemoveBlockAt(bt)
@@ -638,8 +647,8 @@ func TestDatabaseSeriesBlocksRemoveBlockAt(t *testing.T) {
 }
 
 func TestDatabaseSeriesBlocksRemoveAll(t *testing.T) {
-	now := time.Now()
-	blockTimes := []time.Time{now, now.Add(-time.Second), now.Add(time.Hour)}
+	now := xtime.Now()
+	blockTimes := []xtime.UnixNano{now, now.Add(-time.Second), now.Add(time.Hour)}
 	blockSizes := []time.Duration{time.Minute, time.Hour, time.Second}
 
 	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes, blockSizes)
@@ -650,8 +659,8 @@ func TestDatabaseSeriesBlocksRemoveAll(t *testing.T) {
 }
 
 func TestDatabaseSeriesBlocksClose(t *testing.T) {
-	now := time.Now()
-	blockTimes := []time.Time{now, now.Add(-time.Second), now.Add(time.Hour)}
+	now := xtime.Now()
+	blockTimes := []xtime.UnixNano{now, now.Add(-time.Second), now.Add(time.Hour)}
 	blockSizes := []time.Duration{time.Minute, time.Hour, time.Second}
 
 	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes, blockSizes)
@@ -665,8 +674,8 @@ func TestDatabaseSeriesBlocksClose(t *testing.T) {
 }
 
 func TestDatabaseSeriesBlocksReset(t *testing.T) {
-	now := time.Now()
-	blockTimes := []time.Time{now, now.Add(-time.Second), now.Add(time.Hour)}
+	now := xtime.Now()
+	blockTimes := []xtime.UnixNano{now, now.Add(-time.Second), now.Add(time.Hour)}
 	blockSizes := []time.Duration{time.Minute, time.Hour, time.Second}
 
 	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes, blockSizes)
@@ -676,8 +685,8 @@ func TestDatabaseSeriesBlocksReset(t *testing.T) {
 
 	require.Equal(t, 0, len(blocks.AllBlocks()))
 	require.Equal(t, 0, len(blocks.elems))
-	require.True(t, blocks.min.Equal(time.Time{}))
-	require.True(t, blocks.max.Equal(time.Time{}))
+	require.True(t, blocks.min.Equal(0))
+	require.True(t, blocks.max.Equal(0))
 }
 
 func TestBlockResetFromDisk(t *testing.T) {
@@ -685,7 +694,7 @@ func TestBlockResetFromDisk(t *testing.T) {
 	defer ctrl.Finish()
 
 	bl := testDatabaseBlock(ctrl)
-	now := time.Now()
+	now := xtime.Now()
 	blockSize := 2 * time.Hour
 	id := ident.StringID("testID")
 	segment := ts.Segment{}

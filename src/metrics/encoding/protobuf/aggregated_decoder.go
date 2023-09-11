@@ -29,6 +29,7 @@ import (
 type AggregatedDecoder struct {
 	pool AggregatedDecoderPool
 	pb   metricpb.AggregatedMetric
+	sp   policy.StoragePolicy
 }
 
 // NewAggregatedDecoder creates an aggregated decoder.
@@ -40,7 +41,10 @@ func NewAggregatedDecoder(p AggregatedDecoderPool) *AggregatedDecoder {
 
 // Decode decodes the aggregated metric from the given bytes.
 func (d *AggregatedDecoder) Decode(b []byte) error {
-	return d.pb.Unmarshal(b)
+	if err := d.pb.Unmarshal(b); err != nil {
+		return err
+	}
+	return d.sp.FromProto(d.pb.Metric.StoragePolicy)
 }
 
 // ID returns the decoded id.
@@ -58,19 +62,25 @@ func (d AggregatedDecoder) Value() float64 {
 	return d.pb.Metric.TimedMetric.Value
 }
 
-// StoragePolicy returns the decoded storage policy.
-func (d AggregatedDecoder) StoragePolicy() (policy.StoragePolicy, error) {
-	return policy.NewStoragePolicyFromProto(&d.pb.Metric.StoragePolicy)
+// Annotation returns the decoded annotation.
+func (d *AggregatedDecoder) Annotation() []byte {
+	return d.pb.Metric.TimedMetric.Annotation
 }
 
-// EncodeNanos returns the decoded encodeNanos.
+// StoragePolicy returns the decoded storage policy.
+func (d AggregatedDecoder) StoragePolicy() policy.StoragePolicy {
+	return d.sp
+}
+
+// EncodeNanos is deprecated.
 func (d AggregatedDecoder) EncodeNanos() int64 {
 	return d.pb.EncodeNanos
 }
 
 // Close closes the decoder.
 func (d *AggregatedDecoder) Close() {
-	resetAggregatedMetricProto(&d.pb)
+	d.sp = policy.StoragePolicy{}
+	ReuseAggregatedMetricProto(&d.pb)
 	if d.pool != nil {
 		d.pool.Put(d)
 	}

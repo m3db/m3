@@ -23,6 +23,7 @@
 package storage
 
 import (
+	stdctx "context"
 	"errors"
 	"fmt"
 	"sync"
@@ -31,18 +32,22 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
+	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
+	testutil "github.com/m3db/m3/src/dbnode/test"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/resource"
-	xsync "github.com/m3db/m3/src/x/sync"
 	xtest "github.com/m3db/m3/src/x/test"
-	"go.uber.org/zap"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestNamespaceIndexHighConcurrentQueriesWithoutTimeouts(t *testing.T) {
@@ -90,7 +95,7 @@ func testNamespaceIndexHighConcurrentQueries(
 		t.Fatalf("force timeout and block errors cannot both be enabled")
 	}
 
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	defer leaktest.CheckTimeout(t, 2*time.Minute)()
@@ -105,7 +110,7 @@ func testNamespaceIndexHighConcurrentQueries(
 	logger.Info("start high index concurrent index query test",
 		zap.Any("opts", opts))
 
-	now := time.Now().Truncate(test.indexBlockSize)
+	now := xtime.Now().Truncate(test.indexBlockSize)
 
 	min, max := now.Add(-6*test.indexBlockSize), now.Add(-test.indexBlockSize)
 
@@ -120,22 +125,16 @@ func testNamespaceIndexHighConcurrentQueries(
 	nsIdx := test.index.(*nsIndex)
 	nsIdx.state.Lock()
 	// Make the query pool really high to improve concurrency likelihood
-	nsIdx.queryWorkersPool = xsync.NewWorkerPool(1000)
-	nsIdx.queryWorkersPool.Init()
-	if opts.withTimeouts {
-		nsIdx.state.runtimeOpts.defaultQueryTimeout = timeoutValue
-	} else {
-		nsIdx.state.runtimeOpts.defaultQueryTimeout = 0
-	}
+	nsIdx.permitsManager = permits.NewFixedPermitsManager(1000, int64(time.Millisecond), instrument.NewOptions())
 
 	currNow := min
 	nowLock := &sync.Mutex{}
 	nsIdx.nowFn = func() time.Time {
 		nowLock.Lock()
 		defer nowLock.Unlock()
-		return currNow
+		return currNow.ToTime()
 	}
-	setNow := func(t time.Time) {
+	setNow := func(t xtime.UnixNano) {
 		nowLock.Lock()
 		defer nowLock.Unlock()
 		currNow = t
@@ -150,11 +149,12 @@ func testNamespaceIndexHighConcurrentQueries(
 
 	var (
 		idsPerBlock     = 16
-		expectedResults = make(map[string]doc.Document)
-		blockStarts     []time.Time
+		expectedResults = make(map[string]doc.Metadata)
+		blockStarts     []xtime.UnixNano
 		blockIdx        = -1
 	)
 	for st := min; !st.After(max); st = st.Add(test.indexBlockSize) {
+		st := st
 		blockIdx++
 		blockStarts = append(blockStarts, st)
 
@@ -163,7 +163,7 @@ func testNamespaceIndexHighConcurrentQueries(
 
 		var onIndexWg sync.WaitGroup
 		onIndexWg.Add(idsPerBlock)
-		onIndexSeries := index.NewMockOnIndexSeries(ctrl)
+		onIndexSeries := doc.NewMockOnIndexSeries(ctrl)
 		onIndexSeries.EXPECT().
 			OnIndexSuccess(gomock.Any()).
 			Times(idsPerBlock).
@@ -173,6 +173,23 @@ func testNamespaceIndexHighConcurrentQueries(
 		onIndexSeries.EXPECT().
 			OnIndexFinalize(gomock.Any()).
 			Times(idsPerBlock)
+		onIndexSeries.EXPECT().
+			IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).
+			Times(idsPerBlock)
+		onIndexSeries.EXPECT().
+			IndexedRange().
+			Return(min, max).
+			AnyTimes()
+		onIndexSeries.EXPECT().
+			IndexedForBlockStart(gomock.Any()).
+			DoAndReturn(func(ts xtime.UnixNano) bool {
+				return ts.Equal(st)
+			}).
+			AnyTimes()
+		onIndexSeries.EXPECT().
+			ReconciledOnIndexSeries().
+			Return(onIndexSeries, resource.SimpleCloserFn(func() {}), false).
+			AnyTimes()
 
 		batch := index.NewWriteBatch(index.WriteBatchOptions{
 			InitialCapacity: idsPerBlock,
@@ -180,7 +197,7 @@ func testNamespaceIndexHighConcurrentQueries(
 		})
 		for i := 0; i < idsPerBlock; i++ {
 			id := fmt.Sprintf("foo.block_%d.id_%d", blockIdx, i)
-			doc := doc.Document{
+			doc := doc.Metadata{
 				ID: []byte(id),
 				Fields: []doc.Field{
 					{
@@ -207,68 +224,18 @@ func testNamespaceIndexHighConcurrentQueries(
 
 	// If force timeout or block errors are enabled, replace one of the blocks
 	// with a mock block that times out or returns an error respectively.
-	var timeoutWg, timedOutQueriesWg sync.WaitGroup
+	var timedOutQueriesWg sync.WaitGroup
 	if opts.forceTimeouts || opts.blockErrors {
 		// Need to restore now as timeouts are measured by looking at time.Now
 		restoreNow()
 
-		timeoutWg.Add(1)
 		nsIdx.state.Lock()
+
 		for start, block := range nsIdx.state.blocksByTime {
-			block := block // Capture for lambda
-			mockBlock := index.NewMockBlock(ctrl)
-
-			mockBlock.EXPECT().
-				StartTime().
-				DoAndReturn(func() time.Time { return block.StartTime() }).
-				AnyTimes()
-			mockBlock.EXPECT().
-				EndTime().
-				DoAndReturn(func() time.Time { return block.EndTime() }).
-				AnyTimes()
-
-			if opts.blockErrors {
-				mockBlock.EXPECT().
-					Query(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					DoAndReturn(func(
-						_ context.Context,
-						_ *resource.CancellableLifetime,
-						_ index.Query,
-						_ index.QueryOptions,
-						_ index.QueryResults,
-						_ []opentracinglog.Field,
-					) (bool, error) {
-						return false, errors.New("some-error")
-					}).
-					AnyTimes()
-			} else {
-				mockBlock.EXPECT().
-					Query(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					DoAndReturn(func(
-						ctx context.Context,
-						c *resource.CancellableLifetime,
-						q index.Query,
-						opts index.QueryOptions,
-						r index.QueryResults,
-						logFields []opentracinglog.Field,
-					) (bool, error) {
-						timeoutWg.Wait()
-						return block.Query(ctx, c, q, opts, r, logFields)
-					}).
-					AnyTimes()
-			}
-
-			mockBlock.EXPECT().
-				Stats(gomock.Any()).
-				Return(nil).
-				AnyTimes()
-			mockBlock.EXPECT().
-				Close().
-				DoAndReturn(func() error {
-					return block.Close()
-				})
-			nsIdx.state.blocksByTime[start] = mockBlock
+			nsIdx.state.blocksByTime[start] = newMockBlock(ctrl, opts, timeoutValue, block)
 		}
+		nsIdx.activeBlock = newMockBlock(ctrl, opts, timeoutValue, nsIdx.activeBlock)
+
 		nsIdx.state.Unlock()
 	}
 
@@ -304,7 +271,12 @@ func testNamespaceIndexHighConcurrentQueries(
 			for k := 0; k < len(blockStarts); k++ {
 				rangeEnd := blockStarts[k].Add(test.indexBlockSize)
 
-				ctx := context.NewContext()
+				goCtx := stdctx.Background()
+				if timeoutValue > 0 {
+					goCtx, _ = stdctx.WithTimeout(stdctx.Background(), timeoutValue)
+				}
+
+				ctx := context.NewWithGoContext(goCtx)
 				ctxs = append(ctxs, ctx)
 
 				if opts.forceTimeouts {
@@ -321,8 +293,8 @@ func testNamespaceIndexHighConcurrentQueries(
 							StartInclusive: rangeStart,
 							EndExclusive:   rangeEnd,
 						})
-						require.Error(t, err)
 						timedOutQueriesWg.Done()
+						require.Error(t, err)
 					}()
 					continue
 				}
@@ -344,26 +316,27 @@ func testNamespaceIndexHighConcurrentQueries(
 
 				// Read the results concurrently too
 				hits := make(map[string]struct{}, results.Results.Size())
+				id := ident.NewReusableBytesID()
 				for _, entry := range results.Results.Map().Iter() {
-					id := entry.Key().String()
-
-					doc, err := convert.FromSeriesIDAndTagIter(entry.Key(), entry.Value())
+					id.Reset(entry.Key())
+					tags := testutil.DocumentToTagIter(t, entry.Value())
+					doc, err := convert.FromSeriesIDAndTagIter(id, tags)
 					require.NoError(t, err)
 					if err != nil {
 						continue // this will fail the test anyway, but don't want to panic
 					}
 
-					expectedDoc, ok := expectedResults[id]
+					expectedDoc, ok := expectedResults[id.String()]
 					require.True(t, ok)
 					if !ok {
 						continue // this will fail the test anyway, but don't want to panic
 					}
 
-					require.Equal(t, expectedDoc, doc)
-					hits[id] = struct{}{}
+					require.Equal(t, expectedDoc, doc, "docs")
+					hits[id.String()] = struct{}{}
 				}
 				expectedHits := idsPerBlock * (k + 1)
-				require.Equal(t, expectedHits, len(hits))
+				require.Equal(t, expectedHits, len(hits), "hits")
 			}
 		}()
 	}
@@ -390,7 +363,6 @@ func testNamespaceIndexHighConcurrentQueries(
 		go func() {
 			// Start allowing timedout queries to complete.
 			logger.Info("allow block queries to begin returning")
-			timeoutWg.Done()
 
 			// Race closing all contexts at once.
 			for _, ctx := range timeoutContexts {
@@ -406,4 +378,67 @@ func testNamespaceIndexHighConcurrentQueries(
 
 		logger.Info("finished with timeouts")
 	}
+}
+
+func newMockBlock(ctrl *gomock.Controller,
+	opts testNamespaceIndexHighConcurrentQueriesOptions,
+	timeout time.Duration,
+	block index.Block,
+) *index.MockBlock {
+	mockBlock := index.NewMockBlock(ctrl)
+	mockBlock.EXPECT().
+		StartTime().
+		DoAndReturn(func() xtime.UnixNano { return block.StartTime() }).
+		AnyTimes()
+	mockBlock.EXPECT().
+		EndTime().
+		DoAndReturn(func() xtime.UnixNano { return block.EndTime() }).
+		AnyTimes()
+	mockBlock.EXPECT().QueryIter(gomock.Any(), gomock.Any()).DoAndReturn(func(
+		ctx context.Context, query index.Query) (index.QueryIterator, error) {
+		return block.QueryIter(ctx, query)
+	},
+	).AnyTimes()
+
+	if opts.blockErrors {
+		mockBlock.EXPECT().
+			QueryWithIter(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(
+				_ context.Context,
+				_ index.QueryOptions,
+				_ index.QueryIterator,
+				_ index.QueryResults,
+				_ time.Time,
+				_ []opentracinglog.Field,
+			) error {
+				return errors.New("some-error")
+			}).
+			AnyTimes()
+	} else {
+		mockBlock.EXPECT().
+			QueryWithIter(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(
+				ctx context.Context,
+				opts index.QueryOptions,
+				iter index.QueryIterator,
+				r index.QueryResults,
+				deadline time.Time,
+				logFields []opentracinglog.Field,
+			) error {
+				time.Sleep(timeout + time.Second)
+				return block.QueryWithIter(ctx, opts, iter, r, deadline, logFields)
+			}).
+			AnyTimes()
+	}
+
+	mockBlock.EXPECT().
+		Stats(gomock.Any()).
+		Return(nil).
+		AnyTimes()
+	mockBlock.EXPECT().
+		Close().
+		DoAndReturn(func() error {
+			return block.Close()
+		})
+	return mockBlock
 }

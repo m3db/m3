@@ -190,11 +190,11 @@ var (
 							AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Count)[0]},
 							StoragePolicies: []policypb.StoragePolicy{
 								{
-									Resolution: &policypb.Resolution{
+									Resolution: policypb.Resolution{
 										WindowSize: time.Second.Nanoseconds(),
 										Precision:  time.Second.Nanoseconds(),
 									},
-									Retention: &policypb.Retention{
+									Retention: policypb.Retention{
 										Period: time.Hour.Nanoseconds(),
 									},
 								},
@@ -204,20 +204,20 @@ var (
 							AggregationId: aggregationpb.AggregationID{Id: 0},
 							StoragePolicies: []policypb.StoragePolicy{
 								{
-									Resolution: &policypb.Resolution{
+									Resolution: policypb.Resolution{
 										WindowSize: time.Minute.Nanoseconds(),
 										Precision:  time.Minute.Nanoseconds(),
 									},
-									Retention: &policypb.Retention{
+									Retention: policypb.Retention{
 										Period: (6 * time.Hour).Nanoseconds(),
 									},
 								},
 								{
-									Resolution: &policypb.Resolution{
+									Resolution: policypb.Resolution{
 										WindowSize: time.Hour.Nanoseconds(),
 										Precision:  time.Hour.Nanoseconds(),
 									},
-									Retention: &policypb.Retention{
+									Retention: policypb.Retention{
 										Period: (30 * 24 * time.Hour).Nanoseconds(),
 									},
 								},
@@ -226,13 +226,13 @@ var (
 								Ops: []pipelinepb.AppliedPipelineOp{
 									{
 										Type: pipelinepb.AppliedPipelineOp_TRANSFORMATION,
-										Transformation: &pipelinepb.TransformationOp{
+										Transformation: pipelinepb.TransformationOp{
 											Type: transformationpb.TransformationType_ABSOLUTE,
 										},
 									},
 									{
 										Type: pipelinepb.AppliedPipelineOp_ROLLUP,
-										Rollup: &pipelinepb.AppliedRollupOp{
+										Rollup: pipelinepb.AppliedRollupOp{
 											Id:            []byte("foo"),
 											AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Last, aggregation.Sum)[0]},
 										},
@@ -254,13 +254,13 @@ var (
 								Ops: []pipelinepb.AppliedPipelineOp{
 									{
 										Type: pipelinepb.AppliedPipelineOp_TRANSFORMATION,
-										Transformation: &pipelinepb.TransformationOp{
+										Transformation: pipelinepb.TransformationOp{
 											Type: transformationpb.TransformationType_PERSECOND,
 										},
 									},
 									{
 										Type: pipelinepb.AppliedPipelineOp_ROLLUP,
-										Rollup: &pipelinepb.AppliedRollupOp{
+										Rollup: pipelinepb.AppliedRollupOp{
 											Id:            []byte("bar"),
 											AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.P99)[0]},
 										},

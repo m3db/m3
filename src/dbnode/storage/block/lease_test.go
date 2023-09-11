@@ -26,13 +26,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRegisterLeaser(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -45,7 +48,7 @@ func TestRegisterLeaser(t *testing.T) {
 }
 
 func TestUnregisterLeaser(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -75,7 +78,7 @@ func TestUnregisterLeaser(t *testing.T) {
 }
 
 func TestOpenLease(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -85,7 +88,7 @@ func TestOpenLease(t *testing.T) {
 		leaseDesc = LeaseDescriptor{
 			Namespace:  ident.StringID("test-ns"),
 			Shard:      1,
-			BlockStart: time.Now().Truncate(2 * time.Hour),
+			BlockStart: xtime.Now().Truncate(2 * time.Hour),
 		}
 		leaseState = LeaseState{
 			Volume: 1,
@@ -99,7 +102,7 @@ func TestOpenLease(t *testing.T) {
 }
 
 func TestOpenLeaseErrorIfNoVerifier(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -108,7 +111,7 @@ func TestOpenLeaseErrorIfNoVerifier(t *testing.T) {
 		leaseDesc = LeaseDescriptor{
 			Namespace:  ident.StringID("test-ns"),
 			Shard:      1,
-			BlockStart: time.Now().Truncate(2 * time.Hour),
+			BlockStart: xtime.Now().Truncate(2 * time.Hour),
 		}
 		leaseState = LeaseState{
 			Volume: 1,
@@ -125,7 +128,7 @@ func TestOpenLeaseErrorIfNoVerifier(t *testing.T) {
 }
 
 func TestOpenLatestLease(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -135,7 +138,7 @@ func TestOpenLatestLease(t *testing.T) {
 		leaseDesc = LeaseDescriptor{
 			Namespace:  ident.StringID("test-ns"),
 			Shard:      1,
-			BlockStart: time.Now().Truncate(2 * time.Hour),
+			BlockStart: xtime.Now().Truncate(2 * time.Hour),
 		}
 		leaseState = LeaseState{
 			Volume: 1,
@@ -151,7 +154,7 @@ func TestOpenLatestLease(t *testing.T) {
 }
 
 func TestOpenLatestLeaseErrorIfNoVerifier(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -160,7 +163,7 @@ func TestOpenLatestLeaseErrorIfNoVerifier(t *testing.T) {
 		leaseDesc = LeaseDescriptor{
 			Namespace:  ident.StringID("test-ns"),
 			Shard:      1,
-			BlockStart: time.Now().Truncate(2 * time.Hour),
+			BlockStart: xtime.Now().Truncate(2 * time.Hour),
 		}
 		leaseState = LeaseState{
 			Volume: 1,
@@ -179,7 +182,7 @@ func TestOpenLatestLeaseErrorIfNoVerifier(t *testing.T) {
 }
 
 func TestUpdateOpenLeases(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -189,7 +192,7 @@ func TestUpdateOpenLeases(t *testing.T) {
 		leaseDesc = LeaseDescriptor{
 			Namespace:  ident.StringID("test-ns"),
 			Shard:      1,
-			BlockStart: time.Now().Truncate(2 * time.Hour),
+			BlockStart: xtime.Now().Truncate(2 * time.Hour),
 		}
 		leaseState = LeaseState{
 			Volume: 1,
@@ -233,7 +236,8 @@ func TestUpdateOpenLeases(t *testing.T) {
 	require.Equal(t, result, UpdateLeasesResult{LeasersNoOpenLease: 2})
 
 	for _, leaser := range leasers {
-		leaseMgr.OpenLease(leaser, leaseDesc, leaseState)
+		err := leaseMgr.OpenLease(leaser, leaseDesc, leaseState)
+		require.NoError(t, err)
 	}
 
 	// Second time the leasers will return that they did have an open lease.
@@ -247,7 +251,7 @@ func TestUpdateOpenLeases(t *testing.T) {
 }
 
 func TestUpdateOpenLeasesErrorIfNoVerifier(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -255,7 +259,7 @@ func TestUpdateOpenLeasesErrorIfNoVerifier(t *testing.T) {
 		leaseDesc = LeaseDescriptor{
 			Namespace:  ident.StringID("test-ns"),
 			Shard:      1,
-			BlockStart: time.Now().Truncate(2 * time.Hour),
+			BlockStart: xtime.Now().Truncate(2 * time.Hour),
 		}
 		leaseState = LeaseState{
 			Volume: 1,
@@ -276,7 +280,7 @@ func TestUpdateOpenLeasesErrorIfNoVerifier(t *testing.T) {
 // not occur if a Leaser calls OpenLease or OpenLatestLease while the LeaseManager is
 // waiting for a call to UpdateOpenLease() to complete on the same leaser.
 func TestUpdateOpenLeasesDoesNotDeadlockIfLeasersCallsBack(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -297,11 +301,11 @@ func TestUpdateOpenLeasesDoesNotDeadlockIfLeasersCallsBack(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestUpdateOpenLeasesConcurrentNotAllowed verifies that concurrent calls to
-// UpdateOpenleases() are not allowed which ensures that leasers receive all
+// TestUpdateOpenLeasesConcurrentNotAllowed verifies that concurrent calls to UpdateOpenLeases()
+// with the same descriptor are not allowed which ensures that leasers receive all
 // updates and in the correct order.
 func TestUpdateOpenLeasesConcurrentNotAllowed(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -309,26 +313,60 @@ func TestUpdateOpenLeasesConcurrentNotAllowed(t *testing.T) {
 		verifier = NewMockLeaseVerifier(ctrl)
 		leaseMgr = NewLeaseManager(verifier)
 		wg       sync.WaitGroup
+
+		descriptor LeaseDescriptor
 	)
+
 	wg.Add(1)
-	leaser.EXPECT().UpdateOpenLease(gomock.Any(), gomock.Any()).Do(func(_ LeaseDescriptor, _ LeaseState) {
+	leaser.EXPECT().UpdateOpenLease(descriptor, gomock.Any()).Do(func(_ LeaseDescriptor, _ LeaseState) {
 		go func() {
-			_, err := leaseMgr.UpdateOpenLeases(LeaseDescriptor{}, LeaseState{})
+			defer wg.Done()
+			_, err := leaseMgr.UpdateOpenLeases(descriptor, LeaseState{})
 			require.Equal(t, errConcurrentUpdateOpenLeases, err)
-			wg.Done()
 		}()
 		wg.Wait()
 	})
 
 	require.NoError(t, leaseMgr.RegisterLeaser(leaser))
-	_, err := leaseMgr.UpdateOpenLeases(LeaseDescriptor{}, LeaseState{})
+	_, err := leaseMgr.UpdateOpenLeases(descriptor, LeaseState{})
+	require.NoError(t, err)
+}
+
+func TestUpdateOpenLeasesDifferentDescriptorsConcurrent(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		leaser   = NewMockLeaser(ctrl)
+		verifier = NewMockLeaseVerifier(ctrl)
+		leaseMgr = NewLeaseManager(verifier)
+		wg       sync.WaitGroup
+
+		blockStart  = xtime.Now().Truncate(time.Hour)
+		descriptor1 = LeaseDescriptor{Namespace: ident.StringID("ns"), BlockStart: blockStart, Shard: 1}
+		descriptor2 = LeaseDescriptor{Namespace: ident.StringID("ns"), BlockStart: blockStart, Shard: 2}
+	)
+
+	wg.Add(1)
+	leaser.EXPECT().UpdateOpenLease(descriptor1, gomock.Any()).Do(func(descriptor LeaseDescriptor, _ LeaseState) {
+		go func() {
+			defer wg.Done()
+			_, err := leaseMgr.UpdateOpenLeases(descriptor2, LeaseState{})
+			require.NoError(t, err)
+		}()
+		wg.Wait()
+	})
+	leaser.EXPECT().UpdateOpenLease(descriptor2, gomock.Any())
+
+	require.NoError(t, leaseMgr.RegisterLeaser(leaser))
+	_, err := leaseMgr.UpdateOpenLeases(descriptor1, LeaseState{})
 	require.NoError(t, err)
 }
 
 // TestUpdateOpenLeasesConcurrencyTest spins up a number of goroutines to call UpdateOpenLeases(),
 // OpenLease(), and OpenLatestLease() concurrently and ensure there are no deadlocks.
 func TestUpdateOpenLeasesConcurrencyTest(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (

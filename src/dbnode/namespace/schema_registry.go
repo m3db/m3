@@ -24,8 +24,8 @@ import (
 	"fmt"
 	"sync"
 
-	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/ident"
+	xresource "github.com/m3db/m3/src/x/resource"
 	xwatch "github.com/m3db/m3/src/x/watch"
 
 	"go.uber.org/zap"
@@ -145,7 +145,7 @@ func (sr *schemaRegistry) getSchemaHistory(nsIDStr string) (SchemaHistory, error
 func (sr *schemaRegistry) RegisterListener(
 	nsID ident.ID,
 	listener SchemaListener,
-) (xclose.SimpleCloser, error) {
+) (xresource.SimpleCloser, error) {
 	if !sr.protoEnabled {
 		return nil, nil
 	}

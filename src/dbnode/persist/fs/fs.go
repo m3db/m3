@@ -23,13 +23,19 @@ package fs
 const (
 	snapshotFilePrefix = "snapshot"
 
-	infoFileSuffix           = "info"
+	// InfoFileSuffix is the suffix of info file.
+	InfoFileSuffix = "info"
+
+	// DigestFileSuffix is the suffix of digest file.
+	DigestFileSuffix = "digest"
+
+	// CheckpointFileSuffix is the suffix of checkpoint file.
+	CheckpointFileSuffix = "checkpoint"
+
 	indexFileSuffix          = "index"
 	summariesFileSuffix      = "summaries"
 	bloomFilterFileSuffix    = "bloomfilter"
 	dataFileSuffix           = "data"
-	digestFileSuffix         = "digest"
-	checkpointFileSuffix     = "checkpoint"
 	metadataFileSuffix       = "metadata"
 	filesetFilePrefix        = "fileset"
 	commitLogFilePrefix      = "commitlog"
@@ -45,7 +51,6 @@ const (
 	separator     = "-"
 	separatorRune = '-'
 
-	infoFilePattern      = filesetFilePrefix + separator + anyNumbersPattern + separator + infoFileSuffix + fileSuffix
 	filesetFilePattern   = filesetFilePrefix + separator + anyNumbersPattern + separator + anyLowerCaseCharsPattern + fileSuffix
 	commitLogFilePattern = commitLogFilePrefix + separator + anyNumbersPattern + separator + anyNumbersPattern + fileSuffix
 )

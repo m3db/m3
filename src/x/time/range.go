@@ -27,8 +27,8 @@ import (
 
 // Range represents [start, end)
 type Range struct {
-	Start time.Time
-	End   time.Time
+	Start UnixNano
+	End   UnixNano
 }
 
 // IsEmpty returns whether the time range is empty.
@@ -84,7 +84,7 @@ func (r Range) Intersect(other Range) (Range, bool) {
 }
 
 // Since returns the time range since a given point in time.
-func (r Range) Since(t time.Time) Range {
+func (r Range) Since(t UnixNano) Range {
 	if t.Before(r.Start) {
 		return r
 	}
@@ -97,8 +97,8 @@ func (r Range) Since(t time.Time) Range {
 // Merge merges the two ranges if they overlap. Otherwise,
 // the gap between them is included.
 func (r Range) Merge(other Range) Range {
-	start := MinTime(r.Start, other.Start)
-	end := MaxTime(r.End, other.End)
+	start := MinUnixNano(r.Start, other.Start)
+	end := MaxUnixNano(r.End, other.End)
 	return Range{Start: start, End: end}
 }
 
@@ -137,7 +137,7 @@ func (r Range) Subtract(other Range) []Range {
 
 // IterateForward iterates through a time range by step size in the
 // forwards direction.
-func (r Range) IterateForward(stepSize time.Duration, f func(t time.Time) (shouldContinue bool)) {
+func (r Range) IterateForward(stepSize time.Duration, f func(t UnixNano) (shouldContinue bool)) {
 	for t := r.Start; t.Before(r.End); t = t.Add(stepSize) {
 		if shouldContinue := f(t); !shouldContinue {
 			break
@@ -147,7 +147,7 @@ func (r Range) IterateForward(stepSize time.Duration, f func(t time.Time) (shoul
 
 // IterateBackward iterates through a time range by step size in the
 // backwards direction.
-func (r Range) IterateBackward(stepSize time.Duration, f func(t time.Time) (shouldContinue bool)) {
+func (r Range) IterateBackward(stepSize time.Duration, f func(t UnixNano) (shouldContinue bool)) {
 	for t := r.End; t.After(r.Start); t = t.Add(-stepSize) {
 		if shouldContinue := f(t); !shouldContinue {
 			break

@@ -32,9 +32,16 @@ enum ErrorType {
 	BAD_REQUEST
 }
 
+enum ErrorFlags {
+    NONE               = 0x00,
+    RESOURCE_EXHAUSTED = 0x01,
+    SERVER_TIMEOUT     = 0x02
+}
+
 exception Error {
 	1: required ErrorType type = ErrorType.INTERNAL_ERROR
 	2: required string message
+	3: optional i64 flags = 0
 }
 
 exception WriteBatchRawErrors {
@@ -43,46 +50,46 @@ exception WriteBatchRawErrors {
 
 service Node {
 	// Friendly not highly performant read/write endpoints
-	QueryResult query(1: QueryRequest req) throws (1: Error err)
+	QueryResult          query(1: QueryRequest req) throws (1: Error err)
 	AggregateQueryResult aggregate(1: AggregateQueryRequest req) throws (1: Error err)
-	FetchResult fetch(1: FetchRequest req) throws (1: Error err)
-	void write(1: WriteRequest req) throws (1: Error err)
-	void writeTagged(1: WriteTaggedRequest req) throws (1: Error err)
+	FetchResult          fetch(1: FetchRequest req) throws (1: Error err)
+	void                 write(1: WriteRequest req) throws (1: Error err)
+	void                 writeTagged(1: WriteTaggedRequest req) throws (1: Error err)
 
 	// Performant read/write endpoints
-	FetchBatchRawResult fetchBatchRaw(1: FetchBatchRawRequest req) throws (1: Error err)
-	FetchBatchRawResult fetchBatchRawV2(1: FetchBatchRawV2Request req) throws (1: Error err)
-	FetchBlocksRawResult fetchBlocksRaw(1: FetchBlocksRawRequest req) throws (1: Error err)
-	FetchTaggedResult fetchTagged(1: FetchTaggedRequest req) throws (1: Error err)
-	AggregateQueryRawResult aggregateRaw(1: AggregateQueryRawRequest req) throws (1: Error err)
+	AggregateQueryRawResult        aggregateRaw(1: AggregateQueryRawRequest req) throws (1: Error err)
+	FetchBatchRawResult            fetchBatchRaw(1: FetchBatchRawRequest req) throws (1: Error err)
+	FetchBatchRawResult            fetchBatchRawV2(1: FetchBatchRawV2Request req) throws (1: Error err)
+	FetchBlocksRawResult           fetchBlocksRaw(1: FetchBlocksRawRequest req) throws (1: Error err)
+	FetchTaggedResult              fetchTagged(1: FetchTaggedRequest req) throws (1: Error err)
 	FetchBlocksMetadataRawV2Result fetchBlocksMetadataRawV2(1: FetchBlocksMetadataRawV2Request req) throws (1: Error err)
-	void writeBatchRaw(1: WriteBatchRawRequest req) throws (1: WriteBatchRawErrors err)
-	void writeBatchRawV2(1: WriteBatchRawV2Request req) throws (1: WriteBatchRawErrors err)
-	void writeTaggedBatchRaw(1: WriteTaggedBatchRawRequest req) throws (1: WriteBatchRawErrors err)
-	void writeTaggedBatchRawV2(1: WriteTaggedBatchRawV2Request req) throws (1: WriteBatchRawErrors err)
-	void repair() throws (1: Error err)
-	TruncateResult truncate(1: TruncateRequest req) throws (1: Error err)
+	void                           writeBatchRaw(1: WriteBatchRawRequest req) throws (1: WriteBatchRawErrors err)
+	void                           writeBatchRawV2(1: WriteBatchRawV2Request req) throws (1: WriteBatchRawErrors err)
+	void                           writeTaggedBatchRaw(1: WriteTaggedBatchRawRequest req) throws (1: WriteBatchRawErrors err)
+	void                           writeTaggedBatchRawV2(1: WriteTaggedBatchRawV2Request req) throws (1: WriteBatchRawErrors err)
+	void                           repair() throws (1: Error err)
+	TruncateResult                 truncate(1: TruncateRequest req) throws (1: Error err)
 
 	AggregateTilesResult aggregateTiles(1: AggregateTilesRequest req) throws (1: Error err)
 
 	// Management endpoints
-	NodeHealthResult health() throws (1: Error err)
+	NodeHealthResult                               health() throws (1: Error err)
 	// NB: bootstrapped is for use with cluster management tools like k8s.
-	NodeBootstrappedResult bootstrapped() throws (1: Error err)
+	NodeBootstrappedResult                         bootstrapped() throws (1: Error err)
 	// NB: bootstrappedInPlacementOrNoPlacement is for use with cluster management tools like k8s.
 	NodeBootstrappedInPlacementOrNoPlacementResult bootstrappedInPlacementOrNoPlacement() throws (1: Error err)
-	NodePersistRateLimitResult getPersistRateLimit() throws (1: Error err)
-	NodePersistRateLimitResult setPersistRateLimit(1: NodeSetPersistRateLimitRequest req) throws (1: Error err)
-	NodeWriteNewSeriesAsyncResult getWriteNewSeriesAsync() throws (1: Error err)
-	NodeWriteNewSeriesAsyncResult setWriteNewSeriesAsync(1: NodeSetWriteNewSeriesAsyncRequest req) throws (1: Error err)
-	NodeWriteNewSeriesBackoffDurationResult getWriteNewSeriesBackoffDuration() throws (1: Error err)
-	NodeWriteNewSeriesBackoffDurationResult setWriteNewSeriesBackoffDuration(1: NodeSetWriteNewSeriesBackoffDurationRequest req) throws (1: Error err)
+	NodePersistRateLimitResult                     getPersistRateLimit() throws (1: Error err)
+	NodePersistRateLimitResult                     setPersistRateLimit(1: NodeSetPersistRateLimitRequest req) throws (1: Error err)
+	NodeWriteNewSeriesAsyncResult                  getWriteNewSeriesAsync() throws (1: Error err)
+	NodeWriteNewSeriesAsyncResult                  setWriteNewSeriesAsync(1: NodeSetWriteNewSeriesAsyncRequest req) throws (1: Error err)
+	NodeWriteNewSeriesBackoffDurationResult        getWriteNewSeriesBackoffDuration() throws (1: Error err)
+	NodeWriteNewSeriesBackoffDurationResult        setWriteNewSeriesBackoffDuration(1: NodeSetWriteNewSeriesBackoffDurationRequest req) throws (1: Error err)
 	NodeWriteNewSeriesLimitPerShardPerSecondResult getWriteNewSeriesLimitPerShardPerSecond() throws (1: Error err)
 	NodeWriteNewSeriesLimitPerShardPerSecondResult setWriteNewSeriesLimitPerShardPerSecond(1: NodeSetWriteNewSeriesLimitPerShardPerSecondRequest req) throws (1: Error err)
 
 	// Debug endpoints
-	DebugProfileStartResult debugProfileStart(1: DebugProfileStartRequest req) throws (1: Error err)
-	DebugProfileStopResult debugProfileStop(1: DebugProfileStopRequest req) throws (1: Error err)
+	DebugProfileStartResult        debugProfileStart(1: DebugProfileStartRequest req) throws (1: Error err)
+	DebugProfileStopResult         debugProfileStop(1: DebugProfileStopRequest req) throws (1: Error err)
 	DebugIndexMemorySegmentsResult debugIndexMemorySegments(1: DebugIndexMemorySegmentsRequest req) throws (1: Error err)
 }
 
@@ -93,6 +100,7 @@ struct FetchRequest {
 	4: required string id
 	5: optional TimeType rangeType = TimeType.UNIX_SECONDS
 	6: optional TimeType resultTimeType = TimeType.UNIX_SECONDS
+	7: optional binary source
 }
 
 struct FetchResult {
@@ -125,12 +133,14 @@ struct FetchBatchRawRequest {
 	3: required binary nameSpace
 	4: required list<binary> ids
 	5: optional TimeType rangeTimeType = TimeType.UNIX_SECONDS
+	6: optional binary source
 }
 
 
 struct FetchBatchRawV2Request {
 	1: required list<binary> nameSpaces
 	2: required list<FetchBatchRawV2RequestElement> elements
+	3: optional binary source
 }
 
 struct FetchBatchRawV2RequestElement {
@@ -169,15 +179,19 @@ struct FetchTaggedRequest {
 	3: required i64 rangeStart
 	4: required i64 rangeEnd
 	5: required bool fetchData
-	6: optional i64 limit
+	6: optional i64 seriesLimit
 	7: optional TimeType rangeTimeType = TimeType.UNIX_SECONDS
-	8: optional bool requireExhaustive = false
+	8: optional bool requireExhaustive = true
 	9: optional i64 docsLimit
+	10: optional binary source
+	11: optional bool requireNoWait = false
 }
 
 struct FetchTaggedResult {
 	1: required list<FetchTaggedIDResult> elements
 	2: required bool exhaustive
+	3: optional i64 waitedIndex
+	4: optional i64 waitedSeriesRead
 }
 
 struct FetchTaggedIDResult {
@@ -194,6 +208,7 @@ struct FetchBlocksRawRequest {
 	1: required binary nameSpace
 	2: required i32 shard
 	3: required list<FetchBlocksRawRequestElement> elements
+	4: optional binary source
 }
 
 struct FetchBlocksRawRequestElement {
@@ -387,15 +402,20 @@ struct AggregateQueryRawRequest {
 	2: required i64 rangeStart
 	3: required i64 rangeEnd
 	4: required binary nameSpace
-	5: optional i64 limit
+	5: optional i64 seriesLimit
 	6: optional list<binary> tagNameFilter
 	7: optional AggregateQueryType aggregateQueryType = AggregateQueryType.AGGREGATE_BY_TAG_NAME_VALUE
 	8: optional TimeType rangeType = TimeType.UNIX_SECONDS
+	9: optional binary source
+	10: optional i64 docsLimit
+	11: optional bool requireExhaustive
+	12: optional bool requireNoWait
 }
 
 struct AggregateQueryRawResult {
 	1: required list<AggregateQueryRawResultTagNameElement> results
 	2: required bool exhaustive
+	3: optional i64 waitedIndex
 }
 
 struct AggregateQueryRawResultTagNameElement {
@@ -413,10 +433,14 @@ struct AggregateQueryRequest {
 	2: required i64 rangeStart
 	3: required i64 rangeEnd
 	4: required string nameSpace
-	5: optional i64 limit
+	5: optional i64 seriesLimit
 	6: optional list<string> tagNameFilter
 	7: optional AggregateQueryType aggregateQueryType = AggregateQueryType.AGGREGATE_BY_TAG_NAME_VALUE
 	8: optional TimeType rangeType = TimeType.UNIX_SECONDS
+	9: optional binary source
+	10: optional i64 docsLimit
+	11: optional bool requireExhaustive
+	12: optional bool requireNoWait
 }
 
 struct AggregateQueryResult {
@@ -443,6 +467,35 @@ struct QueryRequest {
 	6: optional bool noData
 	7: optional TimeType rangeType = TimeType.UNIX_SECONDS
 	8: optional TimeType resultTimeType = TimeType.UNIX_SECONDS
+	9: optional binary source
+	// Additional options for the Cluster service.
+	10: optional ClusterQueryOptions clusterOptions
+}
+
+// ClusterQueryOptions are additional options for a QueryRequest to the Cluster service.
+struct ClusterQueryOptions {
+        // The read consistency level to use for the query.
+        1: optional ReadConsistency readConsistency
+        // The strategy to resolve conflicts for different values for the same timestamp.
+        2: optional EqualTimestampStrategy conflictResolutionStrategy
+}
+
+// Enumeration of read consistency values. Matches ReadConsistencyLevel type in golang.
+enum ReadConsistency {
+	ONE,
+	UNSTRICT_MAJORITY,
+	MAJORITY,
+	UNSTRICT_ALL,
+	ALL
+}
+
+// Enumeration of strategies to resolve read conflicts for equal timestamps. Matches IterateEqualTimestampStrategy in
+// golang.
+enum EqualTimestampStrategy {
+        LAST_PUSHED,
+        HIGHEST_VALUE,
+        LOWEST_VALUE,
+        HIGHEST_FREQUENCY,
 }
 
 struct QueryResult {
@@ -500,12 +553,11 @@ struct AggregateTilesRequest {
 	3: required i64 rangeStart
 	4: required i64 rangeEnd
 	5: required string step
-	6: bool removeResets // FIXME: temporary, remove after metrics type metadata is available.
-	7: optional TimeType rangeType = TimeType.UNIX_SECONDS
+	6: optional TimeType rangeType = TimeType.UNIX_SECONDS
 }
 
 struct AggregateTilesResult {
-	1: required i64 processedBlockCount
+	1: required i64 processedTileCount
 }
 
 struct DebugProfileStartRequest {

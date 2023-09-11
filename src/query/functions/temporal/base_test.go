@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/compare"
 	"github.com/m3db/m3/src/query/test/executor"
 	"github.com/m3db/m3/src/query/test/transformtest"
 	"github.com/m3db/m3/src/query/ts"
@@ -45,13 +46,42 @@ import (
 var nan = math.NaN()
 
 type testCase struct {
-	name     string
-	opType   string
-	vals     [][]float64
-	expected [][]float64
+	name        string
+	opType      string
+	vals        [][]float64
+	expected    [][]float64
+	withWarning bool
 }
 
 type opGenerator func(t *testing.T, tc testCase) transform.Params
+
+const expectedWarning = "resolution larger than query range_" +
+	"range: 1m0s, resolutions: 1h0m0s, 1m1s"
+
+func buildMetadata() block.ResultMetadata {
+	resultMeta := block.NewResultMetadata()
+	resultMeta.Resolutions = []time.Duration{time.Second, time.Minute}
+
+	return resultMeta
+}
+
+func buildWarningMetadata() block.ResultMetadata {
+	resultMeta := buildMetadata()
+	resultMeta.Resolutions = append(resultMeta.Resolutions,
+		time.Second*61, time.Hour)
+	return resultMeta
+}
+
+func verifyResultMetadata(t *testing.T, m block.ResultMetadata, exWarn bool) {
+	warnings := m.WarningStrings()
+	if !exWarn {
+		assert.Equal(t, 0, len(warnings))
+		return
+	}
+
+	require.Equal(t, 1, len(warnings))
+	assert.Equal(t, expectedWarning, warnings[0])
+}
 
 func testTemporalFunc(t *testing.T, opGen opGenerator, tests []testCase) {
 	for _, tt := range tests {
@@ -81,13 +111,18 @@ func testTemporalFunc(t *testing.T, opGen opGenerator, tests []testCase) {
 					},
 				}
 
+				resultMeta := buildMetadata()
+				if tt.withWarning {
+					resultMeta = buildWarningMetadata()
+				}
+
 				bl := test.NewUnconsolidatedBlockFromDatapointsWithMeta(models.Bounds{
 					Start:    bounds.Start.Add(-2 * bounds.Duration),
 					Duration: bounds.Duration * 2,
 					StepSize: bounds.StepSize,
-				}, seriesMetas, values, runBatched)
+				}, seriesMetas, resultMeta, values, runBatched)
 
-				c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+				c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 				baseOp := opGen(t, tt)
 				node := baseOp.Node(c, transformtest.Options(t, transform.OptionsParams{
 					TimeSpec: transform.TimeSpec{
@@ -97,12 +132,12 @@ func testTemporalFunc(t *testing.T, opGen opGenerator, tests []testCase) {
 					},
 				}))
 
-				err := node.Process(models.NoopQueryContext(), parser.NodeID(0), bl)
+				err := node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), bl)
 				require.NoError(t, err)
 
-				test.EqualsWithNansWithDelta(t, tt.expected, sink.Values, 0.0001)
+				compare.EqualsWithNansWithDelta(t, tt.expected, sink.Values, 0.0001)
 				metaOne := block.SeriesMeta{
-					Name: []byte("t1=v1,"),
+					Name: []byte("{t1=\"v1\"}"),
 					Tags: models.EmptyTags().AddTags([]models.Tag{{
 						Name:  []byte("t1"),
 						Value: []byte("v1"),
@@ -110,15 +145,23 @@ func testTemporalFunc(t *testing.T, opGen opGenerator, tests []testCase) {
 				}
 
 				metaTwo := block.SeriesMeta{
-					Name: []byte("t1=v2,"),
+					Name: []byte("{t1=\"v2\"}"),
 					Tags: models.EmptyTags().AddTags([]models.Tag{{
 						Name:  []byte("t1"),
 						Value: []byte("v2"),
 					}})}
 
-				// NB: name should be dropped from series tags, and the name
-				// should be the updated ID.
-				expectedSeriesMetas := []block.SeriesMeta{metaOne, metaTwo}
+				// The last_over_time function acts like offset;
+				// thus, it should keep the metric name.
+				// For all other functions,
+				// name should be dropped from series tags,
+				// and the name should be the updated ID.
+				var expectedSeriesMetas []block.SeriesMeta
+				if tt.opType != LastType {
+					expectedSeriesMetas = []block.SeriesMeta{metaOne, metaTwo}
+				} else {
+					expectedSeriesMetas = seriesMetas
+				}
 				require.Equal(t, expectedSeriesMetas, sink.Metas)
 			})
 		}
@@ -127,7 +170,7 @@ func testTemporalFunc(t *testing.T, opGen opGenerator, tests []testCase) {
 
 func TestGetIndicesError(t *testing.T) {
 	size := 10
-	now := time.Now().Truncate(time.Minute)
+	now := xtime.Now().Truncate(time.Minute)
 	dps := make([]ts.Datapoint, size)
 	s := int64(time.Second)
 	for i := range dps {
@@ -147,7 +190,7 @@ func TestGetIndicesError(t *testing.T) {
 	require.Equal(t, -1, r)
 	require.False(t, ok)
 
-	pastBound := xtime.ToUnixNano(now.Add(time.Hour))
+	pastBound := now.Add(time.Hour)
 	l, r, ok = getIndices(dps, pastBound, pastBound+10, 0)
 	require.Equal(t, 0, l)
 	require.Equal(t, 10, r)
@@ -196,11 +239,16 @@ func (it *dummySeriesIter) Close() {
 }
 
 func TestParallelProcess(t *testing.T) {
+	t.Run("no expected warning", func(t *testing.T) { testParallelProcess(t, false) })
+	t.Run("expected warning", func(t *testing.T) { testParallelProcess(t, true) })
+}
+
+func testParallelProcess(t *testing.T, warning bool) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	tagName := "tag"
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	aggProcess := aggProcessor{
 		aggFunc: func(fs []float64) float64 {
 			require.Equal(t, 1, len(fs))
@@ -217,7 +265,13 @@ func TestParallelProcess(t *testing.T) {
 
 	stepSize := time.Minute
 	bl := block.NewMockBlock(ctrl)
+	resultMeta := buildMetadata()
+	if warning {
+		resultMeta = buildWarningMetadata()
+	}
+
 	bl.EXPECT().Meta().Return(block.Metadata{
+		ResultMetadata: resultMeta,
 		Bounds: models.Bounds{
 			StepSize: stepSize,
 			Duration: stepSize,
@@ -278,7 +332,7 @@ func TestParallelProcess(t *testing.T) {
 	bl.EXPECT().MultiSeriesIter(gomock.Any()).Return(batches, nil).MaxTimes(1)
 	bl.EXPECT().Close().Times(1)
 
-	err := node.Process(models.NoopQueryContext(), parser.NodeID(0), bl)
+	err := node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), bl)
 	require.NoError(t, err)
 
 	expected := []float64{
@@ -293,11 +347,13 @@ func TestParallelProcess(t *testing.T) {
 
 	for i, m := range sink.Metas {
 		expected := fmt.Sprint(expected[i])
-		expectedName := fmt.Sprintf("tag=%s,", expected)
+		expectedName := fmt.Sprintf("{tag=\"%s\"}", expected)
 		assert.Equal(t, expectedName, string(m.Name))
 		require.Equal(t, 1, m.Tags.Len())
 		tag, found := m.Tags.Get([]byte(tagName))
 		require.True(t, found)
 		assert.Equal(t, expected, string(tag))
 	}
+
+	verifyResultMetadata(t, sink.Meta.ResultMetadata, warning)
 }

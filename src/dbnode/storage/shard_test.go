@@ -23,7 +23,6 @@ package storage
 import (
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -41,8 +40,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/series"
-	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -79,12 +78,18 @@ func testDatabaseShardWithIndexFn(
 	idx NamespaceIndex,
 	coldWritesEnabled bool,
 ) *dbShard {
-	metadata, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts.SetColdWritesEnabled(coldWritesEnabled))
+	metadata, err := namespace.NewMetadata(
+		defaultTestNs1ID,
+		defaultTestNs1Opts.SetColdWritesEnabled(coldWritesEnabled),
+	)
 	require.NoError(t, err)
 	nsReaderMgr := newNamespaceReaderManager(metadata, tally.NoopScope, opts)
+
 	seriesOpts := NewSeriesOptionsFromOptions(opts, defaultTestNs1Opts.RetentionOptions()).
 		SetBufferBucketVersionsPool(series.NewBufferBucketVersionsPool(nil)).
-		SetBufferBucketPool(series.NewBufferBucketPool(nil))
+		SetBufferBucketPool(series.NewBufferBucketPool(nil)).
+		SetColdWritesEnabled(coldWritesEnabled)
+
 	return newDatabaseShard(metadata, 0, nil, nsReaderMgr,
 		&testIncreasingIndex{}, idx, true, opts, seriesOpts).(*dbShard)
 }
@@ -94,7 +99,10 @@ func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id ident.ID, tags id
 	series.EXPECT().ID().Return(id).AnyTimes()
 	series.EXPECT().IsEmpty().Return(false).AnyTimes()
 	shard.Lock()
-	shard.insertNewShardEntryWithLock(lookup.NewEntry(series, index))
+	shard.insertNewShardEntryWithLock(NewEntry(NewEntryOptions{
+		Series: series,
+		Index:  index,
+	}))
 	shard.Unlock()
 	return series
 }
@@ -130,7 +138,7 @@ func TestShardBootstrapState(t *testing.T) {
 	s := testDatabaseShard(t, opts)
 	defer s.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -143,9 +151,9 @@ func TestShardFlushStateNotStarted(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
-	now := time.Now()
+	now := xtime.Now()
 	nowFn := func() time.Time {
-		return now
+		return now.ToTime()
 	}
 
 	opts := DefaultTestOptions()
@@ -162,13 +170,15 @@ func TestShardFlushStateNotStarted(t *testing.T) {
 	s := testDatabaseShard(t, opts)
 	defer s.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
 	s.Bootstrap(ctx, nsCtx)
 
-	notStarted := fileOpState{WarmStatus: fileOpNotStarted}
+	notStarted := fileOpState{WarmStatus: warmStatus{
+		DataFlushed: fileOpNotStarted,
+	}}
 	for st := earliest; !st.After(latest); st = st.Add(ropts.BlockSize()) {
 		flushState, err := s.FlushState(earliest)
 		require.NoError(t, err)
@@ -183,16 +193,14 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
 		opts   = DefaultTestOptions()
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
-		newClOpts = opts.
-			CommitLogOptions().
-			SetFilesystemOptions(fsOpts)
+		newClOpts = opts.CommitLogOptions().SetFilesystemOptions(fsOpts)
 	)
 	opts = opts.
 		SetCommitLogOptions(newClOpts)
@@ -208,7 +216,9 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 
 	// Load the mock into the shard as an expected series so that we can assert
 	// on the call to its Bootstrap() method below.
-	entry := lookup.NewEntry(mockSeries, 0)
+	entry := NewEntry(NewEntryOptions{
+		Series: mockSeries,
+	})
 	s.Lock()
 	s.insertNewShardEntryWithLock(entry)
 	s.Unlock()
@@ -218,8 +228,8 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 
 	var (
 		blockSize   = 2 * time.Hour
-		start       = time.Now().Truncate(blockSize)
-		blockStarts = []time.Time{start, start.Add(blockSize)}
+		start       = xtime.Now().Truncate(blockSize)
+		blockStarts = []xtime.UnixNano{start, start.Add(blockSize)}
 	)
 	for i, blockStart := range blockStarts {
 		writer.Open(fs.DataWriterOpenOptions{
@@ -234,7 +244,7 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 		require.NoError(t, writer.Close())
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -261,16 +271,13 @@ func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
-		opts   = DefaultTestOptions()
-		fsOpts = opts.CommitLogOptions().FilesystemOptions().
-			SetFilePathPrefix(dir)
-		newClOpts = opts.
-			CommitLogOptions().
-			SetFilesystemOptions(fsOpts)
+		opts      = DefaultTestOptions()
+		fsOpts    = opts.CommitLogOptions().FilesystemOptions().SetFilePathPrefix(dir)
+		newClOpts = opts.CommitLogOptions().SetFilesystemOptions(fsOpts)
 	)
 	opts = opts.
 		SetCommitLogOptions(newClOpts)
@@ -283,7 +290,7 @@ func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
 
 	var (
 		blockSize  = 2 * time.Hour
-		start      = time.Now().Truncate(blockSize)
+		start      = xtime.Now().Truncate(blockSize)
 		numVolumes = 3
 	)
 	for i := 0; i < numVolumes; i++ {
@@ -299,7 +306,7 @@ func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
 		require.NoError(t, writer.Close())
 	}
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -319,16 +326,13 @@ func TestShardBootstrapWithCacheShardIndices(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
-		opts   = DefaultTestOptions()
-		fsOpts = opts.CommitLogOptions().FilesystemOptions().
-			SetFilePathPrefix(dir)
-		newClOpts = opts.
-			CommitLogOptions().
-			SetFilesystemOptions(fsOpts)
+		opts          = DefaultTestOptions()
+		fsOpts        = opts.CommitLogOptions().FilesystemOptions().SetFilePathPrefix(dir)
+		newClOpts     = opts.CommitLogOptions().SetFilesystemOptions(fsOpts)
 		mockRetriever = block.NewMockDatabaseBlockRetriever(ctrl)
 	)
 	opts = opts.SetCommitLogOptions(newClOpts)
@@ -338,7 +342,7 @@ func TestShardBootstrapWithCacheShardIndices(t *testing.T) {
 	mockRetriever.EXPECT().CacheShardIndices([]uint32{s.ID()}).Return(nil)
 	s.setBlockRetriever(mockRetriever)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -351,7 +355,7 @@ func TestShardFlushDuringBootstrap(t *testing.T) {
 	s := testDatabaseShard(t, DefaultTestOptions())
 	defer s.Close()
 	s.bootstrapState = Bootstrapping
-	err := s.WarmFlush(time.Now(), nil, namespace.Context{})
+	err := s.WarmFlush(xtime.Now(), nil, namespace.Context{})
 	require.Equal(t, err, errShardNotBootstrappedToFlush)
 }
 
@@ -371,18 +375,24 @@ func testShardLoadLimit(t *testing.T, limit int64, shouldReturnError bool) {
 		s                 = testDatabaseShard(t, opts)
 		blOpts            = opts.DatabaseBlockOptions()
 		testBlockSize     = 2 * time.Hour
-		start             = time.Now().Truncate(testBlockSize)
+		start             = xtime.Now().Truncate(testBlockSize)
 		threeBytes        = checked.NewBytes([]byte("123"), nil)
 
-		sr      = result.NewShardResult(0, result.NewOptions())
+		sr      = result.NewShardResult(result.NewOptions())
 		fooTags = ident.NewTags(ident.StringTag("foo", "foe"))
 		barTags = ident.NewTags(ident.StringTag("bar", "baz"))
 	)
 	defer s.Close()
 	threeBytes.IncRef()
 	blocks := []block.DatabaseBlock{
-		block.NewDatabaseBlock(start, testBlockSize, ts.Segment{Head: threeBytes}, blOpts, namespace.Context{}),
-		block.NewDatabaseBlock(start.Add(1*testBlockSize), testBlockSize, ts.Segment{Tail: threeBytes}, blOpts, namespace.Context{}),
+		block.NewDatabaseBlock(
+			start, testBlockSize, ts.Segment{Head: threeBytes},
+			blOpts, namespace.Context{},
+		),
+		block.NewDatabaseBlock(
+			start.Add(1*testBlockSize), testBlockSize, ts.Segment{Tail: threeBytes},
+			blOpts, namespace.Context{},
+		),
 	}
 
 	sr.AddBlock(ident.StringID("foo"), fooTags, blocks[0])
@@ -390,7 +400,7 @@ func testShardLoadLimit(t *testing.T, limit int64, shouldReturnError bool) {
 
 	seriesMap := sr.AllSeries()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -407,23 +417,25 @@ func testShardLoadLimit(t *testing.T, limit int64, shouldReturnError bool) {
 }
 
 func TestShardFlushSeriesFlushError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	blockStart := time.Unix(21600, 0)
+	blockStart := xtime.FromSeconds(21600)
 
 	s := testDatabaseShard(t, DefaultTestOptions())
 	defer s.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
 	s.Bootstrap(ctx, nsCtx)
 
-	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = fileOpState{
-		WarmStatus:  fileOpFailed,
-		NumFailures: 1,
+	s.flushState.statesByTime[blockStart] = fileOpState{
+		WarmStatus: warmStatus{
+			DataFlushed: fileOpNotStarted,
+		},
+		NumFailures: 0,
 	}
 
 	var closed bool
@@ -451,14 +463,16 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		curr.EXPECT().IsEmpty().Return(false).AnyTimes()
 		curr.EXPECT().
 			WarmFlush(gomock.Any(), blockStart, gomock.Any(), gomock.Any()).
-			Do(func(context.Context, time.Time, persist.DataFn, namespace.Context) {
+			Do(func(context.Context, xtime.UnixNano, persist.DataFn, namespace.Context) {
 				flushed[i] = struct{}{}
 			}).
 			Return(series.FlushOutcomeErr, expectedErr)
-		s.list.PushBack(lookup.NewEntry(curr, 0))
+		s.list.PushBack(NewEntry(NewEntryOptions{
+			Series: curr,
+		}))
 	}
 
-	err := s.WarmFlush(blockStart, flush, namespace.Context{})
+	flushErr := s.WarmFlush(blockStart, flush, namespace.Context{})
 
 	require.Equal(t, len(flushed), 2)
 	for i := 0; i < 2; i++ {
@@ -467,25 +481,27 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 	}
 
 	require.True(t, closed)
-	require.NotNil(t, err)
-	require.Equal(t, "error bar", err.Error())
+	require.NotNil(t, flushErr)
+	require.Equal(t, "error bar", flushErr.Error())
 
 	flushState, err := s.FlushState(blockStart)
 	require.NoError(t, err)
 	require.Equal(t, fileOpState{
-		WarmStatus:  fileOpFailed,
-		NumFailures: 2,
+		WarmStatus: warmStatus{
+			DataFlushed: fileOpFailed,
+		},
+		NumFailures: 1,
 	}, flushState)
 }
 
 func TestShardFlushSeriesFlushSuccess(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	blockStart := time.Unix(21600, 0)
-	now := time.Now()
+	blockStart := xtime.FromSeconds(21600)
+	now := xtime.Now()
 	nowFn := func() time.Time {
-		return now
+		return now.ToTime()
 	}
 	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
@@ -493,15 +509,17 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	s := testDatabaseShard(t, opts)
 	defer s.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
 	s.Bootstrap(ctx, nsCtx)
 
-	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = fileOpState{
-		WarmStatus:  fileOpFailed,
-		NumFailures: 1,
+	s.flushState.statesByTime[blockStart] = fileOpState{
+		WarmStatus: warmStatus{
+			DataFlushed: fileOpNotStarted,
+		},
+		NumFailures: 0,
 	}
 
 	var closed bool
@@ -526,11 +544,13 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 		curr.EXPECT().IsEmpty().Return(false).AnyTimes()
 		curr.EXPECT().
 			WarmFlush(gomock.Any(), blockStart, gomock.Any(), gomock.Any()).
-			Do(func(context.Context, time.Time, persist.DataFn, namespace.Context) {
+			Do(func(context.Context, xtime.UnixNano, persist.DataFn, namespace.Context) {
 				flushed[i] = struct{}{}
 			}).
 			Return(series.FlushOutcomeFlushedToDisk, nil)
-		s.list.PushBack(lookup.NewEntry(curr, 0))
+		s.list.PushBack(NewEntry(NewEntryOptions{
+			Series: curr,
+		}))
 	}
 
 	err := s.WarmFlush(blockStart, flush, namespace.Context{})
@@ -544,10 +564,13 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	require.True(t, closed)
 	require.Nil(t, err)
 
+	// State not yet updated since an explicit call to MarkWarmFlushStateSuccessOrError is required.
 	flushState, err := s.FlushState(blockStart)
 	require.NoError(t, err)
 	require.Equal(t, fileOpState{
-		WarmStatus:             fileOpSuccess,
+		WarmStatus: warmStatus{
+			DataFlushed: fileOpSuccess,
+		},
 		ColdVersionRetrievable: 0,
 		NumFailures:            0,
 	}, flushState)
@@ -555,13 +578,13 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 
 type testDirtySeries struct {
 	id         ident.ID
-	dirtyTimes []time.Time
+	dirtyTimes []xtime.UnixNano
 }
 
-func optimizedTimesFromTimes(times []time.Time) series.OptimizedTimes {
+func optimizedTimesFromTimes(times []xtime.UnixNano) series.OptimizedTimes {
 	var ret series.OptimizedTimes
 	for _, t := range times {
-		ret.Add(xtime.ToUnixNano(t))
+		ret.Add(t)
 	}
 	return ret
 }
@@ -573,9 +596,9 @@ func TestShardColdFlush(t *testing.T) {
 
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
-	now := time.Now()
+	now := xtime.Now()
 	nowFn := func() time.Time {
-		return now
+		return now.ToTime()
 	}
 	opts := DefaultTestOptions()
 	fsOpts := opts.CommitLogOptions().FilesystemOptions().
@@ -588,7 +611,7 @@ func TestShardColdFlush(t *testing.T) {
 	blockSize := opts.SeriesOptions().RetentionOptions().BlockSize()
 	shard := testDatabaseShard(t, opts)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -608,32 +631,34 @@ func TestShardColdFlush(t *testing.T) {
 	// happen after a successful warm flush because warm flushes currently don't
 	// have merging logic. This means that all blocks except t7 should
 	// successfully cold flush.
-	shard.markWarmFlushStateSuccess(t0)
-	shard.markWarmFlushStateSuccess(t1)
-	shard.markWarmFlushStateSuccess(t2)
-	shard.markWarmFlushStateSuccess(t3)
-	shard.markWarmFlushStateSuccess(t4)
-	shard.markWarmFlushStateSuccess(t5)
-	shard.markWarmFlushStateSuccess(t6)
+	shard.markWarmDataFlushStateSuccess(t0)
+	shard.markWarmDataFlushStateSuccess(t1)
+	shard.markWarmDataFlushStateSuccess(t2)
+	shard.markWarmDataFlushStateSuccess(t3)
+	shard.markWarmDataFlushStateSuccess(t4)
+	shard.markWarmDataFlushStateSuccess(t5)
+	shard.markWarmDataFlushStateSuccess(t6)
 
 	dirtyData := []testDirtySeries{
-		{id: ident.StringID("id0"), dirtyTimes: []time.Time{t0, t2, t3, t4}},
-		{id: ident.StringID("id1"), dirtyTimes: []time.Time{t1}},
-		{id: ident.StringID("id2"), dirtyTimes: []time.Time{t3, t4, t5}},
-		{id: ident.StringID("id3"), dirtyTimes: []time.Time{t6, t7}},
+		{id: ident.StringID("id0"), dirtyTimes: []xtime.UnixNano{t0, t2, t3, t4}},
+		{id: ident.StringID("id1"), dirtyTimes: []xtime.UnixNano{t1}},
+		{id: ident.StringID("id2"), dirtyTimes: []xtime.UnixNano{t3, t4, t5}},
+		{id: ident.StringID("id3"), dirtyTimes: []xtime.UnixNano{t6, t7}},
 	}
 	for _, ds := range dirtyData {
 		curr := series.NewMockDatabaseSeries(ctrl)
 		curr.EXPECT().ID().Return(ds.id).AnyTimes()
-		curr.EXPECT().Metadata().Return(doc.Document{ID: ds.id.Bytes()}).AnyTimes()
+		curr.EXPECT().Metadata().Return(doc.Metadata{ID: ds.id.Bytes()}).AnyTimes()
 		curr.EXPECT().ColdFlushBlockStarts(gomock.Any()).
 			Return(optimizedTimesFromTimes(ds.dirtyTimes))
-		shard.list.PushBack(lookup.NewEntry(curr, 0))
+		shard.list.PushBack(NewEntry(NewEntryOptions{
+			Series: curr,
+		}))
 	}
 
 	preparer := persist.NewMockFlushPreparer(ctrl)
 	fsReader := fs.NewMockDataFileSetReader(ctrl)
-	resources := coldFlushReuseableResources{
+	resources := coldFlushReusableResources{
 		dirtySeries:        newDirtySeriesMap(),
 		dirtySeriesToWrite: make(map[xtime.UnixNano]*idList),
 		idElementPool:      newIDElementPool(nil),
@@ -663,18 +688,18 @@ func TestShardColdFlush(t *testing.T) {
 }
 
 func TestShardColdFlushNoMergeIfNothingDirty(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
-	now := time.Now()
+	now := xtime.Now()
 	nowFn := func() time.Time {
-		return now
+		return now.ToTime()
 	}
 	opts := DefaultTestOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 	blockSize := opts.SeriesOptions().RetentionOptions().BlockSize()
 	shard := testDatabaseShard(t, opts)
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
@@ -687,10 +712,10 @@ func TestShardColdFlushNoMergeIfNothingDirty(t *testing.T) {
 	t1 := t0.Add(1 * blockSize)
 	t2 := t0.Add(2 * blockSize)
 	t3 := t0.Add(3 * blockSize)
-	shard.markWarmFlushStateSuccess(t0)
-	shard.markWarmFlushStateSuccess(t1)
-	shard.markWarmFlushStateSuccess(t2)
-	shard.markWarmFlushStateSuccess(t3)
+	shard.markWarmDataFlushStateSuccess(t0)
+	shard.markWarmDataFlushStateSuccess(t1)
+	shard.markWarmDataFlushStateSuccess(t2)
+	shard.markWarmDataFlushStateSuccess(t3)
 
 	preparer := persist.NewMockFlushPreparer(ctrl)
 	fsReader := fs.NewMockDataFileSetReader(ctrl)
@@ -701,12 +726,12 @@ func TestShardColdFlushNoMergeIfNothingDirty(t *testing.T) {
 	// we don't want to reallocate new idLists for the same block starts when we
 	// process a different shard.
 	dirtySeriesToWrite := make(map[xtime.UnixNano]*idList)
-	dirtySeriesToWrite[xtime.ToUnixNano(t0)] = newIDList(idElementPool)
-	dirtySeriesToWrite[xtime.ToUnixNano(t1)] = newIDList(idElementPool)
-	dirtySeriesToWrite[xtime.ToUnixNano(t2)] = newIDList(idElementPool)
-	dirtySeriesToWrite[xtime.ToUnixNano(t3)] = newIDList(idElementPool)
+	dirtySeriesToWrite[t0] = newIDList(idElementPool)
+	dirtySeriesToWrite[t1] = newIDList(idElementPool)
+	dirtySeriesToWrite[t2] = newIDList(idElementPool)
+	dirtySeriesToWrite[t3] = newIDList(idElementPool)
 
-	resources := coldFlushReuseableResources{
+	resources := coldFlushReusableResources{
 		dirtySeries:        newDirtySeriesMap(),
 		dirtySeriesToWrite: dirtySeriesToWrite,
 		idElementPool:      idElementPool,
@@ -775,10 +800,10 @@ func newFSMergeWithMemTestFn(
 }
 
 func TestShardSnapshotShardNotBootstrapped(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	blockStart := time.Unix(21600, 0)
+	blockStart := xtime.FromSeconds(21600)
 
 	s := testDatabaseShard(t, DefaultTestOptions())
 	defer s.Close()
@@ -790,10 +815,10 @@ func TestShardSnapshotShardNotBootstrapped(t *testing.T) {
 }
 
 func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	blockStart := time.Unix(21600, 0)
+	blockStart := xtime.FromSeconds(21600)
 
 	s := testDatabaseShard(t, DefaultTestOptions())
 	defer s.Close()
@@ -823,14 +848,19 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 		entry := series.NewMockDatabaseSeries(ctrl)
 		entry.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
 		entry.EXPECT().IsEmpty().Return(false).AnyTimes()
-		entry.EXPECT().IsBufferEmptyAtBlockStart(blockStart).Return(false).AnyTimes()
+		entry.EXPECT().MarkNonEmptyBlocks(blockStart).
+			DoAndReturn(func(nonEmptyBlockStarts map[xtime.UnixNano]struct{}) {
+				nonEmptyBlockStarts[blockStart] = struct{}{}
+			}).AnyTimes()
 		entry.EXPECT().
 			Snapshot(gomock.Any(), blockStart, gomock.Any(), gomock.Any()).
-			Do(func(context.Context, time.Time, persist.DataFn, namespace.Context) {
+			Do(func(context.Context, xtime.UnixNano, persist.DataFn, namespace.Context) {
 				snapshotted[i] = struct{}{}
 			}).
 			Return(series.SnapshotResult{}, nil)
-		s.list.PushBack(lookup.NewEntry(entry, 0))
+		s.list.PushBack(NewEntry(NewEntryOptions{
+			Series: entry,
+		}))
 	}
 
 	_, err := s.Snapshot(blockStart, blockStart, snapshotPreparer, namespace.Context{})
@@ -848,7 +878,9 @@ func addMockTestSeries(ctrl *gomock.Controller, shard *dbShard, id ident.ID) *se
 	series := series.NewMockDatabaseSeries(ctrl)
 	series.EXPECT().ID().AnyTimes().Return(id)
 	shard.Lock()
-	shard.insertNewShardEntryWithLock(lookup.NewEntry(series, 0))
+	shard.insertNewShardEntryWithLock(NewEntry(NewEntryOptions{
+		Series: series,
+	}))
 	shard.Unlock()
 	return series
 }
@@ -864,7 +896,9 @@ func addTestSeriesWithCount(shard *dbShard, id ident.ID, count int32) series.Dat
 		Options:     shard.seriesOpts,
 	})
 	shard.Lock()
-	entry := lookup.NewEntry(seriesEntry, 0)
+	entry := NewEntry(NewEntryOptions{
+		Series: seriesEntry,
+	})
 	for i := int32(0); i < count; i++ {
 		entry.IncrementReaderWriterCount()
 	}
@@ -878,7 +912,7 @@ func writeShardAndVerify(
 	t *testing.T,
 	shard *dbShard,
 	id string,
-	now time.Time,
+	now xtime.UnixNano,
 	value float64,
 	expectedShouldWrite bool,
 	expectedIdx uint64,
@@ -897,25 +931,31 @@ func TestShardTick(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	now := time.Now()
+	now := xtime.Now()
 	nowLock := sync.RWMutex{}
-	nowFn := func() time.Time {
+	nowFn := func() xtime.UnixNano {
 		nowLock.RLock()
 		value := now
 		nowLock.RUnlock()
 		return value
 	}
-	setNow := func(t time.Time) {
+	clockFn := func() time.Time {
+		nowLock.RLock()
+		value := now
+		nowLock.RUnlock()
+		return value.ToTime()
+	}
+	setNow := func(t xtime.UnixNano) {
 		nowLock.Lock()
 		now = t
 		nowLock.Unlock()
 	}
 
 	opts := DefaultTestOptions()
-	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(clockFn))
 
 	fsOpts := opts.CommitLogOptions().FilesystemOptions().
 		SetFilePathPrefix(dir)
@@ -928,7 +968,7 @@ func TestShardTick(t *testing.T) {
 
 	sleepPerSeries := time.Microsecond
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	shard := testDatabaseShard(t, opts)
@@ -943,11 +983,15 @@ func TestShardTick(t *testing.T) {
 	defer shard.Close()
 
 	// Also check that it expires flush states by time
-	shard.flushState.statesByTime[xtime.ToUnixNano(earliestFlush)] = fileOpState{
-		WarmStatus: fileOpSuccess,
+	shard.flushState.statesByTime[earliestFlush] = fileOpState{
+		WarmStatus: warmStatus{
+			DataFlushed: fileOpSuccess,
+		},
 	}
-	shard.flushState.statesByTime[xtime.ToUnixNano(beforeEarliestFlush)] = fileOpState{
-		WarmStatus: fileOpSuccess,
+	shard.flushState.statesByTime[beforeEarliestFlush] = fileOpState{
+		WarmStatus: warmStatus{
+			DataFlushed: fileOpSuccess,
+		},
 	}
 	assert.Equal(t, 2, len(shard.flushState.statesByTime))
 
@@ -980,7 +1024,7 @@ func TestShardTick(t *testing.T) {
 
 	// Ensure flush states by time was expired correctly
 	require.Equal(t, 1, len(shard.flushState.statesByTime))
-	_, ok := shard.flushState.statesByTime[xtime.ToUnixNano(earliestFlush)]
+	_, ok := shard.flushState.statesByTime[earliestFlush]
 	require.True(t, ok)
 }
 
@@ -1039,7 +1083,7 @@ func testShardWriteAsync(t *testing.T, writes []testWrite) {
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	testReporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
@@ -1048,17 +1092,17 @@ func testShardWriteAsync(t *testing.T, writes []testWrite) {
 	}, 100*time.Millisecond)
 	defer closer.Close()
 
-	now := time.Now()
+	now := xtime.Now()
 	nowLock := sync.RWMutex{}
 	nowFn := func() time.Time {
 		nowLock.RLock()
 		value := now
 		nowLock.RUnlock()
-		return value
+		return value.ToTime()
 	}
 	setNow := func(t time.Time) {
 		nowLock.Lock()
-		now = t
+		now = xtime.ToUnixNano(t)
 		nowLock.Unlock()
 	}
 
@@ -1098,7 +1142,7 @@ func testShardWriteAsync(t *testing.T, writes []testWrite) {
 
 	sleepPerSeries := time.Microsecond
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	shard := testDatabaseShard(t, opts)
@@ -1114,11 +1158,15 @@ func testShardWriteAsync(t *testing.T, writes []testWrite) {
 	defer shard.Close()
 
 	// Also check that it expires flush states by time
-	shard.flushState.statesByTime[xtime.ToUnixNano(earliestFlush)] = fileOpState{
-		WarmStatus: fileOpSuccess,
+	shard.flushState.statesByTime[earliestFlush] = fileOpState{
+		WarmStatus: warmStatus{
+			DataFlushed: fileOpSuccess,
+		},
 	}
-	shard.flushState.statesByTime[xtime.ToUnixNano(beforeEarliestFlush)] = fileOpState{
-		WarmStatus: fileOpSuccess,
+	shard.flushState.statesByTime[beforeEarliestFlush] = fileOpState{
+		WarmStatus: warmStatus{
+			DataFlushed: fileOpSuccess,
+		},
 	}
 	assert.Equal(t, 2, len(shard.flushState.statesByTime))
 
@@ -1129,7 +1177,9 @@ func testShardWriteAsync(t *testing.T, writes []testWrite) {
 	}
 
 	for _, write := range writes {
-		shard.Write(ctx, ident.StringID(write.id), nowFn(), write.value, write.unit, write.annotation, series.WriteOptions{})
+		_, err := shard.Write(ctx, ident.StringID(write.id), xtime.ToUnixNano(nowFn()),
+			write.value, write.unit, write.annotation, series.WriteOptions{})
+		require.NoError(t, err)
 	}
 
 	for {
@@ -1140,7 +1190,7 @@ func testShardWriteAsync(t *testing.T, writes []testWrite) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	r, err := shard.Tick(context.NewNoOpCanncellable(), nowFn(), namespace.Context{})
+	r, err := shard.Tick(context.NewNoOpCanncellable(), xtime.ToUnixNano(nowFn()), namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, len(writes), r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)
@@ -1148,7 +1198,7 @@ func testShardWriteAsync(t *testing.T, writes []testWrite) {
 
 	// Ensure flush states by time was expired correctly
 	require.Equal(t, 1, len(shard.flushState.statesByTime))
-	_, ok := shard.flushState.statesByTime[xtime.ToUnixNano(earliestFlush)]
+	_, ok := shard.flushState.statesByTime[earliestFlush]
 	require.True(t, ok)
 
 	// Verify the documents in the shard's series are present.
@@ -1161,7 +1211,7 @@ func testShardWriteAsync(t *testing.T, writes []testWrite) {
 	document, exists, err := shard.DocRef(ident.StringID("NOT_PRESENT_ID"))
 	require.NoError(t, err)
 	require.False(t, exists)
-	require.Equal(t, doc.Document{}, document)
+	require.Equal(t, doc.Metadata{}, document)
 }
 
 // This tests a race in shard ticking with an empty series pending expiration.
@@ -1170,23 +1220,24 @@ func TestShardTickRace(t *testing.T) {
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
 	shard.Bootstrap(ctx, nsCtx)
 
 	addTestSeries(shard, ident.StringID("foo"))
+
 	var wg sync.WaitGroup
 
 	wg.Add(2)
 	go func() {
-		shard.Tick(context.NewNoOpCanncellable(), time.Now(), namespace.Context{})
+		shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{}) // nolint
 		wg.Done()
 	}()
 
 	go func() {
-		shard.Tick(context.NewNoOpCanncellable(), time.Now(), namespace.Context{})
+		shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{}) // nolint
 		wg.Done()
 	}()
 
@@ -1195,6 +1246,7 @@ func TestShardTickRace(t *testing.T) {
 	shard.RLock()
 	shardlen := shard.lookup.Len()
 	shard.RUnlock()
+
 	require.Equal(t, 0, shardlen)
 }
 
@@ -1203,7 +1255,7 @@ func TestShardTickRace(t *testing.T) {
 func TestShardTickCleanupSmallBatchSize(t *testing.T) {
 	opts := DefaultTestOptions()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	shard := testDatabaseShard(t, opts)
@@ -1211,7 +1263,8 @@ func TestShardTickCleanupSmallBatchSize(t *testing.T) {
 	shard.Bootstrap(ctx, nsCtx)
 
 	addTestSeries(shard, ident.StringID("foo"))
-	shard.Tick(context.NewNoOpCanncellable(), time.Now(), namespace.Context{})
+	_, err := shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
+	require.NoError(t, err)
 	require.Equal(t, 0, shard.lookup.Len())
 }
 
@@ -1221,7 +1274,7 @@ func TestShardReturnsErrorForConcurrentTicks(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions()
@@ -1231,7 +1284,7 @@ func TestShardReturnsErrorForConcurrentTicks(t *testing.T) {
 		SetCommitLogOptions(opts.CommitLogOptions().
 			SetFilesystemOptions(fsOpts))
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	shard := testDatabaseShard(t, opts)
@@ -1258,7 +1311,7 @@ func TestShardReturnsErrorForConcurrentTicks(t *testing.T) {
 	}).Return(series.TickResult{}, nil)
 
 	go func() {
-		_, err := shard.Tick(context.NewNoOpCanncellable(), time.Now(), namespace.Context{})
+		_, err := shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
 		if err != nil {
 			panic(err)
 		}
@@ -1267,7 +1320,7 @@ func TestShardReturnsErrorForConcurrentTicks(t *testing.T) {
 
 	go func() {
 		tick1Wg.Wait()
-		_, err := shard.Tick(context.NewNoOpCanncellable(), time.Now(), namespace.Context{})
+		_, err := shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
 		require.Error(t, err)
 		tick2Wg.Done()
 		closeWg.Done()
@@ -1279,7 +1332,7 @@ func TestShardReturnsErrorForConcurrentTicks(t *testing.T) {
 // This tests ensures the resources held in series contained in the shard are released
 // when closing the shard.
 func TestShardTicksWhenClosed(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions()
@@ -1295,7 +1348,7 @@ func TestShardTicksWhenClosed(t *testing.T) {
 
 // This tests ensures the shard terminates Ticks when closing.
 func TestShardTicksStopWhenClosing(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions()
@@ -1331,7 +1384,7 @@ func TestShardTicksStopWhenClosing(t *testing.T) {
 
 	closeWg.Add(2)
 	go func() {
-		shard.Tick(context.NewNoOpCanncellable(), time.Now(), namespace.Context{})
+		shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{}) // nolint
 		closeWg.Done()
 	}()
 
@@ -1352,7 +1405,8 @@ func TestPurgeExpiredSeriesEmptySeries(t *testing.T) {
 
 	addTestSeries(shard, ident.StringID("foo"))
 
-	shard.Tick(context.NewNoOpCanncellable(), time.Now(), namespace.Context{})
+	_, err := shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
+	require.NoError(t, err)
 
 	shard.RLock()
 	require.Equal(t, 0, shard.lookup.Len())
@@ -1361,7 +1415,7 @@ func TestPurgeExpiredSeriesEmptySeries(t *testing.T) {
 
 // This tests the scenario where a non-empty series is not expired.
 func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions()
@@ -1372,7 +1426,10 @@ func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
 	defer shard.Close()
 	ctx := opts.ContextPool().Get()
 	nowFn := opts.ClockOptions().NowFn()
-	shard.Write(ctx, ident.StringID("foo"), nowFn(), 1.0, xtime.Second, nil, series.WriteOptions{})
+	_, err := shard.Write(ctx, ident.StringID("foo"), xtime.ToUnixNano(nowFn()),
+		1.0, xtime.Second, nil, series.WriteOptions{})
+	require.NoError(t, err)
+
 	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 1, r.activeSeries)
@@ -1383,7 +1440,7 @@ func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
 // but receives writes after tickForEachSeries finishes but before purgeExpiredSeries
 // starts. The expected behavior is not to expire series in this case.
 func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions()
@@ -1398,7 +1455,11 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 
 		ctx := opts.ContextPool().Get()
 		nowFn := opts.ClockOptions().NowFn()
-		shard.Write(ctx, id, nowFn(), 1.0, xtime.Second, nil, series.WriteOptions{})
+		_, err := shard.Write(
+			ctx, id, xtime.ToUnixNano(nowFn()), 1.0, xtime.Second,
+			nil, series.WriteOptions{},
+		)
+		require.NoError(t, err)
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
 	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular, namespace.Context{})
@@ -1412,10 +1473,10 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 // starts, we receive a write for a series, then purgeExpiredSeries runs, then we write to
 // the series. The expected behavior is not to expire series in this case.
 func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	var entry *lookup.Entry
+	var entry *Entry
 
 	opts := DefaultTestOptions()
 	shard := testDatabaseShard(t, opts)
@@ -1425,7 +1486,7 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 	s.EXPECT().Tick(gomock.Any(), gomock.Any()).Do(func(interface{}, interface{}) {
 		// Emulate a write taking place and staying open just after tick for this series
 		var err error
-		entry, err = shard.writableSeries(id, ident.EmptyTagIterator)
+		entry, err = shard.writableSeries(id, convert.EmptyTagMetadataResolver)
 		require.NoError(t, err)
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
@@ -1448,7 +1509,7 @@ func TestForEachShardEntry(t *testing.T) {
 	}
 
 	count := 0
-	entryFn := func(entry *lookup.Entry) bool {
+	entryFn := func(entry *Entry) bool {
 		if entry.Series.ID().String() == "foo.8" {
 			return false
 		}
@@ -1468,7 +1529,7 @@ func TestForEachShardEntry(t *testing.T) {
 	// Ensure that reader writer count gets reset
 	shard.RLock()
 	for elem := shard.list.Front(); elem != nil; elem = elem.Next() {
-		entry := elem.Value.(*lookup.Entry)
+		entry := elem.Value.(*Entry)
 		assert.Equal(t, int32(0), entry.ReaderWriterCount())
 	}
 	shard.RUnlock()
@@ -1487,7 +1548,7 @@ func TestShardFetchBlocksIDNotExists(t *testing.T) {
 }
 
 func TestShardFetchBlocksIDExists(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions()
@@ -1498,8 +1559,8 @@ func TestShardFetchBlocksIDExists(t *testing.T) {
 	defer shard.Close()
 	id := ident.StringID("foo")
 	series := addMockSeries(ctrl, shard, id, ident.Tags{}, 0)
-	now := time.Now()
-	starts := []time.Time{now}
+	now := xtime.Now()
+	starts := []xtime.UnixNano{now}
 	expected := []block.FetchBlockResult{block.NewFetchBlockResult(now, nil, nil)}
 	series.EXPECT().FetchBlocks(ctx, starts, gomock.Any()).Return(expected, nil)
 	res, err := shard.FetchBlocks(ctx, id, starts, namespace.Context{})
@@ -1511,7 +1572,10 @@ func TestShardCleanupExpiredFileSets(t *testing.T) {
 	opts := DefaultTestOptions()
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
-	shard.filesetPathsBeforeFn = func(_ string, namespace ident.ID, shardID uint32, t time.Time) ([]string, error) {
+	shard.filesetPathsBeforeFn = func(
+		_ string, namespace ident.ID,
+		shardID uint32, _ xtime.UnixNano,
+	) ([]string, error) {
 		return []string{namespace.String(), strconv.Itoa(int(shardID))}, nil
 	}
 	var deletedFiles []string
@@ -1519,7 +1583,7 @@ func TestShardCleanupExpiredFileSets(t *testing.T) {
 		deletedFiles = append(deletedFiles, files...)
 		return nil
 	}
-	require.NoError(t, shard.CleanupExpiredFileSets(time.Now()))
+	require.NoError(t, shard.CleanupExpiredFileSets(xtime.Now()))
 	require.Equal(t, []string{defaultTestNs1ID.String(), "0"}, deletedFiles)
 }
 
@@ -1532,7 +1596,7 @@ func (c *testCloser) Close() {
 }
 
 func TestShardRegisterRuntimeOptionsListeners(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	callRegisterListenerOnShard := 0
@@ -1574,7 +1638,7 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions().
@@ -1588,17 +1652,17 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
 	require.NoError(t, shard.Bootstrap(ctx, nsCtx))
 
 	ropts := shard.seriesOpts.RetentionOptions()
-	end := opts.ClockOptions().NowFn()().Truncate(ropts.BlockSize())
+	end := xtime.ToUnixNano(opts.ClockOptions().NowFn()()).Truncate(ropts.BlockSize())
 	start := end.Add(-2 * ropts.BlockSize())
-	shard.markWarmFlushStateSuccess(start)
-	shard.markWarmFlushStateSuccess(start.Add(ropts.BlockSize()))
+	shard.markWarmDataFlushStateSuccess(start)
+	shard.markWarmDataFlushStateSuccess(start.Add(ropts.BlockSize()))
 
 	retriever := block.NewMockDatabaseBlockRetriever(ctrl)
 	shard.setBlockRetriever(retriever)
@@ -1623,32 +1687,40 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 	retriever.EXPECT().
 		Stream(ctx, shard.shard, ident.NewIDMatcher("foo"),
 			start, shard.seriesOnRetrieveBlock, gomock.Any()).
-		Do(func(ctx context.Context, shard uint32, id ident.ID, at time.Time, onRetrieve block.OnRetrieveBlock, nsCtx namespace.Context) {
+		Do(func(
+			ctx context.Context, shard uint32, id ident.ID, at xtime.UnixNano,
+			onRetrieve block.OnRetrieveBlock, nsCtx namespace.Context,
+		) {
 			go onRetrieve.OnRetrieveBlock(id, ident.EmptyTagIterator, at, segments[0], nsCtx)
 		}).
 		Return(blockReaders[0], nil)
 	retriever.EXPECT().
 		Stream(ctx, shard.shard, ident.NewIDMatcher("foo"),
 			mid, shard.seriesOnRetrieveBlock, gomock.Any()).
-		Do(func(ctx context.Context, shard uint32, id ident.ID, at time.Time, onRetrieve block.OnRetrieveBlock, nsCtx namespace.Context) {
+		Do(func(ctx context.Context, shard uint32, id ident.ID, at xtime.UnixNano,
+			onRetrieve block.OnRetrieveBlock, nsCtx namespace.Context,
+		) {
 			go onRetrieve.OnRetrieveBlock(id, ident.EmptyTagIterator, at, segments[1], nsCtx)
 		}).
 		Return(blockReaders[1], nil)
 
 	// Check reads as expected
-	r, err := shard.ReadEncoded(ctx, ident.StringID("foo"), start, end, namespace.Context{})
+	iter, err := shard.ReadEncoded(ctx, ident.StringID("foo"), start, end, namespace.Context{})
 	require.NoError(t, err)
-	require.Equal(t, 2, len(r))
-	for i, readers := range r {
-		require.Equal(t, 1, len(readers))
-		assert.Equal(t, blockReaders[i], readers[0])
+	count := 0
+	for iter.Next(ctx) {
+		require.Equal(t, 1, len(iter.Current()))
+		assert.Equal(t, blockReaders[count], iter.Current()[0])
+		count++
 	}
+	require.Equal(t, 2, count)
+	require.NoError(t, iter.Err())
 
 	// Check that gets cached
 	begin := time.Now()
 	for time.Since(begin) < 10*time.Second {
 		shard.RLock()
-		entry, _, err := shard.lookupEntryWithLock(ident.StringID("foo"))
+		entry, err := shard.lookupEntryWithLock(ident.StringID("foo"))
 		shard.RUnlock()
 		if err == errShardEntryNotFound {
 			time.Sleep(5 * time.Millisecond)
@@ -1662,7 +1734,7 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 	}
 
 	shard.RLock()
-	entry, _, err := shard.lookupEntryWithLock(ident.StringID("foo"))
+	entry, err := shard.lookupEntryWithLock(ident.StringID("foo"))
 	shard.RUnlock()
 	require.NoError(t, err)
 	require.NotNil(t, entry)
@@ -1687,18 +1759,21 @@ func TestShardNewInvalidShardEntry(t *testing.T) {
 		iter.EXPECT().Close(),
 	)
 
-	_, err := shard.newShardEntry(ident.StringID("abc"), newTagsIterArg(iter))
+	_, err := shard.newShardEntry(ident.StringID("abc"), convert.NewTagsIterMetadataResolver(iter))
 	require.Error(t, err)
 }
 
 func TestShardNewValidShardEntry(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	shard := testDatabaseShard(t, DefaultTestOptions())
 	defer shard.Close()
 
-	_, err := shard.newShardEntry(ident.StringID("abc"), newTagsIterArg(ident.EmptyTagIterator))
+	_, err := shard.newShardEntry(
+		ident.StringID("abc"),
+		convert.NewTagsIterMetadataResolver(ident.EmptyTagIterator),
+	)
 	require.NoError(t, err)
 }
 
@@ -1732,14 +1807,14 @@ func TestShardNewEntryDoesNotAlterIDOrTags(t *testing.T) {
 		Times(1).
 		Return(ident.NewTagsIterator(seriesTags))
 
-	entry, err := shard.newShardEntry(id, newTagsIterArg(iter))
+	entry, err := shard.newShardEntry(id, convert.NewTagsIterMetadataResolver(iter))
 	require.NoError(t, err)
 
 	shard.Lock()
 	shard.insertNewShardEntryWithLock(entry)
 	shard.Unlock()
 
-	entry, _, err = shard.tryRetrieveWritableSeries(seriesID)
+	entry, _, err = shard.TryRetrieveSeriesAndIncrementReaderWriterCount(seriesID)
 	require.NoError(t, err)
 
 	entryIDBytes := entry.Series.ID().Bytes()
@@ -1761,43 +1836,322 @@ func TestShardIterateBatchSize(t *testing.T) {
 }
 
 func TestShardAggregateTiles(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.NewBackground()
+	defer ctx.Close()
+
+	var (
+		targetBlockSize = 2 * time.Hour
+		start           = xtime.Now().Truncate(targetBlockSize)
+		opts            = AggregateTilesOptions{
+			Start: start, End: start.Add(targetBlockSize), Step: 10 * time.Minute,
+		}
+
+		expectedProcessedTileCount = int64(4)
+
+		err error
+	)
+
+	aggregator := NewMockTileAggregator(ctrl)
+	testOpts := DefaultTestOptions().SetTileAggregator(aggregator)
+
+	targetShard := testDatabaseShardWithIndexFn(t, testOpts, nil, true)
+	defer assert.NoError(t, targetShard.Close())
+
+	var (
+		noOpColdFlushNs = &persist.NoOpColdFlushNamespace{}
+		sourceNs        = NewMockNamespace(ctrl)
+		targetNs        = NewMockNamespace(ctrl)
+	)
+
+	aggregator.EXPECT().
+		AggregateTiles(ctx, sourceNs, targetNs, targetShard.ID(), noOpColdFlushNs, opts).
+		Return(expectedProcessedTileCount, 33, nil)
+
+	processedTileCount, err := targetShard.AggregateTiles(
+		ctx, sourceNs, targetNs, targetShard.ID(), noOpColdFlushNs, opts)
+	require.NoError(t, err)
+	assert.Equal(t, expectedProcessedTileCount, processedTileCount)
+
+	flushState, ok := targetShard.flushState.statesByTime[start]
+	require.True(t, ok)
+	assert.Equal(t, fileOpSuccess, flushState.WarmStatus.DataFlushed)
+	assert.Equal(t, fileOpSuccess, flushState.WarmStatus.IndexFlushed)
+	assert.Zero(t, flushState.NumFailures)
+}
+
+func TestOpenStreamingReader(t *testing.T) {
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
-		ctx   = context.NewContext()
-		start = time.Now().Truncate(time.Hour)
-		opts  = AggregateTilesOptions{Start: start, End: start.Add(time.Hour)}
-		bytes = checked.NewBytes([]byte{}, checked.NewBytesOptions())
+		blockStart = xtime.Now().Truncate(time.Hour)
+		testOpts   = DefaultTestOptions()
 	)
 
-	sourceShard := testDatabaseShard(t, DefaultTestOptions())
-	defer sourceShard.Close()
+	shard := testDatabaseShard(t, testOpts)
+	defer assert.NoError(t, shard.Close())
 
-	targetShard := testDatabaseShard(t, DefaultTestOptions())
-	defer targetShard.Close()
-
-	latestSourceVolume, err := sourceShard.latestVolume(opts.Start)
+	latestSourceVolume, err := shard.LatestVolume(blockStart)
 	require.NoError(t, err)
 
-	sourceNsID := sourceShard.namespace.ID()
-	readerOpenOpts := fs.DataReaderOpenOptions{
+	openOpts := fs.DataReaderOpenOptions{
 		Identifier: fs.FileSetFileIdentifier{
-			Namespace:   sourceNsID,
-			Shard:       sourceShard.ID(),
-			BlockStart:  opts.Start,
+			Namespace:   shard.namespace.ID(),
+			Shard:       shard.ID(),
+			BlockStart:  blockStart,
 			VolumeIndex: latestSourceVolume,
 		},
-		FileSetType: persist.FileSetFlushType,
+		FileSetType:      persist.FileSetFlushType,
+		StreamingEnabled: true,
 	}
 
 	reader := fs.NewMockDataFileSetReader(ctrl)
-	reader.EXPECT().Open(readerOpenOpts).Return(nil)
-	reader.EXPECT().Read().Return(ident.StringID("id1"), ident.EmptyTagIterator, bytes, uint32(11), nil)
-	reader.EXPECT().Read().Return(nil, nil, nil, uint32(0), io.EOF)
-	reader.EXPECT().Close()
+	reader.EXPECT().Open(openOpts).Return(nil)
 
-	processedBlockCount, err := targetShard.AggregateTiles(ctx, reader, sourceNsID, start, sourceShard, opts, series.WriteOptions{})
+	shard.newReaderFn = func(pool.CheckedBytesPool, fs.Options) (fs.DataFileSetReader, error) {
+		return reader, nil
+	}
+
+	_, err = shard.OpenStreamingReader(blockStart)
 	require.NoError(t, err)
-	assert.Equal(t, int64(1), processedBlockCount)
+}
+
+func TestSeriesRefResolver(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	shard := testDatabaseShard(t, DefaultTestOptions())
+	ctx := context.NewBackground()
+	defer func() {
+		ctrl.Finish()
+		_ = shard.Close()
+		ctx.Close()
+	}()
+
+	seriesID := ident.StringID("foo+bar=baz")
+	seriesTags := ident.NewTags(ident.Tag{
+		Name:  ident.StringID("bar"),
+		Value: ident.StringID("baz"),
+	})
+
+	iter := ident.NewMockTagIterator(ctrl)
+	// Ensure duplicate called but no close, etc
+	iter.EXPECT().
+		Duplicate().
+		Return(ident.NewTagsIterator(seriesTags))
+
+	now := xtime.Now()
+
+	resolver, err := shard.SeriesRefResolver(seriesID, iter)
+	require.NoError(t, err)
+	seriesRef, err := resolver.SeriesRef()
+	require.NoError(t, err)
+	write, writeType, err := seriesRef.Write(ctx, now, 1.0, xtime.Second,
+		[]byte("annotation1"), series.WriteOptions{})
+	require.NoError(t, err)
+	require.Equal(t, series.WarmWrite, writeType)
+	require.True(t, write)
+
+	// should return already inserted entry as series.
+	resolverEntry, err := shard.SeriesRefResolver(seriesID, iter)
+	require.NoError(t, err)
+	require.IsType(t, &Entry{}, resolverEntry)
+	refEntry, err := resolverEntry.SeriesRef()
+	require.NoError(t, err)
+	require.Equal(t, seriesRef, refEntry)
+
+	databaseBlock := block.NewMockDatabaseBlock(ctrl)
+	databaseBlock.EXPECT().StartTime().Return(now).AnyTimes()
+	err = seriesRef.LoadBlock(databaseBlock, series.ColdWrite)
+	require.NoError(t, err)
+
+	resolver.ReleaseRef()
+	resolverEntry.ReleaseRef()
+	entry := seriesRef.(*Entry)
+	require.Zero(t, entry.ReaderWriterCount())
+}
+
+// TestSeriesRefResolverAsync tests async resolver creation/closure for the same series
+// to validate proper ref counting.
+func TestSeriesRefResolverAsync(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	shard := testDatabaseShard(t, DefaultTestOptions())
+	ctx := context.NewBackground()
+	defer func() {
+		ctrl.Finish()
+		_ = shard.Close()
+		ctx.Close()
+	}()
+
+	seriesID := ident.StringID("foo+bar=baz")
+	seriesTags := ident.NewTags(ident.Tag{
+		Name:  ident.StringID("bar"),
+		Value: ident.StringID("baz"),
+	})
+
+	iter := ident.NewTagsIterator(seriesTags)
+
+	// This resolution path is async due to the use of the index insert queue.
+	// When many entries for the same series are queued up at once, only one
+	// is persisted in the shard map. We induce this by spinning up N goroutines
+	// to cause an insert for the same series, and release them all at once.
+	// We then verify at the end that the ref counts are correctly freed for the
+	// entry ultimately in the shard map (i.e. it should have zero outstanding after
+	// every resolver is closed).
+	var (
+		start  sync.WaitGroup
+		finish sync.WaitGroup
+	)
+	start.Add(1)
+	for i := 0; i < 100; i++ {
+		i := i
+		finish.Add(1)
+		go func() {
+			start.Wait()
+
+			resolver, err := shard.SeriesRefResolver(seriesID, iter)
+			require.NoError(t, err)
+
+			if i%2 == 0 {
+				// Half the time exercise the ref retrieval path.
+				_, err = resolver.SeriesRef()
+				require.NoError(t, err)
+			}
+
+			resolver.ReleaseRef()
+
+			finish.Done()
+		}()
+	}
+
+	start.Done()
+	finish.Wait()
+
+	entryInShard, _, err := shard.TryRetrieveSeriesAndIncrementReaderWriterCount(seriesID)
+	require.NoError(t, err)
+	entryInShard.DecrementReaderWriterCount() // Decrement because the above retrieval increments.
+	require.Equal(t, int32(0), entryInShard.ReaderWriterCount())
+}
+
+func TestFilterBlocksNeedSnapshot(t *testing.T) {
+	bootstraping := Bootstrapping
+	for _, tc := range []struct {
+		name              string
+		blocks            []int
+		expectedSnapshots []int
+		seriesWritten     [][]int
+		bootstrapState    *BootstrapState
+	}{
+		{
+			name:              "all blocks are empty",
+			seriesWritten:     [][]int{},
+			blocks:            []int{-2, -1, 0},
+			expectedSnapshots: []int{},
+		},
+		{
+			name:              "all blocks snapshotable",
+			seriesWritten:     [][]int{{-2, -1, 0}},
+			blocks:            []int{-2, -1, 0},
+			expectedSnapshots: []int{-2, -1, 0},
+		},
+		{
+			name:              "different series written to different blocks",
+			seriesWritten:     [][]int{{0}, {-1}, {-2}},
+			blocks:            []int{-2, -1, 0},
+			expectedSnapshots: []int{-2, -1, 0},
+		},
+		{
+			name:              "different series written to different blocks single block checked",
+			seriesWritten:     [][]int{{0}, {-1}, {-2}},
+			blocks:            []int{-1},
+			expectedSnapshots: []int{-1},
+		},
+		{
+			name: "requested blocks are satisfied only by single series",
+			seriesWritten: [][]int{
+				{-2, 0},
+				{-1},
+			},
+			blocks:            []int{-1},
+			expectedSnapshots: []int{-1},
+		},
+		{
+			name:              "current block is snapshotable",
+			seriesWritten:     [][]int{{0}},
+			blocks:            []int{0},
+			expectedSnapshots: []int{0},
+		},
+		{
+			name:              "no blocks are snapshottable when not bootstrapped",
+			seriesWritten:     [][]int{{0}},
+			blocks:            []int{0},
+			expectedSnapshots: []int{},
+			bootstrapState:    &bootstraping,
+		},
+		{
+			name:              "previous block is not snapshotable",
+			seriesWritten:     [][]int{{0}},
+			blocks:            []int{-1, 0},
+			expectedSnapshots: []int{0},
+		},
+		{
+			name:              "cold write to a previous block",
+			seriesWritten:     [][]int{{-1}},
+			blocks:            []int{-1, 0},
+			expectedSnapshots: []int{-1},
+		},
+		{
+			name:              "order not lost after filtering",
+			seriesWritten:     [][]int{{0, -1, -2}},
+			blocks:            []int{-1, -2, 0},
+			expectedSnapshots: []int{-1, -2, 0},
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			var (
+				now           = xtime.Now()
+				opts          = DefaultTestOptions()
+				shard         = testDatabaseShardWithIndexFn(t, opts, nil, true)
+				ctx           = context.NewBackground()
+				blockSize     = shard.namespace.Options().RetentionOptions().BlockSize()
+				getBlockStart = func(idx int) xtime.UnixNano {
+					return now.Add(time.Duration(idx) * blockSize).Truncate(blockSize)
+				}
+				toBlockStarts = func(idxs []int) []xtime.UnixNano {
+					var r []xtime.UnixNano
+					for _, blockNum := range idxs {
+						r = append(r, getBlockStart(blockNum))
+					}
+					return r
+				}
+			)
+			shard.bootstrapState = Bootstrapped
+			if tc.bootstrapState != nil {
+				shard.bootstrapState = *tc.bootstrapState
+			}
+			defer func() {
+				require.NoError(t, shard.Close())
+				ctx.Close()
+			}()
+
+			for idx, seriesWritten := range tc.seriesWritten {
+				for _, blockNum := range seriesWritten {
+					timestamp := getBlockStart(blockNum).Add(time.Second)
+					_, err := shard.Write(ctx, ident.StringID(fmt.Sprintf("foo.%d", idx)),
+						timestamp, 1.0, xtime.Second, nil, series.WriteOptions{},
+					)
+					require.NoError(t, err)
+				}
+			}
+
+			res := shard.FilterBlocksNeedSnapshot(toBlockStarts(tc.blocks))
+			if len(tc.expectedSnapshots) == 0 {
+				assert.Empty(t, res)
+			} else {
+				assert.Equal(t, toBlockStarts(tc.expectedSnapshots), shard.FilterBlocksNeedSnapshot(toBlockStarts(tc.blocks)))
+			}
+		})
+	}
 }

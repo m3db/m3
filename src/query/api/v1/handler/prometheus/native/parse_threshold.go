@@ -23,8 +23,8 @@ package native
 import (
 	"net/http"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/functions/scalar"
 	"github.com/m3db/m3/src/x/instrument"
@@ -36,7 +36,7 @@ import (
 const (
 	// PromThresholdURL is the url for native prom threshold handler, this  parses
 	// out the  query and returns a JSON representation of the execution DAG.
-	PromThresholdURL = handler.RoutePrefixV1 + "/threshold"
+	PromThresholdURL = route.Prefix + "/threshold"
 
 	// PromThresholdHTTPMethod is the HTTP method used with this resource.
 	PromThresholdHTTPMethod = http.MethodGet
@@ -171,13 +171,13 @@ func (h *promThresholdHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	logger := h.instrumentOpts.Logger()
 	root, err := parseRootNode(r, h.engine, logger)
 	if err != nil {
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.WriteError(w, xhttp.NewError(err, http.StatusBadRequest))
 		return
 	}
 
 	queryRepresentation, err := root.QueryRepresentation()
 	if err != nil {
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.WriteError(w, xhttp.NewError(err, http.StatusBadRequest))
 		logger.Error("cannot convert to query representation", zap.Error(err))
 		return
 	}

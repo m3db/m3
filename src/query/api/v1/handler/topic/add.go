@@ -24,10 +24,10 @@ import (
 	"net/http"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/msg/topic"
-	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
@@ -38,7 +38,7 @@ import (
 
 const (
 	// AddURL is the url for the topic add handler (with the POST method).
-	AddURL = handler.RoutePrefixV1 + "/topic"
+	AddURL = route.Prefix + "/topic"
 
 	// AddHTTPMethod is the HTTP method used with this resource.
 	AddHTTPMethod = http.MethodPost
@@ -70,7 +70,7 @@ func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rErr := parseRequest(r, &req)
 	if rErr != nil {
 		logger.Error("unable to parse request", zap.Error(rErr))
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.WriteError(w, rErr)
 		return
 	}
 
@@ -79,42 +79,42 @@ func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	service, err := h.serviceFn(h.client, svcOpts)
 	if err != nil {
 		logger.Error("unable to get service", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
 	t, err := service.Get(topicName(r.Header))
 	if err != nil {
 		logger.Error("unable to get topic", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
 	cs, err := topic.NewConsumerServiceFromProto(req.ConsumerService)
 	if err != nil {
 		logger.Error("unable to parse consumer service", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.WriteError(w, xhttp.NewError(err, http.StatusBadRequest))
 		return
 	}
 
 	t, err = t.AddConsumerService(cs)
 	if err != nil {
 		logger.Error("unable to add consumer service", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.WriteError(w, err)
 		return
 	}
 
 	t, err = service.CheckAndSet(t, t.Version())
 	if err != nil {
 		logger.Error("unable to persist consumer service", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
 	topicProto, err := topic.ToProto(t)
 	if err != nil {
 		logger.Error("unable to get topic protobuf", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 

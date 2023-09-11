@@ -23,11 +23,12 @@ package native
 import (
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/query/graphite/common"
-	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	"github.com/m3db/m3/src/x/errors"
 )
 
 // summarize summarizes each series into interval buckets of a certain size.
@@ -41,17 +42,16 @@ func summarize(
 		fname = "sum"
 	}
 
+	safeAggFn, ok := common.SafeAggregationFns[fname]
+	if !ok {
+		return ts.NewSeriesList(), errors.NewInvalidParamsError(fmt.Errorf(
+			"aggregate function not supported: %s", fname))
+	}
+
 	interval, err := common.ParseInterval(intervalS)
 	if err != nil || interval <= 0 {
 		err := errors.NewInvalidParamsError(fmt.Errorf(
 			"invalid interval %s: %v", interval, err))
-		return ts.NewSeriesList(), err
-	}
-
-	f, fexists := summarizeFuncs[fname]
-	if !fexists {
-		err := errors.NewInvalidParamsError(fmt.Errorf(
-			"invalid func %s", fname))
 		return ts.NewSeriesList(), err
 	}
 
@@ -62,8 +62,8 @@ func summarize(
 
 	results := make([]*ts.Series, len(series.Values))
 	for i, series := range series.Values {
-		name := fmt.Sprintf("summarize(%s, \"%s\", \"%s\"%s)", series.Name(), intervalS, fname, alignString)
-		results[i] = summarizeTimeSeries(ctx, name, series, interval, f.consolidationFunc, alignToFrom)
+		name := fmt.Sprintf("summarize(%s, %q, %q%s)", series.Name(), intervalS, fname, alignString)
+		results[i] = summarizeTimeSeries(ctx, name, series, interval, safeAggFn, alignToFrom)
 	}
 
 	r := ts.SeriesList(series)
@@ -72,8 +72,7 @@ func summarize(
 }
 
 type summarizeBucket struct {
-	count int
-	accum float64
+	vals []float64
 }
 
 func summarizeTimeSeries(
@@ -81,7 +80,7 @@ func summarizeTimeSeries(
 	newName string,
 	series *ts.Series,
 	interval time.Duration,
-	f ts.ConsolidationFunc,
+	safeAggFn common.SafeAggregationFn,
 	alignToFrom bool,
 ) *ts.Series {
 	var (
@@ -103,10 +102,9 @@ func summarizeTimeSeries(
 		}
 
 		if bucket, exists := buckets[bucketInterval]; exists {
-			bucket.accum = f(bucket.accum, n, bucket.count)
-			bucket.count++
+			bucket.vals = append(bucket.vals, n)
 		} else {
-			buckets[bucketInterval] = &summarizeBucket{1, n}
+			buckets[bucketInterval] = &summarizeBucket{[]float64{n}}
 		}
 	}
 
@@ -137,10 +135,40 @@ func summarizeTimeSeries(
 
 		bucket, bucketExists := buckets[bucketInterval]
 		if bucketExists {
-			newValues.SetValueAt(i, bucket.accum)
+			safeValue, _, safe := safeAggFn(bucket.vals)
+			if safe {
+				newValues.SetValueAt(i, safeValue)
+			}
 		}
 	}
 	return ts.NewSeries(ctx, newName, newStart, newValues)
+}
+
+// smartSummarize is an alias of summarize with alignToFrom set to true
+func smartSummarize(
+	ctx *common.Context,
+	series singlePathSpec,
+	interval, fname string,
+) (ts.SeriesList, error) {
+	alignToFrom := true
+
+	seriesList, err := summarize(ctx, series, interval, fname, alignToFrom)
+	if err != nil {
+		return ts.NewSeriesList(), err
+	}
+
+	results := seriesList.Values
+	for i, series := range seriesList.Values {
+		oldName := series.Name()
+		newName := strings.Replace(oldName, "summarize", "smartSummarize", 1)
+		newName = strings.Replace(newName, ", true", "", 1)
+		results[i] = series.RenamedTo(newName)
+	}
+
+	// Retain whether sort was applied or not and metadata.
+	r := ts.SeriesList(series)
+	r.Values = results
+	return r, nil
 }
 
 // specificationFunc determines the output series specification given a series list.
@@ -154,40 +182,6 @@ func averageSpecificationFunc(series ts.SeriesList) string {
 	return wrapPathExpr("averageSeries", series)
 }
 
-func maxSpecificationFunc(series ts.SeriesList) string {
-	return wrapPathExpr("maxSeries", series)
+func multiplyWithWildcardsSpecificationFunc(series ts.SeriesList) string {
+	return wrapPathExpr("multiplySeriesWithWildcards", series)
 }
-
-func minSpecificationFunc(series ts.SeriesList) string {
-	return wrapPathExpr("minSeries", series)
-}
-
-func lastSpecificationFunc(series ts.SeriesList) string {
-	return wrapPathExpr("lastSeries", series)
-}
-
-type funcInfo struct {
-	consolidationFunc ts.ConsolidationFunc
-	specificationFunc specificationFunc
-}
-
-var (
-	sumFuncInfo  = funcInfo{ts.Sum, sumSpecificationFunc}
-	maxFuncInfo  = funcInfo{ts.Max, maxSpecificationFunc}
-	minFuncInfo  = funcInfo{ts.Min, minSpecificationFunc}
-	lastFuncInfo = funcInfo{ts.Last, lastSpecificationFunc}
-	avgFuncInfo  = funcInfo{ts.Avg, averageSpecificationFunc}
-
-	summarizeFuncs = map[string]funcInfo{
-		"sum":           sumFuncInfo,
-		"max":           maxFuncInfo,
-		"min":           minFuncInfo,
-		"last":          lastFuncInfo,
-		"avg":           avgFuncInfo,
-		"sumSeries":     sumFuncInfo,
-		"maxSeries":     maxFuncInfo,
-		"minSeries":     minFuncInfo,
-		"averageSeries": avgFuncInfo,
-		"":              sumFuncInfo,
-	}
-)

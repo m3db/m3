@@ -91,7 +91,7 @@ type m3ClusterClient struct {
 	txnStore M3ClusterTxnStore
 }
 
-func (c *m3ClusterClient) Services(opts services.OverrideOptions) (services.Services, error) {
+func (c *m3ClusterClient) Services(_ services.OverrideOptions) (services.Services, error) {
 	return c.services, nil
 }
 
@@ -103,11 +103,11 @@ func (c *m3ClusterClient) Txn() (kv.TxnStore, error) {
 	return c.txnStore, nil
 }
 
-func (c *m3ClusterClient) Store(opts kv.OverrideOptions) (kv.Store, error) {
+func (c *m3ClusterClient) Store(_ kv.OverrideOptions) (kv.Store, error) {
 	return c.kvStore, nil
 }
 
-func (c *m3ClusterClient) TxnStore(opts kv.OverrideOptions) (kv.TxnStore, error) {
+func (c *m3ClusterClient) TxnStore(_ kv.OverrideOptions) (kv.TxnStore, error) {
 	return c.txnStore, nil
 }
 
@@ -116,6 +116,14 @@ func NewM3ClusterServices() M3ClusterServices {
 	return &m3ClusterServices{
 		services:         make(map[string]*m3RegisteredService),
 		placementService: NewM3ClusterPlacementService(),
+	}
+}
+
+// NewM3ClusterServicesWithPlacementService creates a new fake m3cluster services with given placement service.
+func NewM3ClusterServicesWithPlacementService(placementSvc M3ClusterPlacementService) M3ClusterServices {
+	return &m3ClusterServices{
+		services:         make(map[string]*m3RegisteredService),
+		placementService: placementSvc,
 	}
 }
 

@@ -27,6 +27,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	tterrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
 	xerrors "github.com/m3db/m3/src/x/errors"
+
+	"github.com/uber/tchannel-go"
 )
 
 // IsInternalServerError determines if the error is an internal server error.
@@ -54,10 +56,50 @@ func IsBadRequestError(err error) bool {
 	return false
 }
 
+// IsResourceExhaustedError determines if the error is a resource exhausted error.
+func IsResourceExhaustedError(err error) bool {
+	for err != nil {
+		if e, ok := err.(*rpc.Error); ok && tterrors.IsResourceExhaustedErrorFlag(e) { //nolint:errorlint
+			return true
+		}
+		if e := xerrors.GetInnerResourceExhaustedError(err); e != nil {
+			return true
+		}
+		err = xerrors.InnerError(err)
+	}
+	return false
+}
+
+// IsTimeoutError determines if the error is a timeout.
+func IsTimeoutError(err error) bool {
+	for err != nil {
+		// nolint:errorlint
+		if e, ok := err.(*rpc.Error); ok {
+			if tterrors.IsTimeoutError(e) {
+				return true
+			}
+		}
+		// Need to also check if the message is directly the tchannel ErrTimeout error.
+		// This is because those errors can come through at the tchannel layer,
+		// rather than in our application layer, meaning we don't have any
+		// means to intercept / set the SERVER_TIMEOUT flag.
+		if err.Error() == tchannel.ErrTimeout.Error() {
+			return true
+		}
+		err = xerrors.InnerError(err)
+	}
+	return false
+}
+
 // IsConsistencyResultError determines if the error is a consistency result error.
 func IsConsistencyResultError(err error) bool {
-	_, ok := err.(consistencyResultErr)
-	return ok
+	for err != nil {
+		if _, ok := err.(consistencyResultErr); ok { //nolint:errorlint
+			return true
+		}
+		err = xerrors.InnerError(err)
+	}
+	return false
 }
 
 // NumResponded returns how many nodes responded for a given error
@@ -117,8 +159,8 @@ func isHostNotAvailableError(err error) bool {
 
 type consistencyResultError interface {
 	error
+	xerrors.ContainedError
 
-	InnerError() error
 	numResponded() int
 	numSuccess() int
 }
@@ -148,6 +190,11 @@ func newConsistencyResultError(
 		if IsBadRequestError(errs[i]) {
 			topLevelErr = errs[i]
 			break
+		}
+		if IsTimeoutError(errs[i]) {
+			topLevelErr = errs[i]
+			// Still continue iterating since bad request errors take precedence.
+			continue
 		}
 	}
 	return consistencyResultErr{

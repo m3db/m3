@@ -1,6 +1,7 @@
 steps:
   # We add a wait step here so that docker images and docs won't get built
   # unless rest of CI passes.
+  # Currently only exists for operator docs
   - wait
   - name: "Docs build and push :books:"
     command: ".buildkite/scripts/docs_push.sh"

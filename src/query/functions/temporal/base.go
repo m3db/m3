@@ -117,6 +117,9 @@ func (c *baseNode) Process(
 	sp, ctx := opentracing.StartSpanFromContext(queryCtx.Ctx, c.op.OpType())
 	defer sp.Finish()
 
+	resultMeta := b.Meta().ResultMetadata
+	resultMeta.VerifyTemporalRange(c.op.duration)
+
 	meta := b.Meta()
 	bounds := meta.Bounds
 	if bounds.Duration == 0 {
@@ -124,14 +127,15 @@ func (c *baseNode) Process(
 	}
 
 	m := blockMeta{
-		end:         xtime.ToUnixNano(bounds.Start),
+		end:         bounds.Start,
 		queryCtx:    queryCtx,
 		aggDuration: xtime.UnixNano(c.op.duration),
 		stepSize:    xtime.UnixNano(bounds.StepSize),
 		steps:       bounds.Steps(),
+		resultMeta:  resultMeta,
 	}
 
-	concurrency := runtime.NumCPU()
+	concurrency := runtime.GOMAXPROCS(0)
 	var builder block.Builder
 	batches, err := b.MultiSeriesIter(concurrency)
 	if err != nil {
@@ -162,6 +166,7 @@ type blockMeta struct {
 	stepSize    xtime.UnixNano
 	queryCtx    *models.QueryContext
 	steps       int
+	resultMeta  block.ResultMetadata
 }
 
 func (c *baseNode) batchProcess(
@@ -178,6 +183,7 @@ func (c *baseNode) batchProcess(
 	)
 
 	meta := b.Meta()
+	meta.ResultMetadata = m.resultMeta
 	builder, err := c.controller.BlockBuilder(m.queryCtx, meta, nil)
 	if err != nil {
 		return nil, err
@@ -202,7 +208,7 @@ func (c *baseNode) batchProcess(
 		idx = idx + batch.Size
 		p := c.makeProcessor.initialize(c.op.duration, c.transformOpts)
 		go func() {
-			err := parallelProcess(ctx, loopIndex, batch.Iter, builder, m, p, &mu)
+			err := parallelProcess(ctx, c.op.OpType(), loopIndex, batch.Iter, builder, m, p, &mu)
 			if err != nil {
 				mu.Lock()
 				// NB: this no-ops if the error is nil.
@@ -220,6 +226,7 @@ func (c *baseNode) batchProcess(
 
 func parallelProcess(
 	ctx context.Context,
+	opType string,
 	idx int,
 	iter block.SeriesIter,
 	builder block.Builder,
@@ -269,10 +276,15 @@ func parallelProcess(
 			decodeDuration += stats.DecodeDuration
 		}
 
-		// rename series to exclude their __name__ tag as
-		// part of function processing.
-		seriesMeta.Tags = seriesMeta.Tags.WithoutName()
-		seriesMeta.Name = seriesMeta.Tags.ID()
+		// The last_over_time function acts like offset;
+		// thus, it should keep the metric name.
+		// For all other functions,
+		// rename series to exclude their __name__ tag as part of function processing.
+		if opType != LastType {
+			seriesMeta.Tags = seriesMeta.Tags.WithoutName()
+			seriesMeta.Name = seriesMeta.Tags.ID()
+		}
+
 		values = values[:0]
 		for i := 0; i < blockMeta.steps; i++ {
 			iterBounds := iterationBounds{
@@ -336,17 +348,26 @@ func (c *baseNode) singleProcess(
 		return nil, err
 	}
 
+	// The last_over_time function acts like offset;
+	// thus, it should keep the metric name.
+	// For all other functions,
 	// rename series to exclude their __name__ tag as part of function processing.
-	resultSeriesMeta := make([]block.SeriesMeta, 0, len(seriesIter.SeriesMeta()))
-	for _, m := range seriesIter.SeriesMeta() {
-		tags := m.Tags.WithoutName()
-		resultSeriesMeta = append(resultSeriesMeta, block.SeriesMeta{
-			Name: tags.ID(),
-			Tags: tags,
-		})
+	var resultSeriesMeta []block.SeriesMeta
+	if c.op.OpType() != LastType {
+		resultSeriesMeta = make([]block.SeriesMeta, 0, len(seriesIter.SeriesMeta()))
+		for _, m := range seriesIter.SeriesMeta() {
+			tags := m.Tags.WithoutName()
+			resultSeriesMeta = append(resultSeriesMeta, block.SeriesMeta{
+				Name: tags.ID(),
+				Tags: tags,
+			})
+		}
+	} else {
+		resultSeriesMeta = seriesIter.SeriesMeta()
 	}
 
 	meta := b.Meta()
+	meta.ResultMetadata = m.resultMeta
 	builder, err := c.controller.BlockBuilder(m.queryCtx, meta, resultSeriesMeta)
 	if err != nil {
 		return nil, err
@@ -424,7 +445,7 @@ func getIndices(
 	)
 
 	for i, dp := range dps[init:] {
-		ts := xtime.ToUnixNano(dp.Timestamp)
+		ts := dp.Timestamp
 		if !leftBound {
 			// Trying to set left bound.
 			if ts < lBound {

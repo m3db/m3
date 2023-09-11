@@ -800,22 +800,50 @@ func TestGroupInstancesByHostPort(t *testing.T) {
 		i2 := newInstanceWithID("i2").SetPort(port).SetHostname("h2")
 
 		hosts := [][]host{{{
-			name: "h1",
+			name:           "h1",
 			isolationGroup: "g1",
 			portToInstance: map[uint32]placement.Instance{
 				port: i1,
 			},
 		}, {
-			name: "h2",
+			name:           "h2",
 			isolationGroup: "g2",
 			portToInstance: map[uint32]placement.Instance{
 				port: i2,
 			},
 		}}}
 
-		groups, err := groupInstancesByHostPort(hosts)
+		groups, err := groupInstancesByHostPort(hosts, false)
 		require.NoError(t, err)
 
 		assert.Equal(t, [][]placement.Instance{{i1, i2}}, groups)
+	})
+
+	t.Run("maintains host order with 2 instances with different ports", func(t *testing.T) {
+		port1 := uint32(5)
+		i1 := newInstanceWithID("i1").SetPort(port1).SetHostname("h1")
+		port2 := uint32(15)
+		i2 := newInstanceWithID("i2").SetPort(port2).SetHostname("h2")
+
+		hosts := [][]host{{{
+			name:           "h1",
+			isolationGroup: "g1",
+			portToInstance: map[uint32]placement.Instance{
+				port1: i1,
+			},
+		}, {
+			name:           "h2",
+			isolationGroup: "g2",
+			portToInstance: map[uint32]placement.Instance{
+				port2: i2,
+			},
+		}}}
+
+		groups, err := groupInstancesByHostPort(hosts, true)
+		require.NoError(t, err)
+		assert.Equal(t, [][]placement.Instance{{i1, i2}}, groups)
+
+		_, err = groupInstancesByHostPort(hosts, false)
+		require.NotNil(t, err)
 	})
 }

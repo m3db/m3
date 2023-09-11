@@ -22,29 +22,36 @@ package remote
 
 import (
 	"bytes"
+	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	xclock "github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
@@ -58,11 +65,12 @@ func makeOptions(ds ingest.DownsamplerAndWriter) options.HandlerOptions {
 			WriteForwarding: config.WriteForwardingConfiguration{
 				PromRemoteWrite: handleroptions.PromWriteHandlerForwardingOptions{},
 			},
-		})
+		}).
+		SetStoreMetricsType(true)
 }
 
 func TestPromWriteParsing(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
@@ -74,14 +82,14 @@ func TestPromWriteParsing(t *testing.T) {
 	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
 	req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
 
-	r, opts, _, err := handler.(*PromWriteHandler).parseRequest(req)
+	r, err := handler.(*PromWriteHandler).parseRequest(req)
 	require.Nil(t, err, "unable to parse request")
-	require.Equal(t, len(r.Timeseries), 2)
-	require.Equal(t, ingest.WriteOptions{}, opts)
+	require.Equal(t, len(r.Request.Timeseries), 2)
+	require.Equal(t, ingest.WriteOptions{}, r.Options)
 }
 
 func TestPromWrite(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
@@ -104,7 +112,7 @@ func TestPromWrite(t *testing.T) {
 }
 
 func TestPromWriteError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	multiErr := xerrors.NewMultiError().Add(errors.New("an error"))
@@ -135,7 +143,7 @@ func TestPromWriteError(t *testing.T) {
 }
 
 func TestWriteErrorMetricCount(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
@@ -159,7 +167,7 @@ func TestWriteErrorMetricCount(t *testing.T) {
 }
 
 func TestWriteDatapointDelayMetric(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
@@ -217,7 +225,7 @@ func TestWriteDatapointDelayMetric(t *testing.T) {
 }
 
 func TestPromWriteUnaggregatedMetricsWithHeader(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	expectedIngestWriteOptions := ingest.WriteOptions{
@@ -249,7 +257,7 @@ func TestPromWriteUnaggregatedMetricsWithHeader(t *testing.T) {
 }
 
 func TestPromWriteAggregatedMetricsWithHeader(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	expectedIngestWriteOptions := ingest.WriteOptions{
@@ -284,8 +292,299 @@ func TestPromWriteAggregatedMetricsWithHeader(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
+func TestPromWriteOpenMetricsTypes(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var capturedIter ingest.DownsampleAndWriteIter
+	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
+	mockDownsamplerAndWriter.
+		EXPECT().
+		WriteBatch(gomock.Any(), gomock.Any(), gomock.Any()).
+		Do(func(_ context.Context, iter ingest.DownsampleAndWriteIter, _ ingest.WriteOptions) ingest.BatchError {
+			capturedIter = iter
+			return nil
+		})
+
+	opts := makeOptions(mockDownsamplerAndWriter)
+
+	promReq := &prompb.WriteRequest{
+		Timeseries: []prompb.TimeSeries{
+			{Type: prompb.MetricType_UNKNOWN},
+			{Type: prompb.MetricType_COUNTER},
+			{Type: prompb.MetricType_GAUGE},
+			{Type: prompb.MetricType_GAUGE},
+			{Type: prompb.MetricType_SUMMARY},
+			{Type: prompb.MetricType_HISTOGRAM},
+			{Type: prompb.MetricType_GAUGE_HISTOGRAM},
+			{Type: prompb.MetricType_INFO},
+			{Type: prompb.MetricType_STATESET},
+			{},
+		},
+	}
+
+	executeWriteRequest(t, opts, promReq)
+
+	firstValue := verifyIterValueAnnotation(t, capturedIter, annotation.OpenMetricsFamilyType_UNKNOWN, false)
+	secondValue := verifyIterValueAnnotation(t, capturedIter, annotation.OpenMetricsFamilyType_COUNTER, true)
+	verifyIterValueAnnotation(t, capturedIter, annotation.OpenMetricsFamilyType_GAUGE, false)
+	verifyIterValueAnnotation(t, capturedIter, annotation.OpenMetricsFamilyType_GAUGE, false)
+	verifyIterValueAnnotation(t, capturedIter, annotation.OpenMetricsFamilyType_SUMMARY, false)
+	verifyIterValueAnnotation(t, capturedIter, annotation.OpenMetricsFamilyType_HISTOGRAM, true)
+	verifyIterValueAnnotation(t, capturedIter, annotation.OpenMetricsFamilyType_GAUGE_HISTOGRAM, false)
+	verifyIterValueAnnotation(t, capturedIter, annotation.OpenMetricsFamilyType_INFO, false)
+	verifyIterValueAnnotation(t, capturedIter, annotation.OpenMetricsFamilyType_STATESET, false)
+	verifyIterValueAnnotation(t, capturedIter, annotation.OpenMetricsFamilyType_UNKNOWN, false)
+
+	require.False(t, capturedIter.Next())
+	require.NoError(t, capturedIter.Error())
+
+	assert.Nil(t, firstValue.Annotation, "first annotation invalidation")
+
+	secondAnnotationPayload := unmarshalAnnotation(t, secondValue.Annotation)
+	assert.Equal(t, annotation.Payload{
+		OpenMetricsFamilyType:        annotation.OpenMetricsFamilyType_COUNTER,
+		OpenMetricsHandleValueResets: true,
+	}, secondAnnotationPayload, "second annotation invalidated")
+}
+
+func TestPromWriteGraphiteMetricsTypes(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var capturedIter ingest.DownsampleAndWriteIter
+	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
+	mockDownsamplerAndWriter.
+		EXPECT().
+		WriteBatch(gomock.Any(), gomock.Any(), gomock.Any()).
+		Do(func(_ context.Context, iter ingest.DownsampleAndWriteIter, _ ingest.WriteOptions) ingest.BatchError {
+			capturedIter = iter
+			return nil
+		})
+
+	opts := makeOptions(mockDownsamplerAndWriter)
+
+	promReq := &prompb.WriteRequest{
+		Timeseries: []prompb.TimeSeries{
+			{Source: prompb.Source_GRAPHITE, M3Type: prompb.M3Type_M3_TIMER},
+			{Source: prompb.Source_GRAPHITE, M3Type: prompb.M3Type_M3_COUNTER},
+			{Source: prompb.Source_GRAPHITE, M3Type: prompb.M3Type_M3_GAUGE},
+			{Source: prompb.Source_GRAPHITE, M3Type: prompb.M3Type_M3_GAUGE},
+			{Source: prompb.Source_GRAPHITE, M3Type: prompb.M3Type_M3_TIMER},
+			{Source: prompb.Source_GRAPHITE, M3Type: prompb.M3Type_M3_COUNTER},
+		},
+	}
+
+	executeWriteRequest(t, opts, promReq)
+
+	verifyIterValueAnnotationGraphite(t, capturedIter, annotation.GraphiteType_GRAPHITE_TIMER)
+	verifyIterValueAnnotationGraphite(t, capturedIter, annotation.GraphiteType_GRAPHITE_COUNTER)
+	verifyIterValueAnnotationGraphite(t, capturedIter, annotation.GraphiteType_GRAPHITE_GAUGE)
+	verifyIterValueAnnotationGraphite(t, capturedIter, annotation.GraphiteType_GRAPHITE_GAUGE)
+	verifyIterValueAnnotationGraphite(t, capturedIter, annotation.GraphiteType_GRAPHITE_TIMER)
+	verifyIterValueAnnotationGraphite(t, capturedIter, annotation.GraphiteType_GRAPHITE_COUNTER)
+
+	require.False(t, capturedIter.Next())
+	require.NoError(t, capturedIter.Error())
+}
+
+func TestPromWriteDisabledMetricsTypes(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var capturedIter ingest.DownsampleAndWriteIter
+	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
+	mockDownsamplerAndWriter.
+		EXPECT().
+		WriteBatch(gomock.Any(), gomock.Any(), gomock.Any()).
+		Do(func(_ context.Context, iter ingest.DownsampleAndWriteIter, _ ingest.WriteOptions) ingest.BatchError {
+			capturedIter = iter
+			return nil
+		})
+
+	opts := makeOptions(mockDownsamplerAndWriter).SetStoreMetricsType(false)
+
+	promReq := &prompb.WriteRequest{
+		Timeseries: []prompb.TimeSeries{
+			{Type: prompb.MetricType_COUNTER},
+			{},
+		},
+	}
+
+	executeWriteRequest(t, opts, promReq)
+
+	verifyIterValueNoAnnotation(t, capturedIter)
+	verifyIterValueNoAnnotation(t, capturedIter)
+
+	require.False(t, capturedIter.Next())
+	require.NoError(t, capturedIter.Error())
+}
+
+func TestPromWriteLiteralIsTooLongError(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := makeOptions(ingest.NewMockDownsamplerAndWriter(ctrl))
+	handler, err := NewPromWriteHandler(opts)
+	require.NoError(t, err)
+
+	veryLongLiteral := strings.Repeat("x", int(opts.TagOptions().MaxTagLiteralLength())+1)
+	promReq := &prompb.WriteRequest{
+		Timeseries: []prompb.TimeSeries{
+			{
+				Labels: []prompb.Label{
+					{Name: []byte("name1"), Value: []byte("value1")},
+					{Name: []byte("name2"), Value: []byte(veryLongLiteral)},
+				},
+			},
+		},
+	}
+
+	for i := 0; i < maxLiteralIsTooLongLogCount*2; i++ {
+		promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
+		req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
+		writer := httptest.NewRecorder()
+		handler.ServeHTTP(writer, req)
+		resp := writer.Result()
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		require.NoError(t, resp.Body.Close())
+	}
+}
+
+func TestPromWriteForwardWithShadow(t *testing.T) {
+	for _, tt := range []struct {
+		percent         float64
+		numSeries       int
+		allowedVariance float64
+	}{
+		{0, 10000, 0},
+		{0.25, 10000, 0.05},
+		{0.5, 10000, 0.05},
+		{0.75, 10000, 0.05},
+		{1, 10000, 0},
+	} {
+		for _, h := range []string{"", "murmur3", "xxhash"} {
+			h := h
+			t.Run(fmt.Sprintf("hash='%s', params=%+v", h, tt), func(t *testing.T) {
+				testPromWriteForwardWithShadow(t, testPromWriteForwardWithShadowOptions{
+					hash:                         h,
+					numSeries:                    tt.numSeries,
+					percent:                      tt.percent,
+					expectedFwded:                int(float64(tt.numSeries) * tt.percent),
+					expectedFwdedAllowedVariance: tt.allowedVariance,
+				})
+			})
+		}
+	}
+}
+
+type testPromWriteForwardWithShadowOptions struct {
+	numSeries                    int
+	percent                      float64
+	hash                         string
+	expectedFwded                int
+	expectedFwdedAllowedVariance float64
+}
+
+func testPromWriteForwardWithShadow(
+	t *testing.T,
+	testOpts testPromWriteForwardWithShadowOptions,
+) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	// Create forwarding receiver.
+	forwardRecvReqCh := make(chan *prompb.WriteRequest, 1)
+	forwardRecvSvr := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			forwardRecvReqCh <- test.ReadPromWriteRequestBody(t, r.Body)
+			w.WriteHeader(http.StatusOK)
+		}))
+	defer forwardRecvSvr.Close()
+
+	target := handleroptions.PromWriteHandlerForwardTargetOptions{
+		URL:     forwardRecvSvr.URL,
+		Method:  http.MethodPost,
+		NoRetry: true,
+		Shadow: &handleroptions.PromWriteHandlerForwardTargetShadowOptions{
+			Percent: testOpts.percent,
+			Hash:    testOpts.hash,
+		},
+	}
+
+	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
+	mockDownsamplerAndWriter.
+		EXPECT().
+		WriteBatch(gomock.Any(), gomock.Any(), gomock.Any())
+
+	// Setup opts and modify config.
+	opts := makeOptions(mockDownsamplerAndWriter)
+
+	cfg := opts.Config()
+	cfg.WriteForwarding.PromRemoteWrite.Targets = append(cfg.WriteForwarding.PromRemoteWrite.Targets, target)
+
+	opts = opts.SetConfig(cfg)
+
+	handler, err := NewPromWriteHandler(opts)
+	require.NoError(t, err)
+
+	promReq := &prompb.WriteRequest{}
+	for i := 0; i < testOpts.numSeries; i++ {
+		series := prompb.TimeSeries{
+			Labels: []prompb.Label{
+				{Name: []byte("__name__"), Value: []byte(fmt.Sprintf("name_%d", i))},
+			},
+			Samples: []prompb.Sample{
+				{Timestamp: time.Now().UnixMilli(), Value: 42},
+			},
+		}
+
+		// Add some labels, unsorted.
+		for j := 0; j < 5; j++ {
+			label := prompb.Label{Name: make([]byte, 16), Value: make([]byte, 16)}
+			_, err = rand.Reader.Read(label.Name)
+			require.NoError(t, err)
+			_, err = rand.Reader.Read(label.Value)
+			require.NoError(t, err)
+			// Add to start or end.
+			if j%2 == 0 {
+				series.Labels = append(series.Labels, label)
+			} else {
+				series.Labels = append([]prompb.Label{label}, series.Labels...)
+			}
+		}
+
+		promReq.Timeseries = append(promReq.Timeseries, series)
+	}
+
+	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
+	req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
+	writer := httptest.NewRecorder()
+	handler.ServeHTTP(writer, req)
+	resp := writer.Result()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.NoError(t, resp.Body.Close())
+
+	select {
+	case fwdReq := <-forwardRecvReqCh:
+		if testOpts.expectedFwdedAllowedVariance > 0 {
+			assert.InEpsilon(t, testOpts.expectedFwded, len(fwdReq.Timeseries),
+				testOpts.expectedFwdedAllowedVariance,
+				fmt.Sprintf("expected=%v, actual=%v, allowed_variance=%v",
+					testOpts.expectedFwded, len(fwdReq.Timeseries),
+					testOpts.expectedFwdedAllowedVariance))
+		} else {
+			assert.Equal(t, testOpts.expectedFwded, len(fwdReq.Timeseries),
+				fmt.Sprintf("expected=%v, actual=%v",
+					testOpts.expectedFwded, len(fwdReq.Timeseries)))
+		}
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "timeout waiting for fwd request")
+	}
+}
+
 func BenchmarkWriteDatapoints(b *testing.B) {
-	ctrl := gomock.NewController(b)
+	ctrl := xtest.NewController(b)
 	defer ctrl.Finish()
 
 	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
@@ -307,4 +606,63 @@ func BenchmarkWriteDatapoints(b *testing.B) {
 		req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBodyReader)
 		handler.ServeHTTP(httptest.NewRecorder(), req)
 	}
+}
+
+func verifyIterValueAnnotation(
+	t *testing.T,
+	iter ingest.DownsampleAndWriteIter,
+	expectedMetricType annotation.OpenMetricsFamilyType,
+	expectedHandleValueResets bool,
+) ingest.IterValue {
+	require.True(t, iter.Next())
+	value := iter.Current()
+
+	expectedPayload := annotation.Payload{
+		SourceFormat:                 annotation.SourceFormat_OPEN_METRICS,
+		OpenMetricsFamilyType:        expectedMetricType,
+		OpenMetricsHandleValueResets: expectedHandleValueResets,
+	}
+	assert.Equal(t, expectedPayload, unmarshalAnnotation(t, value.Annotation))
+
+	return value
+}
+
+func verifyIterValueAnnotationGraphite(
+	t *testing.T,
+	iter ingest.DownsampleAndWriteIter,
+	expectedMetricType annotation.GraphiteType,
+) {
+	require.True(t, iter.Next())
+	value := iter.Current()
+
+	expectedPayload := annotation.Payload{
+		SourceFormat: annotation.SourceFormat_GRAPHITE,
+		GraphiteType: expectedMetricType,
+	}
+	assert.Equal(t, expectedPayload, unmarshalAnnotation(t, value.Annotation))
+}
+
+func verifyIterValueNoAnnotation(t *testing.T, iter ingest.DownsampleAndWriteIter) {
+	require.True(t, iter.Next())
+	value := iter.Current()
+	assert.Nil(t, value.Annotation)
+}
+
+func unmarshalAnnotation(t *testing.T, annot []byte) annotation.Payload {
+	payload := annotation.Payload{}
+	require.NoError(t, payload.Unmarshal(annot))
+	return payload
+}
+
+func executeWriteRequest(t *testing.T, handlerOpts options.HandlerOptions, promReq *prompb.WriteRequest) {
+	handler, err := NewPromWriteHandler(handlerOpts)
+	require.NoError(t, err)
+
+	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
+	req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
+
+	writer := httptest.NewRecorder()
+	handler.ServeHTTP(writer, req)
+	resp := writer.Result()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 }

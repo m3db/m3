@@ -23,7 +23,6 @@ package policy
 import (
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -39,8 +38,9 @@ var (
 	// EmptyStoragePolicy represents an empty storage policy.
 	EmptyStoragePolicy StoragePolicy
 
-	errNilStoragePolicyProto      = errors.New("nil storage policy proto")
-	errInvalidStoragePolicyString = errors.New("invalid storage policy string")
+	errNilStoragePolicyProto       = errors.New("nil storage policy proto")
+	errInvalidStoragePolicyString  = errors.New("invalid storage policy string")
+	errStoragePolicyLengthMismatch = errors.New("storage policy list length does not match proto")
 )
 
 // StoragePolicy represents the resolution and retention period metric datapoints
@@ -107,16 +107,10 @@ func (p StoragePolicy) Proto() (*policypb.StoragePolicy, error) {
 
 // ToProto converts the storage policy to a protobuf message in place.
 func (p StoragePolicy) ToProto(pb *policypb.StoragePolicy) error {
-	if pb.Resolution == nil {
-		pb.Resolution = &policypb.Resolution{}
-	}
-	if err := p.resolution.ToProto(pb.Resolution); err != nil {
+	if err := p.resolution.ToProto(&pb.Resolution); err != nil {
 		return err
 	}
-	if pb.Retention == nil {
-		pb.Retention = &policypb.Retention{}
-	}
-	p.retention.ToProto(pb.Retention)
+	p.retention.ToProto(&pb.Retention)
 	return nil
 }
 
@@ -197,12 +191,16 @@ func (sp StoragePolicies) Equal(other StoragePolicies) bool {
 	if len(sp) != len(other) {
 		return false
 	}
-	sp1 := sp.Clone()
-	sp2 := other.Clone()
-	sort.Sort(ByResolutionAscRetentionDesc(sp1))
-	sort.Sort(ByResolutionAscRetentionDesc(sp2))
-	for i := 0; i < len(sp1); i++ {
-		if sp1[i] != sp2[i] {
+	// # of StoragePolicies is typically very small, so it's not worth the overhead of cloning/sorting.
+	for i := 0; i < len(sp); i++ {
+		found := false
+		for j := 0; j < len(other); j++ {
+			if sp[i] == other[j] {
+				found = true
+				break
+			}
+		}
+		if !found {
 			return false
 		}
 	}
@@ -270,4 +268,23 @@ func (sp ByRetentionAscResolutionAsc) Less(i, j int) bool {
 		return rw1 < rw2
 	}
 	return sp[i].Resolution().Precision < sp[j].Resolution().Precision
+}
+
+// StoragePoliciesFromProto converts a list of protobuf storage policies to a storage policy in place.
+func StoragePoliciesFromProto(src []policypb.StoragePolicy, dst []StoragePolicy) error {
+	if len(src) != len(dst) {
+		return errStoragePolicyLengthMismatch
+	}
+	for i := 0; i < len(src); i++ {
+		d := &dst[i]
+		if err := d.resolution.FromProto(src[i].Resolution); err != nil {
+			return err
+		}
+
+		if err := d.retention.FromProto(src[i].Retention); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

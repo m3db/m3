@@ -21,7 +21,6 @@
 package encoding
 
 import (
-	"io"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -33,9 +32,9 @@ import (
 
 type testValue struct {
 	value      float64
-	t          time.Time
+	t          xtime.UnixNano
 	unit       xtime.Unit
-	annotation []byte
+	annotation ts.Annotation
 }
 
 type testIterator struct {
@@ -44,7 +43,7 @@ type testIterator struct {
 	closed  bool
 	err     error
 	onNext  func(oldIdx, newIdx int)
-	onReset func(r io.Reader, descr namespace.SchemaDescr)
+	onReset func(r xio.Reader64, descr namespace.SchemaDescr)
 }
 
 func newTestIterator(values []testValue) ReaderIterator {
@@ -71,8 +70,8 @@ func (it *testIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 		idx = 0
 	}
 	v := it.values[idx]
-	dp := ts.Datapoint{Timestamp: v.t, TimestampNanos: xtime.ToUnixNano(v.t), Value: v.value}
-	return dp, v.unit, ts.Annotation(v.annotation)
+	dp := ts.Datapoint{TimestampNanos: v.t, Value: v.value}
+	return dp, v.unit, v.annotation
 }
 
 func (it *testIterator) Err() error {
@@ -83,7 +82,7 @@ func (it *testIterator) Close() {
 	it.closed = true
 }
 
-func (it *testIterator) Reset(r io.Reader, descr namespace.SchemaDescr) {
+func (it *testIterator) Reset(r xio.Reader64, descr namespace.SchemaDescr) {
 	it.onReset(r, descr)
 }
 
@@ -101,7 +100,7 @@ type testMultiIterator struct {
 	closed  bool
 	err     error
 	onNext  func(oldIdx, newIdx int)
-	onReset func(r io.Reader)
+	onReset func(r xio.Reader64)
 }
 
 func newTestMultiIterator(values []testValue, err error) MultiReaderIterator {
@@ -128,8 +127,8 @@ func (it *testMultiIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation)
 		idx = 0
 	}
 	v := it.values[idx]
-	dp := ts.Datapoint{Timestamp: v.t, TimestampNanos: xtime.ToUnixNano(v.t), Value: v.value}
-	return dp, v.unit, ts.Annotation(v.annotation)
+	dp := ts.Datapoint{TimestampNanos: v.t, Value: v.value}
+	return dp, v.unit, v.annotation
 }
 
 func (it *testMultiIterator) Err() error {
@@ -140,13 +139,15 @@ func (it *testMultiIterator) Close() {
 	it.closed = true
 }
 
-func (it *testMultiIterator) Reset(r []xio.SegmentReader, _ time.Time, _ time.Duration, _ namespace.SchemaDescr) {
+func (it *testMultiIterator) Reset(r []xio.SegmentReader, _ xtime.UnixNano,
+	_ time.Duration, _ namespace.SchemaDescr) {
 	for _, reader := range r {
 		it.onReset(reader)
 	}
 }
 
-func (it *testMultiIterator) ResetSliceOfSlices(readers xio.ReaderSliceOfSlicesIterator, _ namespace.SchemaDescr) {
+func (it *testMultiIterator) ResetSliceOfSlices(
+	readers xio.ReaderSliceOfSlicesIterator, _ namespace.SchemaDescr) {
 	l, _, _ := readers.CurrentReaders()
 	for i := 0; i < l; i++ {
 		r := readers.CurrentReaderAt(i)
@@ -182,8 +183,8 @@ func (it *testReaderSliceOfSlicesIterator) Next() bool {
 	return true
 }
 
-func (it *testReaderSliceOfSlicesIterator) CurrentReaders() (int, time.Time, time.Duration) {
-	return len(it.blocks[it.arrayIdx()]), time.Time{}, 0
+func (it *testReaderSliceOfSlicesIterator) CurrentReaders() (int, xtime.UnixNano, time.Duration) {
+	return len(it.blocks[it.arrayIdx()]), 0, 0
 }
 
 func (it *testReaderSliceOfSlicesIterator) CurrentReaderAt(idx int) xio.BlockReader {
@@ -198,8 +199,12 @@ func (it *testReaderSliceOfSlicesIterator) Size() (int, error) {
 	return 0, nil
 }
 
-func (it *testReaderSliceOfSlicesIterator) Rewind() {
-	it.idx = -1
+func (it *testReaderSliceOfSlicesIterator) RewindToIndex(idx int) {
+	it.idx = idx
+}
+
+func (it *testReaderSliceOfSlicesIterator) Index() int {
+	return it.idx
 }
 
 func (it *testReaderSliceOfSlicesIterator) arrayIdx() int {
@@ -211,13 +216,14 @@ func (it *testReaderSliceOfSlicesIterator) arrayIdx() int {
 }
 
 type testNoopReader struct {
-	n int // return for "n", also required so that each struct construction has its address
+	n byte // return for "n", also required so that each struct construction has its address
 }
 
-func (r *testNoopReader) Read(p []byte) (int, error)   { return r.n, nil }
-func (r *testNoopReader) Segment() (ts.Segment, error) { return ts.Segment{}, nil }
-func (r *testNoopReader) Reset(ts.Segment)             {}
-func (r *testNoopReader) Finalize()                    {}
+func (r *testNoopReader) Read64() (word uint64, n byte, err error) { return 0, r.n, nil }
+func (r *testNoopReader) Peek64() (word uint64, n byte, err error) { return 0, r.n, nil }
+func (r *testNoopReader) Segment() (ts.Segment, error)             { return ts.Segment{}, nil }
+func (r *testNoopReader) Reset(ts.Segment)                         {}
+func (r *testNoopReader) Finalize()                                {}
 func (r *testNoopReader) Clone(
 	_ pool.CheckedBytesPool,
 ) (xio.SegmentReader, error) {

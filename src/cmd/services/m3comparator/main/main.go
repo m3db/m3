@@ -38,7 +38,7 @@ import (
 )
 
 var (
-	iterPools = pools.BuildIteratorPools(
+	iterPools = pools.BuildIteratorPools(encoding.NewOptions(),
 		pools.BuildIteratorPoolsOptions{})
 	poolWrapper = pools.NewPoolsWrapper(iterPools)
 
@@ -62,10 +62,13 @@ func init() {
 	checkedBytesPool = pool.NewCheckedBytesPool(buckets, nil, newBackingBytesPool)
 	checkedBytesPool.Init()
 
-	encodingOpts = encoding.NewOptions().SetEncoderPool(encoderPool).SetBytesPool(checkedBytesPool)
+	encodingOpts = encoding.NewOptions().
+		SetEncoderPool(encoderPool).
+		SetBytesPool(checkedBytesPool).
+		SetMetrics(encoding.NewMetrics(iOpts.MetricsScope()))
 
 	encoderPool.Init(func() encoding.Encoder {
-		return m3tsz.NewEncoder(time.Time{}, nil, true, encodingOpts)
+		return m3tsz.NewEncoder(0, nil, true, encodingOpts)
 	})
 }
 

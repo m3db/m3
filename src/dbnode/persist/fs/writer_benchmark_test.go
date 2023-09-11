@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // Benchmarks run on a production machine with 32 cores and non server-grade, non NVME SSD drives.
@@ -115,7 +116,7 @@ func benchmarkCreateEmptyFilesets(b *testing.B, parallelism, numShards int) {
 
 	var (
 		blockSize = 2 * time.Hour
-		start     = time.Now().Truncate(blockSize)
+		start     = xtime.Now().Truncate(blockSize)
 	)
 
 	workerPool, err := xsync.NewPooledWorkerPool(

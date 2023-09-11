@@ -148,13 +148,13 @@ type Placement interface {
 	// SetShards sets the unique shard ids for a replica
 	SetShards(s []uint32) Placement
 
-	// ShardsLen returns the number of shards in a replica
+	// NumShards returns the number of shards in a replica
 	NumShards() int
 
-	// IsSharded() returns whether this placement is sharded
+	// IsSharded returns whether this placement is sharded
 	IsSharded() bool
 
-	// SetIsSharded() sets IsSharded
+	// SetIsSharded sets IsSharded
 	SetIsSharded(v bool) Placement
 
 	// CutoverNanos returns the cutover time in nanoseconds.
@@ -163,10 +163,10 @@ type Placement interface {
 	// SetCutoverNanos sets the cutover time in nanoseconds.
 	SetCutoverNanos(cutoverNanos int64) Placement
 
-	// IsMirrored() returns whether the placement is mirrored.
+	// IsMirrored returns whether the placement is mirrored.
 	IsMirrored() bool
 
-	// SetIsMirrored() sets IsMirrored.
+	// SetIsMirrored sets IsMirrored.
 	SetIsMirrored(v bool) Placement
 
 	// MaxShardSetID returns the maximum shard set id used before to guarantee unique
@@ -180,11 +180,10 @@ type Placement interface {
 	// String returns a description of the placement
 	String() string
 
-	// Version() returns the version of the placement retreived from the
-	// backing MVCC store.
+	// Version returns the version of the placement retrieved from the backing MVCC store.
 	Version() int
 
-	// SetVersion() sets the version of the placement object. Since version
+	// SetVersion sets the version of the placement object. Since version
 	// is determined by the backing MVCC store, calling this method has no
 	// effect in terms of the updated ServicePlacement that is written back
 	// to the MVCC store.
@@ -209,124 +208,55 @@ type Watch interface {
 	Close()
 }
 
-// DoneFn is called when caller is done using the resource.
-type DoneFn func()
-
-// StagedPlacementWatcher watches for updates to staged placement.
-type StagedPlacementWatcher interface {
+// Watcher watches for updates of the placement. Unlike above type Watch,
+// it notifies the client of placement changes via a callback function.
+type Watcher interface {
 	// Watch starts watching the updates.
 	Watch() error
 
-	// ActiveStagedPlacement returns the currently active staged placement, the
-	// callback function when the caller is done using the active staged placement,
-	// and any errors encountered.
-	ActiveStagedPlacement() (ActiveStagedPlacement, DoneFn, error)
+	// Get returns the latest version of the placement.
+	Get() (Placement, error)
 
 	// Unwatch stops watching the updates.
 	Unwatch() error
 }
 
-// StagedPlacementWatcherOptions provide a set of staged placement watcher options.
-type StagedPlacementWatcherOptions interface {
-	// SetClockOptions sets the clock options.
-	SetClockOptions(value clock.Options) StagedPlacementWatcherOptions
+// OnPlacementChangedFn is called when placement has changed in the store,
+// or when it is loaded first time when watcher starts.
+// In the latter case, the prev value is nil.
+type OnPlacementChangedFn func(prev, curr Placement)
 
-	// ClockOptions returns the clock options.
-	ClockOptions() clock.Options
-
+// WatcherOptions provide a set of placement watcher options.
+type WatcherOptions interface {
 	// SetInstrumentOptions sets the instrument options.
-	SetInstrumentOptions(value instrument.Options) StagedPlacementWatcherOptions
+	SetInstrumentOptions(value instrument.Options) WatcherOptions
 
 	// InstrumentOptions returns the instrument options.
 	InstrumentOptions() instrument.Options
 
-	// SetActiveStagedPlacementOptions sets the active staged placement options.
-	SetActiveStagedPlacementOptions(value ActiveStagedPlacementOptions) StagedPlacementWatcherOptions
-
-	// ActiveStagedPlacementOptions returns the active staged placement options.
-	ActiveStagedPlacementOptions() ActiveStagedPlacementOptions
-
 	// SetStagedPlacementKey sets the kv key to watch for staged placement.
-	SetStagedPlacementKey(value string) StagedPlacementWatcherOptions
+	SetStagedPlacementKey(value string) WatcherOptions
 
 	// StagedPlacementKey returns the kv key to watch for staged placement.
 	StagedPlacementKey() string
 
 	// SetStagedPlacementStore sets the staged placement store.
-	SetStagedPlacementStore(store kv.Store) StagedPlacementWatcherOptions
+	SetStagedPlacementStore(store kv.Store) WatcherOptions
 
 	// StagedPlacementStore returns the staged placement store.
 	StagedPlacementStore() kv.Store
 
 	// SetInitWatchTimeout sets the initial watch timeout.
-	SetInitWatchTimeout(value time.Duration) StagedPlacementWatcherOptions
+	SetInitWatchTimeout(value time.Duration) WatcherOptions
 
 	// InitWatchTimeout returns the initial watch timeout.
 	InitWatchTimeout() time.Duration
-}
 
-// ActiveStagedPlacement describes active staged placement.
-type ActiveStagedPlacement interface {
-	// ActivePlacement returns the currently active placement for a given time, the callback
-	// function when the caller is done using the placement, and any errors encountered.
-	ActivePlacement() (Placement, DoneFn, error)
+	// SetOnPlacementChangedFn sets the callback function for placement change.
+	SetOnPlacementChangedFn(value OnPlacementChangedFn) WatcherOptions
 
-	// Close closes the active staged placement.
-	Close() error
-}
-
-// OnPlacementsAddedFn is called when placements are added.
-type OnPlacementsAddedFn func(placements []Placement)
-
-// OnPlacementsRemovedFn is called when placements are removed.
-type OnPlacementsRemovedFn func(placements []Placement)
-
-// ActiveStagedPlacementOptions provide a set of options for active staged placement.
-type ActiveStagedPlacementOptions interface {
-	// SetClockOptions sets the clock options.
-	SetClockOptions(value clock.Options) ActiveStagedPlacementOptions
-
-	// ClockOptions returns the clock options.
-	ClockOptions() clock.Options
-
-	// SetOnPlacementsAddedFn sets the callback function for adding placement.
-	SetOnPlacementsAddedFn(value OnPlacementsAddedFn) ActiveStagedPlacementOptions
-
-	// OnPlacementsAddedFn returns the callback function for adding placement.
-	OnPlacementsAddedFn() OnPlacementsAddedFn
-
-	// SetOnPlacementsRemovedFn sets the callback function for removing placement.
-	SetOnPlacementsRemovedFn(value OnPlacementsRemovedFn) ActiveStagedPlacementOptions
-
-	// OnPlacementsRemovedFn returns the callback function for removing placement.
-	OnPlacementsRemovedFn() OnPlacementsRemovedFn
-}
-
-// StagedPlacement describes a series of placements applied in staged fashion.
-type StagedPlacement interface {
-	// ActiveStagedPlacement returns the active staged placement for a given time.
-	ActiveStagedPlacement(timeNanos int64) ActiveStagedPlacement
-
-	// Version returns the version of the staged placement.
-	Version() int
-
-	// SetVersion sets the version of the staged placement.
-	SetVersion(version int) StagedPlacement
-
-	// Placements return the placements in the staged placement.
-	Placements() Placements
-
-	// SetPlacements sets the placements in the staged placement.
-	SetPlacements(placements []Placement) StagedPlacement
-
-	// ActiveStagedPlacementOptions returns the active staged placement options.
-	ActiveStagedPlacementOptions() ActiveStagedPlacementOptions
-
-	// SetActiveStagedPlacementOptions sets the active staged placement options.
-	SetActiveStagedPlacementOptions(opts ActiveStagedPlacementOptions) StagedPlacement
-
-	// Proto returns the proto representation for the StagedPlacement.
-	Proto() (*placementpb.PlacementSnapshots, error)
+	// OnPlacementChangedFn returns the callback function for placement change.
+	OnPlacementChangedFn() OnPlacementChangedFn
 }
 
 // TimeNanosFn returns the time in the format of Unix nanoseconds.
@@ -396,11 +326,25 @@ type Options interface {
 	// SetIsMirrored sets IsMirrored.
 	SetIsMirrored(m bool) Options
 
+	// SkipPortMirroring returns whether to ignore the port numbers while selecting
+	// mirroring instances.
+	SkipPortMirroring() bool
+
+	// SetSkipPortMirroring sets whether to ignore the port numbers while selecting
+	// mirroring instances.
+	SetSkipPortMirroring(v bool) Options
+
 	// IsStaged returns whether the placement should keep all the snapshots.
 	IsStaged() bool
 
 	// SetIsStaged sets whether the placement should keep all the snapshots.
 	SetIsStaged(v bool) Options
+
+	// Compress returns whether the placement is compressed when written to storage.
+	Compress() bool
+
+	// SetCompress sets whether the placement is compressed when written to storage.
+	SetCompress(v bool) Options
 
 	// InstrumentOptions is the options for instrument.
 	InstrumentOptions() instrument.Options
@@ -568,11 +512,14 @@ type operations interface {
 
 	// MarkAllShardsAvailable marks shard states as available where applicable.
 	MarkAllShardsAvailable() (Placement, error)
+
+	// BalanceShards rebalances load in the cluster to achieve the most balanced shard distribution.
+	BalanceShards() (Placement, error)
 }
 
 // Algorithm places shards on instances.
 type Algorithm interface {
-	// InitPlacement initialize a sharding placement with given replica factor.
+	// InitialPlacement initialize a sharding placement with given replica factor.
 	InitialPlacement(instances []Instance, shards []uint32, rf int) (Placement, error)
 
 	// AddReplica up the replica factor by 1 in the placement.
@@ -584,7 +531,7 @@ type Algorithm interface {
 	// RemoveInstances removes a list of instances from the placement.
 	RemoveInstances(p Placement, leavingInstanceIDs []string) (Placement, error)
 
-	// ReplaceInstance replace a list of instances with new instances.
+	// ReplaceInstances replace a list of instances with new instances.
 	ReplaceInstances(
 		p Placement,
 		leavingInstanecIDs []string,
@@ -599,6 +546,9 @@ type Algorithm interface {
 
 	// MarkAllShardsAvailable marks shard states as available where applicable.
 	MarkAllShardsAvailable(p Placement) (Placement, bool, error)
+
+	// BalanceShards rebalances load in the cluster to achieve the most balanced shard distribution.
+	BalanceShards(p Placement) (Placement, error)
 }
 
 // InstanceSelector selects valid instances for the placement change.

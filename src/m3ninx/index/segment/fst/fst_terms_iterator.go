@@ -31,6 +31,7 @@ type fstTermsIterOpts struct {
 	seg         *fsSegment
 	fst         *vellum.FST
 	finalizeFST bool
+	fieldsFST   bool
 }
 
 func (o fstTermsIterOpts) Close() error {
@@ -111,6 +112,10 @@ func (f *fstTermsIter) Next() bool {
 
 func (f *fstTermsIter) CurrentOffset() uint64 {
 	return f.currentValue
+}
+
+func (f *fstTermsIter) Empty() bool {
+	return f.Len() == 0
 }
 
 func (f *fstTermsIter) Current() []byte {

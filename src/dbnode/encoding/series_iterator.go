@@ -21,8 +21,6 @@
 package encoding
 
 import (
-	"time"
-
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -36,10 +34,10 @@ type seriesIterator struct {
 	end              xtime.UnixNano
 	iters            iterators
 	multiReaderIters []MultiReaderIterator
+	pool             SeriesIteratorPool
 	err              error
 	firstNext        bool
 	closed           bool
-	pool             SeriesIteratorPool
 }
 
 // NewSeriesIterator creates a new series iterator.
@@ -65,12 +63,12 @@ func (it *seriesIterator) Tags() ident.TagIterator {
 	return it.tags
 }
 
-func (it *seriesIterator) Start() time.Time {
-	return it.start.ToTime()
+func (it *seriesIterator) Start() xtime.UnixNano {
+	return it.start
 }
 
-func (it *seriesIterator) End() time.Time {
-	return it.end.ToTime()
+func (it *seriesIterator) End() xtime.UnixNano {
+	return it.end
 }
 
 func (it *seriesIterator) Next() bool {
@@ -90,6 +88,10 @@ func (it *seriesIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 
 func (it *seriesIterator) Err() error {
 	return it.err
+}
+
+func (it *seriesIterator) FirstAnnotation() ts.Annotation {
+	return it.iters.firstAnnotation()
 }
 
 func (it *seriesIterator) Close() {
@@ -136,6 +138,7 @@ func (it *seriesIterator) Reset(opts SeriesIteratorOptions) {
 	it.firstNext = true
 	it.closed = false
 
+	it.iters.closeIters = true
 	it.iters.reset()
 	it.start = opts.StartInclusive
 	it.end = opts.EndExclusive
@@ -164,6 +167,10 @@ func (it *seriesIterator) Reset(opts SeriesIteratorOptions) {
 		}
 		it.multiReaderIters = append(it.multiReaderIters, replica)
 	}
+}
+
+func (it *seriesIterator) IterateEqualTimestampStrategy() IterateEqualTimestampStrategy {
+	return it.iters.equalTimesStrategy
 }
 
 func (it *seriesIterator) SetIterateEqualTimestampStrategy(strategy IterateEqualTimestampStrategy) {

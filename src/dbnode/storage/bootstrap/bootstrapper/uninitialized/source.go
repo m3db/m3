@@ -28,7 +28,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/x/context"
 )
 
@@ -42,19 +41,22 @@ import (
 // Behavior is best understood by reading the test cases for the test:
 // TestUnitializedSourceAvailableDataAndAvailableIndex
 type uninitializedTopologySource struct {
-	opts Options
+	opts            Options
+	instrumentation *instrumentation
 }
 
 // newTopologyUninitializedSource creates a new uninitialized source.
 func newTopologyUninitializedSource(opts Options) bootstrap.Source {
 	return &uninitializedTopologySource{
-		opts: opts,
+		opts:            opts,
+		instrumentation: newInstrumentation(opts),
 	}
 }
 
 func (s *uninitializedTopologySource) AvailableData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
+	_ bootstrap.Cache,
 	runOpts bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
 	return s.availability(ns, shardsTimeRanges, runOpts)
@@ -63,13 +65,14 @@ func (s *uninitializedTopologySource) AvailableData(
 func (s *uninitializedTopologySource) AvailableIndex(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
+	_ bootstrap.Cache,
 	runOpts bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
 	return s.availability(ns, shardsTimeRanges, runOpts)
 }
 
 func (s *uninitializedTopologySource) availability(
-	ns namespace.Metadata,
+	_ namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
@@ -140,9 +143,10 @@ func (s *uninitializedTopologySource) availability(
 func (s *uninitializedTopologySource) Read(
 	ctx context.Context,
 	namespaces bootstrap.Namespaces,
+	_ bootstrap.Cache,
 ) (bootstrap.NamespaceResults, error) {
-	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperUninitializedSourceRead)
-	defer span.Finish()
+	instrCtx := s.instrumentation.uninitializedBootstrapperSourceReadStarted(ctx)
+	defer instrCtx.finish()
 
 	results := bootstrap.NamespaceResults{
 		Results: bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{}),

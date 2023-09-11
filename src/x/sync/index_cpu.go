@@ -20,41 +20,18 @@
 
 package sync
 
-import (
-	"bufio"
-	"os"
-	"strings"
-)
+// CoreFn is a function that returns the ID of the
+// CPU currently running this goroutine.
+type CoreFn func() int
 
-var (
-	numCores = 1
-)
+var numCores = 1
 
 func init() {
-	f, err := os.Open("/proc/cpuinfo")
-	if err != nil {
-		return
-	}
-
-	defer f.Close()
-
-	n := 0
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		if strings.HasPrefix(scanner.Text(), "processor") {
-			n++
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return
-	}
-
-	numCores = n
+	numCores = checkNumCores()
 }
 
 // NumCores returns the number of cores returned from
-// /proc/cpuinfo, if not available only returns 1
+// OS-dependent checkNumCores(), if not available only returns 1
 func NumCores() int {
 	return numCores
 }

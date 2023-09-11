@@ -23,9 +23,10 @@ package client
 import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 )
 
 type sessionPools struct {
@@ -44,12 +45,12 @@ type sessionPools struct {
 	readerSliceOfSlicesIterator *readerSliceOfSlicesIteratorPool
 	multiReaderIterator         encoding.MultiReaderIteratorPool
 	seriesIterator              encoding.SeriesIteratorPool
-	seriesIterators             encoding.MutableSeriesIteratorsPool
 	writeAttempt                *writeAttemptPool
 	writeState                  *writeStatePool
 	fetchAttempt                *fetchAttemptPool
 	fetchTaggedAttempt          fetchTaggedAttemptPool
 	aggregateAttempt            aggregateAttemptPool
+	checkedBytes                pool.CheckedBytesPool
 	checkedBytesWrapper         xpool.CheckedBytesWrapperPool
 }
 
@@ -86,8 +87,4 @@ func (s sessionPools) MultiReaderIterator() encoding.MultiReaderIteratorPool {
 
 func (s sessionPools) CheckedBytesWrapper() xpool.CheckedBytesWrapperPool {
 	return s.checkedBytesWrapper
-}
-
-func (s sessionPools) MutableSeriesIterators() encoding.MutableSeriesIteratorsPool {
-	return s.seriesIterators
 }

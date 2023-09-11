@@ -6,14 +6,7 @@ metadata:
 data:
   m3dbnode.yml: |+
     coordinator:
-      listenAddress:
-        type: "config"
-        value: "0.0.0.0:7201"
-      local:
-        namespaces:
-            - namespace: default
-              type: unaggregated
-              retention: 48h
+      listenAddress: 0.0.0.0:7201
       logging:
         level: info
       metrics:
@@ -55,17 +48,7 @@ data:
       gcPercentage: 100
 
       writeNewSeriesAsync: true
-      writeNewSeriesLimitPerSecond: 1048576
       writeNewSeriesBackoffDuration: 2ms
-
-      bootstrap:
-        bootstrappers:
-            - filesystem
-            - commitlog
-            - peers
-            - uninitialized_topology
-        commitlog:
-          returnUnfulfilledForCorruptCommitLogFiles: false
 
       commitlog:
         flushMaxBytes: 524288
@@ -74,18 +57,19 @@ data:
           calculationType: fixed
           size: 2097152
 
-      fs:
+      filesystem:
         filePathPrefix: /var/lib/m3db
 
-      config:
-        service:
-            env: default_env
-            zone: embedded
-            service: m3db
-            cacheDir: /var/lib/m3kv
-            etcdClusters:
-            - zone: embedded
-              endpoints:
-              - http://etcd-0.etcd:2379
-              - http://etcd-1.etcd:2379
-              - http://etcd-2.etcd:2379
+      discovery:
+        config:
+          service:
+              env: default_env
+              zone: embedded
+              service: m3db
+              cacheDir: /var/lib/m3kv
+              etcdClusters:
+              - zone: embedded
+                endpoints:
+                - http://etcd-0.etcd:2379
+                - http://etcd-1.etcd:2379
+                - http://etcd-2.etcd:2379

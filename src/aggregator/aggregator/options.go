@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/aggregator/runtime"
 	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3/src/metrics/aggregation"
-	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
@@ -250,10 +249,16 @@ type Options interface {
 	// delay for given metric resolution and number of times the metric has been forwarded.
 	MaxAllowedForwardingDelayFn() MaxAllowedForwardingDelayFn
 
-	// SetBufferForPastTimedMetricFn sets the size of the buffer for timed metrics in the past.
+	// SetBufferForPastTimedMetric sets the size of the buffer for timed metrics in the past.
+	SetBufferForPastTimedMetric(value time.Duration) Options
+
+	// BufferForPastTimedMetric returns the size of the buffer for timed metrics in the past.
+	BufferForPastTimedMetric() time.Duration
+
+	// SetBufferForPastTimedMetricFn sets the size fn of the buffer for timed metrics in the past.
 	SetBufferForPastTimedMetricFn(value BufferForPastTimedMetricFn) Options
 
-	// BufferForPastTimedMetricFn returns the size of the buffer for timed metrics in the past.
+	// BufferForPastTimedMetricFn returns the size fn of the buffer for timed metrics in the past.
 	BufferForPastTimedMetricFn() BufferForPastTimedMetricFn
 
 	// SetBufferForFutureTimedMetric sets the size of the buffer for timed metrics in the future.
@@ -314,6 +319,34 @@ type Options interface {
 
 	// VerboseErrors returns whether to return verbose errors or not.
 	VerboseErrors() bool
+
+	// SetAddToReset sets the value for AddToReset.
+	SetAddToReset(value bool) Options
+
+	// AddToReset changes Add transforms to Reset Transforms.
+	// This is a temporary option to help with the seamless rollout of changing Add transforms to Reset transforms for
+	// resetting aggregate counters. Once rollup rules have changed to use Reset explicitly, this can be removed.
+	AddToReset() bool
+
+	// TimedMetricsFlushOffsetEnabled returns true if using of FlushOffset for timed metrics is enabled.
+	TimedMetricsFlushOffsetEnabled() bool
+
+	// SetTimedMetricsFlushOffsetEnabled controls using of FlushOffset for timed metrics.
+	SetTimedMetricsFlushOffsetEnabled(bool) Options
+
+	// FeatureFlagBundlesParsed returns the feature flag bundles that have been parsed.
+	FeatureFlagBundlesParsed() []FeatureFlagBundleParsed
+
+	// SetFeatureFlagBundlesParsed returns the feature flag bundles that have been parsed.
+	SetFeatureFlagBundlesParsed([]FeatureFlagBundleParsed) Options
+
+	// WritesIgnoreCutoffCutover returns a flag indicating whether cutoff/cutover timestamps
+	// are ignored for incoming writes.
+	WritesIgnoreCutoffCutover() bool
+
+	// SetWritesIgnoreCutoffCutover sets a flag controlling whether cutoff/cutover timestamps
+	// are ignored for incoming writes.
+	SetWritesIgnoreCutoffCutover(value bool) Options
 }
 
 type options struct {
@@ -345,6 +378,7 @@ type options struct {
 	electionManager                  ElectionManager
 	resignTimeout                    time.Duration
 	maxAllowedForwardingDelayFn      MaxAllowedForwardingDelayFn
+	bufferForPastTimedMetric         time.Duration
 	bufferForPastTimedMetricFn       BufferForPastTimedMetricFn
 	bufferForFutureTimedMetric       time.Duration
 	maxNumCachedSourceSets           int
@@ -354,6 +388,10 @@ type options struct {
 	timerElemPool                    TimerElemPool
 	gaugeElemPool                    GaugeElemPool
 	verboseErrors                    bool
+	addToReset                       bool
+	timedMetricsFlushOffsetEnabled   bool
+	featureFlagBundlesParsed         []FeatureFlagBundleParsed
+	writesIgnoreCutoffCutover        bool
 
 	// Derived options.
 	fullCounterPrefix []byte
@@ -363,7 +401,7 @@ type options struct {
 }
 
 // NewOptions create a new set of options.
-func NewOptions() Options {
+func NewOptions(clockOpts clock.Options) Options {
 	aggTypesOptions := aggregation.NewTypesOptions().
 		SetCounterTypeStringTransformFn(aggregation.EmptyTransform).
 		SetTimerTypeStringTransformFn(aggregation.SuffixTransform).
@@ -375,7 +413,7 @@ func NewOptions() Options {
 		timerPrefix:                      defaultTimerPrefix,
 		gaugePrefix:                      defaultGaugePrefix,
 		timeLock:                         &sync.RWMutex{},
-		clockOpts:                        clock.NewOptions(),
+		clockOpts:                        clockOpts,
 		instrumentOpts:                   instrument.NewOptions(),
 		streamOpts:                       cm.NewOptions(),
 		runtimeOptsManager:               runtime.NewOptionsManager(runtime.NewOptions()),
@@ -390,6 +428,7 @@ func NewOptions() Options {
 		defaultStoragePolicies:           defaultDefaultStoragePolicies,
 		resignTimeout:                    defaultResignTimeout,
 		maxAllowedForwardingDelayFn:      defaultMaxAllowedForwardingDelayFn,
+		bufferForPastTimedMetric:         defaultTimedMetricBuffer,
 		bufferForPastTimedMetricFn:       defaultBufferForPastTimedMetricFn,
 		bufferForFutureTimedMetric:       defaultTimedMetricBuffer,
 		maxNumCachedSourceSets:           defaultMaxNumCachedSourceSets,
@@ -680,6 +719,16 @@ func (o *options) MaxAllowedForwardingDelayFn() MaxAllowedForwardingDelayFn {
 	return o.maxAllowedForwardingDelayFn
 }
 
+func (o *options) SetBufferForPastTimedMetric(value time.Duration) Options {
+	opts := *o
+	opts.bufferForPastTimedMetric = value
+	return &opts
+}
+
+func (o *options) BufferForPastTimedMetric() time.Duration {
+	return o.bufferForPastTimedMetric
+}
+
 func (o *options) SetBufferForPastTimedMetricFn(value BufferForPastTimedMetricFn) Options {
 	opts := *o
 	opts.bufferForPastTimedMetricFn = value
@@ -787,25 +836,27 @@ func (o *options) TimerQuantiles() []float64 {
 }
 
 func (o *options) initPools() {
+	metrics := NewEntryMetrics(o.InstrumentOptions().MetricsScope())
 	defaultRuntimeOpts := runtime.NewOptions()
 	o.entryPool = NewEntryPool(nil)
 	o.entryPool.Init(func() *Entry {
-		return NewEntry(nil, defaultRuntimeOpts, o)
+		return NewEntryWithMetrics(nil, metrics, defaultRuntimeOpts, o)
 	})
 
+	elemOpts := NewElemOptions(o)
 	o.counterElemPool = NewCounterElemPool(nil)
 	o.counterElemPool.Init(func() *CounterElem {
-		return MustNewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, WithPrefixWithSuffix, o)
+		return MustNewCounterElem(ElemData{}, elemOpts)
 	})
 
 	o.timerElemPool = NewTimerElemPool(nil)
 	o.timerElemPool.Init(func() *TimerElem {
-		return MustNewTimerElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, WithPrefixWithSuffix, o)
+		return MustNewTimerElem(ElemData{}, elemOpts)
 	})
 
 	o.gaugeElemPool = NewGaugeElemPool(nil)
 	o.gaugeElemPool.Init(func() *GaugeElem {
-		return MustNewGaugeElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, WithPrefixWithSuffix, o)
+		return MustNewGaugeElem(ElemData{}, elemOpts)
 	})
 }
 
@@ -838,6 +889,46 @@ func (o *options) computeFullGaugePrefix() {
 	n := copy(fullGaugePrefix, o.metricPrefix)
 	copy(fullGaugePrefix[n:], o.gaugePrefix)
 	o.fullGaugePrefix = fullGaugePrefix
+}
+
+func (o *options) AddToReset() bool {
+	return o.addToReset
+}
+
+func (o *options) SetAddToReset(value bool) Options {
+	opts := *o
+	opts.addToReset = value
+	return &opts
+}
+
+func (o *options) TimedMetricsFlushOffsetEnabled() bool {
+	return o.timedMetricsFlushOffsetEnabled
+}
+
+func (o *options) SetTimedMetricsFlushOffsetEnabled(value bool) Options {
+	opts := *o
+	opts.timedMetricsFlushOffsetEnabled = value
+	return &opts
+}
+
+func (o *options) SetFeatureFlagBundlesParsed(value []FeatureFlagBundleParsed) Options {
+	opts := *o
+	opts.featureFlagBundlesParsed = value
+	return &opts
+}
+
+func (o *options) FeatureFlagBundlesParsed() []FeatureFlagBundleParsed {
+	return o.featureFlagBundlesParsed
+}
+
+func (o *options) WritesIgnoreCutoffCutover() bool {
+	return o.writesIgnoreCutoffCutover
+}
+
+func (o *options) SetWritesIgnoreCutoffCutover(value bool) Options {
+	opts := *o
+	opts.writesIgnoreCutoffCutover = value
+	return &opts
 }
 
 func defaultMaxAllowedForwardingDelayFn(

@@ -24,7 +24,9 @@ import (
 	"math"
 	"testing"
 
-	"github.com/m3db/m3/src/query/test"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/m3db/m3/src/query/test/compare"
 )
 
 type funcTest struct {
@@ -155,9 +157,49 @@ func TestAggFns(t *testing.T) {
 				for i, bucket := range tt.buckets {
 					actual := function.fn(tt.values, bucket)
 					expected := function.expected[i]
-					test.EqualsWithNansWithDelta(t, expected, actual, math.Pow10(-5))
+					compare.EqualsWithNansWithDelta(t, expected, actual, math.Pow10(-5))
 				}
 			})
 		}
+	}
+}
+
+var equalValuePrecisionTest = []struct {
+	name   string
+	values []float64
+}{
+	{
+		"five 1.33e-5",
+		[]float64{1.33e-5, 1.33e-5, 1.33e-5, 1.33e-5, 1.33e-5},
+	},
+	{
+		"three 13.3",
+		[]float64{13.3, 13.3, 13.3},
+	},
+}
+
+func TestVarianceFnEqualValuePrecision(t *testing.T) {
+	for _, tt := range equalValuePrecisionTest {
+		t.Run(tt.name, func(t *testing.T) {
+			bucket := make([]int, len(tt.values))
+			for i := range bucket {
+				bucket[i] = i
+			}
+
+			assert.Equal(t, 0.0, varianceFn(tt.values, bucket))
+		})
+	}
+}
+
+func TestStddevFnEqualValuePrecision(t *testing.T) {
+	for _, tt := range equalValuePrecisionTest {
+		t.Run(tt.name, func(t *testing.T) {
+			bucket := make([]int, len(tt.values))
+			for i := range bucket {
+				bucket[i] = i
+			}
+
+			assert.Equal(t, 0.0, stddevFn(tt.values, bucket))
+		})
 	}
 }

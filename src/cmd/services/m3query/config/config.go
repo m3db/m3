@@ -22,10 +22,11 @@ package config
 
 import (
 	"errors"
-	"fmt"
+	"math"
 	"time"
 
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
+	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	ingestm3msg "github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/m3msg"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
@@ -38,12 +39,11 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	xconfig "github.com/m3db/m3/src/x/config"
-	"github.com/m3db/m3/src/x/config/listenaddress"
-	"github.com/m3db/m3/src/x/cost"
-	xdocs "github.com/m3db/m3/src/x/docs"
+	"github.com/m3db/m3/src/x/debug/config"
 	"github.com/m3db/m3/src/x/instrument"
 	xlog "github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/opentracing"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // BackendStorageType is an enum for different backends.
@@ -60,10 +60,12 @@ const (
 	// coordinators used only to serve m3admin APIs.
 	NoopEtcdStorageType BackendStorageType = "noop-etcd"
 
+	// PromRemoteStorageType is a type of storage that is backed by Prometheus Remote Write compatible API.
+	PromRemoteStorageType BackendStorageType = "prom-remote"
+
+	defaultListenAddress = "0.0.0.0:7201"
+
 	defaultCarbonIngesterListenAddress = "0.0.0.0:7204"
-	errNoIDGenerationScheme            = "error: a recent breaking change means that an ID " +
-		"generation scheme is required in coordinator configuration settings. " +
-		"More information is available here: %s"
 
 	defaultQueryTimeout = 30 * time.Second
 
@@ -71,22 +73,56 @@ const (
 )
 
 var (
-	// 5m is the default lookback in Prometheus
+	defaultLogging = xlog.Configuration{
+		Level: "info",
+	}
+	defaultMetricsSanitization        = instrument.PrometheusMetricSanitization
+	defaultMetricsExtendedMetricsType = instrument.NoExtendedMetrics
+	defaultMetrics                    = instrument.MetricsConfiguration{
+		RootScope: &instrument.ScopeConfiguration{
+			Prefix: "coordinator",
+		},
+		PrometheusReporter: &instrument.PrometheusConfiguration{
+			HandlerPath: "/metrics",
+			// Default to coordinator (until https://github.com/m3db/m3/issues/682 is resolved)
+			ListenAddress: "0.0.0.0:7203",
+		},
+		Sanitization:    &defaultMetricsSanitization,
+		SamplingRate:    1.0,
+		ExtendedMetrics: &defaultMetricsExtendedMetricsType,
+	}
+
+	// 5m is the default lookback in Prometheus.
 	defaultLookbackDuration = 5 * time.Minute
 
 	defaultCarbonIngesterAggregationType = aggregation.Mean
 
-	defaultStorageQuerySeriesLimit = 10000
+	// By default, cap total series to prevent results of
+	// extremely large sizes consuming too much memory.
+	defaultStorageQuerySeriesLimit = 100_000
 	defaultStorageQueryDocsLimit   = 0 // Default OFF.
+
+	// By default, raise errors instead of truncating results so
+	// users do not experience see unexpected results.
+	defaultRequireExhaustive = true
+
+	defaultWriteWorkerPool = xconfig.WorkerPoolPolicy{
+		GrowOnDemand:          true,
+		Size:                  4096,
+		KillWorkerProbability: 0.001,
+	}
+
+	// By default, return up to 4 metric metadata stats per request.
+	defaultMaxMetricMetadataStats = 4
 )
 
 // Configuration is the configuration for the query service.
 type Configuration struct {
 	// Metrics configuration.
-	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
+	Metrics *instrument.MetricsConfiguration `yaml:"metrics"`
 
 	// Logging configuration.
-	Logging xlog.Configuration `yaml:"logging"`
+	Logging *xlog.Configuration `yaml:"logging"`
 
 	// Tracing configures opentracing. If not provided, tracing is disabled.
 	Tracing opentracing.TracingConfiguration `yaml:"tracing"`
@@ -99,12 +135,16 @@ type Configuration struct {
 	// coordinator embedded in the DB.
 	Local *LocalConfiguration `yaml:"local"`
 
-	// ClusterManagement for placemement, namespaces and database management
-	// endpoints (optional).
-	ClusterManagement *ClusterManagementConfiguration `yaml:"clusterManagement"`
+	// ClusterManagement for placement, namespaces and database management
+	// endpoints.
+	ClusterManagement ClusterManagementConfiguration `yaml:"clusterManagement"`
+
+	// PrometheusRemoteBackend configures prometheus remote write backend.
+	// Used only when backend property is "prom-remote"
+	PrometheusRemoteBackend *PrometheusRemoteBackendConfiguration `yaml:"prometheusRemoteBackend"`
 
 	// ListenAddress is the server listen address.
-	ListenAddress *listenaddress.Configuration `yaml:"listenAddress" validate:"nonzero"`
+	ListenAddress *string `yaml:"listenAddress"`
 
 	// Filter is the read/write/complete tags filter configuration.
 	Filter FilterConfiguration `yaml:"filter"`
@@ -112,7 +152,10 @@ type Configuration struct {
 	// RPC is the RPC configuration.
 	RPC *RPCConfiguration `yaml:"rpc"`
 
-	// Backend is the backend store for query service. We currently support grpc and m3db (default).
+	// HTTP is the HTTP configuration.
+	HTTP HTTPConfiguration `yaml:"http"`
+
+	// Backend is the backend store for query service.
 	Backend BackendStorageType `yaml:"backend"`
 
 	// TagOptions is the tag configuration options.
@@ -122,12 +165,12 @@ type Configuration struct {
 	ReadWorkerPool xconfig.WorkerPoolPolicy `yaml:"readWorkerPoolPolicy"`
 
 	// WriteWorkerPool is the worker pool policy for write requests.
-	WriteWorkerPool xconfig.WorkerPoolPolicy `yaml:"writeWorkerPoolPolicy"`
+	WriteWorkerPool *xconfig.WorkerPoolPolicy `yaml:"writeWorkerPoolPolicy"`
 
 	// WriteForwarding is the write forwarding options.
 	WriteForwarding WriteForwardingConfiguration `yaml:"writeForwarding"`
 
-	// Downsample configurates how the metrics should be downsampled.
+	// Downsample configures how the metrics should be downsampled.
 	Downsample downsample.Configuration `yaml:"downsample"`
 
 	// Ingest is the ingest server.
@@ -135,6 +178,9 @@ type Configuration struct {
 
 	// Carbon is the carbon configuration.
 	Carbon *CarbonConfiguration `yaml:"carbon"`
+
+	// Middleware is middleware-specific configuration.
+	Middleware MiddlewareConfiguration `yaml:"middleware"`
 
 	// Query is the query configuration.
 	Query QueryConfiguration `yaml:"query"`
@@ -148,20 +194,54 @@ type Configuration struct {
 	// ResultOptions are the results options for query.
 	ResultOptions ResultOptions `yaml:"resultOptions"`
 
-	// Experimental is the configuration for the experimental API group.
-	Experimental ExperimentalAPIConfiguration `yaml:"experimental"`
+	// DeprecatedExperimental is the configuration for the experimental API group. It is not used anymore
+	// and only kept for backwards-support with older configuration files.
+	DeprecatedExperimental ExperimentalAPIConfiguration `yaml:"experimental"`
 
-	// Cache configurations.
-	//
-	// Deprecated: cache configurations are no longer supported. Remove from file
-	// when we can make breaking changes.
-	// (If/when removed it will make existing configurations with the cache
-	// stanza not able to startup the binary since we parse YAML in strict mode
-	// by default).
-	DeprecatedCache CacheConfiguration `yaml:"cache"`
+	// StoreMetricsType controls if metrics type is stored or not.
+	StoreMetricsType *bool `yaml:"storeMetricsType"`
 
 	// MultiProcess is the multi-process configuration.
 	MultiProcess MultiProcessConfiguration `yaml:"multiProcess"`
+
+	// Debug configuration.
+	Debug config.DebugConfiguration `yaml:"debug"`
+}
+
+// ListenAddressOrDefault returns the listen address or default.
+func (c *Configuration) ListenAddressOrDefault() string {
+	if c.ListenAddress != nil {
+		return *c.ListenAddress
+	}
+
+	return defaultListenAddress
+}
+
+// LoggingOrDefault returns the logging config or default.
+func (c *Configuration) LoggingOrDefault() xlog.Configuration {
+	if c.Logging != nil {
+		return *c.Logging
+	}
+
+	return defaultLogging
+}
+
+// MetricsOrDefault returns the metrics config or default.
+func (c *Configuration) MetricsOrDefault() *instrument.MetricsConfiguration {
+	if c.Metrics != nil {
+		return c.Metrics
+	}
+
+	return &defaultMetrics
+}
+
+// WriteWorkerPoolOrDefault returns the write worker pool config or default.
+func (c *Configuration) WriteWorkerPoolOrDefault() xconfig.WorkerPoolPolicy {
+	if c.WriteWorkerPool != nil {
+		return *c.WriteWorkerPool
+	}
+
+	return defaultWriteWorkerPool
 }
 
 // WriteForwardingConfiguration is the write forwarding configuration.
@@ -190,22 +270,11 @@ type FilterConfiguration struct {
 	CompleteTags Filter `yaml:"completeTags"`
 }
 
-// CacheConfiguration contains the cache configurations.
-type CacheConfiguration struct {
-	// Deprecated: remove from config.
-	DeprecatedQueryConversion *DeprecatedQueryConversionCacheConfiguration `yaml:"queryConversion"`
-}
-
-// DeprecatedQueryConversionCacheConfiguration is deprecated: remove from config.
-type DeprecatedQueryConversionCacheConfiguration struct {
-	Size *int `yaml:"size"`
-}
-
 // ResultOptions are the result options for query.
 type ResultOptions struct {
-	// KeepNans keeps NaNs before returning query results.
+	// KeepNaNs keeps NaNs before returning query results.
 	// The default is false, which matches Prometheus
-	KeepNans bool `yaml:"keepNans"`
+	KeepNaNs bool `yaml:"keepNans"`
 }
 
 // QueryConfiguration is the query configuration.
@@ -221,6 +290,12 @@ type QueryConfiguration struct {
 	// RestrictTags is an optional configuration that can be set to restrict
 	// all queries with certain tags by.
 	RestrictTags *RestrictTagsConfiguration `yaml:"restrictTags"`
+	// RequireLabelsEndpointStartEndTime requires requests to /label(s) endpoints
+	// to specify a start and end time to prevent unbounded queries.
+	RequireLabelsEndpointStartEndTime bool `yaml:"requireLabelsEndpointStartEndTime"`
+	// RequireSeriesEndpointStartEndTime requires requests to /series endpoint
+	// to specify a start and end time to prevent unbounded queries.
+	RequireSeriesEndpointStartEndTime bool `yaml:"requireSeriesEndpointStartEndTime"`
 }
 
 // TimeoutOrDefault returns the configured timeout or default value.
@@ -281,6 +356,51 @@ type ConsolidationConfiguration struct {
 type PrometheusQueryConfiguration struct {
 	// MaxSamplesPerQuery is the limit on fetched samples per query.
 	MaxSamplesPerQuery *int `yaml:"maxSamplesPerQuery"`
+
+	// Convert configures Prometheus time series conversions.
+	Convert *PrometheusConvertConfiguration `yaml:"convert"`
+}
+
+// ConvertOptionsOrDefault creates storage.PromConvertOptions based on the given configuration.
+func (c PrometheusQueryConfiguration) ConvertOptionsOrDefault() storage.PromConvertOptions {
+	opts := storage.NewPromConvertOptions()
+
+	if v := c.Convert; v != nil {
+		if value := v.ResolutionThresholdForCounterNormalization; value != nil {
+			opts = opts.SetResolutionThresholdForCounterNormalization(*value)
+		}
+
+		opts = opts.SetValueDecreaseTolerance(v.ValueDecreaseTolerance)
+
+		// Default to max time so that it's always applicable if value
+		// decrease tolerance is non-zero.
+		toleranceUntil := xtime.UnixNano(math.MaxInt64)
+		if value := v.ValueDecreaseToleranceUntil; value != nil {
+			toleranceUntil = xtime.ToUnixNano(*value)
+		}
+		opts = opts.SetValueDecreaseToleranceUntil(toleranceUntil)
+	}
+
+	return opts
+}
+
+// PrometheusConvertConfiguration configures Prometheus time series conversions.
+type PrometheusConvertConfiguration struct {
+	// ResolutionThresholdForCounterNormalization sets the resolution threshold starting from which
+	// Prometheus counter normalization is performed in order to avoid Prometheus counter
+	// extrapolation artifacts.
+	ResolutionThresholdForCounterNormalization *time.Duration `yaml:"resolutionThresholdForCounterNormalization"`
+
+	// ValueDecreaseTolerance allows for setting a specific amount of tolerance
+	// to avoid returning a decrease if it's below a certain tolerance.
+	// This is useful for applications that have precision issues emitting
+	// monotonic increasing data and will accidentally make it seem like the
+	// counter value decreases when it hasn't changed.
+	ValueDecreaseTolerance float64 `yaml:"valueDecreaseTolerance"`
+
+	// ValueDecreaseToleranceUntil allows for setting a time threshold on
+	// which to apply the conditional value decrease threshold.
+	ValueDecreaseToleranceUntil *time.Time `yaml:"valueDecreaseToleranceUntil"`
 }
 
 // MaxSamplesPerQueryOrDefault returns the max samples per query or default.
@@ -297,41 +417,6 @@ func (c PrometheusQueryConfiguration) MaxSamplesPerQueryOrDefault() int {
 type LimitsConfiguration struct {
 	// PerQuery configures limits which apply to each query individually.
 	PerQuery PerQueryLimitsConfiguration `yaml:"perQuery"`
-
-	// Global configures limits which apply across all queries running on this
-	// instance.
-	Global GlobalLimitsConfiguration `yaml:"global"`
-
-	// deprecated: use PerQuery.MaxComputedDatapoints instead.
-	DeprecatedMaxComputedDatapoints int `yaml:"maxComputedDatapoints"`
-}
-
-// MaxComputedDatapoints is a getter providing backwards compatibility between
-// LimitsConfiguration.DeprecatedMaxComputedDatapoints and
-// LimitsConfiguration.PerQuery.PrivateMaxComputedDatapoints. See
-// LimitsConfiguration.PerQuery.PrivateMaxComputedDatapoints for a comment on
-// the semantics.
-func (lc LimitsConfiguration) MaxComputedDatapoints() int {
-	if lc.PerQuery.PrivateMaxComputedDatapoints != 0 {
-		return lc.PerQuery.PrivateMaxComputedDatapoints
-	}
-
-	return lc.DeprecatedMaxComputedDatapoints
-}
-
-// GlobalLimitsConfiguration represents limits on resource usage across a query
-// instance. Zero or negative values imply no limit.
-type GlobalLimitsConfiguration struct {
-	// MaxFetchedDatapoints limits the max number of datapoints allowed to be
-	// used by all queries at any point in time, this is applied at the query
-	// service after the result has been returned by a storage node.
-	MaxFetchedDatapoints int `yaml:"maxFetchedDatapoints"`
-}
-
-// AsLimitManagerOptions converts this configuration to
-// cost.LimitManagerOptions for MaxFetchedDatapoints.
-func (l *GlobalLimitsConfiguration) AsLimitManagerOptions() cost.LimitManagerOptions {
-	return toLimitManagerOptions(l.MaxFetchedDatapoints)
 }
 
 // PerQueryLimitsConfiguration represents limits on resource usage within a
@@ -342,33 +427,34 @@ type PerQueryLimitsConfiguration struct {
 	// service.
 	MaxFetchedSeries int `yaml:"maxFetchedSeries"`
 
+	// InstanceMultiple increases the per database instance series limit.
+	// The series limit per database instance is calculated as:
+	//
+	// InstanceSeriesLimit = MaxFetchesSeries / (instances per replica) * InstanceMultiple.
+	//
+	// A value > 1 allows a buffer in case data is not uniformly sharded across instances in a replica.
+	// If set to 0 the feature is disabled and the MaxFetchedSeries is used as the limit for database instance.
+	// For large clusters, enabling this feature can dramatically decrease the amount of wasted series read from a
+	// single database instance.
+	InstanceMultiple float32 `yaml:"instanceMultiple"`
+
 	// MaxFetchedDocs limits the number of index documents matched for any given
 	// individual storage node per query, before returning result to query
 	// service.
 	MaxFetchedDocs int `yaml:"maxFetchedDocs"`
 
+	// MaxFetchedRange limits the time range of index documents matched for any given
+	// individual storage node per query, before returning result to query
+	// service.
+	MaxFetchedRange time.Duration `yaml:"maxFetchedRange"`
+
 	// RequireExhaustive results in an error if the query exceeds any limit.
-	RequireExhaustive bool `yaml:"requireExhaustive"`
+	RequireExhaustive *bool `yaml:"requireExhaustive"`
 
-	// MaxFetchedDatapoints limits the max number of datapoints allowed to be
-	// used by a given query, this is applied at the query service after the
-	// result has been returned by a storage node.
-	MaxFetchedDatapoints int `yaml:"maxFetchedDatapoints"`
-
-	// PrivateMaxComputedDatapoints limits the number of datapoints that can be
-	// returned by a query. It's determined purely
-	// from the size of the time range and the step size (end - start / step).
-	//
-	// N.B.: the hacky "Private" prefix is to indicate that callers should use
-	// LimitsConfiguration.MaxComputedDatapoints() instead of accessing
-	// this field directly.
-	PrivateMaxComputedDatapoints int `yaml:"maxComputedDatapoints"`
-}
-
-// AsLimitManagerOptions converts this configuration to
-// cost.LimitManagerOptions for MaxFetchedDatapoints.
-func (l *PerQueryLimitsConfiguration) AsLimitManagerOptions() cost.LimitManagerOptions {
-	return toLimitManagerOptions(l.MaxFetchedDatapoints)
+	// MaxMetricMetadataStats limits the number of metric metadata stats to return
+	// as a response header after a query. If unset, defaults to 4. If set to zero,
+	// no metric metadata stats will be returned as a response header.
+	MaxMetricMetadataStats *int `yaml:"maxMetricMetadataStats"`
 }
 
 // AsFetchOptionsBuilderLimitsOptions converts this configuration to
@@ -384,18 +470,24 @@ func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderLimitsOptions() handl
 		docsLimit = v
 	}
 
-	return handleroptions.FetchOptionsBuilderLimitsOptions{
-		SeriesLimit:       int(seriesLimit),
-		DocsLimit:         int(docsLimit),
-		RequireExhaustive: l.RequireExhaustive,
+	requireExhaustive := defaultRequireExhaustive
+	if r := l.RequireExhaustive; r != nil {
+		requireExhaustive = *r
 	}
-}
 
-func toLimitManagerOptions(limit int) cost.LimitManagerOptions {
-	return cost.NewLimitManagerOptions().SetDefaultLimit(cost.Limit{
-		Threshold: cost.Cost(limit),
-		Enabled:   limit > 0,
-	})
+	maxMetricMetadataStats := defaultMaxMetricMetadataStats
+	if v := l.MaxMetricMetadataStats; v != nil {
+		maxMetricMetadataStats = *v
+	}
+
+	return handleroptions.FetchOptionsBuilderLimitsOptions{
+		SeriesLimit:            seriesLimit,
+		InstanceMultiple:       l.InstanceMultiple,
+		DocsLimit:              docsLimit,
+		RangeLimit:             l.MaxFetchedRange,
+		RequireExhaustive:      requireExhaustive,
+		MaxMetricMetadataStats: maxMetricMetadataStats,
+	}
 }
 
 // IngestConfiguration is the configuration for ingestion server.
@@ -409,17 +501,146 @@ type IngestConfiguration struct {
 
 // CarbonConfiguration is the configuration for the carbon server.
 type CarbonConfiguration struct {
+	// Ingester if set defines an ingester to run for carbon.
 	Ingester *CarbonIngesterConfiguration `yaml:"ingester"`
+	// LimitsFind sets the limits configuration for find queries.
+	LimitsFind *LimitsConfiguration `yaml:"limitsFind"`
+	// LimitsRender sets the limits configuration for render queries.
+	LimitsRender *LimitsConfiguration `yaml:"limitsRender"`
+	// AggregateNamespacesAllData configures whether all aggregate
+	// namespaces contain entire copies of the data set.
+	// This affects whether queries can be optimized or not, if false
+	// they cannot be since it's unclear if data matching an expression
+	// sits in one or many or none of the aggregate namespaces so all
+	// must be queried, but if true then it can be determined based
+	// on the query range whether a single namespace can fulfill the
+	// entire query and if so to only fetch from that one aggregated namespace.
+	AggregateNamespacesAllData bool `yaml:"aggregateNamespacesAllData"`
+	// ShiftTimeStart sets a constant time to shift start by.
+	ShiftTimeStart time.Duration `yaml:"shiftTimeStart"`
+	// ShiftTimeEnd sets a constant time to shift end by.
+	ShiftTimeEnd time.Duration `yaml:"shiftTimeEnd"`
+	// ShiftStepsStart sets a constant set of steps to shift start by.
+	ShiftStepsStart int `yaml:"shiftStepsStart"`
+	// ShiftStepsEnd sets a constant set of steps to shift end by.
+	ShiftStepsEnd int `yaml:"shiftStepsEnd"`
+	// ShiftStepsStartWhenAtResolutionBoundary sets a constant set of steps to
+	// shift start by if and only if the start is an exact match to the
+	// resolution boundary of a query.
+	ShiftStepsStartWhenAtResolutionBoundary *int `yaml:"shiftStepsStartWhenAtResolutionBoundary"`
+	// ShiftStepsEndWhenAtResolutionBoundary sets a constant set of steps to
+	// shift end by if and only if the end is an exact match to the
+	// resolution boundary of a query.
+	ShiftStepsEndWhenAtResolutionBoundary *int `yaml:"shiftStepsEndWhenAtResolutionBoundary"`
+	// ShiftStepsStartWhenEndAtResolutionBoundary sets a constant set of steps to
+	// shift start by if and only if the end is an exact match to the resolution boundary
+	// of a query AND the start is not an exact match to the resolution boundary.
+	ShiftStepsStartWhenEndAtResolutionBoundary *int `yaml:"shiftStepsStartWhenEndAtResolutionBoundary"`
+	// ShiftStepsEndWhenStartAtResolutionBoundary sets a constant set of steps to
+	// shift end by if and only if the start is an exact match to the resolution boundary
+	// of a query AND the end is not an exact match to the resolution boundary.
+	ShiftStepsEndWhenStartAtResolutionBoundary *int `yaml:"shiftStepsEndWhenStartAtResolutionBoundary"`
+	// RenderPartialStart sets whether to render partial datapoints when
+	// the start time is between a datapoint's resolution step size.
+	RenderPartialStart bool `yaml:"renderPartialStart"`
+	// RenderPartialEnd sets whether to render partial datapoints when
+	// the end time is between a datapoint's resolution step size.
+	RenderPartialEnd bool `yaml:"renderPartialEnd"`
+	// RenderSeriesAllNaNs will render series that have only NaNs for entire
+	// output instead of returning an empty array of datapoints.
+	RenderSeriesAllNaNs bool `yaml:"renderSeriesAllNaNs"`
+	// CompileEscapeAllNotOnlyQuotes will escape all characters when using a backslash
+	// in a quoted string rather than just reserving for escaping quotes.
+	CompileEscapeAllNotOnlyQuotes bool `yaml:"compileEscapeAllNotOnlyQuotes"`
+	// FindResultsIncludeBothExpandableAndLeaf will include both an expandable
+	// node and a leaf node if there is a duplicate path node that is both an
+	// expandable node and a leaf node.
+	FindResultsIncludeBothExpandableAndLeaf bool `yaml:"findResultsIncludeBothExpandableAndLeaf"`
+}
+
+// MiddlewareConfiguration is middleware-specific configuration.
+type MiddlewareConfiguration struct {
+	// Logging configures the logging middleware.
+	Logging LoggingMiddlewareConfiguration `yaml:"logging"`
+	// Metrics configures the metrics middleware.
+	Metrics MetricsMiddlewareConfiguration `yaml:"metrics"`
+	// Prometheus configures prometheus-related middleware.
+	Prometheus PrometheusMiddlewareConfiguration `yaml:"prometheus"`
+}
+
+// LoggingMiddlewareConfiguration configures the logging middleware.
+type LoggingMiddlewareConfiguration struct {
+	// Threshold defines the latency threshold for logging the response. If zero, the default of 1s is used. To disable
+	// response logging set Disabled.
+	Threshold time.Duration
+	// Disabled turns off response logging by default for endpoints.
+	Disabled bool
+}
+
+// MetricsMiddlewareConfiguration configures the metrics middleware.
+type MetricsMiddlewareConfiguration struct {
+	// QueryEndpointsClassification contains the configuration for sizing queries to
+	// the query and query_range Prometheus endpoints.
+	QueryEndpointsClassification QueryClassificationConfig `yaml:"queryEndpointsClassification"`
+	// LabelEndpointsClassification contains the configuration for sizing queries to
+	// the label names and label values Prometheus endpoints.
+	LabelEndpointsClassification QueryClassificationConfig `yaml:"labelEndpointsClassification"`
+	// AddStatusToLatencies will add a tag with the query's response code to
+	// middleware latency metrics.
+	// NB: Setting this to true will increase cardinality by the number of
+	// expected response codes (likely around ~10).
+	AddStatusToLatencies bool `yaml:"addStatusToLatencies"`
+}
+
+// QueryClassificationConfig contains the buckets used to group a query into a bucket for
+// the sake of understanding the size of the query based on a specific dimension. Currently,
+// we have two sets of buckets: results and duration. The results buckets help us understand
+// the size of the query based on the number of results returned whereas the duration buckets help
+// us understand the size of the query based on the time range of the query. Dimension values are
+// rounded down to the nearest bucket. If the value is smaller than all buckets, then it is
+// allocated to the first bucket. Buckets are expected to be ordered in ascending order.
+type QueryClassificationConfig struct {
+	// ResultsBuckets contains the buckets to be compared with the number of results (e.g. number of
+	// time series or labels) returned by a specific endpoint.
+	ResultsBuckets []int `yaml:"resultsBuckets"`
+	// DurationBuckets contains the buckets to be compared with time range of a query for a
+	// specific endpoint.
+	DurationBuckets []time.Duration `yaml:"durationBuckets"`
+}
+
+// Enabled returns true if classification buckets were specified.
+func (q *QueryClassificationConfig) Enabled() bool {
+	return len(q.DurationBuckets) > 0 || len(q.ResultsBuckets) > 0
+}
+
+// PrometheusMiddlewareConfiguration configures the range rewriting middleware.
+type PrometheusMiddlewareConfiguration struct {
+	// ResolutionMultiplier is the multiple that will be applied to the range if it's determined
+	// that it needs to be updated. If this value is greater than 0, the range in a query will be
+	// updated if the namespaces used to service the request have resolution(s)
+	// that are greater than the range. The range will be updated to the largest resolution
+	// of the namespaces to service the request * the multiplier specified here. If this multiplier
+	// is 0, then this feature is disabled.
+	ResolutionMultiplier int `yaml:"resolutionMultiplier"`
 }
 
 // CarbonIngesterConfiguration is the configuration struct for carbon ingestion.
 type CarbonIngesterConfiguration struct {
-	// Deprecated: simply use the logger debug level, this has been deprecated
-	// in favor of setting the log level to debug.
-	DeprecatedDebug bool                              `yaml:"debug"`
-	ListenAddress   string                            `yaml:"listenAddress"`
-	MaxConcurrency  int                               `yaml:"maxConcurrency"`
-	Rules           []CarbonIngesterRuleConfiguration `yaml:"rules"`
+	ListenAddress  string                             `yaml:"listenAddress"`
+	MaxConcurrency int                                `yaml:"maxConcurrency"`
+	Rewrite        CarbonIngesterRewriteConfiguration `yaml:"rewrite"`
+	Rules          []CarbonIngesterRuleConfiguration  `yaml:"rules"`
+}
+
+// CarbonIngesterRewriteConfiguration is the configuration for rewriting
+// metrics at ingestion.
+type CarbonIngesterRewriteConfiguration struct {
+	// Cleanup will perform:
+	// - Trailing/leading dot elimination.
+	// - Double dot elimination.
+	// - Irregular char replacement with underscores (_), currently irregular
+	//   is defined as not being in [0-9a-zA-Z-_:#].
+	Cleanup bool `yaml:"cleanup"`
 }
 
 // LookbackDurationOrDefault validates the LookbackDuration
@@ -458,7 +679,7 @@ func (c *CarbonIngesterConfiguration) RulesOrDefault(namespaces m3.ClusterNamesp
 	}
 
 	// Default to fanning out writes for all metrics to all aggregated namespaces if any exists.
-	policies := []CarbonIngesterStoragePolicyConfiguration{}
+	policies := make([]CarbonIngesterStoragePolicyConfiguration, 0, len(namespaces))
 	for _, ns := range namespaces {
 		if ns.Options().Attributes().MetricsType == storagemetadata.AggregatedMetricsType {
 			policies = append(policies, CarbonIngesterStoragePolicyConfiguration{
@@ -491,6 +712,7 @@ func (c *CarbonIngesterConfiguration) RulesOrDefault(namespaces m3.ClusterNamesp
 // ingestion rule.
 type CarbonIngesterRuleConfiguration struct {
 	Pattern     string                                     `yaml:"pattern"`
+	Contains    string                                     `yaml:"contains"`
 	Continue    bool                                       `yaml:"continue"`
 	Aggregation CarbonIngesterAggregationConfiguration     `yaml:"aggregation"`
 	Policies    []CarbonIngesterStoragePolicyConfiguration `yaml:"policies"`
@@ -537,11 +759,14 @@ type LocalConfiguration struct {
 	Namespaces []m3.ClusterStaticNamespaceConfiguration `yaml:"namespaces"`
 }
 
-// ClusterManagementConfiguration is configuration for the placemement,
+// ClusterManagementConfiguration is configuration for the placement,
 // namespaces and database management endpoints (optional).
 type ClusterManagementConfiguration struct {
 	// Etcd is the client configuration for etcd.
-	Etcd etcdclient.Configuration `yaml:"etcd"`
+	Etcd *etcdclient.Configuration `yaml:"etcd"`
+
+	// Placement is the cluster placement configuration.
+	Placement placement.Configuration `yaml:"placement"`
 }
 
 // RemoteConfigurations is a set of remote host configurations.
@@ -593,6 +818,41 @@ type RPCConfiguration struct {
 	ReflectionEnabled bool `yaml:"reflectionEnabled"`
 }
 
+// PrometheusRemoteBackendConfiguration configures prometheus remote write backend.
+type PrometheusRemoteBackendConfiguration struct {
+	Endpoints       []PrometheusRemoteBackendEndpointConfiguration `yaml:"endpoints"`
+	RequestTimeout  *time.Duration                                 `yaml:"requestTimeout"`
+	ConnectTimeout  *time.Duration                                 `yaml:"connectTimeout"`
+	KeepAlive       *time.Duration                                 `yaml:"keepAlive"`
+	IdleConnTimeout *time.Duration                                 `yaml:"idleConnTimeout"`
+	MaxIdleConns    *int                                           `yaml:"maxIdleConns"`
+}
+
+// PrometheusRemoteBackendEndpointConfiguration configures single endpoint.
+type PrometheusRemoteBackendEndpointConfiguration struct {
+	Name    string `yaml:"name"`
+	Address string `yaml:"address"`
+	// When nil all unaggregated data will be sent to this endpoint.
+	StoragePolicy *PrometheusRemoteBackendStoragePolicyConfiguration `yaml:"storagePolicy"`
+}
+
+// PrometheusRemoteBackendStoragePolicyConfiguration configures storage policy for single endpoint.
+type PrometheusRemoteBackendStoragePolicyConfiguration struct {
+	Resolution time.Duration `yaml:"resolution" validate:"nonzero"`
+	Retention  time.Duration `yaml:"retention" validate:"nonzero"`
+
+	// Downsample is downsampling options to be used with this storage policy.
+	Downsample *m3.DownsampleClusterStaticNamespaceConfiguration `yaml:"downsample"`
+}
+
+// HTTPConfiguration is the HTTP configuration for configuring
+// the HTTP server used by the coordinator to serve incoming requests.
+type HTTPConfiguration struct {
+	// EnableH2C enables support for the HTTP/2 cleartext protocol. H2C
+	// enables the use of HTTP/2 without requiring TLS.
+	EnableH2C bool `yaml:"enableH2C"`
+}
+
 // TagOptionsConfiguration is the configuration for shared tag options
 // Currently only name, but can expand to cover deduplication settings, or other
 // relevant options.
@@ -605,7 +865,7 @@ type TagOptionsConfiguration struct {
 	// If not provided, defaults to `le`.
 	BucketName string `yaml:"bucketName"`
 
-	// Scheme determines the default ID generation scheme. Defaults to TypeLegacy.
+	// Scheme determines the default ID generation scheme. Defaults to TypeQuoted.
 	Scheme models.IDSchemeType `yaml:"idScheme"`
 
 	// Filters are optional tag filters, removing all series with tags
@@ -644,9 +904,8 @@ func TagOptionsFromConfig(cfg TagOptionsConfiguration) (models.TagOptions, error
 	}
 
 	if cfg.Scheme == models.TypeDefault {
-		// If no config has been set, error.
-		docLink := xdocs.Path("how_to/query#migration")
-		return nil, fmt.Errorf(errNoIDGenerationScheme, docLink)
+		// Default to quoted if unspecified.
+		cfg.Scheme = models.TypeQuoted
 	}
 
 	opts = opts.SetIDSchemeType(cfg.Scheme)
@@ -694,7 +953,7 @@ type MultiProcessConfiguration struct {
 	// PerCPU is the factor of processes to run per CPU, leave
 	// zero to use the default of 0.5 per CPU (i.e. one process for
 	// every two CPUs).
-	PerCPU float64 `yaml:"perCPU" validate:"min=0.0, max=0.0"`
+	PerCPU float64 `yaml:"perCPU" validate:"min=0.0, max=1.0"`
 	// GoMaxProcs if set will explicitly set the child GOMAXPROCs env var.
 	GoMaxProcs int `yaml:"goMaxProcs"`
 }

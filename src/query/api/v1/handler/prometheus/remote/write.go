@@ -28,16 +28,18 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"sort"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/metrics/policy"
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -53,14 +55,17 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/golang/protobuf/proto"
+	"github.com/golang/snappy"
+	murmur3 "github.com/m3db/stackmurmur3/v2"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
 
 const (
 	// PromWriteURL is the url for the prom write handler
-	PromWriteURL = handler.RoutePrefixV1 + "/prom/remote/write"
+	PromWriteURL = route.Prefix + "/prom/remote/write"
 
 	// PromWriteHTTPMethod is the HTTP method used with this resource.
 	PromWriteHTTPMethod = http.MethodPost
@@ -70,6 +75,13 @@ const (
 
 	// defaultForwardingTimeout is the default forwarding timeout.
 	defaultForwardingTimeout = 15 * time.Second
+
+	// maxLiteralIsTooLongLogCount is the number of times the time series labels should be logged
+	// upon "literal is too long" error.
+	maxLiteralIsTooLongLogCount = 10
+	// literalPrefixLength is the length of the label literal prefix that is logged upon
+	// "literal is too long" error.
+	literalPrefixLength = 100
 )
 
 var (
@@ -93,12 +105,23 @@ var (
 		Attributes: ts.DefaultSeriesAttributes(),
 		Metadata:   ts.Metadata{},
 	}
+
+	headerToMetricType = map[string]prompb.MetricType{
+		"counter":         prompb.MetricType_COUNTER,
+		"gauge":           prompb.MetricType_GAUGE,
+		"gauge_histogram": prompb.MetricType_GAUGE_HISTOGRAM,
+		"histogram":       prompb.MetricType_HISTOGRAM,
+		"info":            prompb.MetricType_INFO,
+		"stateset":        prompb.MetricType_STATESET,
+		"summary":         prompb.MetricType_SUMMARY,
+	}
 )
 
 // PromWriteHandler represents a handler for prometheus write endpoint.
 type PromWriteHandler struct {
 	downsamplerAndWriter   ingest.DownsamplerAndWriter
 	tagOptions             models.TagOptions
+	storeMetricsType       bool
 	forwarding             handleroptions.PromWriteHandlerForwardingOptions
 	forwardTimeout         time.Duration
 	forwardHTTPClient      *http.Client
@@ -108,6 +131,9 @@ type PromWriteHandler struct {
 	nowFn                  clock.NowFn
 	instrumentOpts         instrument.Options
 	metrics                promWriteMetrics
+
+	// Counting the number of times of "literal is too long" error for log sampling purposes.
+	numLiteralIsTooLong uint32
 }
 
 // NewPromWriteHandler returns a new instance of handler.
@@ -168,6 +194,7 @@ func NewPromWriteHandler(options options.HandlerOptions) (http.Handler, error) {
 	return &PromWriteHandler{
 		downsamplerAndWriter:   downsamplerAndWriter,
 		tagOptions:             tagOptions,
+		storeMetricsType:       options.StoreMetricsType(),
 		forwarding:             forwarding,
 		forwardTimeout:         forwardTimeout,
 		forwardHTTPClient:      xhttp.NewHTTPClient(forwardHTTPOpts),
@@ -192,66 +219,37 @@ type promWriteMetrics struct {
 	forwardErrors            tally.Counter
 	forwardDropped           tally.Counter
 	forwardLatency           tally.Histogram
+	forwardShadowKeep        tally.Counter
+	forwardShadowDrop        tally.Counter
+}
+
+func (m *promWriteMetrics) incError(err error) {
+	if xhttp.IsClientError(err) {
+		m.writeErrorsClient.Inc(1)
+	} else {
+		m.writeErrorsServer.Inc(1)
+	}
 }
 
 func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
-	upTo1sBuckets, err := tally.LinearDurationBuckets(0, 100*time.Millisecond, 10)
+	buckets, err := ingest.NewLatencyBuckets()
 	if err != nil {
 		return promWriteMetrics{}, err
 	}
-
-	upTo10sBuckets, err := tally.LinearDurationBuckets(time.Second, 500*time.Millisecond, 18)
-	if err != nil {
-		return promWriteMetrics{}, err
-	}
-
-	upTo60sBuckets, err := tally.LinearDurationBuckets(10*time.Second, 5*time.Second, 11)
-	if err != nil {
-		return promWriteMetrics{}, err
-	}
-
-	upTo60mBuckets, err := tally.LinearDurationBuckets(0, 5*time.Minute, 12)
-	if err != nil {
-		return promWriteMetrics{}, err
-	}
-	upTo60mBuckets = upTo60mBuckets[1:] // Remove the first 0s to get 5 min aligned buckets
-
-	upTo6hBuckets, err := tally.LinearDurationBuckets(time.Hour, 30*time.Minute, 12)
-	if err != nil {
-		return promWriteMetrics{}, err
-	}
-
-	upTo24hBuckets, err := tally.LinearDurationBuckets(6*time.Hour, time.Hour, 19)
-	if err != nil {
-		return promWriteMetrics{}, err
-	}
-	upTo24hBuckets = upTo24hBuckets[1:] // Remove the first 6h to get 1 hour aligned buckets
-
-	var writeLatencyBuckets tally.DurationBuckets
-	writeLatencyBuckets = append(writeLatencyBuckets, upTo1sBuckets...)
-	writeLatencyBuckets = append(writeLatencyBuckets, upTo10sBuckets...)
-	writeLatencyBuckets = append(writeLatencyBuckets, upTo60sBuckets...)
-	writeLatencyBuckets = append(writeLatencyBuckets, upTo60mBuckets...)
-
-	var ingestLatencyBuckets tally.DurationBuckets
-	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo1sBuckets...)
-	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo10sBuckets...)
-	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo60sBuckets...)
-	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo60mBuckets...)
-	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo6hBuckets...)
-	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo24hBuckets...)
 	return promWriteMetrics{
 		writeSuccess:             scope.SubScope("write").Counter("success"),
 		writeErrorsServer:        scope.SubScope("write").Tagged(map[string]string{"code": "5XX"}).Counter("errors"),
 		writeErrorsClient:        scope.SubScope("write").Tagged(map[string]string{"code": "4XX"}).Counter("errors"),
-		writeBatchLatency:        scope.SubScope("write").Histogram("batch-latency", writeLatencyBuckets),
-		writeBatchLatencyBuckets: writeLatencyBuckets,
-		ingestLatency:            scope.SubScope("ingest").Histogram("latency", ingestLatencyBuckets),
-		ingestLatencyBuckets:     ingestLatencyBuckets,
+		writeBatchLatency:        scope.SubScope("write").Histogram("batch-latency", buckets.WriteLatencyBuckets),
+		writeBatchLatencyBuckets: buckets.WriteLatencyBuckets,
+		ingestLatency:            scope.SubScope("ingest").Histogram("latency", buckets.IngestLatencyBuckets),
+		ingestLatencyBuckets:     buckets.IngestLatencyBuckets,
 		forwardSuccess:           scope.SubScope("forward").Counter("success"),
 		forwardErrors:            scope.SubScope("forward").Counter("errors"),
 		forwardDropped:           scope.SubScope("forward").Counter("dropped"),
-		forwardLatency:           scope.SubScope("forward").Histogram("latency", writeLatencyBuckets),
+		forwardLatency:           scope.SubScope("forward").Histogram("latency", buckets.WriteLatencyBuckets),
+		forwardShadowKeep:        scope.SubScope("forward").SubScope("shadow").Counter("keep"),
+		forwardShadowDrop:        scope.SubScope("forward").SubScope("shadow").Counter("drop"),
 	}, nil
 }
 
@@ -259,13 +257,17 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	batchRequestStopwatch := h.metrics.writeBatchLatency.Start()
 	defer batchRequestStopwatch.Stop()
 
-	req, opts, result, rErr := h.parseRequest(r)
-	if rErr != nil {
-		h.metrics.writeErrorsClient.Inc(1)
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+	checkedReq, err := h.checkedParseRequest(r)
+	if err != nil {
+		h.metrics.incError(err)
+		xhttp.WriteError(w, err)
 		return
 	}
 
+	var (
+		req  = checkedReq.Request
+		opts = checkedReq.Options
+	)
 	// Begin async forwarding.
 	// NB(r): Be careful about not returning buffers to pool
 	// if the request bodies ever get pooled until after
@@ -275,13 +277,22 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			target := target // Capture for lambda.
 			forward := func() {
 				now := h.nowFn()
-				err := h.forwardRetrier.Attempt(func() error {
-					// Consider propagating baggage without tying
-					// context to request context in future.
-					ctx, cancel := context.WithTimeout(h.forwardContext, h.forwardTimeout)
-					defer cancel()
-					return h.forward(ctx, result, r.Header, target)
-				})
+
+				var (
+					attempt = func() error {
+						// Consider propagating baggage without tying
+						// context to request context in future.
+						ctx, cancel := context.WithTimeout(h.forwardContext, h.forwardTimeout)
+						defer cancel()
+						return h.forward(ctx, checkedReq, r.Header, target)
+					}
+					err error
+				)
+				if target.NoRetry {
+					err = attempt()
+				} else {
+					err = h.forwardRetrier.Attempt(attempt)
+				}
 
 				// Record forward ingestion delay.
 				// NB: this includes any time for retries.
@@ -328,14 +339,18 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if batchErr != nil {
 		var (
-			errs              = batchErr.Errors()
-			lastRegularErr    string
-			lastBadRequestErr string
-			numRegular        int
-			numBadRequest     int
+			errs                 = batchErr.Errors()
+			lastRegularErr       string
+			lastBadRequestErr    string
+			numRegular           int
+			numBadRequest        int
+			numResourceExhausted int
 		)
 		for _, err := range errs {
 			switch {
+			case client.IsResourceExhaustedError(err):
+				numResourceExhausted++
+				lastBadRequestErr = err.Error()
 			case client.IsBadRequestError(err):
 				numBadRequest++
 				lastBadRequestErr = err.Error()
@@ -352,24 +367,25 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case numBadRequest == len(errs):
 			status = http.StatusBadRequest
-			h.metrics.writeErrorsClient.Inc(1)
+		case numResourceExhausted > 0:
+			status = http.StatusTooManyRequests
 		default:
 			status = http.StatusInternalServerError
-			h.metrics.writeErrorsServer.Inc(1)
 		}
 
 		logger := logging.WithContext(r.Context(), h.instrumentOpts)
 		logger.Error("write error",
 			zap.String("remoteAddr", r.RemoteAddr),
 			zap.Int("httpResponseStatusCode", status),
+			zap.Int("numResourceExhaustedErrors", numResourceExhausted),
 			zap.Int("numRegularErrors", numRegular),
 			zap.Int("numBadRequestErrors", numBadRequest),
 			zap.String("lastRegularError", lastRegularErr),
 			zap.String("lastBadRequestErr", lastBadRequestErr))
 
-		var resultErr string
+		var resultErrMessage string
 		if lastRegularErr != "" {
-			resultErr = fmt.Sprintf("retryable_errors: count=%d, last=%s",
+			resultErrMessage = fmt.Sprintf("retryable_errors: count=%d, last=%s",
 				numRegular, lastRegularErr)
 		}
 		if lastBadRequestErr != "" {
@@ -377,10 +393,13 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if lastRegularErr != "" {
 				sep = ", "
 			}
-			resultErr = fmt.Sprintf("%s%sbad_request_errors: count=%d, last=%s",
-				resultErr, sep, numBadRequest, lastBadRequestErr)
+			resultErrMessage = fmt.Sprintf("%s%sbad_request_errors: count=%d, last=%s",
+				resultErrMessage, sep, numBadRequest, lastBadRequestErr)
 		}
-		xhttp.Error(w, errors.New(resultErr), status)
+
+		resultError := xhttp.NewError(errors.New(resultErrMessage), status)
+		h.metrics.incError(resultError)
+		xhttp.WriteError(w, resultError)
 		return
 	}
 
@@ -389,6 +408,23 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// shows up as error.
 	w.WriteHeader(200)
 	h.metrics.writeSuccess.Inc(1)
+}
+
+type parseRequestResult struct {
+	Request        *prompb.WriteRequest
+	Options        ingest.WriteOptions
+	CompressResult prometheus.ParsePromCompressedRequestResult
+}
+
+func (h *PromWriteHandler) checkedParseRequest(
+	r *http.Request,
+) (parseRequestResult, error) {
+	result, err := h.parseRequest(r)
+	if err != nil {
+		// Always invalid request if parsing fails params.
+		return parseRequestResult{}, xerrors.NewInvalidParamsError(err)
+	}
+	return result, nil
 }
 
 // parseRequest extracts the Prometheus write request from the request body and
@@ -400,16 +436,14 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // uphold the same guarantees.
 func (h *PromWriteHandler) parseRequest(
 	r *http.Request,
-) (*prompb.WriteRequest, ingest.WriteOptions, prometheus.ParsePromCompressedRequestResult, *xhttp.ParseError) {
+) (parseRequestResult, error) {
 	var opts ingest.WriteOptions
 	if v := strings.TrimSpace(r.Header.Get(headers.MetricsTypeHeader)); v != "" {
 		// Allow the metrics type and storage policies to override
 		// the default rules and policies if specified.
 		metricsType, err := storagemetadata.ParseMetricsType(v)
 		if err != nil {
-			return nil, ingest.WriteOptions{},
-				prometheus.ParsePromCompressedRequestResult{},
-				xhttp.NewParseError(err, http.StatusBadRequest)
+			return parseRequestResult{}, err
 		}
 
 		// Ensure ingest options specify we are overriding the
@@ -422,18 +456,13 @@ func (h *PromWriteHandler) parseRequest(
 		switch metricsType {
 		case storagemetadata.UnaggregatedMetricsType:
 			if strPolicy != emptyStoragePolicyVar {
-				err := errUnaggregatedStoragePolicySet
-				return nil, ingest.WriteOptions{},
-					prometheus.ParsePromCompressedRequestResult{},
-					xhttp.NewParseError(err, http.StatusBadRequest)
+				return parseRequestResult{}, errUnaggregatedStoragePolicySet
 			}
 		default:
 			parsed, err := policy.ParseStoragePolicy(strPolicy)
 			if err != nil {
 				err = fmt.Errorf("could not parse storage policy: %v", err)
-				return nil, ingest.WriteOptions{},
-					prometheus.ParsePromCompressedRequestResult{},
-					xhttp.NewParseError(err, http.StatusBadRequest)
+				return parseRequestResult{}, err
 			}
 
 			// Make sure this specific storage policy is used for the writes.
@@ -451,39 +480,60 @@ func (h *PromWriteHandler) parseRequest(
 			opts.WriteStoragePolicies = policy.StoragePolicies{}
 		default:
 			err := fmt.Errorf("unrecognized write type: %s", v)
-			return nil, ingest.WriteOptions{},
-				prometheus.ParsePromCompressedRequestResult{},
-				xhttp.NewParseError(err, http.StatusBadRequest)
+			return parseRequestResult{}, err
 		}
 	}
 
 	result, err := prometheus.ParsePromCompressedRequest(r)
 	if err != nil {
-		return nil, ingest.WriteOptions{},
-			prometheus.ParsePromCompressedRequestResult{}, err
+		return parseRequestResult{}, err
 	}
 
 	var req prompb.WriteRequest
 	if err := proto.Unmarshal(result.UncompressedBody, &req); err != nil {
-		return nil, ingest.WriteOptions{},
-			prometheus.ParsePromCompressedRequestResult{},
-			xhttp.NewParseError(err, http.StatusBadRequest)
+		return parseRequestResult{}, err
 	}
 
 	if mapStr := r.Header.Get(headers.MapTagsByJSONHeader); mapStr != "" {
 		var opts handleroptions.MapTagsOptions
 		if err := json.Unmarshal([]byte(mapStr), &opts); err != nil {
-			return nil, ingest.WriteOptions{}, prometheus.ParsePromCompressedRequestResult{},
-				xhttp.NewParseError(err, http.StatusBadRequest)
+			return parseRequestResult{}, err
 		}
 
 		if err := mapTags(&req, opts); err != nil {
-			return nil, ingest.WriteOptions{}, prometheus.ParsePromCompressedRequestResult{},
-				xhttp.NewParseError(err, http.StatusBadRequest)
+			return parseRequestResult{}, err
 		}
 	}
 
-	return &req, opts, result, nil
+	if promType := r.Header.Get(headers.PromTypeHeader); promType != "" {
+		tp, ok := headerToMetricType[strings.ToLower(promType)]
+		if !ok {
+			return parseRequestResult{}, fmt.Errorf("unknown prom metric type %s", promType)
+		}
+		for i := range req.Timeseries {
+			req.Timeseries[i].Type = tp
+		}
+	}
+
+	// Check if any of the labels exceed literal length limits and occasionally print them
+	// in a log message for debugging purposes.
+	maxTagLiteralLength := int(h.tagOptions.MaxTagLiteralLength())
+	for _, ts := range req.Timeseries {
+		for _, l := range ts.Labels {
+			if len(l.Name) > maxTagLiteralLength || len(l.Value) > maxTagLiteralLength {
+				h.maybeLogLabelsWithTooLongLiterals(h.instrumentOpts.Logger(), l)
+				err := fmt.Errorf("label literal is too long: nameLength=%d, valueLength=%d, maxLength=%d",
+					len(l.Name), len(l.Value), maxTagLiteralLength)
+				return parseRequestResult{}, err
+			}
+		}
+	}
+
+	return parseRequestResult{
+		Request:        &req,
+		Options:        opts,
+		CompressResult: result,
+	}, nil
 }
 
 func (h *PromWriteHandler) write(
@@ -491,7 +541,7 @@ func (h *PromWriteHandler) write(
 	r *prompb.WriteRequest,
 	opts ingest.WriteOptions,
 ) ingest.BatchError {
-	iter, err := newPromTSIter(r.Timeseries, h.tagOptions)
+	iter, err := newPromTSIter(r.Timeseries, h.tagOptions, h.storeMetricsType)
 	if err != nil {
 		var errs xerrors.MultiError
 		return errs.Add(err)
@@ -501,16 +551,27 @@ func (h *PromWriteHandler) write(
 
 func (h *PromWriteHandler) forward(
 	ctx context.Context,
-	request prometheus.ParsePromCompressedRequestResult,
+	res parseRequestResult,
 	header http.Header,
 	target handleroptions.PromWriteHandlerForwardTargetOptions,
 ) error {
+	body := bytes.NewReader(res.CompressResult.CompressedBody)
+	if shadowOpts := target.Shadow; shadowOpts != nil {
+		// Need to send a subset of the original series to the shadow target.
+		buffer, err := h.buildForwardShadowRequestBody(res, shadowOpts)
+		if err != nil {
+			return err
+		}
+		// Read the body from the shadow request body just built.
+		body.Reset(buffer)
+	}
+
 	method := target.Method
 	if method == "" {
 		method = http.MethodPost
 	}
 	url := target.URL
-	req, err := http.NewRequest(method, url, bytes.NewReader(request.CompressedBody))
+	req, err := http.NewRequest(method, url, body)
 	if err != nil {
 		return err
 	}
@@ -553,7 +614,116 @@ func (h *PromWriteHandler) forward(
 	return nil
 }
 
-func newPromTSIter(timeseries []prompb.TimeSeries, tagOpts models.TagOptions) (*promTSIter, error) {
+func (h *PromWriteHandler) buildForwardShadowRequestBody(
+	res parseRequestResult,
+	shadowOpts *handleroptions.PromWriteHandlerForwardTargetShadowOptions,
+) ([]byte, error) {
+	if shadowOpts.Percent < 0 || shadowOpts.Percent > 1 {
+		return nil, fmt.Errorf("forwarding shadow percent out of range [0,1]: %f",
+			shadowOpts.Percent)
+	}
+
+	// Need to apply shadow percent.
+	var hash func([]byte) uint64
+	switch shadowOpts.Hash {
+	case "":
+		fallthrough
+	case "xxhash":
+		hash = xxhash.Sum64
+	case "murmur3":
+		hash = murmur3.Sum64
+	default:
+		return nil, fmt.Errorf("unknown hash function: %s", shadowOpts.Hash)
+	}
+
+	var (
+		shadowReq = &prompb.WriteRequest{}
+		labels    []prompb.Label
+		buffer    []byte
+	)
+	for _, ts := range res.Request.Timeseries {
+		// Build an ID of the series to hash.
+		// First take copy of labels so the call to sort doesn't modify the
+		// original slice.
+		labels = append(labels[:0], ts.Labels...)
+		buffer = buildPseudoIDWithLabelsLikelySorted(labels, buffer[:0])
+
+		// Use a range of 10k to allow for setting 0.01% having an effect
+		// when shadow percent is set (i.e. with percent=0.0001)
+		if hash(buffer)%10000 >= uint64(shadowOpts.Percent*10000) {
+			// Skip forwarding this series, not in shadow volume of shards.
+			// Swap it with the tail and continue.
+			h.metrics.forwardShadowDrop.Inc(1)
+			continue
+		}
+
+		// Keep this series, it falls below the volume target of shards.
+		h.metrics.forwardShadowKeep.Inc(1)
+
+		// Skip forwarding this series, not in shadow volume of shards.
+		// Swap it with the tail and continue.
+		shadowReq.Timeseries = append(shadowReq.Timeseries, ts)
+	}
+
+	encoded, err := proto.Marshal(shadowReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal forwarding shadow request: %w", err)
+	}
+
+	return snappy.Encode(buffer[:0], encoded), nil
+}
+
+// buildPseudoIDWithLabelsLikelySorted will build a pseudo ID that can be
+// hashed/etc (but not used as primary key since not escaped), it expects the
+// input labels to be likely sorted (so can avoid invoking sort in the regular
+// case where series have labels already sorted when sent to remote write
+// endpoint, which is commonly the case).
+func buildPseudoIDWithLabelsLikelySorted(
+	labels []prompb.Label,
+	buffer []byte,
+) []byte {
+	for i, l := range labels {
+		if i > 0 && bytes.Compare(l.Name, labels[i-1].Name) < 0 {
+			// Sort.
+			sort.Sort(sortableLabels(labels))
+			// Rebuild.
+			return buildPseudoIDWithLabelsLikelySorted(labels, buffer[:0])
+		}
+		buffer = append(buffer, l.Name...)
+		buffer = append(buffer, '=')
+		buffer = append(buffer, l.Value...)
+		if i < len(labels)-1 {
+			buffer = append(buffer, ',')
+		}
+	}
+	return buffer
+}
+
+func (h *PromWriteHandler) maybeLogLabelsWithTooLongLiterals(logger *zap.Logger, label prompb.Label) {
+	if atomic.AddUint32(&h.numLiteralIsTooLong, 1) > maxLiteralIsTooLongLogCount {
+		return
+	}
+
+	safePrefix := func(b []byte, l int) []byte {
+		if len(b) <= l {
+			return b
+		}
+		return b[:l]
+	}
+
+	logger.Warn("label exceeds literal length limits",
+		zap.String("namePrefix", string(safePrefix(label.Name, literalPrefixLength))),
+		zap.Int("nameLength", len(label.Name)),
+		zap.String("valuePrefix", string(safePrefix(label.Value, literalPrefixLength))),
+		zap.Int("valueLength", len(label.Value)),
+	)
+}
+
+func newPromTSIter(
+	timeseries []prompb.TimeSeries,
+	tagOpts models.TagOptions,
+	storeMetricsType bool,
+) (*promTSIter, error) {
 	// Construct the tags and datapoints upfront so that if the iterator
 	// is reset, we don't have to generate them twice.
 	var (
@@ -581,24 +751,57 @@ func newPromTSIter(timeseries []prompb.TimeSeries, tagOpts models.TagOptions) (*
 	}
 
 	return &promTSIter{
-		attributes: seriesAttributes,
-		idx:        -1,
-		tags:       tags,
-		datapoints: datapoints,
+		attributes:       seriesAttributes,
+		idx:              -1,
+		tags:             tags,
+		datapoints:       datapoints,
+		storeMetricsType: storeMetricsType,
 	}, nil
 }
 
 type promTSIter struct {
 	idx        int
+	err        error
 	attributes []ts.SeriesAttributes
 	tags       []models.Tags
 	datapoints []ts.Datapoints
 	metadatas  []ts.Metadata
+	annotation []byte
+
+	storeMetricsType bool
 }
 
 func (i *promTSIter) Next() bool {
+	if i.err != nil {
+		return false
+	}
+
 	i.idx++
-	return i.idx < len(i.tags)
+	if i.idx >= len(i.tags) {
+		return false
+	}
+
+	if !i.storeMetricsType {
+		return true
+	}
+
+	annotationPayload, err := storage.SeriesAttributesToAnnotationPayload(i.attributes[i.idx])
+	if err != nil {
+		i.err = err
+		return false
+	}
+
+	i.annotation, err = annotationPayload.Marshal()
+	if err != nil {
+		i.err = err
+		return false
+	}
+
+	if len(i.annotation) == 0 {
+		i.annotation = nil
+	}
+
+	return true
 }
 
 func (i *promTSIter) Current() ingest.IterValue {
@@ -611,6 +814,7 @@ func (i *promTSIter) Current() ingest.IterValue {
 		Datapoints: i.datapoints[i.idx],
 		Attributes: i.attributes[i.idx],
 		Unit:       xtime.Millisecond,
+		Annotation: i.annotation,
 	}
 	if i.idx < len(i.metadatas) {
 		value.Metadata = i.metadatas[i.idx]
@@ -620,11 +824,14 @@ func (i *promTSIter) Current() ingest.IterValue {
 
 func (i *promTSIter) Reset() error {
 	i.idx = -1
+	i.err = nil
+	i.annotation = nil
+
 	return nil
 }
 
 func (i *promTSIter) Error() error {
-	return nil
+	return i.err
 }
 
 func (i *promTSIter) SetCurrentMetadata(metadata ts.Metadata) {
@@ -635,4 +842,12 @@ func (i *promTSIter) SetCurrentMetadata(metadata ts.Metadata) {
 		return
 	}
 	i.metadatas[i.idx] = metadata
+}
+
+type sortableLabels []prompb.Label
+
+func (t sortableLabels) Len() int      { return len(t) }
+func (t sortableLabels) Swap(i, j int) { t[i], t[j] = t[j], t[i] }
+func (t sortableLabels) Less(i, j int) bool {
+	return bytes.Compare(t[i].Name, t[j].Name) == -1
 }

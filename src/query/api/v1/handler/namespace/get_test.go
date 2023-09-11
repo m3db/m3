@@ -82,6 +82,8 @@ func TestNamespaceGetHandler(t *testing.T) {
 	req.Header.Set(headers.HeaderClusterEnvironmentName, "test_env")
 	require.NotNil(t, req)
 
+	extendedOpts := xtest.NewTestExtendedOptionsProto("foo")
+
 	registry := nsproto.Registry{
 		Namespaces: map[string]*nsproto.NamespaceOptions{
 			"test": {
@@ -99,6 +101,8 @@ func TestNamespaceGetHandler(t *testing.T) {
 					BlockDataExpiry:                          true,
 					BlockDataExpiryAfterNotAccessPeriodNanos: 3600000000000,
 				},
+				ExtendedOptions: extendedOpts,
+				StagingState:    &nsproto.StagingState{Status: nsproto.StagingStatus_READY},
 			},
 		},
 	}
@@ -118,6 +122,7 @@ func TestNamespaceGetHandler(t *testing.T) {
 			"registry": xjson.Map{
 				"namespaces": xjson.Map{
 					"test": xjson.Map{
+						"aggregationOptions":    nil,
 						"bootstrapEnabled":      true,
 						"cacheBlocksOnRetrieve": nil,
 						"cleanupEnabled":        false,
@@ -137,7 +142,9 @@ func TestNamespaceGetHandler(t *testing.T) {
 						"runtimeOptions":    nil,
 						"schemaOptions":     nil,
 						"snapshotEnabled":   true,
+						"stagingState":      xjson.Map{"status": "READY"},
 						"writesToCommitLog": true,
+						"extendedOptions":   xtest.NewTestExtendedOptionsJSON("foo"),
 					},
 				},
 			},
@@ -180,6 +187,7 @@ func TestNamespaceGetHandlerWithDebug(t *testing.T) {
 					BlockDataExpiry:                          true,
 					BlockDataExpiryAfterNotAccessPeriodNanos: 3600000000000,
 				},
+				StagingState: &nsproto.StagingState{Status: nsproto.StagingStatus_UNKNOWN},
 			},
 		},
 	}
@@ -199,6 +207,7 @@ func TestNamespaceGetHandlerWithDebug(t *testing.T) {
 			"registry": xjson.Map{
 				"namespaces": xjson.Map{
 					"test": xjson.Map{
+						"aggregationOptions":    nil,
 						"bootstrapEnabled":      true,
 						"cacheBlocksOnRetrieve": nil,
 						"cleanupEnabled":        false,
@@ -217,8 +226,10 @@ func TestNamespaceGetHandlerWithDebug(t *testing.T) {
 						},
 						"runtimeOptions":    nil,
 						"schemaOptions":     nil,
+						"stagingState":      xjson.Map{"status": "UNKNOWN"},
 						"snapshotEnabled":   true,
 						"writesToCommitLog": true,
+						"extendedOptions":   nil,
 					},
 				},
 			},

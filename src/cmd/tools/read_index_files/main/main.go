@@ -30,13 +30,13 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/pborman/getopt"
 	"go.uber.org/zap"
@@ -79,15 +79,23 @@ func main() {
 		Identifier: fs.FileSetFileIdentifier{
 			FileSetContentType: persist.FileSetIndexContentType,
 			Namespace:          ident.StringID(*optNamespace),
-			BlockStart:         time.Unix(0, *optBlockstart),
+			BlockStart:         xtime.UnixNano(*optBlockstart),
 			VolumeIndex:        int(*optVolumeIndex),
 		},
 	}
 
-	_, err = reader.Open(openOpts)
+	result, err := reader.Open(openOpts)
 	if err != nil {
 		log.Fatalf("unable to open reader: %v", err)
 	}
+
+	shards := make([]int, 0, len(result.Shards))
+	for shard := range result.Shards {
+		shards = append(shards, int(shard))
+	}
+	sort.Ints(shards)
+
+	log.Infof("shards: %v, volumeType: %s", shards, reader.IndexVolumeType())
 
 	i := 0
 	for {

@@ -27,9 +27,11 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -37,7 +39,7 @@ import (
 )
 
 func TestNewClustersWithDuplicateAggregatedClusterNamespace(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	_, err := NewClusters(UnaggregatedClusterNamespaceDefinition{
@@ -63,16 +65,16 @@ func TestNewClustersWithDuplicateAggregatedClusterNamespace(t *testing.T) {
 }
 
 func TestNewClustersFromConfig(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	newClient1, mockSession1 := newTestClientFromConfig(ctrl)
-	newClient2, mockSession2 := newTestClientFromConfig(ctrl)
+	newClient1, mockSession1, _ := newTestClientFromConfig(ctrl)
+	newClient2, mockSession2, _ := newTestClientFromConfig(ctrl)
 	cfg := ClustersStaticConfiguration{
 		ClusterStaticConfiguration{
 			NewClientFromConfig: newClient1,
 			Namespaces: []ClusterStaticNamespaceConfiguration{
-				ClusterStaticNamespaceConfiguration{
+				{
 					Namespace: "unaggregated",
 					Type:      storagemetadata.UnaggregatedMetricsType,
 					Retention: 7 * 24 * time.Hour,
@@ -82,13 +84,13 @@ func TestNewClustersFromConfig(t *testing.T) {
 		ClusterStaticConfiguration{
 			NewClientFromConfig: newClient2,
 			Namespaces: []ClusterStaticNamespaceConfiguration{
-				ClusterStaticNamespaceConfiguration{
+				{
 					Namespace:  "aggregated0",
 					Type:       storagemetadata.AggregatedMetricsType,
 					Retention:  30 * 24 * time.Hour,
 					Resolution: time.Minute,
 				},
-				ClusterStaticNamespaceConfiguration{
+				{
 					Namespace:  "aggregated1",
 					Type:       storagemetadata.AggregatedMetricsType,
 					Retention:  365 * 24 * time.Hour,
@@ -98,12 +100,15 @@ func TestNewClustersFromConfig(t *testing.T) {
 		},
 	}
 
-	clusters, err := cfg.NewClusters(instrument.NewOptions(),
-		ClustersStaticConfigurationOptions{})
+	clusters, err := cfg.NewStaticClusters(
+		instrument.NewOptions(),
+		ClustersStaticConfigurationOptions{},
+		NewClusterNamespacesWatcher())
 	require.NoError(t, err)
 
 	// Resolve expected clusters and check attributes
-	unaggregatedNs := clusters.UnaggregatedClusterNamespace()
+	unaggregatedNs, initialized := clusters.UnaggregatedClusterNamespace()
+	assert.True(t, initialized)
 	assert.Equal(t, "unaggregated", unaggregatedNs.NamespaceID().String())
 	assert.Equal(t, storagemetadata.Attributes{
 		MetricsType: storagemetadata.UnaggregatedMetricsType,
@@ -152,14 +157,95 @@ func TestNewClustersFromConfig(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestNewDynamicClusters(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	newClient1, session1, client1 := newTestClientFromConfigWithNamespaceInitializer(ctrl, true)
+	newClient2, session2, client2 := newTestClientFromConfigWithNamespaceInitializer(ctrl, true)
+	cfg := ClustersStaticConfiguration{
+		ClusterStaticConfiguration{
+			NewClientFromConfig: newClient1,
+		},
+		ClusterStaticConfiguration{
+			NewClientFromConfig: newClient2,
+		},
+	}
+
+	clusters, err := cfg.newDynamicClusters(
+		newNoopCluster,
+		instrument.NewOptions(),
+		ClustersStaticConfigurationOptions{},
+		NewClusterNamespacesWatcher())
+	require.NoError(t, err)
+
+	noopCluster := clusters.(*noopCluster)
+	sessions := []client.Session{session1, session2}
+	nsInits := []namespace.Initializer{client1.Options().NamespaceInitializer(), client2.Options().NamespaceInitializer()}
+	for i, cfg := range noopCluster.cfgs {
+		require.Equal(t, sessions[i], cfg.session)
+		require.Equal(t, nsInits[i], cfg.nsInitializer)
+	}
+}
+
+type noopCluster struct {
+	cfgs []DynamicClusterNamespaceConfiguration
+}
+
+func newNoopCluster(options DynamicClusterOptions) (Clusters, error) {
+	return &noopCluster{
+		cfgs: options.DynamicClusterNamespaceConfiguration(),
+	}, nil
+}
+
+func (n *noopCluster) Close() error {
+	panic("implement me")
+}
+
+func (n *noopCluster) ClusterNamespaces() ClusterNamespaces {
+	panic("implement me")
+}
+
+func (n *noopCluster) NonReadyClusterNamespaces() ClusterNamespaces {
+	panic("implement me")
+}
+
+func (n *noopCluster) UnaggregatedClusterNamespace() (ClusterNamespace, bool) {
+	panic("implement me")
+}
+
+func (n *noopCluster) AggregatedClusterNamespace(RetentionResolution) (ClusterNamespace, bool) {
+	panic("implement me")
+}
+
+func (n *noopCluster) ConfigType() ClusterConfigType {
+	panic("implement me")
+}
+
 func newTestClientFromConfig(ctrl *gomock.Controller) (
 	NewClientFromConfig,
 	*client.MockSession,
+	*client.MockClient,
+) {
+	return newTestClientFromConfigWithNamespaceInitializer(ctrl, false)
+}
+
+func newTestClientFromConfigWithNamespaceInitializer(ctrl *gomock.Controller, withNsInit bool) (
+	NewClientFromConfig,
+	*client.MockSession,
+	*client.MockClient,
 ) {
 	mockSession := client.NewMockSession(ctrl)
 
 	mockClient := client.NewMockClient(ctrl)
 	mockClient.EXPECT().DefaultSession().Return(mockSession, nil).AnyTimes()
+
+	if withNsInit {
+		nsInit := namespace.NewMockInitializer(ctrl)
+		opts := client.NewOptions().
+			SetNamespaceInitializer(nsInit)
+		mockClient.EXPECT().Options().Return(opts).AnyTimes()
+	}
 
 	newClientFn := func(
 		_ client.Configuration,
@@ -169,5 +255,5 @@ func newTestClientFromConfig(ctrl *gomock.Controller) (
 		return mockClient, nil
 	}
 
-	return newClientFn, mockSession
+	return newClientFn, mockSession, mockClient
 }

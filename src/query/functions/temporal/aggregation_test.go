@@ -43,6 +43,19 @@ var aggregationTestCases = []testCase{
 		},
 	},
 	{
+		name:   "avg_over_time with warning",
+		opType: AvgType,
+		vals: [][]float64{
+			{nan, 1, 2, 3, 4, 0, 1, 2, 3, 4},
+			{5, 6, 7, 8, 9, 5, 6, 7, 8, 9},
+		},
+		expected: [][]float64{
+			{nan, 1, 1.5, 2, 2.5, 2, 2, 2, 2, 2},
+			{5, 5.5, 6, 6.5, 7, 7, 7, 7, 7, 7},
+		},
+		withWarning: true,
+	},
+	{
 		name:   "avg_over_time all NaNs",
 		opType: AvgType,
 		vals: [][]float64{
@@ -191,6 +204,42 @@ var aggregationTestCases = []testCase{
 	{
 		name:   "stdvar_over_time all NaNs",
 		opType: StdVarType,
+		vals: [][]float64{
+			{nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},
+			{nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},
+		},
+		expected: [][]float64{
+			{nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},
+			{nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},
+		},
+	},
+	{
+		name:   "last_over_time",
+		opType: LastType,
+		vals: [][]float64{
+			{nan, 1, 2, 3, 4, 0, 1, 2, 3, 4},
+			{5, 6, 7, 8, 9, 5, 6, 7, 8, 9},
+		},
+		expected: [][]float64{
+			{nan, 1, 2, 3, 4, 0, 1, 2, 3, 4},
+			{5, 6, 7, 8, 9, 5, 6, 7, 8, 9},
+		},
+	},
+	{
+		name:   "last_over_time leading NaNs",
+		opType: LastType,
+		vals: [][]float64{
+			{nan, 1, nan, 3, nan, nan, 2, nan, nan, nan},
+			{5, nan, nan, nan, nan, nan, nan, 7, nan, nan},
+		},
+		expected: [][]float64{
+			{nan, 1, nan, 3, nan, nan, 2, nan, nan, nan},
+			{5, nan, nan, nan, nan, nan, nan, 7, nan, nan},
+		},
+	},
+	{
+		name:   "last_over_time all NaNs",
+		opType: LastType,
 		vals: [][]float64{
 			{nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},
 			{nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},

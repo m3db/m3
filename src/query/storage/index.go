@@ -22,12 +22,15 @@ package storage
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (
@@ -68,14 +71,58 @@ func TagsToIdentTagIterator(tags models.Tags) ident.TagIterator {
 }
 
 // FetchOptionsToM3Options converts a set of coordinator options to M3 options.
-func FetchOptionsToM3Options(fetchOptions *FetchOptions, fetchQuery *FetchQuery) index.QueryOptions {
-	return index.QueryOptions{
-		SeriesLimit:       fetchOptions.SeriesLimit,
-		DocsLimit:         fetchOptions.DocsLimit,
-		RequireExhaustive: fetchOptions.RequireExhaustive,
-		StartInclusive:    fetchQuery.Start,
-		EndExclusive:      fetchQuery.End,
+func FetchOptionsToM3Options(
+	fetchOptions *FetchOptions,
+	fetchQuery *FetchQuery,
+) (index.QueryOptions, error) {
+	start, end, err := convertStartEndWithRangeLimit(fetchQuery.Start,
+		fetchQuery.End, fetchOptions)
+	if err != nil {
+		return index.QueryOptions{}, err
 	}
+
+	return index.QueryOptions{
+		SeriesLimit:                   fetchOptions.SeriesLimit,
+		InstanceMultiple:              fetchOptions.InstanceMultiple,
+		DocsLimit:                     fetchOptions.DocsLimit,
+		RequireExhaustive:             fetchOptions.RequireExhaustive,
+		RequireNoWait:                 fetchOptions.RequireNoWait,
+		ReadConsistencyLevel:          fetchOptions.ReadConsistencyLevel,
+		IterateEqualTimestampStrategy: fetchOptions.IterateEqualTimestampStrategy,
+		Source:                        fetchOptions.Source,
+		StartInclusive:                xtime.ToUnixNano(start),
+		EndExclusive:                  xtime.ToUnixNano(end),
+	}, nil
+}
+
+func convertStartEndWithRangeLimit(
+	start, end time.Time,
+	fetchOptions *FetchOptions,
+) (time.Time, time.Time, error) {
+	fetchRangeLimit := fetchOptions.RangeLimit
+	if fetchRangeLimit <= 0 {
+		return start, end, nil
+	}
+
+	fetchRange := end.Sub(start)
+	if fetchRange <= fetchRangeLimit {
+		return start, end, nil
+	}
+
+	if fetchOptions.RequireExhaustive {
+		// Fail the query.
+		msg := fmt.Sprintf("query exceeded limit: require_exhaustive=%v, "+
+			"range_limit=%s, range_matched=%s",
+			fetchOptions.RequireExhaustive,
+			fetchRangeLimit.String(),
+			fetchRange.String())
+		err := xerrors.NewInvalidParamsError(consolidators.NewLimitError(msg))
+		return time.Time{}, time.Time{}, err
+	}
+
+	// Truncate the range.
+	start = end.Add(-1 * fetchRangeLimit)
+	return start, end, nil
 }
 
 func convertAggregateQueryType(completeNameOnly bool) index.AggregationType {
@@ -91,17 +138,26 @@ func convertAggregateQueryType(completeNameOnly bool) index.AggregationType {
 func FetchOptionsToAggregateOptions(
 	fetchOptions *FetchOptions,
 	tagQuery *CompleteTagsQuery,
-) index.AggregationOptions {
+) (index.AggregationOptions, error) {
+	start, end, err := convertStartEndWithRangeLimit(tagQuery.Start.ToTime(),
+		tagQuery.End.ToTime(), fetchOptions)
+	if err != nil {
+		return index.AggregationOptions{}, err
+	}
+
 	return index.AggregationOptions{
 		QueryOptions: index.QueryOptions{
-			SeriesLimit:    fetchOptions.SeriesLimit,
-			DocsLimit:      fetchOptions.DocsLimit,
-			StartInclusive: tagQuery.Start,
-			EndExclusive:   tagQuery.End,
+			SeriesLimit:       fetchOptions.SeriesLimit,
+			DocsLimit:         fetchOptions.DocsLimit,
+			Source:            fetchOptions.Source,
+			RequireExhaustive: fetchOptions.RequireExhaustive,
+			RequireNoWait:     fetchOptions.RequireNoWait,
+			StartInclusive:    xtime.ToUnixNano(start),
+			EndExclusive:      xtime.ToUnixNano(end),
 		},
 		FieldFilter: tagQuery.FilterNameTags,
 		Type:        convertAggregateQueryType(tagQuery.CompleteNameOnly),
-	}
+	}, nil
 }
 
 // FetchQueryToM3Query converts an m3coordinator fetch query to an M3 query.

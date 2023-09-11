@@ -24,6 +24,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/migration"
 	"github.com/m3db/m3/src/dbnode/storage"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/x/instrument"
 )
 
@@ -42,10 +43,10 @@ type Options interface {
 	MigrationTaskFn() MigrationTaskFn
 
 	// SetInfoFilesByNamespaces sets the info file results to operate on keyed by namespace.
-	SetInfoFilesByNamespace(value fs.InfoFilesByNamespace) Options
+	SetInfoFilesByNamespace(value bootstrap.InfoFilesByNamespace) Options
 
 	// InfoFilesByNamespaces returns the info file results to operate on keyed by namespace.
-	InfoFilesByNamespace() fs.InfoFilesByNamespace
+	InfoFilesByNamespace() bootstrap.InfoFilesByNamespace
 
 	// SetMigrationOptions sets the migration options.
 	SetMigrationOptions(value migration.Options) Options

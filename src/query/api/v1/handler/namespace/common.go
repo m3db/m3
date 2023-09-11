@@ -25,16 +25,18 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"time"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/util/queryhttp"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/gorilla/mux"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
 const (
@@ -60,7 +62,7 @@ var (
 	// M3DBServiceSchemaPathName is the M3DB service schema API path.
 	M3DBServiceSchemaPathName = path.Join(ServicesPathName, M3DBServiceName, SchemaPathName)
 
-	errNamespaceNotFound = errors.New("unable to find a namespace with specified name")
+	errNamespaceNotFound = xhttp.NewError(errors.New("unable to find a namespace with specified name"), http.StatusNotFound)
 )
 
 // Handler represents a generic handler for namespace endpoints.
@@ -68,6 +70,7 @@ type Handler struct {
 	// This is used by other namespace Handlers
 	// nolint: structcheck
 	client         clusterclient.Client
+	clusters       m3.Clusters
 	instrumentOpts instrument.Options
 }
 
@@ -98,16 +101,21 @@ func Metadata(store kv.Store) ([]namespace.Metadata, int, error) {
 	return nsMap.Metadatas(), value.Version(), nil
 }
 
+type applyMiddlewareFn func(
+	svc handleroptions.ServiceNameAndDefaults,
+	w http.ResponseWriter,
+	r *http.Request,
+)
+
 // RegisterRoutes registers the namespace routes.
 func RegisterRoutes(
-	r *mux.Router,
+	r *queryhttp.EndpointRegistry,
 	client clusterclient.Client,
+	clusters m3.Clusters,
 	defaults []handleroptions.ServiceOptionsDefault,
 	instrumentOpts instrument.Options,
-) {
-	wrapped := func(n http.Handler) http.Handler {
-		return logging.WithResponseTimeAndPanicErrorLogging(n, instrumentOpts)
-	}
+	namespaceValidator options.NamespaceValidator,
+) error {
 	applyMiddleware := func(
 		f func(svc handleroptions.ServiceNameAndDefaults,
 			w http.ResponseWriter, r *http.Request),
@@ -123,35 +131,101 @@ func RegisterRoutes(
 	}
 
 	// Get M3DB namespaces.
-	getHandler := wrapped(
-		applyMiddleware(NewGetHandler(client, instrumentOpts).ServeHTTP, defaults))
-	r.HandleFunc(DeprecatedM3DBGetURL, getHandler.ServeHTTP).Methods(GetHTTPMethod)
-	r.HandleFunc(M3DBGetURL, getHandler.ServeHTTP).Methods(GetHTTPMethod)
+	if err := r.Register(queryhttp.RegisterOptions{
+		Path:    M3DBGetURL,
+		Handler: applyMiddleware(NewGetHandler(client, instrumentOpts).ServeHTTP, defaults),
+		Methods: []string{GetHTTPMethod},
+	}); err != nil {
+		return err
+	}
 
 	// Add M3DB namespaces.
-	addHandler := wrapped(
-		applyMiddleware(NewAddHandler(client, instrumentOpts).ServeHTTP, defaults))
-	r.HandleFunc(DeprecatedM3DBAddURL, addHandler.ServeHTTP).Methods(AddHTTPMethod)
-	r.HandleFunc(M3DBAddURL, addHandler.ServeHTTP).Methods(AddHTTPMethod)
+	if err := r.Register(queryhttp.RegisterOptions{
+		Path:    M3DBAddURL,
+		Handler: applyMiddleware(NewAddHandler(client, instrumentOpts, namespaceValidator).ServeHTTP, defaults),
+		Methods: []string{AddHTTPMethod},
+	}); err != nil {
+		return err
+	}
 
 	// Update M3DB namespaces.
-	updateHandler := wrapped(
-		applyMiddleware(NewUpdateHandler(client, instrumentOpts).ServeHTTP, defaults))
-	r.HandleFunc(M3DBUpdateURL, updateHandler.ServeHTTP).Methods(UpdateHTTPMethod)
+	if err := r.Register(queryhttp.RegisterOptions{
+		Path:    M3DBUpdateURL,
+		Handler: applyMiddleware(NewUpdateHandler(client, instrumentOpts).ServeHTTP, defaults),
+		Methods: []string{UpdateHTTPMethod},
+	}); err != nil {
+		return err
+	}
 
 	// Delete M3DB namespaces.
-	deleteHandler := wrapped(
-		applyMiddleware(NewDeleteHandler(client, instrumentOpts).ServeHTTP, defaults))
-	r.HandleFunc(DeprecatedM3DBDeleteURL, deleteHandler.ServeHTTP).Methods(DeleteHTTPMethod)
-	r.HandleFunc(M3DBDeleteURL, deleteHandler.ServeHTTP).Methods(DeleteHTTPMethod)
+	if err := r.Register(queryhttp.RegisterOptions{
+		Path:    M3DBDeleteURL,
+		Handler: applyMiddleware(NewDeleteHandler(client, instrumentOpts).ServeHTTP, defaults),
+		Methods: []string{DeleteHTTPMethod},
+	}); err != nil {
+		return err
+	}
 
 	// Deploy M3DB schemas.
-	schemaHandler := wrapped(
-		applyMiddleware(NewSchemaHandler(client, instrumentOpts).ServeHTTP, defaults))
-	r.HandleFunc(M3DBSchemaURL, schemaHandler.ServeHTTP).Methods(SchemaDeployHTTPMethod)
+	if err := r.Register(queryhttp.RegisterOptions{
+		Path:    M3DBSchemaURL,
+		Handler: applyMiddleware(NewSchemaHandler(client, instrumentOpts).ServeHTTP, defaults),
+		Methods: []string{SchemaDeployHTTPMethod},
+	}); err != nil {
+		return err
+	}
 
 	// Reset M3DB schemas.
-	schemaResetHandler := wrapped(
-		applyMiddleware(NewSchemaResetHandler(client, instrumentOpts).ServeHTTP, defaults))
-	r.HandleFunc(M3DBSchemaURL, schemaResetHandler.ServeHTTP).Methods(DeleteHTTPMethod)
+	if err := r.Register(queryhttp.RegisterOptions{
+		Path:    M3DBSchemaURL,
+		Handler: applyMiddleware(NewSchemaResetHandler(client, instrumentOpts).ServeHTTP, defaults),
+		Methods: []string{DeleteHTTPMethod},
+	}); err != nil {
+		return err
+	}
+
+	// Mark M3DB namespace as ready.
+	if err := r.Register(queryhttp.RegisterOptions{
+		Path:    M3DBReadyURL,
+		Handler: applyMiddleware(NewReadyHandler(client, clusters, instrumentOpts).ServeHTTP, defaults),
+		Methods: []string{ReadyHTTPMethod},
+	}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateNamespaceAggregationOptions(mds []namespace.Metadata) error {
+	resolutionRetentionMap := make(map[resolutionRetentionKey]bool, len(mds))
+
+	for _, md := range mds {
+		aggOpts := md.Options().AggregationOptions()
+		if aggOpts == nil || len(aggOpts.Aggregations()) == 0 {
+			continue
+		}
+
+		retention := md.Options().RetentionOptions().RetentionPeriod()
+		for _, agg := range aggOpts.Aggregations() {
+			if agg.Aggregated {
+				key := resolutionRetentionKey{
+					retention:  retention,
+					resolution: agg.Attributes.Resolution,
+				}
+
+				if resolutionRetentionMap[key] {
+					return fmt.Errorf("resolution and retention combination must be unique. "+
+						"namespace with resolution=%v retention=%v already exists", key.resolution, key.retention)
+				}
+				resolutionRetentionMap[key] = true
+			}
+		}
+	}
+
+	return nil
+}
+
+type resolutionRetentionKey struct {
+	resolution time.Duration
+	retention  time.Duration
 }

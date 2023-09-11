@@ -22,11 +22,9 @@ package native
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"net/http"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
@@ -35,11 +33,12 @@ import (
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
-	"github.com/uber-go/tally"
 
 	opentracinglog "github.com/opentracing/opentracing-go/log"
+	"github.com/uber-go/tally"
 )
 
 type promReadMetrics struct {
@@ -47,7 +46,14 @@ type promReadMetrics struct {
 	fetchErrorsServer tally.Counter
 	fetchErrorsClient tally.Counter
 	fetchTimerSuccess tally.Timer
-	maxDatapoints     tally.Gauge
+
+	returnedDataMetrics PromReadReturnedDataMetrics
+}
+
+// PromReadReturnedDataMetrics are metrics on the data returned from prom reads.
+type PromReadReturnedDataMetrics struct {
+	FetchSeries     tally.Histogram
+	FetchDatapoints tally.Histogram
 }
 
 func newPromReadMetrics(scope tally.Scope) promReadMetrics {
@@ -57,8 +63,26 @@ func newPromReadMetrics(scope tally.Scope) promReadMetrics {
 			Counter("fetch.errors"),
 		fetchErrorsClient: scope.Tagged(map[string]string{"code": "4XX"}).
 			Counter("fetch.errors"),
-		fetchTimerSuccess: scope.Timer("fetch.success.latency"),
-		maxDatapoints:     scope.Gauge("max_datapoints"),
+		fetchTimerSuccess:   scope.Timer("fetch.success.latency"),
+		returnedDataMetrics: NewPromReadReturnedDataMetrics(scope),
+	}
+}
+
+// NewPromReadReturnedDataMetrics returns metrics for returned data.
+func NewPromReadReturnedDataMetrics(scope tally.Scope) PromReadReturnedDataMetrics {
+	seriesBuckets := append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(1, 2, 16)...)
+	datapointBuckets := append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(100, 2, 16)...)
+	return PromReadReturnedDataMetrics{
+		FetchSeries:     scope.Histogram("fetch.series", seriesBuckets),
+		FetchDatapoints: scope.Histogram("fetch.datapoints", datapointBuckets),
+	}
+}
+
+func (m *promReadMetrics) incError(err error) {
+	if xhttp.IsClientError(err) {
+		m.fetchErrorsClient.Inc(1)
+	} else {
+		m.fetchErrorsServer.Inc(1)
 	}
 }
 
@@ -80,17 +104,36 @@ func ParseRequest(
 	r *http.Request,
 	instantaneous bool,
 	opts options.HandlerOptions,
-) (ParsedOptions, *xhttp.ParseError) {
-	fetchOpts, rErr := opts.FetchOptionsBuilder().NewFetchOptions(r)
-	if rErr != nil {
-		return ParsedOptions{}, rErr
+) (context.Context, ParsedOptions, error) {
+	ctx, parsed, err := parseRequest(ctx, r, instantaneous, opts)
+	if err != nil {
+		// All parsing of requests should result in an invalid params error.
+		return nil, ParsedOptions{}, xerrors.NewInvalidParamsError(err)
+	}
+	return ctx, parsed, nil
+}
+
+func parseRequest(
+	ctx context.Context,
+	r *http.Request,
+	instantaneous bool,
+	opts options.HandlerOptions,
+) (context.Context, ParsedOptions, error) {
+	ctx, fetchOpts, err := opts.FetchOptionsBuilder().NewFetchOptions(ctx, r)
+	if err != nil {
+		return nil, ParsedOptions{}, err
 	}
 
 	queryOpts := &executor.QueryOptions{
 		QueryContextOptions: models.QueryContextOptions{
-			LimitMaxTimeseries: fetchOpts.SeriesLimit,
-			LimitMaxDocs:       fetchOpts.DocsLimit,
-		}}
+			LimitMaxTimeseries:             fetchOpts.SeriesLimit,
+			LimitMaxDocs:                   fetchOpts.DocsLimit,
+			LimitMaxReturnedSeries:         fetchOpts.ReturnedSeriesLimit,
+			LimitMaxReturnedDatapoints:     fetchOpts.ReturnedDatapointsLimit,
+			LimitMaxReturnedSeriesMetadata: fetchOpts.ReturnedSeriesMetadataLimit,
+			Instantaneous:                  instantaneous,
+		},
+	}
 
 	restrictOpts := fetchOpts.RestrictQueryOptions.GetRestrictByType()
 	if restrictOpts != nil {
@@ -102,56 +145,31 @@ func ParseRequest(
 		queryOpts.QueryContextOptions.RestrictFetchType = restrict
 	}
 
-	engine := opts.Engine()
-	var params models.RequestParams
+	var (
+		engine = opts.Engine()
+		params models.RequestParams
+	)
 	if instantaneous {
-		params, rErr = parseInstantaneousParams(r, engine.Options(),
-			opts.TimeoutOpts(), fetchOpts, opts.InstrumentOpts())
+		params, err = parseInstantaneousParams(r, engine.Options(), fetchOpts)
 	} else {
-		params, rErr = parseParams(r, engine.Options(),
-			opts.TimeoutOpts(), fetchOpts, opts.InstrumentOpts())
+		params, err = parseParams(r, engine.Options(), fetchOpts)
+	}
+	if err != nil {
+		return nil, ParsedOptions{}, err
 	}
 
-	if rErr != nil {
-		return ParsedOptions{}, rErr
-	}
-
-	maxPoints := opts.Config().Limits.MaxComputedDatapoints()
-	if err := validateRequest(params, maxPoints); err != nil {
-		return ParsedOptions{}, xhttp.NewParseError(err, http.StatusBadRequest)
-	}
-
-	return ParsedOptions{
+	return ctx, ParsedOptions{
 		QueryOpts: queryOpts,
 		FetchOpts: fetchOpts,
 		Params:    params,
 	}, nil
 }
 
-func validateRequest(params models.RequestParams, maxPoints int) error {
-	// Impose a rough limit on the number of returned time series.
-	// This is intended to prevent things like querying from the beginning of
-	// time with a 1s step size.
-	numSteps := int(params.End.Sub(params.Start) / params.Step)
-	if maxPoints > 0 && numSteps > maxPoints {
-		return fmt.Errorf(
-			"querying from %v to %v with step size %v would result in too many "+
-				"datapoints (end - start / step > %d). Either decrease the query "+
-				"resolution (?step=XX), decrease the time window, or increase "+
-				"the limit (`limits.maxComputedDatapoints`)",
-			params.Start, params.End, params.Step, maxPoints,
-		)
-	}
-
-	return nil
-}
-
 // ParsedOptions are parsed options for the query.
 type ParsedOptions struct {
-	QueryOpts     *executor.QueryOptions
-	FetchOpts     *storage.FetchOptions
-	Params        models.RequestParams
-	CancelWatcher handler.CancelWatcher
+	QueryOpts *executor.QueryOptions
+	FetchOpts *storage.FetchOptions
+	Params    models.RequestParams
 }
 
 func read(
@@ -160,10 +178,9 @@ func read(
 	handlerOpts options.HandlerOptions,
 ) (ReadResult, error) {
 	var (
-		opts          = parsed.QueryOpts
-		fetchOpts     = parsed.FetchOpts
-		params        = parsed.Params
-		cancelWatcher = parsed.CancelWatcher
+		opts      = parsed.QueryOpts
+		fetchOpts = parsed.FetchOpts
+		params    = parsed.Params
 
 		tagOpts = handlerOpts.TagOptions()
 		engine  = handlerOpts.Engine()
@@ -171,8 +188,8 @@ func read(
 	sp := xopentracing.SpanFromContextOrNoop(ctx)
 	sp.LogFields(
 		opentracinglog.String("params.query", params.Query),
-		xopentracing.Time("params.start", params.Start),
-		xopentracing.Time("params.end", params.End),
+		xopentracing.Time("params.start", params.Start.ToTime()),
+		xopentracing.Time("params.end", params.End.ToTime()),
 		xopentracing.Time("params.now", params.Now),
 		xopentracing.Duration("params.step", params.Step),
 	)
@@ -186,15 +203,7 @@ func read(
 	parseOpts := engine.Options().ParseOptions()
 	parser, err := promql.Parse(params.Query, params.Step, tagOpts, parseOpts)
 	if err != nil {
-		return emptyResult, err
-	}
-
-	// Detect clients closing connections.
-	if cancelWatcher != nil {
-		ctx, cancel := context.WithTimeout(ctx, fetchOpts.Timeout)
-		defer cancel()
-
-		cancelWatcher.WatchForCancel(ctx, cancel)
+		return emptyResult, xerrors.NewInvalidParamsError(err)
 	}
 
 	bl, err := engine.ExecuteExpr(ctx, parser, opts, fetchOpts, params)
@@ -258,4 +267,20 @@ func read(
 		Meta:      resultMeta,
 		BlockType: blockType,
 	}, nil
+}
+
+// ReturnedDataLimited are parsed options for the query.
+type ReturnedDataLimited struct {
+	Series     int
+	Datapoints int
+
+	// Total series is the total number of series which maybe be >= Series.
+	// Truncation happens at the series-level to avoid presenting partial series
+	// and so this value is useful for indicating how many series would have
+	// been rendered without limiting either series or datapoints.
+	TotalSeries int
+
+	// Limited signals that the results returned were
+	// limited by either series or datapoint limits.
+	Limited bool
 }

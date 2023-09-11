@@ -23,7 +23,6 @@ package m3tsz
 import (
 	"errors"
 	"math"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -41,8 +40,9 @@ var (
 
 // encoder is an M3TSZ encoder that can encode a stream of data in M3TSZ format.
 type encoder struct {
-	os   encoding.OStream
-	opts encoding.Options
+	os                   encoding.OStream
+	opts                 encoding.Options
+	markerEncodingScheme *encoding.MarkerEncodingScheme
 
 	// internal bookkeeping
 	tsEncoderState TimestampEncoder
@@ -62,7 +62,7 @@ type encoder struct {
 
 // NewEncoder creates a new encoder.
 func NewEncoder(
-	start time.Time,
+	start xtime.UnixNano,
 	bytes checked.Bytes,
 	intOptimized bool,
 	opts encoding.Options,
@@ -75,11 +75,12 @@ func NewEncoder(
 	// `Reset` method is called.
 	initAllocIfEmpty := opts.EncoderPool() == nil
 	return &encoder{
-		os:             encoding.NewOStream(bytes, initAllocIfEmpty, opts.BytesPool()),
-		opts:           opts,
-		tsEncoderState: NewTimestampEncoder(start, opts.DefaultTimeUnit(), opts),
-		closed:         false,
-		intOptimized:   intOptimized,
+		os:                   encoding.NewOStream(bytes, initAllocIfEmpty, opts.BytesPool()),
+		opts:                 opts,
+		markerEncodingScheme: opts.MarkerEncodingScheme(),
+		tsEncoderState:       NewTimestampEncoder(start, opts.DefaultTimeUnit(), opts),
+		closed:               false,
+		intOptimized:         intOptimized,
 	}
 }
 
@@ -91,7 +92,7 @@ func (enc *encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 		return errEncoderClosed
 	}
 
-	err := enc.tsEncoderState.WriteTime(enc.os, dp.Timestamp, ant, tu)
+	err := enc.tsEncoderState.WriteTime(enc.os, dp.TimestampNanos, ant, tu)
 	if err != nil {
 		return err
 	}
@@ -256,14 +257,18 @@ func (enc *encoder) newBuffer(capacity int) checked.Bytes {
 }
 
 // Reset resets the encoder for reuse.
-func (enc *encoder) Reset(start time.Time, capacity int, schema namespace.SchemaDescr) {
+func (enc *encoder) Reset(
+	start xtime.UnixNano,
+	capacity int,
+	schema namespace.SchemaDescr,
+) {
 	enc.reset(start, enc.newBuffer(capacity))
 }
 
-func (enc *encoder) reset(start time.Time, bytes checked.Bytes) {
+func (enc *encoder) reset(start xtime.UnixNano, bytes checked.Bytes) {
 	enc.os.Reset(bytes)
 
-	timeUnit := initialTimeUnit(xtime.ToUnixNano(start), enc.opts.DefaultTimeUnit())
+	timeUnit := initialTimeUnit(start, enc.opts.DefaultTimeUnit())
 	enc.tsEncoderState = NewTimestampEncoder(start, timeUnit, enc.opts)
 
 	enc.floatEnc = FloatEncoderAndIterator{}
@@ -303,8 +308,7 @@ func (enc *encoder) LastEncoded() (ts.Datapoint, error) {
 	}
 
 	result := ts.Datapoint{
-		Timestamp:      enc.tsEncoderState.PrevTime,
-		TimestampNanos: xtime.ToUnixNano(enc.tsEncoderState.PrevTime),
+		TimestampNanos: enc.tsEncoderState.PrevTime,
 	}
 	if enc.isFloat {
 		result.Value = math.Float64frombits(enc.floatEnc.PrevFloatBits)
@@ -314,13 +318,17 @@ func (enc *encoder) LastEncoded() (ts.Datapoint, error) {
 	return result, nil
 }
 
-// LastAnnotation returns the last encoded annotation.
-func (enc *encoder) LastAnnotation() (ts.Annotation, error) {
+func (enc *encoder) LastAnnotationChecksum() (uint64, error) {
 	if enc.numEncoded == 0 {
-		return nil, errNoEncodedDatapoints
+		return 0, errNoEncodedDatapoints
 	}
 
-	return enc.tsEncoderState.PrevAnnotation, nil
+	return enc.tsEncoderState.PrevAnnotationChecksum, nil
+}
+
+// Empty returns true when underlying stream is empty.
+func (enc *encoder) Empty() bool {
+	return enc.os.Empty()
 }
 
 // Len returns the length of the final data stream that would be generated
@@ -335,7 +343,7 @@ func (enc *encoder) Len() int {
 	var (
 		lastIdx  = len(raw) - 1
 		lastByte = raw[lastIdx]
-		scheme   = enc.opts.MarkerEncodingScheme()
+		scheme   = enc.markerEncodingScheme
 		tail     = scheme.Tail(lastByte, pos)
 	)
 	tail.IncRef()
@@ -372,9 +380,12 @@ func (enc *encoder) Discard() ts.Segment {
 	return segment
 }
 
-// DiscardReset does the same thing as Discard except it also resets the encoder
-// for reuse.
-func (enc *encoder) DiscardReset(start time.Time, capacity int, descr namespace.SchemaDescr) ts.Segment {
+// DiscardReset does the same thing as Discard except it does not close the encoder but resets it for reuse.
+func (enc *encoder) DiscardReset(
+	start xtime.UnixNano,
+	capacity int,
+	descr namespace.SchemaDescr,
+) ts.Segment {
 	segment := enc.segmentTakeOwnership()
 	enc.Reset(start, capacity, descr)
 	return segment
@@ -408,7 +419,7 @@ func (enc *encoder) segmentZeroCopy(ctx context.Context) ts.Segment {
 	ctx.RegisterCloser(buffer.DelayFinalizer())
 
 	// Take a shared ref to a known good tail.
-	scheme := enc.opts.MarkerEncodingScheme()
+	scheme := enc.markerEncodingScheme
 	tail := scheme.Tail(lastByte, pos)
 
 	// NB(r): Finalize the head bytes whether this is by ref or copy. If by
@@ -436,7 +447,7 @@ func (enc *encoder) segmentTakeOwnership() ts.Segment {
 	head.DecRef()
 
 	// Take a shared ref to a known good tail.
-	scheme := enc.opts.MarkerEncodingScheme()
+	scheme := enc.markerEncodingScheme
 	tail := scheme.Tail(lastByte, pos)
 
 	// NB(r): Finalize the head bytes whether this is by ref or copy. If by

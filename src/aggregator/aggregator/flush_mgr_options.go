@@ -31,16 +31,13 @@ import (
 )
 
 const (
-	defaultCheckEvery             = time.Second
-	defaultJitterEnabled          = true
-	defaultFlushTimesPersistEvery = 10 * time.Second
-	defaultMaxBufferSize          = 5 * time.Minute
-	defaultForcedFlushWindowSize  = 10 * time.Second
+	defaultCheckEvery            = time.Second
+	defaultJitterEnabled         = true
+	defaultMaxBufferSize         = 5 * time.Minute
+	defaultForcedFlushWindowSize = 10 * time.Second
 )
 
-var (
-	defaultWorkerPoolSize = int(math.Max(float64(runtime.NumCPU()/8), 1.0))
-)
+var defaultWorkerPoolSize = int(math.Max(float64(runtime.GOMAXPROCS(0)/8), 1.0))
 
 // FlushJitterFn determines the jitter based on the flush interval.
 type FlushJitterFn func(flushInterval time.Duration) time.Duration
@@ -101,12 +98,6 @@ type FlushManagerOptions interface {
 	// FlushTimesManager returns the flush times manager.
 	FlushTimesManager() FlushTimesManager
 
-	// SetFlushTimesPersistEvery sets how frequently the flush times are stored in kv.
-	SetFlushTimesPersistEvery(value time.Duration) FlushManagerOptions
-
-	// FlushTimesPersistEvery returns how frequently the flush times are stored in kv.
-	FlushTimesPersistEvery() time.Duration
-
 	// SetMaxBufferSize sets the maximum duration data are buffered for without getting
 	// flushed or discarded to handle transient KV issues or for backing out of active
 	// topology changes.
@@ -122,21 +113,28 @@ type FlushManagerOptions interface {
 
 	// ForcedFlushWindowSize returns the window size for a forced flush.
 	ForcedFlushWindowSize() time.Duration
+
+	// SetBufferForPastTimedMetric sets the size of the buffer for timed metrics in the past.
+	SetBufferForPastTimedMetric(value time.Duration) FlushManagerOptions
+
+	// BufferForPastTimedMetric returns the size of the buffer for timed metrics in the past.
+	BufferForPastTimedMetric() time.Duration
 }
 
 type flushManagerOptions struct {
-	clockOpts              clock.Options
-	instrumentOpts         instrument.Options
-	checkEvery             time.Duration
-	jitterEnabled          bool
-	maxJitterFn            FlushJitterFn
-	workerPool             sync.WorkerPool
-	placementManager       PlacementManager
-	electionManager        ElectionManager
-	flushTimesManager      FlushTimesManager
-	flushTimesPersistEvery time.Duration
-	maxBufferSize          time.Duration
-	forcedFlushWindowSize  time.Duration
+	clockOpts             clock.Options
+	instrumentOpts        instrument.Options
+	checkEvery            time.Duration
+	jitterEnabled         bool
+	maxJitterFn           FlushJitterFn
+	workerPool            sync.WorkerPool
+	placementManager      PlacementManager
+	electionManager       ElectionManager
+	flushTimesManager     FlushTimesManager
+	maxBufferSize         time.Duration
+	forcedFlushWindowSize time.Duration
+
+	bufferForPastTimedMetric time.Duration
 }
 
 // NewFlushManagerOptions create a new set of flush manager options.
@@ -144,14 +142,15 @@ func NewFlushManagerOptions() FlushManagerOptions {
 	workerPool := sync.NewWorkerPool(defaultWorkerPoolSize)
 	workerPool.Init()
 	return &flushManagerOptions{
-		clockOpts:              clock.NewOptions(),
-		instrumentOpts:         instrument.NewOptions(),
-		checkEvery:             defaultCheckEvery,
-		jitterEnabled:          defaultJitterEnabled,
-		workerPool:             workerPool,
-		flushTimesPersistEvery: defaultFlushTimesPersistEvery,
-		maxBufferSize:          defaultMaxBufferSize,
-		forcedFlushWindowSize:  defaultForcedFlushWindowSize,
+		clockOpts:             clock.NewOptions(),
+		instrumentOpts:        instrument.NewOptions(),
+		checkEvery:            defaultCheckEvery,
+		jitterEnabled:         defaultJitterEnabled,
+		workerPool:            workerPool,
+		maxBufferSize:         defaultMaxBufferSize,
+		forcedFlushWindowSize: defaultForcedFlushWindowSize,
+
+		bufferForPastTimedMetric: defaultTimedMetricBuffer,
 	}
 }
 
@@ -245,16 +244,6 @@ func (o *flushManagerOptions) FlushTimesManager() FlushTimesManager {
 	return o.flushTimesManager
 }
 
-func (o *flushManagerOptions) SetFlushTimesPersistEvery(value time.Duration) FlushManagerOptions {
-	opts := *o
-	opts.flushTimesPersistEvery = value
-	return &opts
-}
-
-func (o *flushManagerOptions) FlushTimesPersistEvery() time.Duration {
-	return o.flushTimesPersistEvery
-}
-
 func (o *flushManagerOptions) SetMaxBufferSize(value time.Duration) FlushManagerOptions {
 	opts := *o
 	opts.maxBufferSize = value
@@ -273,4 +262,14 @@ func (o *flushManagerOptions) SetForcedFlushWindowSize(value time.Duration) Flus
 
 func (o *flushManagerOptions) ForcedFlushWindowSize() time.Duration {
 	return o.forcedFlushWindowSize
+}
+
+func (o *flushManagerOptions) SetBufferForPastTimedMetric(value time.Duration) FlushManagerOptions {
+	opts := *o
+	opts.bufferForPastTimedMetric = value
+	return &opts
+}
+
+func (o *flushManagerOptions) BufferForPastTimedMetric() time.Duration {
+	return o.bufferForPastTimedMetric
 }

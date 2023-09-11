@@ -38,12 +38,24 @@ type Reporter interface {
 	Stop() error
 }
 
+// Profiler represents profiler for profiling long-running tasks.
+type Profiler interface {
+	// StartCPUProfile starts the named cpu profile.
+	StartCPUProfile(name string) error
+
+	// StopCPUProfile stops started cpu profile.
+	StopCPUProfile() error
+
+	// WriteHeapProfile writes heap profile.
+	WriteHeapProfile(name string) error
+}
+
 // Options represents the options for instrumentation.
 type Options interface {
 	// SetLogger sets the zap logger
 	SetLogger(value *zap.Logger) Options
 
-	// ZapLogger returns the zap logger
+	// Logger returns the zap logger
 	Logger() *zap.Logger
 
 	// SetMetricsScope sets the metrics scope.
@@ -62,13 +74,26 @@ type Options interface {
 	// when building timers from timer options.
 	SetTimerOptions(value TimerOptions) Options
 
-	// SetTimerOptions returns the metrics timer options to used
+	// TimerOptions returns the metrics timer options to used
 	// when building timers from timer options.
 	TimerOptions() TimerOptions
 
-	// ReportInterval sets the time between reporting metrics within the system.
+	// SetReportInterval sets the time between reporting metrics within the system.
 	SetReportInterval(time.Duration) Options
 
-	// GetReportInterval returns the time between reporting metrics within the system.
+	// ReportInterval returns the time between reporting metrics within the system.
 	ReportInterval() time.Duration
+
+	// SetCustomBuildTags sets custom tags to be added to build report metrics in
+	// addition to the defaults.
+	SetCustomBuildTags(tags map[string]string) Options
+
+	// CustomBuildTags returns the custom build tags.
+	CustomBuildTags() map[string]string
+
+	// SetProfiler sets the profiler.
+	SetProfiler(value Profiler) Options
+
+	// Profiler returns the Profiler.
+	Profiler() Profiler
 }

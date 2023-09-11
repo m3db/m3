@@ -21,15 +21,16 @@
 package native
 
 import (
-	"context"
+	"io/ioutil"
 	"net/http"
 	"sync"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
@@ -43,7 +44,7 @@ import (
 
 const (
 	// CompleteTagsURL is the url for searching tags.
-	CompleteTagsURL = handler.RoutePrefixV1 + "/search"
+	CompleteTagsURL = route.Prefix + "/search"
 
 	// CompleteTagsHTTPMethod is the HTTP method used with this resource.
 	CompleteTagsHTTPMethod = http.MethodGet
@@ -66,19 +67,17 @@ func NewCompleteTagsHandler(opts options.HandlerOptions) http.Handler {
 }
 
 func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx, h.instrumentOpts)
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 
-	tagCompletionQueries, rErr := prometheus.ParseTagCompletionParamsToQueries(r)
+	ctx, opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r.Context(), r)
 	if rErr != nil {
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.WriteError(w, rErr)
 		return
 	}
 
-	opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
+	tagCompletionQueries, rErr := prometheus.ParseTagCompletionParamsToQueries(r)
 	if rErr != nil {
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.WriteError(w, rErr)
 		return
 	}
 
@@ -93,6 +92,7 @@ func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 			nameOnly, models.NewTagOptions())
 	)
 
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 	for _, query := range tagCompletionQueries.Queries {
 		wg.Add(1)
 		// Capture variables.
@@ -121,13 +121,49 @@ func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	wg.Wait()
 	if err := multiErr.FinalError(); err != nil {
 		logger.Error("unable to complete tags", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
+		if errors.IsTimeout(err) {
+			err = errors.NewErrQueryTimeout(err)
+		}
+		xhttp.WriteError(w, err)
 		return
 	}
 
-	handleroptions.AddWarningHeaders(w, meta)
-	result := resultBuilder.Build()
-	if err := prometheus.RenderTagCompletionResultsJSON(w, result); err != nil {
-		logger.Error("unable to render results", zap.Error(err))
+	err := handleroptions.AddDBResultResponseHeaders(w, meta, opts)
+	if err != nil {
+		logger.Error("error writing database limit headers", zap.Error(err))
+		xhttp.WriteError(w, err)
+		return
+	}
+
+	// First write out results to zero output to check if will limit
+	// results and if so then write the header about truncation if occurred.
+	var (
+		noopWriter = ioutil.Discard
+		renderOpts = prometheus.RenderSeriesMetadataOptions{
+			ReturnedSeriesMetadataLimit: opts.ReturnedSeriesMetadataLimit,
+		}
+		result = resultBuilder.Build()
+	)
+	renderResult, err := prometheus.RenderTagCompletionResultsJSON(noopWriter, result, renderOpts)
+	if err != nil {
+		logger.Error("unable to render complete tags results", zap.Error(err))
+		xhttp.WriteError(w, err)
+		return
+	}
+
+	limited := &handleroptions.ReturnedMetadataLimited{
+		Results:      renderResult.Results,
+		TotalResults: renderResult.TotalResults,
+		Limited:      renderResult.LimitedMaxReturnedData,
+	}
+	if err := handleroptions.AddReturnedLimitResponseHeaders(w, nil, limited); err != nil {
+		logger.Error("unable to writing returned limit response headers", zap.Error(err))
+		xhttp.WriteError(w, err)
+		return
+	}
+
+	_, err = prometheus.RenderTagCompletionResultsJSON(w, result, renderOpts)
+	if err != nil {
+		logger.Error("unable to render complete tags results", zap.Error(err))
 	}
 }

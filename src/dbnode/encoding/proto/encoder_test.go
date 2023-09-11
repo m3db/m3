@@ -80,7 +80,7 @@ func TestCustomAndProtoFields(t *testing.T) {
 }
 
 func TestClosedEncoderIsNotUsable(t *testing.T) {
-	enc := newTestEncoder(time.Now().Truncate(time.Second))
+	enc := newTestEncoder(xtime.Now().Truncate(time.Second))
 	enc.Close()
 
 	err := enc.Encode(ts.Datapoint{}, xtime.Second, nil)
@@ -91,10 +91,10 @@ func TestClosedEncoderIsNotUsable(t *testing.T) {
 }
 
 func TestEncoderIsNotCorruptedByInvalidWrites(t *testing.T) {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
-	start := time.Now().Truncate(time.Second)
+	start := xtime.Now().Truncate(time.Second)
 	enc := newTestEncoder(start)
 	enc.SetSchema(namespace.GetTestSchemaDescr(testVLSchema))
 
@@ -102,13 +102,13 @@ func TestEncoderIsNotCorruptedByInvalidWrites(t *testing.T) {
 	vlBytes, err := vl.Marshal()
 	require.NoError(t, err)
 
-	dp := ts.Datapoint{Timestamp: start.Add(time.Second)}
+	dp := ts.Datapoint{TimestampNanos: start.Add(time.Second)}
 	err = enc.Encode(dp, xtime.Second, vlBytes)
 	require.NoError(t, err)
 
 	bytesBeforeBadWrite := getCurrEncoderBytes(ctx, t, enc)
 
-	dp = ts.Datapoint{Timestamp: start.Add(2 * time.Second)}
+	dp = ts.Datapoint{TimestampNanos: start.Add(2 * time.Second)}
 	err = enc.Encode(dp, xtime.Second, []byte("not-valid-proto"))
 	require.Error(t, err)
 

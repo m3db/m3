@@ -31,7 +31,7 @@ import (
 
 	"github.com/m3db/m3/src/metrics/generated/proto/policypb"
 	"github.com/m3db/m3/src/metrics/policy"
-	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
@@ -87,15 +87,15 @@ func TestTimeConversions(t *testing.T) {
 
 func createRPCSeries() []*rpc.DecompressedSeries {
 	return []*rpc.DecompressedSeries{
-		&rpc.DecompressedSeries{
+		{
 			Datapoints: valList0,
 			Tags:       encodeTags(tags0),
 		},
-		&rpc.DecompressedSeries{
+		{
 			Datapoints: valList1,
 			Tags:       encodeTags(tags1),
 		},
-		&rpc.DecompressedSeries{
+		{
 			Datapoints: valList2,
 			Tags:       encodeTags(tags1),
 		},
@@ -213,7 +213,7 @@ func TestEncodeMetadata(t *testing.T) {
 	headers.Add("Foo", "baz")
 	headers.Add("Foo", "abc")
 	headers.Add("lorem", "ipsum")
-	ctx := context.WithValue(context.TODO(), handler.HeaderKey, headers)
+	ctx := context.WithValue(context.Background(), handleroptions.RequestHeaderKey, headers)
 	requestID := "requestID"
 
 	encodedCtx := encodeMetadata(ctx, requestID)
@@ -261,11 +261,11 @@ func TestNewRestrictQueryOptionsFromProto(t *testing.T) {
 				RestrictQueryType: &rpcpb.RestrictQueryType{
 					MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
 					MetricsStoragePolicy: &policypb.StoragePolicy{
-						Resolution: &policypb.Resolution{
+						Resolution: policypb.Resolution{
 							WindowSize: int64(time.Minute),
 							Precision:  int64(time.Second),
 						},
-						Retention: &policypb.Retention{
+						Retention: policypb.Retention{
 							Period: int64(24 * time.Hour),
 						},
 					},
@@ -312,11 +312,11 @@ func TestNewRestrictQueryOptionsFromProto(t *testing.T) {
 				RestrictQueryType: &rpcpb.RestrictQueryType{
 					MetricsType: rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE,
 					MetricsStoragePolicy: &policypb.StoragePolicy{
-						Resolution: &policypb.Resolution{
+						Resolution: policypb.Resolution{
 							WindowSize: int64(time.Minute),
 							Precision:  int64(time.Second),
 						},
-						Retention: &policypb.Retention{
+						Retention: policypb.Retention{
 							Period: int64(24 * time.Hour),
 						},
 					},
@@ -329,7 +329,7 @@ func TestNewRestrictQueryOptionsFromProto(t *testing.T) {
 				RestrictQueryType: &rpcpb.RestrictQueryType{
 					MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
 					MetricsStoragePolicy: &policypb.StoragePolicy{
-						Resolution: &policypb.Resolution{
+						Resolution: policypb.Resolution{
 							WindowSize: -1,
 						},
 					},
@@ -342,7 +342,7 @@ func TestNewRestrictQueryOptionsFromProto(t *testing.T) {
 				RestrictQueryType: &rpcpb.RestrictQueryType{
 					MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
 					MetricsStoragePolicy: &policypb.StoragePolicy{
-						Resolution: &policypb.Resolution{
+						Resolution: policypb.Resolution{
 							WindowSize: int64(time.Minute),
 							Precision:  int64(-1),
 						},
@@ -356,11 +356,11 @@ func TestNewRestrictQueryOptionsFromProto(t *testing.T) {
 				RestrictQueryType: &rpcpb.RestrictQueryType{
 					MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
 					MetricsStoragePolicy: &policypb.StoragePolicy{
-						Resolution: &policypb.Resolution{
+						Resolution: policypb.Resolution{
 							WindowSize: int64(time.Minute),
 							Precision:  int64(time.Second),
 						},
-						Retention: &policypb.Retention{
+						Retention: policypb.Retention{
 							Period: int64(-1),
 						},
 					},
@@ -450,11 +450,11 @@ func TestRestrictQueryOptionsProto(t *testing.T) {
 				RestrictQueryType: &rpcpb.RestrictQueryType{
 					MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
 					MetricsStoragePolicy: &policypb.StoragePolicy{
-						Resolution: &policypb.Resolution{
+						Resolution: policypb.Resolution{
 							WindowSize: int64(time.Minute),
 							Precision:  int64(time.Second),
 						},
-						Retention: &policypb.Retention{
+						Retention: policypb.Retention{
 							Period: int64(24 * time.Hour),
 						},
 					},

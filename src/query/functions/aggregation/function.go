@@ -122,24 +122,41 @@ func stddevFn(values []float64, bucket []int) float64 {
 }
 
 func varianceFn(values []float64, bucket []int) float64 {
-	sum, count := sumAndCount(values, bucket)
+	if len(values) == 0 || len(bucket) == 0 {
+		return math.NaN()
+	}
 
-	// Cannot take population standard deviation of less than 1 value
+	// Using Welford's online algorithm for calculating variance
+	// https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm
+	//
+	// This algorithm is used in Prometheus and also should provide better numerical precision than
+	// the straight-forward implementation of the variance formula. The algorithm iterates through the values
+	// and at the each step recalculates mean and variance of the values seen so far.
+
+	var (
+		count                = 0
+		partialMean          = 0.0
+		partialVarTimesCount = 0.0 // for better precision, calculate `variance * count` and divide at the end
+	)
+
+	for _, idx := range bucket {
+		v := values[idx]
+		if !math.IsNaN(v) {
+			count++
+
+			delta1 := v - partialMean
+			partialMean += delta1 / float64(count)
+			delta2 := v - partialMean
+
+			partialVarTimesCount += delta1 * delta2
+		}
+	}
+
 	if count < 1 {
 		return math.NaN()
 	}
 
-	average := sum / count
-	sumOfSquares := 0.0
-	for _, idx := range bucket {
-		v := values[idx]
-		if !math.IsNaN(v) {
-			diff := v - average
-			sumOfSquares += diff * diff
-		}
-	}
-
-	return sumOfSquares / count
+	return partialVarTimesCount / float64(count)
 }
 
 func countFn(values []float64, bucket []int) float64 {

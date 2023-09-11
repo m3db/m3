@@ -23,56 +23,66 @@ package graphite
 import (
 	"fmt"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/graphite"
+	graphiteStorage "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/headers"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+func testHandlerOptions(t *testing.T) options.HandlerOptions {
+	fetchOptsBuilder, err := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{
+			Timeout: 15 * time.Second,
+		})
+	require.NoError(t, err)
+
+	return options.EmptyHandlerOptions().
+		SetQueryContextOptions(models.QueryContextOptions{}).
+		SetGraphiteFindFetchOptionsBuilder(fetchOptsBuilder).
+		SetGraphiteRenderFetchOptionsBuilder(fetchOptsBuilder)
+}
+
 func makeBlockResult(
 	ctrl *gomock.Controller,
 	results *storage.FetchResult,
 ) block.Result {
 	size := len(results.SeriesList)
+	unconsolidatedSeries := make([]block.UnconsolidatedSeries, 0, size)
 	metas := make([]block.SeriesMeta, 0, size)
-	for _, series := range results.SeriesList {
-		metas = append(metas, block.SeriesMeta{Name: series.Name()})
+	for _, elem := range results.SeriesList {
+		meta := block.SeriesMeta{Name: elem.Name()}
+		series := block.NewUnconsolidatedSeries(elem.Values().Datapoints(),
+			meta, block.UnconsolidatedSeriesStats{})
+		unconsolidatedSeries = append(unconsolidatedSeries, series)
+		metas = append(metas, meta)
 	}
 
-	var (
-		bl = block.NewMockBlock(ctrl)
-		it = block.NewMockSeriesIter(ctrl)
-	)
-
-	orderedOps := make([]*gomock.Call, 0, size*2+7)
-	addOp := func(op *gomock.Call) { orderedOps = append(orderedOps, op) }
-	addOp(bl.EXPECT().SeriesIter().Return(it, nil))
-	addOp(it.EXPECT().SeriesMeta().Return(metas))
-	for i, series := range results.SeriesList {
-		addOp(it.EXPECT().Next().Return(true))
-		c := block.NewUnconsolidatedSeries(series.Values().Datapoints(), metas[i], block.UnconsolidatedSeriesStats{Enabled: true})
-		addOp(it.EXPECT().Current().Return(c))
-	}
-
-	addOp(it.EXPECT().Next().Return(false))
-	addOp(it.EXPECT().Err().Return(nil))
-	addOp(bl.EXPECT().Close().Return(nil))
-
-	gomock.InOrder(orderedOps...)
+	bl := block.NewMockBlock(ctrl)
+	bl.EXPECT().
+		SeriesIter().
+		DoAndReturn(func() (block.SeriesIter, error) {
+			return block.NewUnconsolidatedSeriesIter(unconsolidatedSeries), nil
+		}).
+		AnyTimes()
+	bl.EXPECT().Close().Return(nil)
 
 	return block.Result{
 		Blocks:   []block.Block{bl},
@@ -83,9 +93,7 @@ func makeBlockResult(
 func TestParseNoQuery(t *testing.T) {
 	mockStorage := mock.NewMockStorage()
 
-	opts := options.EmptyHandlerOptions().
-		SetStorage(mockStorage).
-		SetQueryContextOptions(models.QueryContextOptions{})
+	opts := testHandlerOptions(t).SetStorage(mockStorage)
 	handler := NewRenderHandler(opts)
 
 	recorder := httptest.NewRecorder()
@@ -104,9 +112,7 @@ func TestParseQueryNoResults(t *testing.T) {
 	store.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(blockResult, nil)
 
-	opts := options.EmptyHandlerOptions().
-		SetStorage(store).
-		SetQueryContextOptions(models.QueryContextOptions{})
+	opts := testHandlerOptions(t).SetStorage(store)
 	handler := NewRenderHandler(opts)
 
 	req := newGraphiteReadHTTPRequest(t)
@@ -124,7 +130,7 @@ func TestParseQueryNoResults(t *testing.T) {
 
 func TestParseQueryResults(t *testing.T) {
 	resolution := 10 * time.Second
-	truncateStart := time.Now().Add(-30 * time.Minute).Truncate(resolution)
+	truncateStart := xtime.Now().Add(-30 * time.Minute).Truncate(resolution)
 	start := truncateStart.Add(time.Second)
 	vals := ts.NewFixedStepValues(resolution, 3, 3, start)
 	tags := models.NewTags(0, nil)
@@ -135,7 +141,7 @@ func TestParseQueryResults(t *testing.T) {
 	}
 
 	meta := block.NewResultMetadata()
-	meta.Resolutions = []int64{int64(resolution)}
+	meta.Resolutions = []time.Duration{resolution}
 	fr := &storage.FetchResult{
 		SeriesList: seriesList,
 		Metadata:   meta,
@@ -149,14 +155,12 @@ func TestParseQueryResults(t *testing.T) {
 	store.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(blockResult, nil)
 
-	opts := options.EmptyHandlerOptions().
-		SetStorage(store).
-		SetQueryContextOptions(models.QueryContextOptions{})
+	opts := testHandlerOptions(t).SetStorage(store)
 	handler := NewRenderHandler(opts)
 
 	req := newGraphiteReadHTTPRequest(t)
 	req.URL.RawQuery = fmt.Sprintf("target=foo.bar&from=%d&until=%d",
-		start.Unix(), start.Unix()+30)
+		start.Seconds(), start.Seconds()+30)
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, req)
 
@@ -165,7 +169,7 @@ func TestParseQueryResults(t *testing.T) {
 
 	buf, err := ioutil.ReadAll(res.Body)
 	require.NoError(t, err)
-	exTimestamp := truncateStart.Unix() + 10
+	exTimestamp := truncateStart.Seconds() + 10
 	expected := fmt.Sprintf(
 		`[{"target":"series_name","datapoints":[[3.000000,%d],`+
 			`[3.000000,%d],[null,%d]],"step_size_ms":%d}]`,
@@ -183,13 +187,13 @@ func TestParseQueryResultsMaxDatapoints(t *testing.T) {
 	require.NoError(t, err)
 
 	resolution := 10 * time.Second
-	vals := ts.NewFixedStepValues(resolution, 4, 4, start)
+	vals := ts.NewFixedStepValues(resolution, 4, 4, xtime.ToUnixNano(start))
 	seriesList := ts.SeriesList{
 		ts.NewSeries([]byte("a"), vals, models.NewTags(0, nil)),
 	}
 
 	meta := block.NewResultMetadata()
-	meta.Resolutions = []int64{int64(resolution)}
+	meta.Resolutions = []time.Duration{resolution}
 	fr := &storage.FetchResult{
 		SeriesList: seriesList,
 		Metadata:   meta,
@@ -203,9 +207,7 @@ func TestParseQueryResultsMaxDatapoints(t *testing.T) {
 	store.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(blockResult, nil)
 
-	opts := options.EmptyHandlerOptions().
-		SetStorage(store).
-		SetQueryContextOptions(models.QueryContextOptions{})
+	opts := testHandlerOptions(t).SetStorage(store)
 	handler := NewRenderHandler(opts)
 
 	req := newGraphiteReadHTTPRequest(t)
@@ -238,13 +240,13 @@ func TestParseQueryResultsMultiTarget(t *testing.T) {
 		Add(-1 * time.Duration(minsAgo) * time.Minute).
 		Truncate(resolution)
 
-	vals := ts.NewFixedStepValues(resolution, 3, 3, start)
+	vals := ts.NewFixedStepValues(resolution, 3, 3, xtime.ToUnixNano(start))
 	seriesList := ts.SeriesList{
 		ts.NewSeries([]byte("a"), vals, models.NewTags(0, nil)),
 	}
 
 	meta := block.NewResultMetadata()
-	meta.Resolutions = []int64{int64(resolution)}
+	meta.Resolutions = []time.Duration{resolution}
 	fr := &storage.FetchResult{
 		SeriesList: seriesList,
 		Metadata:   meta,
@@ -259,9 +261,7 @@ func TestParseQueryResultsMultiTarget(t *testing.T) {
 	store.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(makeBlockResult(ctrl, fr), nil)
 
-	opts := options.EmptyHandlerOptions().
-		SetStorage(store).
-		SetQueryContextOptions(models.QueryContextOptions{})
+	opts := testHandlerOptions(t).SetStorage(store)
 	handler := NewRenderHandler(opts)
 
 	req := newGraphiteReadHTTPRequest(t)
@@ -295,18 +295,18 @@ func TestParseQueryResultsMultiTargetWithLimits(t *testing.T) {
 			minsAgo := 12
 			start := time.Now().Add(-1 * time.Duration(minsAgo) * time.Minute)
 			resolution := 10 * time.Second
-			vals := ts.NewFixedStepValues(resolution, 3, 3, start)
+			vals := ts.NewFixedStepValues(resolution, 3, 3, xtime.ToUnixNano(start))
 			seriesList := ts.SeriesList{
 				ts.NewSeries([]byte("a"), vals, models.NewTags(0, nil)),
 			}
 
 			meta := block.NewResultMetadata()
-			meta.Resolutions = []int64{int64(resolution)}
+			meta.Resolutions = []time.Duration{resolution}
 			meta.Exhaustive = tt.ex
 			frOne := &storage.FetchResult{SeriesList: seriesList, Metadata: meta}
 
 			metaTwo := block.NewResultMetadata()
-			metaTwo.Resolutions = []int64{int64(resolution)}
+			metaTwo.Resolutions = []time.Duration{resolution}
 			if !tt.ex2 {
 				metaTwo.AddWarning("foo", "bar")
 			}
@@ -322,9 +322,7 @@ func TestParseQueryResultsMultiTargetWithLimits(t *testing.T) {
 			store.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
 				Return(makeBlockResult(ctrl, frTwo), nil)
 
-			opts := options.EmptyHandlerOptions().
-				SetStorage(store).
-				SetQueryContextOptions(models.QueryContextOptions{})
+			opts := testHandlerOptions(t).SetStorage(store)
 			handler := NewRenderHandler(opts)
 
 			req := newGraphiteReadHTTPRequest(t)
@@ -339,6 +337,59 @@ func TestParseQueryResultsMultiTargetWithLimits(t *testing.T) {
 			assert.Equal(t, tt.header, actual)
 		})
 	}
+}
+
+func TestParseQueryResultsAllNaN(t *testing.T) {
+	resolution := 10 * time.Second
+	truncateStart := time.Now().Add(-30 * time.Minute).Truncate(resolution)
+	start := truncateStart.Add(time.Second)
+	vals := ts.NewFixedStepValues(resolution, 3, math.NaN(), xtime.ToUnixNano(start))
+	tags := models.NewTags(0, nil)
+	seriesList := ts.SeriesList{
+		ts.NewSeries([]byte("series_name"), vals, tags),
+	}
+
+	meta := block.NewResultMetadata()
+	meta.Resolutions = []time.Duration{resolution}
+	fr := &storage.FetchResult{
+		SeriesList: seriesList,
+		Metadata:   meta,
+	}
+
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	store := storage.NewMockStorage(ctrl)
+	blockResult := makeBlockResult(ctrl, fr)
+	store.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(blockResult, nil)
+
+	graphiteStorageOpts := graphiteStorage.M3WrappedStorageOptions{
+		RenderSeriesAllNaNs: true,
+	}
+	opts := testHandlerOptions(t).
+		SetStorage(store).
+		SetGraphiteStorageOptions(graphiteStorageOpts)
+	handler := NewRenderHandler(opts)
+
+	req := newGraphiteReadHTTPRequest(t)
+	req.URL.RawQuery = fmt.Sprintf("target=foo.bar&from=%d&until=%d",
+		start.Unix(), start.Unix()+30)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
+
+	res := recorder.Result()
+	assert.Equal(t, 200, res.StatusCode)
+
+	buf, err := ioutil.ReadAll(res.Body)
+	require.NoError(t, err)
+	exTimestamp := truncateStart.Unix() + 10
+	expected := fmt.Sprintf(
+		`[{"target":"series_name","datapoints":[[null,%d],`+
+			`[null,%d],[null,%d]],"step_size_ms":%d}]`,
+		exTimestamp, exTimestamp+10, exTimestamp+20, resolution/time.Millisecond)
+
+	require.Equal(t, expected, string(buf))
 }
 
 func newGraphiteReadHTTPRequest(t *testing.T) *http.Request {

@@ -20,47 +20,29 @@
 
 package writer
 
-import "github.com/m3db/m3/src/x/pool"
+import (
+	"sync"
+)
 
-// messagePool is the pool for message.
-type messagePool interface {
-	// Init initializes the pool.
-	Init()
-
-	// Get gets a message from the pool.
-	Get() *message
-
-	// Put puts a message to the pool.
-	Put(m *message)
+// messagePool is a thin wrapper on top of sync.Pool for message structs.
+type messagePool struct {
+	p sync.Pool
 }
 
-type msgPool struct {
-	pool.ObjectPool
+func newMessagePool() *messagePool {
+	return &messagePool{
+		p: sync.Pool{
+			New: func() interface{} {
+				return newMessage()
+			},
+		},
+	}
 }
 
-func newMessagePool(opts pool.ObjectPoolOptions) messagePool {
-	iOpts := opts.InstrumentOptions()
-	scope := iOpts.MetricsScope()
-	p := pool.NewObjectPool(
-		opts.SetInstrumentOptions(
-			iOpts.SetMetricsScope(
-				scope.Tagged(map[string]string{"pool": "message"}),
-			),
-		),
-	)
-	return &msgPool{p}
+func (p *messagePool) Get() *message {
+	return p.p.Get().(*message)
 }
 
-func (p *msgPool) Init() {
-	p.ObjectPool.Init(func() interface{} {
-		return newMessage()
-	})
-}
-
-func (p *msgPool) Get() *message {
-	return p.ObjectPool.Get().(*message)
-}
-
-func (p *msgPool) Put(m *message) {
-	p.ObjectPool.Put(m)
+func (p *messagePool) Put(m *message) {
+	p.p.Put(m)
 }

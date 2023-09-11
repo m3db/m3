@@ -23,6 +23,22 @@ message DatabaseCreateRequest {
 
   // Required if not using local database type
   repeated Host hosts = 7;
+
+  // Optional field to add an additional aggregated namespace.
+  AggregatedNamespace aggregated_namespace = 8;
+}
+
+message AggregatedNamespace {
+  // Required fields.
+  // Namespace name.
+  string name = 1;
+
+  // Time window to aggregate data points across.
+  // Uses same shorthand as retention_time.
+  string resolution = 2;
+
+  // Length of time to retain data.
+  string retention_time = 3;
 }
 
 message BlockSize {

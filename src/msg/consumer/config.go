@@ -37,13 +37,14 @@ type Configuration struct {
 	AckBufferSize             *int                      `yaml:"ackBufferSize"`
 	ConnectionWriteBufferSize *int                      `yaml:"connectionWriteBufferSize"`
 	ConnectionReadBufferSize  *int                      `yaml:"connectionReadBufferSize"`
+	ConnectionWriteTimeout    *time.Duration            `yaml:"connectionWriteTimeout"`
 }
 
 // MessagePoolConfiguration is the message pool configuration
 // options, which extends the default object pool configuration.
 type MessagePoolConfiguration struct {
 	// Size is the size of the pool.
-	Size int `yaml:"size"`
+	Size pool.Size `yaml:"size"`
 
 	// Watermark is the object pool watermark configuration.
 	Watermark pool.WatermarkConfiguration `yaml:"watermark"`
@@ -91,6 +92,9 @@ func (c *Configuration) NewOptions(iOpts instrument.Options) Options {
 	}
 	if c.ConnectionReadBufferSize != nil {
 		opts = opts.SetConnectionReadBufferSize(*c.ConnectionReadBufferSize)
+	}
+	if c.ConnectionWriteTimeout != nil {
+		opts = opts.SetConnectionWriteTimeout(*c.ConnectionWriteTimeout)
 	}
 	return opts
 }

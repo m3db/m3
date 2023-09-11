@@ -21,8 +21,6 @@
 package builder
 
 import (
-	"errors"
-
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
@@ -32,10 +30,6 @@ import (
 
 const (
 	defaultBitmapContainerPooling = 128
-)
-
-var (
-	errPostingsListNotRoaring = errors.New("postings list not a roaring postings list")
 )
 
 // Ensure for our use case that the terms iter from segments we return
@@ -109,7 +103,7 @@ func (i *termsIterFromSegments) setField(field []byte) error {
 		if err != nil {
 			return err
 		}
-		if !iter.Next() {
+		if iter.Empty() {
 			// Don't consume this iterator if no results
 			if err := xerrors.FirstError(iter.Err(), iter.Close()); err != nil {
 				return err
@@ -126,62 +120,72 @@ func (i *termsIterFromSegments) setField(field []byte) error {
 	return nil
 }
 
+func (i *termsIterFromSegments) Empty() bool {
+	return i.keyIter.Empty()
+}
+
 func (i *termsIterFromSegments) Next() bool {
-	if i.err != nil {
-		return false
-	}
-
-	if !i.keyIter.Next() {
-		return false
-	}
-
-	// Create the overlayed postings list for this term
-	i.currPostingsList.Reset()
-	for _, iter := range i.keyIter.CurrentIters() {
-		termsKeyIter := iter.(*termsKeyIter)
-		_, list := termsKeyIter.iter.Current()
-
-		if termsKeyIter.segment.offset == 0 {
-			// No offset, which means is first segment we are combining from
-			// so can just direct union
-			i.currPostingsList.Union(list)
-			continue
-		}
-
-		// We have to taken into account the offset and duplicates
-		var (
-			iter           = i.bitmapIter
-			duplicates     = termsKeyIter.segment.duplicatesAsc
-			negativeOffset postings.ID
-		)
-		bitmap, ok := roaring.BitmapFromPostingsList(list)
-		if !ok {
-			i.err = errPostingsListNotRoaring
+	for {
+		if i.err != nil {
 			return false
 		}
 
-		iter.Reset(bitmap)
-		for v, eof := iter.Next(); !eof; v, eof = iter.Next() {
-			curr := postings.ID(v)
-			for len(duplicates) > 0 && curr > duplicates[0] {
-				duplicates = duplicates[1:]
-				negativeOffset++
-			}
-			if len(duplicates) > 0 && curr == duplicates[0] {
-				duplicates = duplicates[1:]
-				negativeOffset++
-				// Also skip this value, as itself is a duplicate
+		if !i.keyIter.Next() {
+			return false
+		}
+
+		// Create the overlayed postings list for this term
+		i.currPostingsList.Reset()
+		for _, iter := range i.keyIter.CurrentIters() {
+			termsKeyIter := iter.(*termsKeyIter)
+			_, list := termsKeyIter.iter.Current()
+
+			if termsKeyIter.segment.offset == 0 && termsKeyIter.segment.skips == 0 {
+				// No offset, which means is first segment we are combining from
+				// so can just direct union.
+				if err := i.currPostingsList.UnionInPlace(list); err != nil {
+					i.err = err
+					return false
+				}
 				continue
 			}
-			value := curr + termsKeyIter.segment.offset - negativeOffset
-			if err := i.currPostingsList.Insert(value); err != nil {
-				i.err = err
+
+			// We have to take into account offset and duplicates/skips.
+			var (
+				iter            = list.Iterator()
+				negativeOffsets = termsKeyIter.segment.negativeOffsets
+				multiErr        = xerrors.NewMultiError()
+			)
+			for iter.Next() {
+				curr := iter.Current()
+				negativeOffset := negativeOffsets[curr]
+				// Then skip the individual if matches.
+				if negativeOffset == -1 {
+					// Skip this value, as itself is a duplicate.
+					continue
+				}
+				value := curr + termsKeyIter.segment.offset - postings.ID(negativeOffset)
+				if err := i.currPostingsList.Insert(value); err != nil {
+					multiErr = multiErr.Add(err)
+					multiErr = multiErr.Add(iter.Close())
+					i.err = multiErr.FinalError()
+					return false
+				}
+			}
+
+			multiErr = multiErr.Add(iter.Err())
+			multiErr = multiErr.Add(iter.Close())
+			i.err = multiErr.FinalError()
+			if i.err != nil {
 				return false
 			}
 		}
-	}
 
-	return true
+		// Continue looping only if everything skipped or term is empty.
+		if !i.currPostingsList.IsEmpty() {
+			return true
+		}
+	}
 }
 
 func (i *termsIterFromSegments) Current() ([]byte, postings.List) {

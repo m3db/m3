@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
@@ -50,12 +51,15 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 	var (
 		blockSize                  = 2 * time.Hour
 		numShards                  = uint32(4)
-		blockStart                 = time.Now().Truncate(blockSize)
+		blockStart                 = xtime.Now().Truncate(blockSize)
 		shardTimeRangesToBootstrap = result.NewShardTimeRanges()
 		bootstrapRanges            = xtime.NewRanges(xtime.Range{
 			Start: blockStart,
 			End:   blockStart.Add(blockSize),
 		})
+		cacheOptions = bootstrap.NewCacheOptions().
+				SetFilesystemOptions(fs.NewOptions()).
+				SetInstrumentOptions(instrument.NewOptions())
 	)
 	nsOpts := namespace.NewOptions()
 	nsOpts = nsOpts.SetIndexOptions(nsOpts.IndexOptions().SetEnabled(true))
@@ -185,8 +189,21 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 				src     = newTopologyUninitializedSource(srcOpts)
 				runOpts = testDefaultRunOpts.SetInitialTopologyState(tc.topoState)
 			)
-			dataAvailabilityResult, dataErr := src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
-			indexAvailabilityResult, indexErr := src.AvailableIndex(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
+			var shards []uint32
+			for shard := range tc.shardsTimeRangesToBootstrap.Iter() {
+				shards = append(shards, shard)
+			}
+			cache, sErr := bootstrap.NewCache(cacheOptions.
+				SetNamespaceDetails([]bootstrap.NamespaceDetails{
+					{
+						Namespace: nsMetadata,
+						Shards:    shards,
+					},
+				}))
+			require.NoError(t, sErr)
+
+			dataAvailabilityResult, dataErr := src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap, cache, runOpts)
+			indexAvailabilityResult, indexErr := src.AvailableIndex(nsMetadata, tc.shardsTimeRangesToBootstrap, cache, runOpts)
 
 			if tc.expectedErr != nil {
 				require.Equal(t, tc.expectedErr, dataErr)

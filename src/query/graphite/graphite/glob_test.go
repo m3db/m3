@@ -33,50 +33,68 @@ func TestGlobToRegexPattern(t *testing.T) {
 	tests := []struct {
 		glob    string
 		isRegex bool
-		regex   []byte
+		regex   string
+		opts    GlobOptions
 	}{
 		{
 			glob:    "barbaz",
 			isRegex: false,
-			regex:   []byte("barbaz"),
+			regex:   "barbaz",
 		},
 		{
 			glob:    "barbaz:quxqaz",
 			isRegex: false,
-			regex:   []byte("barbaz:quxqaz"),
+			regex:   "barbaz:quxqaz",
+		},
+		{
+			glob:    "bar:baz~",
+			isRegex: false,
+			regex:   "bar:baz~",
 		},
 		{
 			glob:    "foo\\+bar.'baz<1001>'.qux",
 			isRegex: true,
-			regex:   []byte("foo\\+bar\\.+\\'baz\\<1001\\>\\'\\.+qux"),
+			regex:   "foo\\+bar\\.+\\'baz\\<1001\\>\\'\\.+qux",
 		},
 		{
 			glob:    "foo.host.me{1,2,3}.*",
 			isRegex: true,
-			regex:   []byte("foo\\.+host\\.+me(1|2|3)\\.+[^\\.]*"),
+			regex:   "foo\\.+host\\.+me(1|2|3)\\.+[^\\.]*",
 		},
 		{
 			glob:    "bar.zed.whatever[0-9].*.*.bar",
 			isRegex: true,
-			regex:   []byte("bar\\.+zed\\.+whatever[0-9]\\.+[^\\.]*\\.+[^\\.]*\\.+bar"),
+			regex:   "bar\\.+zed\\.+whatever[0-9]\\.+[^\\.]*\\.+[^\\.]*\\.+bar",
 		},
 		{
 			glob:    "foo{0[3-9],1[0-9],20}",
 			isRegex: true,
-			regex:   []byte("foo(0[3-9]|1[0-9]|20)"),
+			regex:   "foo(0[3-9]|1[0-9]|20)",
 		},
 		{
 			glob:    "foo{0[3-9],1[0-9],20}:bar",
 			isRegex: true,
-			regex:   []byte("foo(0[3-9]|1[0-9]|20):bar"),
+			regex:   "foo(0[3-9]|1[0-9]|20):bar",
+		},
+		{
+			glob:    "foo.**.bar.baz",
+			isRegex: true,
+			regex:   "foo\\.+.*bar\\.+baz",
+			opts:    GlobOptions{AllowMatchAll: true},
+		},
+		{
+			glob:    "foo**bar.baz",
+			isRegex: true,
+			regex:   "foo.*bar\\.+baz",
+			opts:    GlobOptions{AllowMatchAll: true},
 		},
 	}
 
 	for _, test := range tests {
-		pattern, isRegex, err := GlobToRegexPattern(test.glob)
+		pattern, isRegex, err := ExtendedGlobToRegexPattern(test.glob, test.opts)
 		require.NoError(t, err)
 		assert.Equal(t, test.isRegex, isRegex)
-		assert.Equal(t, test.regex, pattern, "bad pattern for %s", test.glob)
+		assert.Equal(t, test.regex, string(pattern), "bad pattern for %s", test.glob)
 	}
 }
 

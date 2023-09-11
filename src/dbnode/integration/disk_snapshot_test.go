@@ -32,6 +32,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestDiskSnapshotSimple(t *testing.T) {
@@ -82,7 +83,7 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	var (
 		currBlock                         = testSetup.NowFn()().Truncate(blockSize)
 		now                               = currBlock.Add(11 * time.Minute)
-		assertTimeAllowsWritesToAllBlocks = func(ti time.Time) {
+		assertTimeAllowsWritesToAllBlocks = func(ti xtime.UnixNano) {
 			// Make sure now is within bufferPast of the previous block
 			require.True(t, ti.Before(ti.Truncate(blockSize).Add(bufferPast)))
 			// Make sure now is within bufferFuture of the next block
@@ -99,14 +100,14 @@ func TestDiskSnapshotSimple(t *testing.T) {
 			// Writes in the previous block which should be mutable due to bufferPast
 			{IDs: []string{"foo", "bar", "baz"}, NumPoints: 5, Start: currBlock.Add(-10 * time.Minute)},
 			// Writes in the current block
-			{IDs: []string{"a", "b", "c"}, NumPoints: 30, Start: currBlock},
+			{IDs: []string{"a", "b", "c"}, NumPoints: 5, Start: currBlock},
 			// Writes in the next block which should be mutable due to bufferFuture
-			{IDs: []string{"1", "2", "3"}, NumPoints: 30, Start: currBlock.Add(blockSize)},
+			{IDs: []string{"1", "2", "3"}, NumPoints: 5, Start: currBlock.Add(blockSize)},
 		}
 	)
 	for _, input := range inputData {
 		testData := generate.Block(input)
-		seriesMaps[xtime.ToUnixNano(input.Start.Truncate(blockSize))] = testData
+		seriesMaps[input.Start.Truncate(blockSize)] = testData
 		for _, ns := range testSetup.Namespaces() {
 			require.NoError(t, testSetup.WriteBatch(ns.ID(), testData))
 		}
@@ -120,27 +121,26 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	// the measured volume index + 1.
 	var (
 		snapshotsToWaitForByNS = make([][]snapshotID, 0, len(testSetup.Namespaces()))
-		filePathPrefix         = testSetup.StorageOpts().
+		fsOpts                 = testSetup.StorageOpts().
 					CommitLogOptions().
-					FilesystemOptions().
-					FilePathPrefix()
+					FilesystemOptions()
 	)
 	for _, ns := range testSetup.Namespaces() {
 		snapshotsToWaitForByNS = append(snapshotsToWaitForByNS, []snapshotID{
 			{
 				blockStart: currBlock.Add(-blockSize),
 				minVolume: getLatestSnapshotVolumeIndex(
-					filePathPrefix, shardSet, ns.ID(), currBlock.Add(-blockSize)) + 1,
+					fsOpts, shardSet, ns.ID(), currBlock.Add(-blockSize)),
 			},
 			{
 				blockStart: currBlock,
 				minVolume: getLatestSnapshotVolumeIndex(
-					filePathPrefix, shardSet, ns.ID(), currBlock) + 1,
+					fsOpts, shardSet, ns.ID(), currBlock),
 			},
 			{
 				blockStart: currBlock.Add(blockSize),
 				minVolume: getLatestSnapshotVolumeIndex(
-					filePathPrefix, shardSet, ns.ID(), currBlock.Add(blockSize)) + 1,
+					fsOpts, shardSet, ns.ID(), currBlock.Add(blockSize)),
 			},
 		})
 	}
@@ -151,35 +151,49 @@ func TestDiskSnapshotSimple(t *testing.T) {
 
 	maxWaitTime := time.Minute
 	for i, ns := range testSetup.Namespaces() {
-		log.Info("waiting for snapshot files to flush")
-		_, err := waitUntilSnapshotFilesFlushed(filePathPrefix, shardSet, ns.ID(), snapshotsToWaitForByNS[i], maxWaitTime)
+		log.Info("waiting for snapshot files to flush",
+			zap.Any("ns", ns.ID()))
+		_, err := waitUntilSnapshotFilesFlushed(fsOpts, shardSet, ns.ID(), snapshotsToWaitForByNS[i], maxWaitTime)
 		require.NoError(t, err)
-		log.Info("verifying snapshot files")
+		log.Info("verifying snapshot files",
+			zap.Any("ns", ns.ID()))
 		verifySnapshottedDataFiles(t, shardSet, testSetup.StorageOpts(), ns.ID(), seriesMaps)
 	}
 
 	var (
-		oldTime = testSetup.NowFn()()
-		newTime = oldTime.Add(blockSize * 2)
+		newTime = testSetup.NowFn()().Add(blockSize * 2)
 	)
 	testSetup.SetNowFn(newTime)
 
 	for _, ns := range testSetup.Namespaces() {
-		log.Info("waiting for new snapshot files to be written out")
-		snapshotsToWaitFor := []snapshotID{{blockStart: newTime.Truncate(blockSize)}}
+		log.Info("waiting for new snapshot files to be written out",
+			zap.Any("ns", ns.ID()))
+		snapshotsToWaitFor := []snapshotID{{blockStart: currBlock.Add(blockSize)}}
 		// NB(bodu): We need to check if a specific snapshot ID was deleted since snapshotting logic now changed
 		// to always snapshotting every block start w/in retention.
-		snapshotID, err := waitUntilSnapshotFilesFlushed(filePathPrefix, shardSet, ns.ID(), snapshotsToWaitFor, maxWaitTime)
+		snapshotID, err := waitUntilSnapshotFilesFlushed(fsOpts, shardSet, ns.ID(), snapshotsToWaitFor, maxWaitTime)
 		require.NoError(t, err)
-		log.Info("waiting for old snapshot files to be deleted")
+		log.Info("waiting for old snapshot files to be deleted",
+			zap.Any("ns", ns.ID()))
+		// These should be flushed to disk and snapshots should have been cleaned up.
+		flushedBlockStarts := []xtime.UnixNano{
+			currBlock.Add(-blockSize),
+			currBlock,
+		}
 		for _, shard := range shardSet.All() {
 			waitUntil(func() bool {
 				// Increase the time each check to ensure that the filesystem processes are able to progress (some
 				// of them throttle themselves based on time elapsed since the previous time.)
 				testSetup.SetNowFn(testSetup.NowFn()().Add(10 * time.Second))
-				exists, err := fs.SnapshotFileSetExistsAt(filePathPrefix, ns.ID(), snapshotID, shard.ID(), oldTime.Truncate(blockSize))
-				require.NoError(t, err)
-				return !exists
+				// Ensure that snapshots for flushed data blocks no longer exist.
+				for _, blockStart := range flushedBlockStarts {
+					exists, err := fs.SnapshotFileSetExistsAt(fsOpts.FilePathPrefix(), ns.ID(), snapshotID, shard.ID(), blockStart)
+					require.NoError(t, err)
+					if exists {
+						return false
+					}
+				}
+				return true
 			}, maxWaitTime)
 		}
 	}

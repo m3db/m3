@@ -24,7 +24,7 @@ import (
 	stdctx "context"
 
 	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/x/resource"
+	xresource "github.com/m3db/m3/src/x/resource"
 
 	"github.com/opentracing/opentracing-go"
 )
@@ -47,10 +47,10 @@ type Context interface {
 	IsClosed() bool
 
 	// RegisterFinalizer will register a resource finalizer.
-	RegisterFinalizer(resource.Finalizer)
+	RegisterFinalizer(xresource.Finalizer)
 
 	// RegisterCloser will register a resource closer.
-	RegisterCloser(resource.Closer)
+	RegisterCloser(xresource.SimpleCloser)
 
 	// DependsOn will register a blocking context that
 	// must complete first before finalizers can be called.
@@ -76,8 +76,8 @@ type Context interface {
 	// will not be returned to a pool.
 	BlockingCloseReset()
 
-	// GoContext returns the Go std context.
-	GoContext() (stdctx.Context, bool)
+	// GoContext returns the std go context.
+	GoContext() stdctx.Context
 
 	// SetGoContext sets the Go std context.
 	SetGoContext(stdctx.Context)
@@ -89,6 +89,9 @@ type Context interface {
 	// and a bool if the span is being sampled. This is used over StartTraceSpan()
 	// for hot paths where performance is crucial.
 	StartSampledTraceSpan(string) (Context, opentracing.Span, bool)
+
+	// DistanceFromRootContext returns the distance from root context (root context tree)
+	DistanceFromRootContext() uint16
 }
 
 // Pool provides a pool for contexts.

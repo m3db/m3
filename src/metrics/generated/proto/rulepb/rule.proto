@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -60,6 +60,7 @@ message RollupTarget {
 message RollupTargetV2 {
   pipelinepb.Pipeline pipeline = 1;
   repeated policypb.StoragePolicy storage_policies = 2;
+  bool resend_enabled = 3;
 }
 
 message RollupRuleSnapshot {
@@ -73,6 +74,8 @@ message RollupRuleSnapshot {
   string last_updated_by = 7;
   // TODO(xichen): rename this once all rules are updated in KV.
   repeated RollupTargetV2 targets_v2 = 8;
+  bool keep_original = 9;
+  repeated metricpb.Tag tags = 10;
 }
 
 message RollupRule {

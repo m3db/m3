@@ -22,7 +22,6 @@ package client
 
 import (
 	"fmt"
-	"io"
 	"math/rand"
 	"os"
 	"sort"
@@ -32,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/ident"
@@ -244,7 +242,7 @@ func initTestFetchTaggedHelper() *testFetchTaggedHelper {
 	encoderPool := encoding.NewEncoderPool(popts)
 	encodingOpts := encoding.NewOptions().SetEncoderPool(encoderPool)
 	encoderPool.Init(func() encoding.Encoder {
-		return m3tsz.NewEncoder(time.Time{}, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+		return m3tsz.NewEncoder(0, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
 	return &testFetchTaggedHelper{
@@ -272,15 +270,10 @@ func initTestFetchTaggedPools() *testFetchTaggedPools {
 	pools.readerSlices.Init()
 
 	pools.multiReader = encoding.NewMultiReaderIteratorPool(opts)
-	pools.multiReader.Init(func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
-	})
+	pools.multiReader.Init(m3tsz.DefaultReaderIteratorAllocFn(encoding.NewOptions()))
 
 	pools.seriesIter = encoding.NewSeriesIteratorPool(opts)
 	pools.seriesIter.Init()
-
-	pools.mutableSeriesIter = encoding.NewMutableSeriesIteratorsPool(nil)
-	pools.mutableSeriesIter.Init()
 
 	pools.multiReaderIteratorArray = encoding.NewMultiReaderIteratorArrayPool(nil)
 	pools.multiReaderIteratorArray.Init()
@@ -309,7 +302,6 @@ type testFetchTaggedPools struct {
 	readerSlices             *readerSliceOfSlicesIteratorPool
 	multiReader              encoding.MultiReaderIteratorPool
 	seriesIter               encoding.SeriesIteratorPool
-	mutableSeriesIter        encoding.MutableSeriesIteratorsPool
 	multiReaderIteratorArray encoding.MultiReaderIteratorArrayPool
 	id                       ident.Pool
 	checkedBytesWrapper      xpool.CheckedBytesWrapperPool
@@ -326,10 +318,6 @@ func (p testFetchTaggedPools) MultiReaderIterator() encoding.MultiReaderIterator
 
 func (p testFetchTaggedPools) SeriesIterator() encoding.SeriesIteratorPool {
 	return p.seriesIter
-}
-
-func (p testFetchTaggedPools) MutableSeriesIterators() encoding.MutableSeriesIteratorsPool {
-	return p.mutableSeriesIter
 }
 
 func (p testFetchTaggedPools) MultiReaderIteratorArray() encoding.MultiReaderIteratorArrayPool {

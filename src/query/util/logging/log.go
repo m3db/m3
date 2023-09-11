@@ -22,18 +22,12 @@ package logging
 
 import (
 	"context"
-	"fmt"
-	"net/http"
-	"sync"
-	"time"
 
-	"github.com/m3db/m3/src/x/instrument"
-	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pborman/uuid"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 type loggerKeyType int
@@ -45,23 +39,18 @@ const (
 	undefinedID = "undefined"
 )
 
-var (
-	highPriority = zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
-		return lvl >= zapcore.ErrorLevel
-	})
-	lowPriority = zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
-		return lvl < zapcore.ErrorLevel
-	})
-)
-
 // NewContext returns a context has a zap logger with the extra fields added.
 func NewContext(
 	ctx context.Context,
 	instrumentOpts instrument.Options,
 	fields ...zapcore.Field,
 ) context.Context {
-	return context.WithValue(ctx, loggerKey,
-		WithContext(ctx, instrumentOpts).With(fields...))
+	return NewContextWithLogger(ctx, WithContext(ctx, instrumentOpts).With(fields...))
+}
+
+// NewContextWithLogger returns a context with the provided logger set as a context value.
+func NewContextWithLogger(ctx context.Context, l *zap.Logger) context.Context {
+	return context.WithValue(ctx, loggerKey, l)
 }
 
 // NewContextWithGeneratedID returns a context with a generated id with a zap
@@ -105,140 +94,4 @@ func WithContext(ctx context.Context, instrumentOpts instrument.Options) *zap.Lo
 	}
 
 	return instrumentOpts.Logger()
-}
-
-// withResponseTimeLogging wraps around the given handler, providing response time
-// logging.
-func withResponseTimeLogging(
-	next http.Handler,
-	instrumentOpts instrument.Options,
-) http.Handler {
-	return withResponseTimeLoggingFunc(next.ServeHTTP, instrumentOpts)
-}
-
-// withResponseTimeLoggingFunc wraps around the http request handler function,
-// providing response time logging.
-func withResponseTimeLoggingFunc(
-	next func(w http.ResponseWriter, r *http.Request),
-	instrumentOpts instrument.Options,
-) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		startTime := time.Now()
-		rqCtx := NewContextWithGeneratedID(r.Context(), instrumentOpts)
-		logger := WithContext(rqCtx, instrumentOpts)
-
-		sp := opentracing.SpanFromContext(rqCtx)
-		if sp != nil {
-			rqID := ReadContextID(rqCtx)
-			sp.SetTag("rqID", rqID)
-		}
-
-		// Propagate the context with the reqId
-		next(w, r.WithContext(rqCtx))
-		endTime := time.Now()
-		d := endTime.Sub(startTime)
-		if d > time.Second {
-			logger.Info("finished handling request", zap.Time("time", endTime),
-				zap.Duration("response", d), zap.String("url", r.URL.RequestURI()))
-		}
-	}
-}
-
-// WithPanicErrorResponder wraps around the given handler,
-// providing panic recovery and logging.
-func WithPanicErrorResponder(
-	next http.Handler,
-	instrumentOpts instrument.Options,
-) http.Handler {
-	return withPanicErrorResponderFunc(next.ServeHTTP, instrumentOpts)
-}
-
-func withPanicErrorResponderFunc(
-	next func(w http.ResponseWriter, r *http.Request),
-	instrumentOpts instrument.Options,
-) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		writeCheckWriter := &responseWrittenResponseWriter{writer: w}
-		w = writeCheckWriter
-
-		defer func() {
-			if err := recover(); err != nil {
-				logger := WithContext(r.Context(), instrumentOpts).
-					WithOptions(zap.AddStacktrace(highPriority))
-				logger.Error("panic captured", zap.Any("stack", err))
-
-				if !writeCheckWriter.Written() {
-					xhttp.Error(w, fmt.Errorf("caught panic: %v", err),
-						http.StatusInternalServerError)
-					return
-				}
-
-				// cannot write the error back to the caller, some contents already written.
-				logger.Warn("cannot write error for request; already written")
-			}
-		}()
-
-		next(w, r)
-	}
-}
-
-type responseWrittenResponseWriter struct {
-	sync.RWMutex
-	writer  http.ResponseWriter
-	written bool
-}
-
-func (w *responseWrittenResponseWriter) Written() bool {
-	w.RLock()
-	v := w.written
-	w.RUnlock()
-	return v
-}
-
-func (w *responseWrittenResponseWriter) setWritten() {
-	w.RLock()
-	if w.written {
-		return
-	}
-	w.RUnlock()
-
-	w.Lock()
-	w.written = true
-	w.Unlock()
-}
-
-func (w *responseWrittenResponseWriter) Header() http.Header {
-	return w.writer.Header()
-}
-
-func (w *responseWrittenResponseWriter) Write(d []byte) (int, error) {
-	w.setWritten()
-	return w.writer.Write(d)
-}
-
-func (w *responseWrittenResponseWriter) WriteHeader(statusCode int) {
-	w.setWritten()
-	w.writer.WriteHeader(statusCode)
-}
-
-// WithResponseTimeAndPanicErrorLogging wraps around the given handler,
-// providing panic recovery and response time logging.
-func WithResponseTimeAndPanicErrorLogging(
-	next http.Handler,
-	instrumentOpts instrument.Options,
-) http.Handler {
-	return WithResponseTimeAndPanicErrorLoggingFunc(next.ServeHTTP, instrumentOpts)
-}
-
-// WithResponseTimeAndPanicErrorLoggingFunc wraps around the http request
-// handler function, providing panic recovery and response time logging.
-func WithResponseTimeAndPanicErrorLoggingFunc(
-	next func(w http.ResponseWriter, r *http.Request),
-	instrumentOpts instrument.Options,
-) http.Handler {
-	// Wrap panic first, to be able to capture slow requests that panic in the
-	// logs.
-	return withResponseTimeLoggingFunc(
-		withPanicErrorResponderFunc(next, instrumentOpts),
-		instrumentOpts)
 }

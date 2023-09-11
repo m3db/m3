@@ -26,13 +26,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
-
 	"github.com/fortytw2/leaktest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
+
+	xsync "github.com/m3db/m3/src/x/sync"
 )
 
 func TestShardInsertQueueBatchBackoff(t *testing.T) {
@@ -70,7 +70,7 @@ func TestShardInsertQueueBatchBackoff(t *testing.T) {
 		timeLock.Lock()
 		defer timeLock.Unlock()
 		return currTime
-	}, tally.NoopScope, zap.NewNop())
+	}, xsync.CPUCore, tally.NoopScope, zap.NewNop())
 
 	q.insertBatchBackoff = backoff
 
@@ -90,16 +90,16 @@ func TestShardInsertQueueBatchBackoff(t *testing.T) {
 	}()
 
 	// first insert
-	_, err := q.Insert(dbShardInsert{entry: &lookup.Entry{Index: 0}})
+	_, err := q.Insert(dbShardInsert{entry: &Entry{Index: 0}})
 	require.NoError(t, err)
 
 	// wait for first insert batch to complete
 	insertWgs[0].Wait()
 
 	// now next batch will need to wait as we haven't progressed time
-	_, err = q.Insert(dbShardInsert{entry: &lookup.Entry{Index: 1}})
+	_, err = q.Insert(dbShardInsert{entry: &Entry{Index: 1}})
 	require.NoError(t, err)
-	_, err = q.Insert(dbShardInsert{entry: &lookup.Entry{Index: 2}})
+	_, err = q.Insert(dbShardInsert{entry: &Entry{Index: 2}})
 	require.NoError(t, err)
 
 	// allow first insert to finish
@@ -112,7 +112,7 @@ func TestShardInsertQueueBatchBackoff(t *testing.T) {
 	assert.Equal(t, 1, numSleeps)
 
 	// insert third batch, will also need to wait
-	_, err = q.Insert(dbShardInsert{entry: &lookup.Entry{Index: 3}})
+	_, err = q.Insert(dbShardInsert{entry: &Entry{Index: 3}})
 	require.NoError(t, err)
 
 	// allow second batch to finish
@@ -148,7 +148,7 @@ func TestShardInsertQueueRateLimit(t *testing.T) {
 		timeLock.Lock()
 		defer timeLock.Unlock()
 		return currTime
-	}, tally.NoopScope, zap.NewNop())
+	}, xsync.CPUCore, tally.NoopScope, zap.NewNop())
 
 	q.insertPerSecondLimit.Store(2)
 
@@ -209,7 +209,7 @@ func TestShardInsertQueueFlushedOnClose(t *testing.T) {
 	q := newDatabaseShardInsertQueue(func(value []dbShardInsert) error {
 		atomic.AddInt64(&numInsertObserved, int64(len(value)))
 		return nil
-	}, func() time.Time { return currTime }, tally.NoopScope, zap.NewNop())
+	}, func() time.Time { return currTime }, xsync.CPUCore, tally.NoopScope, zap.NewNop())
 
 	require.NoError(t, q.Start())
 

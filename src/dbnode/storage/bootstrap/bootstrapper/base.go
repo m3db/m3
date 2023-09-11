@@ -78,6 +78,7 @@ func (b baseBootstrapper) String() string {
 func (b baseBootstrapper) Bootstrap(
 	ctx context.Context,
 	namespaces bootstrap.Namespaces,
+	cache bootstrap.Cache,
 ) (bootstrap.NamespaceResults, error) {
 	logFields := []zapcore.Field{
 		zap.String("bootstrapper", b.name),
@@ -96,7 +97,7 @@ func (b baseBootstrapper) Bootstrap(
 			logFields, currNamespace)
 
 		dataAvailable, err := b.src.AvailableData(currNamespace.Metadata,
-			currNamespace.DataRunOptions.ShardTimeRanges.Copy(),
+			currNamespace.DataRunOptions.ShardTimeRanges.Copy(), cache,
 			currNamespace.DataRunOptions.RunOptions)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
@@ -107,7 +108,7 @@ func (b baseBootstrapper) Bootstrap(
 		// Prepare index if required.
 		if currNamespace.Metadata.Options().IndexOptions().Enabled() {
 			indexAvailable, err := b.src.AvailableIndex(currNamespace.Metadata,
-				currNamespace.IndexRunOptions.ShardTimeRanges.Copy(),
+				currNamespace.IndexRunOptions.ShardTimeRanges.Copy(), cache,
 				currNamespace.IndexRunOptions.RunOptions)
 			if err != nil {
 				return bootstrap.NamespaceResults{}, err
@@ -137,7 +138,7 @@ func (b baseBootstrapper) Bootstrap(
 	b.log.Info("bootstrap from source started", logFields...)
 
 	// Run the bootstrap source.
-	currResults, err := b.src.Read(ctx, curr)
+	currResults, err := b.src.Read(ctx, curr, cache)
 
 	logFields = append(logFields, zap.Duration("took", nowFn().Sub(begin)))
 	if err != nil {
@@ -166,7 +167,7 @@ func (b baseBootstrapper) Bootstrap(
 	// If there are some time ranges the current bootstrapper could not fulfill,
 	// that we can attempt then pass it along to the next bootstrapper.
 	if next.Namespaces.Len() > 0 {
-		nextResults, err := b.next.Bootstrap(ctx, next)
+		nextResults, err := b.next.Bootstrap(ctx, next, cache)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -188,6 +189,7 @@ func (b baseBootstrapper) Bootstrap(
 			finalResult.DataResult.SetUnfulfilled(currNamespace.DataResult.Unfulfilled().Copy())
 			if currNamespace.Metadata.Options().IndexOptions().Enabled() {
 				finalResult.IndexResult.SetUnfulfilled(currNamespace.IndexResult.Unfulfilled().Copy())
+				finalResult.IndexResult.IndexResults().AddResults(currNamespace.IndexResult.IndexResults())
 			}
 
 			// Map is by value, set the result altered struct.
@@ -277,21 +279,21 @@ func (b baseBootstrapper) logSuccessAndDetermineCurrResultsUnfulfilledAndNextBoo
 		// Log the result.
 		_, _, dataRangeRequested := dataCurrRequested.MinMaxRange()
 		_, _, dataRangeFulfilled := dataCurrFulfilled.MinMaxRange()
-		successLogFields := append(logFieldsCopy(baseLogFields), []zapcore.Field{
+		successLogFields := append(logFieldsCopy(baseLogFields),
 			zap.String("namespace", id.String()),
 			zap.Int("numShards", len(currNamespace.Shards)),
 			zap.Duration("dataRangeRequested", dataRangeRequested),
 			zap.Duration("dataRangeFulfilled", dataRangeFulfilled),
-		}...)
+		)
 
 		if currNamespace.Metadata.Options().IndexOptions().Enabled() {
 			_, _, indexRangeRequested := indexCurrRequested.MinMaxRange()
 			_, _, indexRangeFulfilled := indexCurrFulfilled.MinMaxRange()
-			successLogFields = append(successLogFields, []zapcore.Field{
+			successLogFields = append(successLogFields,
 				zap.Duration("indexRangeRequested", indexRangeRequested),
 				zap.Duration("indexRangeFulfilled", indexRangeFulfilled),
 				zap.Int("numIndexBlocks", len(currResult.IndexResult.IndexResults())),
-			}...)
+			)
 		}
 
 		b.log.Info("bootstrapping from source completed successfully",
@@ -308,28 +310,28 @@ func (b baseBootstrapper) logShardTimeRanges(
 ) {
 	dataShardTimeRanges := currNamespace.DataRunOptions.ShardTimeRanges
 	dataMin, dataMax, dataRange := dataShardTimeRanges.MinMaxRange()
-	logFields := append(logFieldsCopy(baseLogFields), []zapcore.Field{
+	logFields := append(logFieldsCopy(baseLogFields),
 		zap.Stringer("namespace", currNamespace.Metadata.ID()),
 		zap.Int("numShards", len(currNamespace.Shards)),
 		zap.Duration("dataRange", dataRange),
-	}...)
+	)
 	if dataRange > 0 {
-		logFields = append(logFields, []zapcore.Field{
-			zap.Time("dataFrom", dataMin),
-			zap.Time("dataTo", dataMax),
-		}...)
+		logFields = append(logFields,
+			zap.Time("dataFrom", dataMin.ToTime()),
+			zap.Time("dataTo", dataMax.ToTime()),
+		)
 	}
 	if currNamespace.Metadata.Options().IndexOptions().Enabled() {
 		indexShardTimeRanges := currNamespace.IndexRunOptions.ShardTimeRanges
 		indexMin, indexMax, indexRange := indexShardTimeRanges.MinMaxRange()
-		logFields = append(logFields, []zapcore.Field{
+		logFields = append(logFields,
 			zap.Duration("indexRange", indexRange),
-		}...)
+		)
 		if indexRange > 0 {
-			logFields = append(logFields, []zapcore.Field{
-				zap.Time("indexFrom", indexMin),
-				zap.Time("indexTo", indexMax),
-			}...)
+			logFields = append(logFields,
+				zap.Time("indexFrom", indexMin.ToTime()),
+				zap.Time("indexTo", indexMax.ToTime()),
+			)
 		}
 	}
 

@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"time"
 
 	prom "github.com/m3db/prometheus_client_golang/prometheus"
@@ -35,9 +36,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	errNoReporterConfigured = errors.New("no reporter configured")
-)
+var errNoReporterConfigured = errors.New("no reporter configured")
 
 // ScopeConfiguration configures a metric scope.
 type ScopeConfiguration struct {
@@ -101,8 +100,32 @@ type MetricsConfigurationPrometheusReporter struct {
 // NewRootScopeAndReportersOptions is a set of options.
 type NewRootScopeAndReportersOptions struct {
 	PrometheusHandlerListener    net.Listener
+	PrometheusDefaultServeMux    *http.ServeMux
 	PrometheusExternalRegistries []PrometheusExternalRegistry
 	PrometheusOnError            func(e error)
+	// CommonLabels will be appended to every metric gathered.
+	CommonLabels map[string]string
+}
+
+type metricsClosers struct {
+	// serverCloser is responsible for closing the http server handling /metrics
+	// if one was started up as a part of reporter creation.
+	serverCloser io.Closer
+	// reporterClose is responsible for closing the underlying tally.Reporter
+	// responsible for reporting metrics for all registered scopes.
+	reporterCloser io.Closer
+}
+
+func (m metricsClosers) Close() error {
+	if err := m.reporterCloser.Close(); err != nil {
+		return err
+	}
+
+	if m.serverCloser != nil {
+		return m.serverCloser.Close()
+	}
+
+	return nil
 }
 
 // NewRootScopeAndReporters creates a new tally.Scope based on a tally.CachedStatsReporter
@@ -115,7 +138,10 @@ func (mc *MetricsConfiguration) NewRootScopeAndReporters(
 	MetricsConfigurationReporters,
 	error,
 ) {
-	var result MetricsConfigurationReporters
+	var (
+		result  MetricsConfigurationReporters
+		closers metricsClosers
+	)
 	if mc.M3Reporter != nil {
 		r, err := mc.M3Reporter.NewReporter()
 		if err != nil {
@@ -160,7 +186,9 @@ func (mc *MetricsConfiguration) NewRootScopeAndReporters(
 			Registry:           registry,
 			ExternalRegistries: opts.PrometheusExternalRegistries,
 			HandlerListener:    opts.PrometheusHandlerListener,
+			DefaultServeMux:    opts.PrometheusDefaultServeMux,
 			OnError:            onError,
+			CommonLabels:       opts.CommonLabels,
 		}
 
 		// Use default instrument package default histogram buckets if not set.
@@ -185,10 +213,11 @@ func (mc *MetricsConfiguration) NewRootScopeAndReporters(
 			}
 		}
 
-		r, err := mc.PrometheusReporter.NewReporter(opts)
+		r, srvCloser, err := mc.PrometheusReporter.NewReporter(opts)
 		if err != nil {
 			return nil, nil, MetricsConfigurationReporters{}, err
 		}
+		closers.serverCloser = srvCloser
 
 		result.AllReporters = append(result.AllReporters, r)
 		result.PrometheusReporter = &MetricsConfigurationPrometheusReporter{
@@ -208,7 +237,9 @@ func (mc *MetricsConfiguration) NewRootScopeAndReporters(
 	}
 
 	scope, closer := mc.NewRootScopeReporter(r)
-	return scope, closer, result, nil
+	closers.reporterCloser = closer
+
+	return scope, closers, result, nil
 }
 
 // NewRootScopeReporter creates a new tally.Scope based on a given tally.CachedStatsReporter

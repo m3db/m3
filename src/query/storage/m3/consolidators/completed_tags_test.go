@@ -112,80 +112,88 @@ func TestMergeEmptyCompletedTagResult(t *testing.T) {
 }
 
 var testMergeCompletedTags = []struct {
-	name             string
-	incoming         []map[string][]string
-	expected         map[string][]string
-	expectedNameOnly map[string][]string
+	name                         string
+	incoming                     []map[string][]string
+	expected                     map[string][]string
+	expectedNameOnly             map[string][]string
+	expectedMetdataCount         int
+	expectedNameOnlyMetdataCount int
 }{
 	{
 		"no tag",
 		[]map[string][]string{},
 		map[string][]string{},
 		map[string][]string{},
+		0, 0,
 	},
 	{
 		"single tag",
 		[]map[string][]string{
-			{"a": []string{"a", "b", "c"}},
+			{"a": {"a", "b", "c"}},
 		},
 		map[string][]string{
-			"a": []string{"a", "b", "c"},
+			"a": {"a", "b", "c"},
 		},
 		map[string][]string{
-			"a": []string{},
+			"a": {},
 		},
+		3, 1,
 	},
 	{
 		"multiple distinct tags",
 		[]map[string][]string{
-			{"b": []string{"d", "e", "f"}},
-			{"a": []string{"a", "b", "c"}},
+			{"b": {"d", "e", "f"}},
+			{"a": {"a", "b", "c"}},
 		},
 		map[string][]string{
-			"a": []string{"a", "b", "c"},
-			"b": []string{"d", "e", "f"},
+			"a": {"a", "b", "c"},
+			"b": {"d", "e", "f"},
 		},
 		map[string][]string{
-			"a": []string{},
-			"b": []string{},
+			"a": {},
+			"b": {},
 		},
+		6, 2,
 	},
 	{
 		"multiple tags with distinct values",
 		[]map[string][]string{
-			{"a": []string{"a", "b", "c"}},
-			{"a": []string{"d", "e", "f"}},
+			{"a": {"a", "b", "c"}},
+			{"a": {"d", "e", "f"}},
 		},
 		map[string][]string{
-			"a": []string{"a", "b", "c", "d", "e", "f"},
+			"a": {"a", "b", "c", "d", "e", "f"},
 		},
 		map[string][]string{
-			"a": []string{},
+			"a": {},
 		},
+		6, 1,
 	},
 	{
 		"multiple tags with same values",
 		[]map[string][]string{
-			{"a": []string{"a", "b", "c"}},
-			{"a": []string{"c", "b", "a"}},
-			{"a": []string{"a", "b", "c"}},
-			{"b": []string{"d", "e", "f"}},
-			{"b": []string{"g", "z", "a"}},
+			{"a": {"a", "b", "c"}},
+			{"a": {"c", "b", "a"}},
+			{"a": {"a", "b", "c"}},
+			{"b": {"d", "e", "f"}},
+			{"b": {"g", "z", "a"}},
 		},
 		map[string][]string{
-			"a": []string{"a", "b", "c"},
-			"b": []string{"a", "d", "e", "f", "g", "z"},
+			"a": {"a", "b", "c"},
+			"b": {"a", "d", "e", "f", "g", "z"},
 		},
 		map[string][]string{
-			"a": []string{},
-			"b": []string{},
+			"a": {},
+			"b": {},
 		},
+		9, 2,
 	},
 }
 
 func TestMergeCompletedTagResult(t *testing.T) {
 	nameOnlyVals := []bool{true, false}
 	for _, nameOnly := range nameOnlyVals {
+		nameOnly := nameOnly
 		for _, tt := range testMergeCompletedTags {
 			t.Run(fmt.Sprintf("%s_%t", tt.name, nameOnly), func(t *testing.T) {
 				builder := NewCompleteTagsResultBuilder(nameOnly, models.NewTagOptions())
@@ -202,6 +210,12 @@ func TestMergeCompletedTagResult(t *testing.T) {
 				}
 
 				expected := mapToCompletedTag(nameOnly, exResult)
+				if nameOnly {
+					expected.Metadata.FetchedMetadataCount = tt.expectedNameOnlyMetdataCount
+				} else {
+					expected.Metadata.FetchedMetadataCount = tt.expectedMetdataCount
+				}
+
 				assert.Equal(t, expected, actual)
 			})
 		}
@@ -297,11 +311,11 @@ func TestCompleteTagFilter(t *testing.T) {
 	sort.Sort(completedTagsByName(res.CompletedTags))
 
 	ex := []CompletedTag{
-		CompletedTag{
+		{
 			Name:   b("foo"),
 			Values: [][]byte{b("foobar"), b("foofoo")},
 		},
-		CompletedTag{
+		{
 			Name:   b("quince"),
 			Values: [][]byte{b("quail"), b("quart")},
 		},

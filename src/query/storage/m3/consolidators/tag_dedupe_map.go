@@ -34,13 +34,13 @@ type tagDedupeMap struct {
 	tagOpts    models.TagOptions
 }
 
-type tagMapOpts struct {
+type dedupeMapOpts struct {
 	size    int
 	fanout  QueryFanoutType
 	tagOpts models.TagOptions
 }
 
-func newTagDedupeMap(opts tagMapOpts) fetchDedupeMap {
+func newTagDedupeMap(opts dedupeMapOpts) fetchDedupeMap {
 	return &tagDedupeMap{
 		fanout:     opts.fanout,
 		mapWrapper: newFetchResultMapWrapper(opts.size),
@@ -52,8 +52,27 @@ func (m *tagDedupeMap) close() {
 	m.mapWrapper.close()
 }
 
+func (m *tagDedupeMap) len() int {
+	return m.mapWrapper.len()
+}
+
 func (m *tagDedupeMap) list() []multiResultSeries {
 	return m.mapWrapper.list()
+}
+
+func (m *tagDedupeMap) update(
+	iter encoding.SeriesIterator,
+	attrs storagemetadata.Attributes,
+) (bool, error) {
+	tags, err := FromIdentTagIteratorToTags(iter.Tags(), m.tagOpts)
+	if err != nil {
+		return false, err
+	}
+	existing, exists := m.mapWrapper.get(tags)
+	if !exists {
+		return false, nil
+	}
+	return true, m.doUpdate(existing, tags, iter, attrs)
 }
 
 func (m *tagDedupeMap) add(
@@ -66,15 +85,28 @@ func (m *tagDedupeMap) add(
 	}
 
 	iter.Tags().Rewind()
-	series := multiResultSeries{
-		iter:  iter,
-		attrs: attrs,
-		tags:  tags,
-	}
-
 	existing, exists := m.mapWrapper.get(tags)
 	if !exists {
-		m.mapWrapper.set(tags, series)
+		m.mapWrapper.set(tags, multiResultSeries{
+			iter:  iter,
+			attrs: attrs,
+			tags:  tags,
+		})
+		return nil
+	}
+	return m.doUpdate(existing, tags, iter, attrs)
+}
+
+func (m *tagDedupeMap) doUpdate(
+	existing multiResultSeries,
+	tags models.Tags,
+	iter encoding.SeriesIterator,
+	attrs storagemetadata.Attributes,
+) error {
+	if stitched, ok, err := stitchIfNeeded(existing, iter, attrs); err != nil {
+		return err
+	} else if ok {
+		m.mapWrapper.set(tags, stitched)
 		return nil
 	}
 
@@ -101,22 +133,17 @@ func (m *tagDedupeMap) add(
 	}
 
 	if existsEqual {
-		acc, ok := existing.iter.(encoding.SeriesIteratorAccumulator)
-		if !ok {
-			acc, err = encoding.NewSeriesIteratorAccumulator(existing.iter,
-				encoding.SeriesAccumulatorOptions{})
-			if err != nil {
-				return err
-			}
-		}
-
-		if err := acc.Add(iter); err != nil {
+		acc, err := combineIters(existing.iter, iter)
+		if err != nil {
 			return err
 		}
 
 		// Update accumulated result series.
-		series.iter = acc
-		m.mapWrapper.set(tags, series)
+		m.mapWrapper.set(tags, multiResultSeries{
+			iter:  acc,
+			attrs: attrs,
+			tags:  tags,
+		})
 		return nil
 	}
 
@@ -126,8 +153,50 @@ func (m *tagDedupeMap) add(
 	}
 
 	// Override
-	existing.iter.Close()
-	m.mapWrapper.set(tags, series)
+	m.mapWrapper.set(tags, multiResultSeries{
+		iter:  iter,
+		attrs: attrs,
+		tags:  tags,
+	})
 
 	return nil
+}
+
+func combineIters(first, second encoding.SeriesIterator) (encoding.SeriesIteratorAccumulator, error) {
+	acc, ok := first.(encoding.SeriesIteratorAccumulator)
+	if !ok {
+		var err error
+		acc, err = encoding.NewSeriesIteratorAccumulator(first)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if err := acc.Add(second); err != nil {
+		return nil, err
+	}
+
+	return acc, nil
+}
+
+func stitchIfNeeded(
+	existing multiResultSeries,
+	iter encoding.SeriesIterator,
+	attrs storagemetadata.Attributes,
+) (multiResultSeries, bool, error) {
+	// Stitching based on matching start/end.
+	if iter.Start().Equal(existing.iter.End()) || iter.End().Equal(existing.iter.Start()) {
+		combinedIter, err := combineIters(existing.iter, iter)
+		if err != nil {
+			return multiResultSeries{}, false, err
+		}
+
+		return multiResultSeries{
+			attrs: existing.attrs.CombinedWith(attrs),
+			iter:  combinedIter,
+			tags:  existing.tags,
+		}, true, nil
+	}
+
+	return multiResultSeries{}, false, nil
 }

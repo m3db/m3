@@ -76,11 +76,17 @@ type Shard interface {
 	// SetState sets the state of the shard.
 	SetState(s State) Shard
 
-	// Source returns the source of the shard.
+	// SourceID returns the source of the shard.
 	SourceID() string
 
-	// SetSource sets the source of the shard.
+	// SetSourceID sets the source of the shard.
 	SetSourceID(sourceID string) Shard
+
+	// RedirectToShardID returns optional shard to redirect incoming writes to.
+	RedirectToShardID() *uint32
+
+	// SetRedirectToShardID sets optional shard to redirect incoming writes to.
+	SetRedirectToShardID(*uint32) Shard
 
 	// Equals returns whether the shard equals to another shard.
 	Equals(s Shard) bool

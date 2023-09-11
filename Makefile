@@ -18,11 +18,6 @@ m3_package_path      := $(gopath_prefix)/$(m3_package)
 mockgen_package      := github.com/golang/mock/mockgen
 tools_bin_path       := $(abspath ./_tools/bin)
 combined_bin_paths   := $(tools_bin_path):$(gopath_bin_path)
-retool_src_prefix    := $(m3_package_path)/_tools/src
-retool_package       := github.com/twitchtv/retool
-metalint_check       := .ci/metalint.sh
-metalint_config      := .metalinter.json
-metalint_exclude     := .excludemetalint
 mocks_output_dir     := generated/mocks
 mocks_rules_dir      := generated/mocks
 proto_output_dir     := generated/proto
@@ -33,6 +28,7 @@ thrift_output_dir    := generated/thrift/rpc
 thrift_rules_dir     := generated/thrift
 vendor_prefix        := vendor
 cache_policy         ?= recently_read
+aggregator_client    ?= m3msg
 genny_target         ?= genny-all
 
 BUILD                     := $(abspath ./bin)
@@ -41,18 +37,11 @@ GO_BUILD_LDFLAGS_CMD      := $(abspath ./scripts/go-build-ldflags.sh)
 GO_BUILD_LDFLAGS          := $(shell $(GO_BUILD_LDFLAGS_CMD) LDFLAG)
 GO_BUILD_COMMON_ENV       := CGO_ENABLED=0
 LINUX_AMD64_ENV           := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
-# GO_RELEASER_DOCKER_IMAGE is latest goreleaser for go 1.13
-GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.127.0 
+# GO_RELEASER_DOCKER_IMAGE is latest goreleaser for go 1.18
+GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v1.8.3
 GO_RELEASER_RELEASE_ARGS  ?= --rm-dist
 GO_RELEASER_WORKING_DIR   := /go/src/github.com/m3db/m3
-GOMETALINT_VERSION        := v2.0.5
-
-# Retool will look for tools.json in the nearest parent git directory if not
-# explicitly told the current dir. Allow setting the base dir so that tools can
-# be built inside of other external repos.
-ifdef RETOOL_BASE_DIR
-	retool_base_args := -base-dir $(RETOOL_BASE_DIR)
-endif
+GOLANGCI_LINT_VERSION     := v1.45.2
 
 export NPROC := 2 # Maximum package concurrency for unit tests.
 
@@ -61,10 +50,7 @@ SERVICES :=     \
 	m3coordinator \
 	m3aggregator  \
 	m3query       \
-	m3collector   \
 	m3em_agent    \
-	m3nsch_server \
-	m3nsch_client \
 	m3comparator  \
 	r2ctl         \
 
@@ -74,28 +60,44 @@ SUBDIRS :=    \
 	msg         \
 	metrics     \
 	cmd         \
-	collector   \
 	dbnode      \
 	query       \
 	m3em        \
-	m3nsch      \
 	m3ninx      \
 	aggregator  \
 	ctl         \
 
 TOOLS :=               \
+	annotation_checker   \
 	read_ids             \
 	read_index_ids       \
 	read_data_files      \
 	read_index_files     \
 	read_index_segments  \
+	read_commitlog       \
+	split_shards         \
+	split_index_shards   \
+	query_index_segments \
 	clone_fileset        \
 	dtest                \
 	verify_data_files    \
 	verify_index_files   \
 	carbon_load          \
-	docs_test            \
 	m3ctl                \
+
+GOINSTALL_BUILD_TOOLS := \
+	github.com/fossas/fossa-cli/cmd/fossa@latest                                 \
+	github.com/golang/mock/mockgen@latest                                        \
+	github.com/google/go-jsonnet/cmd/jsonnet@latest                              \
+	github.com/m3db/build-tools/utilities/genclean@latest                        \
+	github.com/m3db/tools/update-license@latest                                  \
+	github.com/mauricelam/genny@v0.0.0-20180903214747-eb2c5232c885               \
+	github.com/mjibson/esc@latest                                                \
+	github.com/pointlander/peg@latest                                            \
+	github.com/rakyll/statik@latest                                              \
+	github.com/instrumenta/kubeval@latest                                        \
+	github.com/wjdp/htmltest@latest                                              \
+	github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) \
 
 .PHONY: setup
 setup:
@@ -171,30 +173,16 @@ tools-linux-amd64:
 	$(LINUX_AMD64_ENV) make tools
 
 .PHONY: all
-all: metalint test-ci-unit test-ci-integration services tools
+all: test-ci-unit test-ci-integration services tools
 	@echo Made all successfully
 
+.SILENT: install-tools
 .PHONY: install-tools
 install-tools:
-	@echo "Installing build tools"
-	GOBIN=$(tools_bin_path) go install github.com/fossas/fossa-cli/cmd/fossa
-	GOBIN=$(tools_bin_path) go install github.com/golang/mock/mockgen
-	GOBIN=$(tools_bin_path) go install github.com/google/go-jsonnet/cmd/jsonnet
-	GOBIN=$(tools_bin_path) go install github.com/m3db/build-tools/linters/badtime
-	GOBIN=$(tools_bin_path) go install github.com/m3db/build-tools/linters/importorder
-	GOBIN=$(tools_bin_path) go install github.com/m3db/build-tools/utilities/genclean
-	GOBIN=$(tools_bin_path) go install github.com/m3db/tools/update-license
-	GOBIN=$(tools_bin_path) go install github.com/mauricelam/genny
-	GOBIN=$(tools_bin_path) go install github.com/mjibson/esc
-	GOBIN=$(tools_bin_path) go install github.com/pointlander/peg
-	GOBIN=$(tools_bin_path) go install github.com/robskillington/gorename
-	GOBIN=$(tools_bin_path) go install github.com/rakyll/statik
-	GOBIN=$(tools_bin_path) go install github.com/garethr/kubeval
-
-.PHONY: install-gometalinter
-install-gometalinter:
-	@mkdir -p $(tools_bin_path)
-	./scripts/install-gometalinter.sh -b $(tools_bin_path) -d $(GOMETALINT_VERSION)
+	echo "Installing build tools"
+	for tool in $(GOINSTALL_BUILD_TOOLS); do \
+		GOBIN=$(tools_bin_path) go install $$tool;  \
+		done
 
 .PHONY: check-for-goreleaser-github-token
 check-for-goreleaser-github-token:
@@ -214,37 +202,24 @@ release-snapshot: check-for-goreleaser-github-token
 	@echo Creating snapshot release
 	make release GO_RELEASER_RELEASE_ARGS="--snapshot --rm-dist"
 
-.PHONY: docs-container
-docs-container:
-	docker run --rm hello-world >/dev/null
-	docker build -t m3db-docs docs
-
 # NB(schallert): if updating this target, be sure to update the commands used in
 # the .buildkite/docs_push.sh. We can't share the make targets because our
 # Makefile assumes its running under bash and the container is alpine (ash
 # shell).
+
 .PHONY: docs-build
-docs-build: docs-container
-	docker run -v $(PWD):/m3db --rm m3db-docs "mkdocs build -t material"
-
-.PHONY: docs-serve
-docs-serve: docs-container
-	docker run -v $(PWD):/m3db -p 8000:8000 -it --rm m3db-docs "mkdocs serve -t material -a 0.0.0.0:8000"
-
-.PHONY: docs-deploy
-docs-deploy: docs-container
-	docker run -v $(PWD):/m3db --rm -v $(HOME)/.ssh/id_rsa:/root/.ssh/id_rsa:ro -it m3db-docs "mkdocs build -t material && mkdocs gh-deploy --force --dirty"
-
-.PHONY: docs-validate
-docs-validate: docs_test
-	./bin/docs_test
+docs-build:
+	@HUGO_DOCKER=true ./scripts/site-build.sh
 
 .PHONY: docs-test
-docs-test:
-	@echo "--- Documentation validate test"
-	make docs-validate
-	@echo "--- Documentation build test"
-	make docs-build
+docs-test: setup install-tools docs-build
+	cp site/.htmltest.yml $(BUILD)/.htmltest.yml
+ifneq ($(DOCSTEST_AUTH_USER),)
+ifneq ($(DOCSTEST_AUTH_TOKEN),)
+	@echo 'HTTPHeaders: {"Authorization":"Basic $(shell echo -n "$$DOCSTEST_AUTH_USER:$$DOCSTEST_AUTH_TOKEN" | base64 | xargs echo -n)"}' >> $(BUILD)/.htmltest.yml
+endif
+endif
+	$(tools_bin_path)/htmltest -c $(BUILD)/.htmltest.yml
 
 .PHONY: docker-integration-test
 docker-integration-test:
@@ -281,7 +256,7 @@ SUBDIR_TARGETS := \
 	genny-gen       \
 	license-gen     \
 	all-gen         \
-	metalint
+	all-gen
 
 .PHONY: test-ci-unit
 test-ci-unit: test-base
@@ -293,8 +268,18 @@ test-ci-big-unit: test-big-base
 
 .PHONY: test-ci-integration
 test-ci-integration:
-	INTEGRATION_TIMEOUT=10m TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
+	INTEGRATION_TIMEOUT=10m TEST_SERIES_CACHE_POLICY=$(cache_policy) TEST_AGGREGATOR_CLIENT_TYPE=$(aggregator_client) make test-base-ci-integration
 	$(process_coverfile) $(coverfile)
+
+.PHONY: test-ci-cluster-integration
+test-ci-cluster-integration:
+	@echo "--- test-ci-cluster-integration"
+	go test -count=1 -p 1 -tags=cluster_integration ./src/integration/...
+
+.PHONY: test-ci-test-harness
+test-ci-test-harness:
+	@echo "--- test-ci-test-harness"
+	go test -count=1 -p 1 -tags=test_harness ./src/integration/resources/...
 
 define SUBDIR_RULES
 
@@ -302,39 +287,37 @@ define SUBDIR_RULES
 mock-gen-$(SUBDIR): install-tools
 	@echo "--- Generating mocks $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(mocks_rules_dir) ] || \
-		PATH=$(combined_bin_paths):$(PATH) PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(mocks_output_dir) src/$(SUBDIR)/$(mocks_rules_dir)
+		PATH="$(combined_bin_paths):$(PATH)" PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(mocks_output_dir) src/$(SUBDIR)/$(mocks_rules_dir)
 
 .PHONY: thrift-gen-$(SUBDIR)
 thrift-gen-$(SUBDIR): install-tools
 	@echo "--- Generating thrift files $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(thrift_rules_dir) ] || \
-		PATH=$(combined_bin_paths):$(PATH) PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(thrift_output_dir) src/$(SUBDIR)/$(thrift_rules_dir)
+		PATH="$(combined_bin_paths):$(PATH)" PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(thrift_output_dir) src/$(SUBDIR)/$(thrift_rules_dir)
 
 .PHONY: proto-gen-$(SUBDIR)
 proto-gen-$(SUBDIR): install-tools
 	@echo "--- Generating protobuf files $(SUBDIR)"
-	@[ ! -d src/$(SUBDIR)/$(proto_rules_dir) ] || \
-		PATH=$(combined_bin_paths):$(PATH) PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(proto_output_dir) src/$(SUBDIR)/$(proto_rules_dir)
+	[ ! -d src/$(SUBDIR)/$(proto_rules_dir) ] || \
+		PATH="$(combined_bin_paths):$(PATH)" PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(proto_output_dir) src/$(SUBDIR)/$(proto_rules_dir)
 
 .PHONY: asset-gen-$(SUBDIR)
 asset-gen-$(SUBDIR): install-tools
 	@echo "--- Generating asset files $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(assets_rules_dir) ] || \
-		PATH=$(combined_bin_paths):$(PATH) PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(assets_output_dir) src/$(SUBDIR)/$(assets_rules_dir)
+		PATH="$(combined_bin_paths):$(PATH)" PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(assets_output_dir) src/$(SUBDIR)/$(assets_rules_dir)
 
-# NB(schallert): gorename (used by our genny process) doesn't work with go
-# modules https://github.com/golang/go/issues/34222
 .PHONY: genny-gen-$(SUBDIR)
 genny-gen-$(SUBDIR): install-tools
 	@echo "--- Generating genny files $(SUBDIR)"
 	@[ ! -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk ] || \
-		PATH=$(combined_bin_paths):$(PATH) GO111MODULE=off make -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk $(genny_target)
-	@PATH=$(combined_bin_paths):$(PATH) GO111MODULE=off bash -c "source ./scripts/auto-gen-helpers.sh && gen_cleanup_dir '*_gen.go' $(SELF_DIR)/src/$(SUBDIR)/ && gen_cleanup_dir '*_gen_test.go' $(SELF_DIR)/src/$(SUBDIR)/"
+		PATH="$(combined_bin_paths):$(PATH)" make -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk $(genny_target)
+	@PATH="$(combined_bin_paths):$(PATH)" bash -c "source ./scripts/auto-gen-helpers.sh && gen_cleanup_dir '*_gen.go' $(SELF_DIR)/src/$(SUBDIR)/ && gen_cleanup_dir '*_gen_test.go' $(SELF_DIR)/src/$(SUBDIR)/"
 
 .PHONY: license-gen-$(SUBDIR)
 license-gen-$(SUBDIR): install-tools
 	@echo "--- Updating license in files $(SUBDIR)"
-	@find $(SELF_DIR)/src/$(SUBDIR) -name '*.go' | PATH=$(combined_bin_paths):$(PATH) xargs -I{} update-license {}
+	@find $(SELF_DIR)/src/$(SUBDIR) -name '*.go' | PATH="$(combined_bin_paths):$(PATH)" xargs -I{} update-license {}
 
 .PHONY: all-gen-$(SUBDIR)
 # NB(prateek): order matters here, mock-gen needs to be after proto/thrift because we sometimes
@@ -372,28 +355,34 @@ test-single-integration-$(SUBDIR):
 test-ci-unit-$(SUBDIR):
 	@echo "--- test-ci-unit $(SUBDIR)"
 	SRC_ROOT=./src/$(SUBDIR) make test-base
-	@echo "--- uploading coverage report"
-	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
+	if [ -z "$(SKIP_CODECOV)" ]; then \
+		@echo "--- uploading coverage report"; \
+		$(codecov_push) -f $(coverfile) -F $(SUBDIR); \
+	fi
 
 .PHONY: test-ci-big-unit-$(SUBDIR)
 test-ci-big-unit-$(SUBDIR):
 	@echo "--- test-ci-big-unit $(SUBDIR)"
 	SRC_ROOT=./src/$(SUBDIR) make test-big-base
-	@echo "--- uploading coverage report"
-	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
+	if [ -z "$(SKIP_CODECOV)" ]; then \
+		@echo "--- uploading coverage report"; \
+		$(codecov_push) -f $(coverfile) -F $(SUBDIR); \
+	fi
 
 .PHONY: test-ci-integration-$(SUBDIR)
 test-ci-integration-$(SUBDIR):
 	@echo "--- test-ci-integration $(SUBDIR)"
-	SRC_ROOT=./src/$(SUBDIR) PANIC_ON_INVARIANT_VIOLATED=true INTEGRATION_TIMEOUT=10m TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
-	@echo "--- uploading coverage report"
-	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
+	SRC_ROOT=./src/$(SUBDIR) PANIC_ON_INVARIANT_VIOLATED=true INTEGRATION_TIMEOUT=10m TEST_SERIES_CACHE_POLICY=$(cache_policy) TEST_AGGREGATOR_CLIENT_TYPE=$(aggregator_client) make test-base-ci-integration
+	if [ -z "$(SKIP_CODECOV)" ]; then \
+		@echo "--- uploading coverage report"; \
+		$(codecov_push) -f $(coverfile) -F $(SUBDIR); \
+	fi
 
-.PHONY: metalint-$(SUBDIR)
-metalint-$(SUBDIR): install-gometalinter install-linter-badtime install-linter-importorder
-	@echo "--- metalinting $(SUBDIR)"
-	@(PATH=$(combined_bin_paths):$(PATH) $(metalint_check) \
-		$(metalint_config) $(metalint_exclude) src/$(SUBDIR))
+.PHONY: lint-$(SUBDIR)
+lint-$(SUBDIR): export GO_BUILD_TAGS = $(GO_BUILD_TAGS_LIST)
+lint-$(SUBDIR): install-tools
+	@echo "--- :golang: Running linter on $(SUBDIR)"
+	./scripts/run-ci-lint.sh $(tools_bin_path)/golangci-lint ./src/$(SUBDIR)/...
 
 endef
 
@@ -407,16 +396,15 @@ endef
 
 # generate targets across SUBDIRS for each SUBDIR_TARGET. i.e. generate rules
 # which allow `make all-gen` to invoke `make all-gen-dbnode all-gen-coordinator ...`
-# NB: we skip metalint explicity as the default target below requires less invocations
-# of metalint and finishes faster.
-$(foreach SUBDIR_TARGET, $(filter-out metalint,$(SUBDIR_TARGETS)), $(eval $(SUBDIR_TARGET_RULE)))
+# NB: we skip lint explicity as it runs as a separate CI step.
+$(foreach SUBDIR_TARGET, $(SUBDIR_TARGETS), $(eval $(SUBDIR_TARGET_RULE)))
 
 # Builds the single kube bundle from individual manifest files.
 .PHONY: kube-gen-all
 kube-gen-all: install-tools
 	@echo "--- Generating kube bundle"
 	@./kube/scripts/build_bundle.sh
-	find kube -name '*.yaml' -print0 | PATH=$(combined_bin_paths):$(PATH) xargs -0 kubeval -v=1.12.0
+	find kube -name '*.yaml' -print0 | PATH="$(combined_bin_paths):$(PATH)" xargs -0 kubeval -v=1.12.0
 
 .PHONY: go-mod-tidy
 go-mod-tidy:
@@ -426,7 +414,7 @@ go-mod-tidy:
 .PHONY: all-gen
 all-gen: \
 	install-tools \
-	$(foreach SUBDIR_TARGET, $(filter-out metalint all-gen,$(SUBDIR_TARGETS)), $(SUBDIR_TARGET)) \
+	$(foreach SUBDIR_TARGET, $(filter-out lint all-gen,$(SUBDIR_TARGETS)), $(SUBDIR_TARGET)) \
 	kube-gen-all \
 	go-mod-tidy
 
@@ -477,12 +465,6 @@ else
 	bash -c "source $(SELF_DIR)/.nvm/nvm.sh && nvm use 6 && $(node_cmd)"
 endif
 
-.PHONY: metalint
-metalint: install-gometalinter install-tools
-	@echo "--- metalinting src/"
-	@(PATH=$(tools_bin_path):$(PATH) $(metalint_check) \
-		$(metalint_config) $(metalint_exclude) $(m3_package_path)/src/)
-
 # Tests that all currently generated types match their contents if they were regenerated
 .PHONY: test-all-gen
 test-all-gen: all-gen
@@ -492,12 +474,12 @@ test-all-gen: all-gen
 # Runs a fossa license report
 .PHONY: fossa
 fossa: install-tools
-	PATH=$(combined_bin_paths):$(PATH) fossa analyze --verbose --no-ansi
+	PATH="$(combined_bin_paths):$(PATH)" fossa analyze --verbose --no-ansi
 
 # Waits for the result of a fossa test and exits success if pass or fail if fails
 .PHONY: fossa-test
 fossa-test: fossa
-	PATH=$(combined_bin_paths):$(PATH) fossa test
+	PATH="$(combined_bin_paths):$(PATH)" fossa test
 
 .PHONY: clean-build
 clean-build:
@@ -510,3 +492,7 @@ clean: clean-build
 	@rm -rf ./src/ctl/ui/build
 
 .DEFAULT_GOAL := all
+
+lint: install-tools
+	@echo "--- :golang: Running linter on 'src'"
+	./scripts/run-ci-lint.sh $(tools_bin_path)/golangci-lint ./src/...

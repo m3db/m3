@@ -1,4 +1,4 @@
-// +build integration
+//go:build integration
 
 // Copyright (c) 2018 Uber Technologies, Inc.
 //
@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"sync"
 	"testing"
 	"time"
 
@@ -31,7 +30,6 @@ import (
 	maggregation "github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/policy"
-	"github.com/m3db/m3/src/x/clock"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
@@ -42,24 +40,11 @@ func TestOneClientMultiTypeForwardedMetrics(t *testing.T) {
 		t.SkipNow()
 	}
 
-	serverOpts := newTestServerOptions()
+	serverOpts := newTestServerOptions(t)
 
 	// Clock setup.
-	var lock sync.RWMutex
-	now := time.Now().Truncate(time.Hour)
-	getNowFn := func() time.Time {
-		lock.RLock()
-		t := now
-		lock.RUnlock()
-		return t
-	}
-	setNowFn := func(t time.Time) {
-		lock.Lock()
-		now = t
-		lock.Unlock()
-	}
-	clockOpts := clock.NewOptions().SetNowFn(getNowFn)
-	serverOpts = serverOpts.SetClockOptions(clockOpts)
+	clock := newTestClock(time.Now().Truncate(time.Hour))
+	serverOpts = serverOpts.SetClockOptions(clock.Options())
 
 	// Placement setup.
 	numShards := 1024
@@ -72,8 +57,9 @@ func TestOneClientMultiTypeForwardedMetrics(t *testing.T) {
 	instance := cfg.newPlacementInstance()
 	placement := newPlacement(numShards, []placement.Instance{instance})
 	placementKey := serverOpts.PlacementKVKey()
-	placementStore := serverOpts.KVStore()
-	require.NoError(t, setPlacement(placementKey, placementStore, placement))
+	setPlacement(t, placementKey, serverOpts.ClusterClient(), placement)
+
+	serverOpts = setupTopic(t, serverOpts, placement)
 
 	// Create server.
 	testServer := newTestServerSetup(t, serverOpts)
@@ -90,13 +76,12 @@ func TestOneClientMultiTypeForwardedMetrics(t *testing.T) {
 	var (
 		idPrefix = "foo"
 		numIDs   = 100
-		start    = getNowFn()
+		start    = clock.Now()
 		stop     = start.Add(10 * time.Second)
 		interval = 2 * time.Second
 	)
-	client := testServer.newClient()
+	client := testServer.newClient(t)
 	require.NoError(t, client.connect())
-	defer client.close()
 
 	ids := generateTestIDs(idPrefix, numIDs)
 	testForwardMetadataTemplate := metadata.ForwardMetadata{
@@ -123,7 +108,7 @@ func TestOneClientMultiTypeForwardedMetrics(t *testing.T) {
 		metadataFn:   metadataFn,
 	})
 	for _, data := range dataset {
-		setNowFn(data.timestamp)
+		clock.SetNow(data.timestamp)
 		for _, mm := range data.metricWithMetadatas {
 			require.NoError(t, client.writeForwardedMetricWithMetadata(mm.metric.forwarded, mm.metadata.forwardMetadata))
 		}
@@ -135,8 +120,10 @@ func TestOneClientMultiTypeForwardedMetrics(t *testing.T) {
 
 	// Move time forward and wait for flushing to happen.
 	finalTime := stop.Add(2 * time.Second)
-	setNowFn(finalTime)
-	time.Sleep(2 * time.Second)
+	clock.SetNow(finalTime)
+	time.Sleep(waitForDataToFlush)
+
+	require.NoError(t, client.close())
 
 	// Stop the server.
 	require.NoError(t, testServer.stopServer())

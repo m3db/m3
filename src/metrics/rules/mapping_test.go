@@ -51,11 +51,11 @@ var (
 		Policies: []*policypb.Policy{
 			&policypb.Policy{
 				StoragePolicy: &policypb.StoragePolicy{
-					Resolution: &policypb.Resolution{
+					Resolution: policypb.Resolution{
 						WindowSize: int64(10 * time.Second),
 						Precision:  int64(time.Second),
 					},
-					Retention: &policypb.Retention{
+					Retention: policypb.Retention{
 						Period: int64(24 * time.Hour),
 					},
 				},
@@ -73,11 +73,11 @@ var (
 		Policies: []*policypb.Policy{
 			&policypb.Policy{
 				StoragePolicy: &policypb.StoragePolicy{
-					Resolution: &policypb.Resolution{
+					Resolution: policypb.Resolution{
 						WindowSize: int64(time.Minute),
 						Precision:  int64(time.Minute),
 					},
-					Retention: &policypb.Retention{
+					Retention: policypb.Retention{
 						Period: int64(24 * time.Hour),
 					},
 				},
@@ -87,11 +87,11 @@ var (
 			},
 			&policypb.Policy{
 				StoragePolicy: &policypb.StoragePolicy{
-					Resolution: &policypb.Resolution{
+					Resolution: policypb.Resolution{
 						WindowSize: int64(5 * time.Minute),
 						Precision:  int64(time.Minute),
 					},
-					Retention: &policypb.Retention{
+					Retention: policypb.Retention{
 						Period: int64(48 * time.Hour),
 					},
 				},
@@ -113,29 +113,29 @@ var (
 		LastUpdatedBy:      "someone",
 		StoragePolicies: []*policypb.StoragePolicy{
 			&policypb.StoragePolicy{
-				Resolution: &policypb.Resolution{
+				Resolution: policypb.Resolution{
 					WindowSize: 10 * time.Second.Nanoseconds(),
 					Precision:  time.Second.Nanoseconds(),
 				},
-				Retention: &policypb.Retention{
+				Retention: policypb.Retention{
 					Period: 24 * time.Hour.Nanoseconds(),
 				},
 			},
 			&policypb.StoragePolicy{
-				Resolution: &policypb.Resolution{
+				Resolution: policypb.Resolution{
 					WindowSize: time.Minute.Nanoseconds(),
 					Precision:  time.Minute.Nanoseconds(),
 				},
-				Retention: &policypb.Retention{
+				Retention: policypb.Retention{
 					Period: 720 * time.Hour.Nanoseconds(),
 				},
 			},
 			&policypb.StoragePolicy{
-				Resolution: &policypb.Resolution{
+				Resolution: policypb.Resolution{
 					WindowSize: time.Hour.Nanoseconds(),
 					Precision:  time.Hour.Nanoseconds(),
 				},
-				Retention: &policypb.Retention{
+				Retention: policypb.Retention{
 					Period: 365 * 24 * time.Hour.Nanoseconds(),
 				},
 			},
@@ -156,11 +156,11 @@ var (
 		},
 		StoragePolicies: []*policypb.StoragePolicy{
 			&policypb.StoragePolicy{
-				Resolution: &policypb.Resolution{
+				Resolution: policypb.Resolution{
 					WindowSize: 10 * time.Minute.Nanoseconds(),
 					Precision:  time.Minute.Nanoseconds(),
 				},
-				Retention: &policypb.Retention{
+				Retention: policypb.Retention{
 					Period: 1800 * time.Hour.Nanoseconds(),
 				},
 			},
@@ -317,12 +317,12 @@ var (
 	}
 	testMappingRuleSnapshotCmpOpts = []cmp.Option{
 		cmp.AllowUnexported(mappingRuleSnapshot{}),
-		cmpopts.IgnoreInterfaces(struct{ filters.Filter }{}),
+		cmpopts.IgnoreInterfaces(struct{ filters.TagsFilter }{}),
 	}
 	testMappingRuleCmpOpts = []cmp.Option{
 		cmp.AllowUnexported(mappingRule{}),
 		cmp.AllowUnexported(mappingRuleSnapshot{}),
-		cmpopts.IgnoreInterfaces(struct{ filters.Filter }{}),
+		cmpopts.IgnoreInterfaces(struct{ filters.TagsFilter }{}),
 	}
 )
 
@@ -430,11 +430,11 @@ func TestNewMappingRuleSnapshotStoragePoliciesAndDropPolicy(t *testing.T) {
 	proto := &rulepb.MappingRuleSnapshot{
 		StoragePolicies: []*policypb.StoragePolicy{
 			&policypb.StoragePolicy{
-				Resolution: &policypb.Resolution{
+				Resolution: policypb.Resolution{
 					WindowSize: 10 * time.Second.Nanoseconds(),
 					Precision:  time.Second.Nanoseconds(),
 				},
-				Retention: &policypb.Retention{
+				Retention: policypb.Retention{
 					Period: 24 * time.Hour.Nanoseconds(),
 				},
 			},
@@ -669,6 +669,7 @@ func TestMappingRuleMappingRuleView(t *testing.T) {
 		LastUpdatedAtMillis: 67890,
 		LastUpdatedBy:       "someone-else",
 		DropPolicy:          res.DropPolicy,
+		Tags:                []models.Tag{},
 	}
 	require.Equal(t, expected, res)
 }
@@ -698,6 +699,7 @@ func TestNewMappingRuleHistory(t *testing.T) {
 			},
 			LastUpdatedAtMillis: 67890,
 			LastUpdatedBy:       "someone-else",
+			Tags:                []models.Tag{},
 		},
 		{
 			ID:            "12669817-13ae-40e6-ba2f-33087b262c68",
@@ -713,6 +715,7 @@ func TestNewMappingRuleHistory(t *testing.T) {
 			},
 			LastUpdatedAtMillis: 12345,
 			LastUpdatedBy:       "someone",
+			Tags:                []models.Tag{},
 		},
 	}
 	require.Equal(t, expected, history)

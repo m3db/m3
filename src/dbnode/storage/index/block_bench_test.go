@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -44,7 +45,7 @@ func BenchmarkBlockWrite(b *testing.B) {
 	testMD := newTestNSMetadata(b)
 	blockSize := time.Hour
 
-	now := time.Now()
+	now := xtime.Now()
 	blockStart := now.Truncate(blockSize)
 
 	bl, err := NewBlock(blockStart, testMD, BlockOptions{},
@@ -60,10 +61,10 @@ func BenchmarkBlockWrite(b *testing.B) {
 	})
 
 	fieldValues := map[string][]string{
-		"fruit":     []string{"apple", "banana", "orange", "watermelon"},
-		"vegetable": []string{"broccoli", "carrot", "celery", "cucumber"},
-		"meat":      []string{"beef", "chicken", "pork", "steak"},
-		"cheese":    []string{"cheddar", "swiss", "brie", "bleu"},
+		"fruit":     {"apple", "banana", "orange", "watermelon"},
+		"vegetable": {"broccoli", "carrot", "celery", "cucumber"},
+		"meat":      {"beef", "chicken", "pork", "steak"},
+		"cheese":    {"cheddar", "swiss", "brie", "bleu"},
 	}
 
 	for i := 0; i < 4096; i++ {
@@ -77,8 +78,8 @@ func BenchmarkBlockWrite(b *testing.B) {
 		batch.Append(WriteBatchEntry{
 			Timestamp:     now,
 			OnIndexSeries: onIndexSeries,
-			EnqueuedAt:    now,
-		}, doc.Document{
+			EnqueuedAt:    now.ToTime(),
+		}, doc.Metadata{
 			ID:     []byte(fmt.Sprintf("doc.%d", i)),
 			Fields: fields,
 		})
@@ -115,11 +116,29 @@ func BenchmarkBlockWrite(b *testing.B) {
 // useless to use in benchmarks
 type mockOnIndexSeries struct{}
 
-var _ OnIndexSeries = mockOnIndexSeries{}
+var _ doc.OnIndexSeries = mockOnIndexSeries{}
 
-func (m mockOnIndexSeries) OnIndexSuccess(blockStart xtime.UnixNano)  {}
-func (m mockOnIndexSeries) OnIndexFinalize(blockStart xtime.UnixNano) {}
-func (m mockOnIndexSeries) OnIndexPrepare()                           {}
-func (m mockOnIndexSeries) NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) bool {
+func (m mockOnIndexSeries) StringID() string               { return "mock" }
+func (m mockOnIndexSeries) OnIndexSuccess(xtime.UnixNano)  {}
+func (m mockOnIndexSeries) OnIndexFinalize(xtime.UnixNano) {}
+func (m mockOnIndexSeries) OnIndexPrepare(xtime.UnixNano)  {}
+func (m mockOnIndexSeries) TryReconcileDuplicates()        {}
+func (m mockOnIndexSeries) NeedsIndexUpdate(xtime.UnixNano) bool {
 	return false
+}
+func (m mockOnIndexSeries) DecrementReaderWriterCount() {}
+func (m mockOnIndexSeries) IfAlreadyIndexedMarkIndexSuccessAndFinalize(xtime.UnixNano) bool {
+	return false
+}
+func (m mockOnIndexSeries) IndexedForBlockStart(xtime.UnixNano) bool                    { return false }
+func (m mockOnIndexSeries) IndexedOrAttemptedAny() bool                                 { return false }
+func (m mockOnIndexSeries) TryMarkIndexGarbageCollected() bool                          { return false }
+func (m mockOnIndexSeries) NeedsIndexGarbageCollected() bool                            { return false }
+func (m mockOnIndexSeries) MergeEntryIndexBlockStates(states doc.EntryIndexBlockStates) {}
+func (m mockOnIndexSeries) IndexedRange() (xtime.UnixNano, xtime.UnixNano) {
+	return 0, 0
+}
+
+func (m mockOnIndexSeries) ReconciledOnIndexSeries() (doc.OnIndexSeries, resource.SimpleCloser, bool) {
+	return m, resource.SimpleCloserFn(func() {}), false
 }

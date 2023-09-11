@@ -22,8 +22,11 @@ package remote
 
 import (
 	"context"
+	goerrors "errors"
 	"io"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
@@ -34,11 +37,50 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
-	"github.com/m3db/m3/src/query/ts/m3db"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/util/logging"
+	xgrpc "github.com/m3db/m3/src/x/grpc"
 	"github.com/m3db/m3/src/x/instrument"
 
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
+)
+
+const (
+	initResultSize             = 10
+	healthCheckInterval        = 60 * time.Second
+	healthCheckTimeout         = 5 * time.Second
+	healthCheckMetricName      = "health-check"
+	healthCheckMetricResultTag = "result"
+)
+
+var (
+	errAlreadyClosed = goerrors.New("already closed")
+
+	errQueryStorageMetadataAttributesNotImplemented = goerrors.New(
+		"remote storage does not implement QueryStorageMetadataAttributes",
+	)
+
+	// NB(r): These options tries to ensure we don't let connections go stale
+	// and cause failed RPCs as a result.
+	defaultDialOptions = []grpc.DialOption{
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			// After a duration of this time if the client doesn't see any activity it
+			// pings the server to see if the transport is still alive.
+			// If set below 10s, a minimum value of 10s will be used instead.
+			Time: 10 * time.Second,
+			// After having pinged for keepalive check, the client waits for a duration
+			// of Timeout and if no activity is seen even after that the connection is
+			// closed.
+			Timeout: 20 * time.Second,
+			// If true, client sends keepalive pings even with no active RPCs. If false,
+			// when there are no active RPCs, Time and Timeout will be ignored and no
+			// keepalive pings will be sent.
+			PermitWithoutStream: true,
+		}),
+	}
 )
 
 // Client is the remote GRPC client.
@@ -48,47 +90,152 @@ type Client interface {
 }
 
 type grpcClient struct {
+	state       grpcClientState
 	client      rpc.QueryClient
 	connection  *grpc.ClientConn
 	poolWrapper *pools.PoolWrapper
 	once        sync.Once
 	pools       encoding.IteratorPools
 	poolErr     error
-	opts        m3db.Options
+	opts        m3.Options
+	logger      *zap.Logger
+	metrics     grpcClientMetrics
 }
 
-const initResultSize = 10
+type grpcClientState struct {
+	sync.RWMutex
+	closed  bool
+	closeCh chan struct{}
+}
+
+type grpcClientMetrics struct {
+	healthCheckSuccess tally.Counter
+	healthCheckError   tally.Counter
+}
+
+func newGRPCClientMetrics(s tally.Scope) grpcClientMetrics {
+	s = s.SubScope("remote-client")
+	return grpcClientMetrics{
+		healthCheckSuccess: s.Tagged(map[string]string{
+			healthCheckMetricResultTag: "success",
+		}).Counter(healthCheckMetricName),
+		healthCheckError: s.Tagged(map[string]string{
+			healthCheckMetricResultTag: "error",
+		}).Counter(healthCheckMetricName),
+	}
+}
 
 // NewGRPCClient creates a new remote GRPC client.
 func NewGRPCClient(
+	name string,
 	addresses []string,
 	poolWrapper *pools.PoolWrapper,
-	opts m3db.Options,
+	opts m3.Options,
+	instrumentOpts instrument.Options,
 	additionalDialOpts ...grpc.DialOption,
 ) (Client, error) {
 	if len(addresses) == 0 {
 		return nil, errors.ErrNoClientAddresses
 	}
 
-	resolver := newStaticResolver(addresses)
-	balancer := grpc.RoundRobin(resolver)
-	dialOptions := []grpc.DialOption{
-		grpc.WithBalancer(balancer),
-		grpc.WithInsecure(),
+	// Set name if using a named client.
+	if remote := strings.TrimSpace(name); remote != "" {
+		instrumentOpts = instrumentOpts.
+			SetMetricsScope(instrumentOpts.MetricsScope().Tagged(map[string]string{
+				"remote-name": remote,
+			}))
 	}
+
+	scope := instrumentOpts.MetricsScope()
+	interceptorOpts := xgrpc.InterceptorInstrumentOptions{Scope: scope}
+
+	dialOptions := append([]grpc.DialOption{
+		// N.B.: the static resolver also specifies the load balancing policy, which is
+		// round robin.
+		grpc.WithResolvers(newStaticResolverBuilder(addresses)),
+		grpc.WithInsecure(),
+		grpc.WithUnaryInterceptor(xgrpc.UnaryClientInterceptor(interceptorOpts)),
+		grpc.WithStreamInterceptor(xgrpc.StreamClientInterceptor(interceptorOpts)),
+	}, defaultDialOptions...)
 	dialOptions = append(dialOptions, additionalDialOpts...)
-	cc, err := grpc.Dial("", dialOptions...)
+
+	// The resolver handles routing correctly for us, which is why the "endpoint" here is static.
+	cc, err := grpc.Dial(_staticResolverURL, dialOptions...)
 	if err != nil {
 		return nil, err
 	}
 
 	client := rpc.NewQueryClient(cc)
-	return &grpcClient{
+	c := &grpcClient{
+		state: grpcClientState{
+			closeCh: make(chan struct{}),
+		},
 		client:      client,
 		connection:  cc,
 		poolWrapper: poolWrapper,
 		opts:        opts,
-	}, nil
+		logger:      instrumentOpts.Logger(),
+		metrics:     newGRPCClientMetrics(scope),
+	}
+	go c.healthCheckUntilClosed()
+	return c, nil
+}
+
+func (c *grpcClient) QueryStorageMetadataAttributes(
+	ctx context.Context,
+	queryStart, queryEnd time.Time,
+	opts *storage.FetchOptions,
+) ([]storagemetadata.Attributes, error) {
+	return nil, errQueryStorageMetadataAttributesNotImplemented
+}
+
+func (c *grpcClient) healthCheckUntilClosed() {
+	ticker := time.NewTicker(healthCheckInterval)
+	defer ticker.Stop()
+
+	for {
+		if c.closed() {
+			return // Abort early, closed already.
+		}
+
+		// Perform immediately so first check isn't delayed.
+		err := c.healthCheck()
+
+		if c.closed() {
+			return // Don't report results, closed already.
+		}
+
+		if err != nil {
+			c.metrics.healthCheckError.Inc(1)
+			c.logger.Debug("remote storage client health check failed",
+				zap.Error(err))
+		} else {
+			c.metrics.healthCheckSuccess.Inc(1)
+		}
+
+		select {
+		case <-c.state.closeCh:
+			return
+		case <-ticker.C:
+			// Continue to next check.
+			continue
+		}
+	}
+}
+
+func (c *grpcClient) healthCheck() error {
+	ctx, cancel := context.WithTimeout(context.Background(),
+		healthCheckTimeout)
+	_, err := c.client.Health(ctx, &rpc.HealthRequest{})
+	cancel()
+	return err
+}
+
+func (c *grpcClient) closed() bool {
+	c.state.RLock()
+	closed := c.state.closed
+	c.state.RUnlock()
+	return closed
 }
 
 func (c *grpcClient) waitForPools() (encoding.IteratorPools, error) {
@@ -110,8 +257,12 @@ func (c *grpcClient) FetchProm(
 	}
 
 	return storage.SeriesIteratorsToPromResult(
-		result, c.opts.ReadWorkerPool(),
-		options.Enforcer, c.opts.TagOptions())
+		ctx,
+		result,
+		c.opts.ReadWorkerPool(),
+		c.opts.TagOptions(),
+		c.opts.PromConvertOptions(),
+		options)
 }
 
 func (c *grpcClient) fetchRaw(
@@ -119,24 +270,33 @@ func (c *grpcClient) fetchRaw(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (consolidators.SeriesFetchResult, error) {
-	fetchResult := consolidators.SeriesFetchResult{
-		Metadata: block.NewResultMetadata(),
+	result, err := c.FetchCompressed(ctx, query, options)
+	if err != nil {
+		return consolidators.SeriesFetchResult{}, err
 	}
 
+	return result.FinalResult()
+}
+
+func (c *grpcClient) FetchCompressed(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (consolidators.MultiFetchResult, error) {
 	if err := options.BlockType.Validate(); err != nil {
 		// This is an invariant error; should not be able to get to here.
-		return fetchResult, instrument.InvariantErrorf("invalid block type on "+
+		return nil, instrument.InvariantErrorf("invalid block type on "+
 			"fetch, got: %v with error %v", options.BlockType, err)
 	}
 
 	pools, err := c.waitForPools()
 	if err != nil {
-		return fetchResult, err
+		return nil, err
 	}
 
 	request, err := encodeFetchRequest(query, options)
 	if err != nil {
-		return fetchResult, err
+		return nil, err
 	}
 
 	// Send the id from the client to the remote server so that provides logging
@@ -145,47 +305,50 @@ func (c *grpcClient) fetchRaw(
 	mdCtx := encodeMetadata(ctx, id)
 	fetchClient, err := c.client.Fetch(mdCtx, request)
 	if err != nil {
-		return fetchResult, err
+		return nil, err
 	}
 
 	defer fetchClient.CloseSend()
-	meta := block.NewResultMetadata()
-	seriesIterators := make([]encoding.SeriesIterator, 0, initResultSize)
+
+	var (
+		fanout    = consolidators.NamespaceCoversAllQueryRange
+		matchOpts = c.opts.SeriesConsolidationMatchOptions()
+		tagOpts   = c.opts.TagOptions()
+		limitOpts = consolidators.LimitOptions{
+			Limit:             options.SeriesLimit,
+			RequireExhaustive: options.RequireExhaustive,
+		}
+
+		result = consolidators.NewMultiFetchResult(fanout, matchOpts, tagOpts, limitOpts)
+	)
+
 	for {
 		select {
 		// If query is killed during gRPC streaming, close the channel
 		case <-ctx.Done():
-			return fetchResult, ctx.Err()
+			return nil, ctx.Err()
 		default:
 		}
 
-		result, err := fetchClient.Recv()
+		recvResult, err := fetchClient.Recv()
 		if err == io.EOF {
 			break
 		}
-
 		if err != nil {
-			return fetchResult, err
+			return nil, err
 		}
 
-		receivedMeta := decodeResultMetadata(result.GetMeta())
-		meta = meta.CombineMetadata(receivedMeta)
-		iters, err := DecodeCompressedFetchResponse(result, pools)
-		if err != nil {
-			return fetchResult, err
-		}
-
-		seriesIterators = append(seriesIterators, iters.Iters()...)
+		receivedMeta := decodeResultMetadata(recvResult.GetMeta())
+		iters, err := DecodeCompressedFetchResponse(recvResult, pools)
+		result.Add(consolidators.MultiFetchResults{
+			SeriesIterators: iters,
+			Metadata:        receivedMeta,
+			Attrs:           storagemetadata.Attributes{},
+			Err:             err,
+		})
 	}
 
-	return consolidators.NewSeriesFetchResult(
-		encoding.NewSeriesIterators(
-			seriesIterators,
-			pools.MutableSeriesIterators(),
-		),
-		nil,
-		meta,
-	)
+	return result, nil
 }
 
 func (c *grpcClient) FetchBlocks(
@@ -324,5 +487,14 @@ func (c *grpcClient) CompleteTags(
 }
 
 func (c *grpcClient) Close() error {
+	c.state.Lock()
+	defer c.state.Unlock()
+
+	if c.state.closed {
+		return errAlreadyClosed
+	}
+	c.state.closed = true
+
+	close(c.state.closeCh)
 	return c.connection.Close()
 }

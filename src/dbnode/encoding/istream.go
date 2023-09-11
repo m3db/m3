@@ -21,169 +21,113 @@
 package encoding
 
 import (
-	"bufio"
 	"io"
-	"math"
+
+	"github.com/m3db/m3/src/dbnode/x/xio"
 )
 
-// istream encapsulates a readable stream.
-type istream struct {
-	r         *bufio.Reader // encoded stream
-	err       error         // error encountered
-	current   byte          // current byte we are working off of
-	buffer    []byte        // buffer for reading in multiple bytes
-	remaining uint          // bits remaining in current to be read
+// IStream encapsulates a readable stream.
+type IStream struct {
+	r         xio.Reader64
+	current   uint64 // current uint64 we are working off of
+	index     int    // current index within data slice
+	remaining uint8  // bits remaining in current to be read
 }
 
-// NewIStream creates a new Istream
-func NewIStream(reader io.Reader, bufioSize int) IStream {
-	return &istream{
-		r: bufio.NewReaderSize(reader, bufioSize),
-		// Buffer meant to hold uint64 size of bytes.
-		buffer: make([]byte, 8),
-	}
+var (
+	_ io.ByteReader = (*IStream)(nil)
+	_ io.Reader     = (*IStream)(nil)
+)
+
+// NewIStream creates a new IStream
+func NewIStream(reader64 xio.Reader64) *IStream {
+	return &IStream{r: reader64}
 }
 
-func (is *istream) ReadBit() (Bit, error) {
-	if is.err != nil {
-		return 0, is.err
-	}
-	if is.remaining == 0 {
-		if err := is.readByteFromStream(); err != nil {
-			return 0, err
-		}
-	}
-	return Bit(is.consumeBuffer(1)), nil
-}
-
-func (is *istream) Read(b []byte) (int, error) {
-	if is.remaining == 0 {
-		// Optimized path for when the iterator is already aligned on a byte boundary. Avoids
-		// all the bit manipulation and ReadByte() function calls.
-		// Use ReadFull because the bufferedReader may not return the requested number of bytes.
-		return io.ReadFull(is.r, b)
-	}
-
-	var (
-		i   int
-		err error
-	)
-
+// Read reads len(b) bytes.
+func (is *IStream) Read(b []byte) (int, error) {
+	var i int
 	for ; i < len(b); i++ {
-		b[i], err = is.ReadByte()
+		res, err := is.ReadBits(8)
 		if err != nil {
 			return i, err
 		}
+		b[i] = byte(res)
 	}
 	return i, nil
 }
 
-func (is *istream) ReadByte() (byte, error) {
-	if is.err != nil {
-		return 0, is.err
-	}
+// ReadByte reads the next Byte.
+func (is *IStream) ReadByte() (byte, error) {
+	res, err := is.ReadBits(8)
+	return byte(res), err
+}
+
+// ReadBit reads the next Bit.
+func (is *IStream) ReadBit() (Bit, error) {
+	res, err := is.ReadBits(1)
+	return Bit(res), err
+}
+
+// ReadBits reads the next Bits.
+func (is *IStream) ReadBits(numBits uint8) (uint64, error) {
+	res := is.current >> (64 - numBits)
 	remaining := is.remaining
-	res := is.consumeBuffer(remaining)
-	if remaining == 8 {
+	if numBits <= remaining {
+		// Have enough bits buffered.
+		is.current <<= numBits
+		is.remaining -= numBits
 		return res, nil
 	}
-	if err := is.readByteFromStream(); err != nil {
-		return 0, err
-	}
-	res = (res << uint(8-remaining)) | is.consumeBuffer(8-remaining)
-	return res, nil
-}
 
-func (is *istream) ReadBits(numBits uint) (uint64, error) {
-	if is.err != nil {
-		return 0, is.err
-	}
-	var res uint64
-	numBytes := numBits / 8
-	if numBytes > 0 {
-		// Use Read call rather than individual ReadByte calls since it has
-		// optimized path for when the iterator is aligned on a byte boundary.
-		bytes := is.buffer[0:numBytes]
-		_, err := is.Read(bytes)
-		if err != nil {
-			return 0, err
-		}
-		for _, b := range bytes {
-			res = (res << 8) | uint64(b)
-		}
-	}
+	// Not enough bits buffered, read next word from the stream.
+	bitsNeeded := numBits - remaining
 
-	numBits = numBits % 8
-	for numBits > 0 {
-		// This is equivalent to calling is.ReadBit() in a loop but some manual inlining
-		// has been performed to optimize this loop as its heavily used in the hot path.
-		if is.remaining == 0 {
-			if err := is.readByteFromStream(); err != nil {
-				return 0, err
-			}
-		}
-
-		numToRead := numBits
-		if is.remaining < numToRead {
-			numToRead = is.remaining
-		}
-		bits := is.current >> (8 - numToRead)
-		is.current <<= numToRead
-		is.remaining -= numToRead
-		res = (res << uint64(numToRead)) | uint64(bits)
-		numBits -= numToRead
-	}
-	return res, nil
-}
-
-func (is *istream) PeekBits(numBits uint) (uint64, error) {
-	// check the last byte first
-	if numBits <= is.remaining {
-		return uint64(readBitsInByte(is.current, numBits)), nil
-	}
-	// now check the bytes buffered and read more if necessary.
-	numBitsRead := is.remaining
-	res := uint64(readBitsInByte(is.current, is.remaining))
-	numBytesToRead := int(math.Ceil(float64(numBits-numBitsRead) / 8))
-	bytesRead, err := is.r.Peek(numBytesToRead)
+	current, n, err := is.r.Read64()
 	if err != nil {
 		return 0, err
 	}
-	for i := 0; i < numBytesToRead-1; i++ {
-		res = (res << 8) | uint64(bytesRead[i])
-		numBitsRead += 8
+	n *= 8
+	if n < bitsNeeded {
+		return 0, io.EOF
 	}
-	remainder := readBitsInByte(bytesRead[numBytesToRead-1], numBits-numBitsRead)
-	res = (res << (numBits - numBitsRead)) | uint64(remainder)
-	return res, nil
+
+	is.current = current << bitsNeeded
+	is.remaining = n - bitsNeeded
+	return res | current>>(64-bitsNeeded), nil
 }
 
-func (is *istream) RemainingBitsInCurrentByte() uint {
-	return is.remaining
+// PeekBits looks at the next Bits, but doesn't move the pos.
+func (is *IStream) PeekBits(numBits uint8) (uint64, error) {
+	if numBits <= is.remaining {
+		return readBitsInWord(is.current, numBits), nil
+	}
+	res := readBitsInWord(is.current, numBits)
+	bitsNeeded := numBits - is.remaining
+	next, bytes, err := is.r.Peek64()
+	if err != nil {
+		return 0, err
+	}
+	if rem := 8 * bytes; rem < bitsNeeded {
+		return 0, io.EOF
+	}
+	return res | readBitsInWord(next, bitsNeeded), nil
 }
 
-// readBitsInByte reads numBits in byte b.
-func readBitsInByte(b byte, numBits uint) byte {
-	return b >> (8 - numBits)
+// RemainingBitsInCurrentByte returns the number of bits remaining to be read in the current byte.
+func (is *IStream) RemainingBitsInCurrentByte() uint {
+	return uint(is.remaining % 8)
 }
 
-// consumeBuffer consumes numBits in is.current.
-func (is *istream) consumeBuffer(numBits uint) byte {
-	res := readBitsInByte(is.current, numBits)
-	is.current <<= numBits
-	is.remaining -= numBits
-	return res
+// readBitsInWord reads the first numBits in word w.
+func readBitsInWord(w uint64, numBits uint8) uint64 {
+	return w >> (64 - numBits)
 }
 
-func (is *istream) readByteFromStream() error {
-	is.current, is.err = is.r.ReadByte()
-	is.remaining = 8
-	return is.err
-}
-
-func (is *istream) Reset(r io.Reader) {
-	is.r.Reset(r)
-	is.err = nil
+// Reset resets the IStream.
+func (is *IStream) Reset(reader xio.Reader64) {
 	is.current = 0
 	is.remaining = 0
+	is.index = 0
+	is.r = reader
 }

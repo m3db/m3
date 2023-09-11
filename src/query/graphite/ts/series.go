@@ -22,7 +22,12 @@ package ts
 
 import (
 	"errors"
+	"fmt"
 	"math"
+	"regexp"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
@@ -34,6 +39,12 @@ var (
 	// ErrRangeIsInvalid is returned when attempting to slice Series with invalid range
 	// endpoints (begin is beyond end).
 	ErrRangeIsInvalid = errors.New("requested range is invalid")
+
+	digitsRegex = regexp.MustCompile(`\d+`)
+)
+
+const (
+	digits = "0123456789"
 )
 
 // An AggregationFunc combines two data values at a given point.
@@ -57,17 +68,62 @@ type Series struct {
 	consolidationFunc ConsolidationFunc
 }
 
-// SeriesByName implements sort.Interface for sorting collections of series by name
+// SeriesByName implements sort.Interface for sorting collections
+// of series by name.
 type SeriesByName []*Series
 
 // Len returns the length of the series collection
-func (a SeriesByName) Len() int { return len(a) }
+func (a SeriesByName) Len() int {
+	return len(a)
+}
 
 // Swap swaps two series in the collection
-func (a SeriesByName) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a SeriesByName) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
+}
 
 // Less determines if a series is ordered before another series by name
-func (a SeriesByName) Less(i, j int) bool { return a[i].name < a[j].name }
+func (a SeriesByName) Less(i, j int) bool {
+	return a[i].name < a[j].name
+}
+
+// SeriesByNameAndNaturalNumbers implements sort.Interface for sorting
+// collections of series by name respecting natural sort order for numbers.
+type SeriesByNameAndNaturalNumbers []*Series
+
+// Len returns the length of the series collection
+func (a SeriesByNameAndNaturalNumbers) Len() int {
+	return len(a)
+}
+
+// Swap swaps two series in the collection
+func (a SeriesByNameAndNaturalNumbers) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
+}
+
+// Less determines if a series is ordered before another series by name
+// nolint: ifshort
+func (a SeriesByNameAndNaturalNumbers) Less(i, j int) bool {
+	left := a[i].name
+	if strings.ContainsAny(left, digits) {
+		left = digitsRegex.ReplaceAllStringFunc(left, digitsPrefixed)
+	}
+
+	right := a[j].name
+	if strings.ContainsAny(right, digits) {
+		right = digitsRegex.ReplaceAllStringFunc(right, digitsPrefixed)
+	}
+
+	return left < right
+}
+
+func digitsPrefixed(digits string) string {
+	n, err := strconv.Atoi(digits)
+	if err != nil {
+		return digits
+	}
+	return fmt.Sprintf("%010d", n)
+}
 
 // NewSeries creates a new Series at a given start time, backed by the provided values
 func NewSeries(ctx context.Context, name string, startTime time.Time, vals Values) *Series {
@@ -320,8 +376,11 @@ func (v *resized) appender(timestamp time.Time, value float64) {
 
 // IntersectAndResize returns a new time series with a different millisPerStep that spans the
 // intersection of the underlying timeseries and the provided start and end time parameters
-func (b *Series) IntersectAndResize(start, end time.Time, millisPerStep int,
-	stepAggregator ConsolidationFunc) (*Series, error) {
+func (b *Series) IntersectAndResize(
+	start, end time.Time,
+	millisPerStep int,
+	stepAggregator ConsolidationFunc,
+) (*Series, error) {
 	intersects, start, end := b.intersection(start, end)
 	if !intersects {
 		ts := NewSeries(b.ctx, b.name, start, &float64Values{
@@ -335,7 +394,14 @@ func (b *Series) IntersectAndResize(start, end time.Time, millisPerStep int,
 	if b.MillisPerStep() == millisPerStep {
 		return b.Slice(b.StepAtTime(start), b.StepAtTime(end))
 	}
+	return b.resized(start, end, millisPerStep, stepAggregator), nil
+}
 
+func (b *Series) resized(
+	start, end time.Time,
+	millisPerStep int,
+	stepAggregator ConsolidationFunc,
+) *Series {
 	// TODO: This append based model completely screws pooling; need to rewrite to allow for pooling.
 	v := &resized{}
 	b.resizeStep(start, end, millisPerStep, stepAggregator, v.appender)
@@ -345,7 +411,42 @@ func (b *Series) IntersectAndResize(start, end time.Time, millisPerStep int,
 		numSteps:      len(v.values),
 	})
 	ts.Specification = b.Specification
-	return ts, nil
+	return ts
+}
+
+// NeedsResizeToMaxDataPoints returns whether the series needs resizing to max datapoints.
+func (b *Series) NeedsResizeToMaxDataPoints(maxDataPoints int64) bool {
+	if maxDataPoints <= 0 {
+		// No max datapoints specified.
+		return false
+	}
+	return int64(b.Len()) > maxDataPoints
+}
+
+// ResizeToMaxDataPointsMillisPerStep returns the new milliseconds per second
+// required if a series needs resizing and true, or if does not need resize
+// for max datapoints then it returns 0 and false.
+func (b *Series) ResizeToMaxDataPointsMillisPerStep(
+	maxDataPoints int64,
+) (int, bool) {
+	if !b.NeedsResizeToMaxDataPoints(maxDataPoints) {
+		return 0, false
+	}
+	samplingMultiplier := math.Ceil(float64(b.Len()) / float64(maxDataPoints))
+	return int(samplingMultiplier * float64(b.MillisPerStep())), true
+}
+
+// ResizeToMaxDataPoints resizes the series to fit max datapoints and returns
+// true if a series was resized or false if it did not need to be resized.
+func (b *Series) ResizeToMaxDataPoints(
+	maxDataPoints int64,
+	stepAggregator ConsolidationFunc,
+) (*Series, bool) {
+	resizeMillisPerStep, needsResize := b.ResizeToMaxDataPointsMillisPerStep(maxDataPoints)
+	if !needsResize {
+		return nil, false
+	}
+	return b.resized(b.StartTime(), b.EndTime(), resizeMillisPerStep, stepAggregator), true
 }
 
 // A MutableSeries is a Series that allows updates
@@ -597,6 +698,26 @@ func Max(a, b float64, count int) float64 { return math.Max(a, b) }
 
 // Last finds the latter of two values.
 func Last(a, b float64, count int) float64 { return b }
+
+// Pow returns the first value to the power of the second value
+func Pow(a, b float64, count int) float64 { return math.Pow(a, b) }
+
+// Median finds the median of a slice of values.
+func Median(vals []float64, count int) float64 {
+	if count < 1 {
+		return math.NaN()
+	}
+	if count == 1 {
+		return vals[0]
+	}
+	sort.Float64s(vals)
+	if count%2 != 0 {
+		// if count is odd
+		return vals[(count-1)/2]
+	}
+	// if count is even
+	return (vals[count/2] + vals[(count/2)-1]) / 2.0
+}
 
 // Gcd finds the gcd of two values.
 func Gcd(a, b int64) int64 {

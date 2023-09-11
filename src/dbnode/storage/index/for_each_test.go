@@ -25,10 +25,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/m3ninx/doc"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/m3ninx/doc"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 func TestWriteBatchForEachUnmarkedBatchByBlockStart(t *testing.T) {
@@ -36,13 +37,13 @@ func TestWriteBatchForEachUnmarkedBatchByBlockStart(t *testing.T) {
 	defer ctrl.Finish()
 
 	blockSize := time.Hour
-	now := time.Now().Truncate(blockSize)
-	tn := func(n int64) time.Time {
+	now := xtime.Now().Truncate(blockSize)
+	tn := func(n int64) xtime.UnixNano {
 		nDur := time.Duration(n)
 		return now.Add(nDur * blockSize).Add(nDur * time.Minute)
 	}
-	d := func(n int64) doc.Document {
-		return doc.Document{
+	d := func(n int64) doc.Metadata {
+		return doc.Metadata{
 			ID: []byte(fmt.Sprintf("doc-%d", n)),
 		}
 	}
@@ -52,14 +53,14 @@ func TestWriteBatchForEachUnmarkedBatchByBlockStart(t *testing.T) {
 	for _, n := range []int64{2, 0, 1} {
 		batch.Append(WriteBatchEntry{
 			Timestamp:     tn(n),
-			OnIndexSeries: NewMockOnIndexSeries(ctrl),
+			OnIndexSeries: doc.NewMockOnIndexSeries(ctrl),
 		}, d(n))
 	}
 
 	numCalls := 0
 	// entries.ForEachBlockStart(func(ts xtime.UnixNano, writes []WriteBatchEntry) {
 	batch.ForEachUnmarkedBatchByBlockStart(func(
-		blockStart time.Time,
+		blockStart xtime.UnixNano,
 		batch *WriteBatch,
 	) {
 		require.Equal(t, 1, batch.Len())
@@ -83,13 +84,13 @@ func TestWriteBatchForEachUnmarkedBatchByBlockStartMore(t *testing.T) {
 	defer ctrl.Finish()
 
 	blockSize := time.Hour
-	now := time.Now().Truncate(blockSize)
-	tn := func(n int64) time.Time {
+	now := xtime.Now().Truncate(blockSize)
+	tn := func(n int64) xtime.UnixNano {
 		nDur := time.Duration(n)
 		return now.Add(nDur * blockSize).Add(nDur * time.Minute)
 	}
-	d := func(n int64) doc.Document {
-		return doc.Document{
+	d := func(n int64) doc.Metadata {
+		return doc.Metadata{
 			ID: []byte(fmt.Sprintf("doc-%d", n)),
 		}
 	}
@@ -108,13 +109,13 @@ func TestWriteBatchForEachUnmarkedBatchByBlockStartMore(t *testing.T) {
 	} {
 		batch.Append(WriteBatchEntry{
 			Timestamp:     tn(v.nTime),
-			OnIndexSeries: NewMockOnIndexSeries(ctrl),
+			OnIndexSeries: doc.NewMockOnIndexSeries(ctrl),
 		}, d(v.nDoc))
 	}
 
 	numCalls := 0
 	batch.ForEachUnmarkedBatchByBlockStart(func(
-		blockStart time.Time,
+		blockStart xtime.UnixNano,
 		batch *WriteBatch,
 	) {
 		switch numCalls {

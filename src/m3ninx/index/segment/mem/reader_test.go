@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 
-	gomock "github.com/golang/mock/gomock"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -115,18 +115,18 @@ func TestReaderDocs(t *testing.T) {
 	defer mockCtrl.Finish()
 
 	maxID := postings.ID(50)
-	docs := []doc.Document{
-		doc.Document{
+	docs := []doc.Metadata{
+		{
 			Fields: []doc.Field{
-				doc.Field{
+				{
 					Name:  []byte("apple"),
 					Value: []byte("red"),
 				},
 			},
 		},
-		doc.Document{
+		{
 			Fields: []doc.Field{
-				doc.Field{
+				{
 					Name:  []byte("banana"),
 					Value: []byte("yellow"),
 				},
@@ -147,10 +147,10 @@ func TestReaderDocs(t *testing.T) {
 
 	reader := newReader(segment, readerDocRange{0, maxID}, postings.NewPool(nil, roaring.NewPostingsList))
 
-	iter, err := reader.Docs(postingsList)
+	iter, err := reader.MetadataIterator(postingsList)
 	require.NoError(t, err)
 
-	actualDocs := make([]doc.Document, 0, len(docs))
+	actualDocs := make([]doc.Metadata, 0, len(docs))
 	for iter.Next() {
 		actualDocs = append(actualDocs, iter.Current())
 	}
@@ -168,18 +168,18 @@ func TestReaderAllDocs(t *testing.T) {
 	defer mockCtrl.Finish()
 
 	maxID := postings.ID(2)
-	docs := []doc.Document{
-		doc.Document{
+	docs := []doc.Metadata{
+		{
 			Fields: []doc.Field{
-				doc.Field{
+				{
 					Name:  []byte("apple"),
 					Value: []byte("red"),
 				},
 			},
 		},
-		doc.Document{
+		{
 			Fields: []doc.Field{
-				doc.Field{
+				{
 					Name:  []byte("banana"),
 					Value: []byte("yellow"),
 				},
@@ -197,7 +197,7 @@ func TestReaderAllDocs(t *testing.T) {
 	iter, err := reader.AllDocs()
 	require.NoError(t, err)
 
-	actualDocs := make([]doc.Document, 0, len(docs))
+	actualDocs := make([]doc.Metadata, 0, len(docs))
 	for iter.Next() {
 		actualDocs = append(actualDocs, iter.Current())
 	}

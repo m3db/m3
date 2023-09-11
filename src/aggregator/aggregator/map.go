@@ -31,11 +31,11 @@ import (
 	"github.com/m3db/m3/src/aggregator/rate"
 	"github.com/m3db/m3/src/aggregator/runtime"
 	"github.com/m3db/m3/src/metrics/metadata"
-	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/x/clock"
-	"github.com/m3db/m3/src/x/close"
+	xresource "github.com/m3db/m3/src/x/resource"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
 )
@@ -51,7 +51,10 @@ var (
 	errWriteNewMetricRateLimitExceeded = errors.New("write new metric rate limit is exceeded")
 )
 
-type metricCategory int
+type (
+	metricCategory uint8
+	metricType     uint8
+)
 
 const (
 	// nolint
@@ -61,15 +64,35 @@ const (
 	timedMetric
 )
 
+var validMetricCategories = []metricCategory{
+	unknownMetricCategory,
+	untimedMetric,
+	forwardedMetric,
+	timedMetric,
+}
+
+func (c metricCategory) String() string {
+	switch c {
+	case untimedMetric:
+		return "untimed"
+	case forwardedMetric:
+		return "forwarded"
+	case timedMetric:
+		return "timed"
+	default:
+		return "unknown"
+	}
+}
+
 type entryKey struct {
-	metricCategory metricCategory
-	metricType     metric.Type
 	idHash         hash.Hash128
+	metricType     metricType
+	metricCategory metricCategory
 }
 
 type hashedEntry struct {
-	key   entryKey
 	entry *Entry
+	key   entryKey
 }
 
 type metricMapMetrics struct {
@@ -108,7 +131,7 @@ type metricMap struct {
 	firstInsertAt     time.Time
 	rateLimiter       *rate.Limiter
 	runtimeOpts       runtime.Options
-	runtimeOptsCloser close.SimpleCloser
+	runtimeOptsCloser xresource.SimpleCloser
 	sleepFn           sleepFn
 	metrics           metricMapMetrics
 }
@@ -117,6 +140,7 @@ func newMetricMap(shard uint32, opts Options) *metricMap {
 	metricLists := newMetricLists(shard, opts)
 	scope := opts.InstrumentOptions().MetricsScope().SubScope("map")
 	m := &metricMap{
+		rateLimiter:  rate.NewLimiter(0),
 		shard:        shard,
 		opts:         opts,
 		nowFn:        opts.ClockOptions().NowFn(),
@@ -148,7 +172,7 @@ func (m *metricMap) AddUntimed(
 ) error {
 	key := entryKey{
 		metricCategory: untimedMetric,
-		metricType:     metric.Type,
+		metricType:     metricType(metric.Type),
 		idHash:         hash.Murmur3Hash128(metric.ID),
 	}
 	entry, err := m.findOrCreate(key)
@@ -166,7 +190,7 @@ func (m *metricMap) AddTimed(
 ) error {
 	key := entryKey{
 		metricCategory: timedMetric,
-		metricType:     metric.Type,
+		metricType:     metricType(metric.Type),
 		idHash:         hash.Murmur3Hash128(metric.ID),
 	}
 	entry, err := m.findOrCreate(key)
@@ -184,7 +208,7 @@ func (m *metricMap) AddTimedWithStagedMetadatas(
 ) error {
 	key := entryKey{
 		metricCategory: timedMetric,
-		metricType:     metric.Type,
+		metricType:     metricType(metric.Type),
 		idHash:         hash.Murmur3Hash128(metric.ID),
 	}
 	entry, err := m.findOrCreate(key)
@@ -202,7 +226,7 @@ func (m *metricMap) AddForwarded(
 ) error {
 	key := entryKey{
 		metricCategory: forwardedMetric,
-		metricType:     metric.Type,
+		metricType:     metricType(metric.Type),
 		idHash:         hash.Murmur3Hash128(metric.ID),
 	}
 	entry, err := m.findOrCreate(key)
@@ -337,6 +361,7 @@ func (m *metricMap) tick(target time.Duration) tickResult {
 		numTimedExpired      int
 		entryIdx             int
 	)
+
 	m.forEachEntry(func(entry hashedEntry) {
 		now := m.nowFn()
 		if entryIdx > 0 && entryIdx%defaultSoftDeadlineCheckEvery == 0 {
@@ -353,6 +378,7 @@ func (m *metricMap) tick(target time.Duration) tickResult {
 		case timedMetric:
 			numTimedActive++
 		}
+
 		if entry.entry.ShouldExpire(now) {
 			expired = append(expired, entry)
 		}
@@ -403,8 +429,8 @@ func (m *metricMap) purgeExpired(
 	m.entryListDelLock.Lock()
 	m.Lock()
 	for i := range entries {
+		key := entries[i].key
 		if entries[i].entry.TryExpire(now) {
-			key := entries[i].key
 			switch key.metricCategory {
 			case untimedMetric:
 				numStandardExpired++
@@ -460,22 +486,10 @@ func (m *metricMap) forEachEntry(entryFn hashedEntryFn) {
 
 func (m *metricMap) resetRateLimiterWithLock(runtimeOpts runtime.Options) {
 	newLimit := runtimeOpts.WriteNewMetricLimitPerShardPerSecond()
-	if newLimit <= 0 {
-		m.rateLimiter = nil
-		return
-	}
-	if m.rateLimiter == nil {
-		nowFn := m.opts.ClockOptions().NowFn()
-		m.rateLimiter = rate.NewLimiter(newLimit, nowFn)
-		return
-	}
 	m.rateLimiter.Reset(newLimit)
 }
 
 func (m *metricMap) applyNewMetricRateLimitWithLock(now time.Time) error {
-	if m.rateLimiter == nil {
-		return nil
-	}
 	// If we are still in the warmup phase and possibly ingesting a large amount
 	// of new metrics, no rate limit is applied.
 	noLimitWarmupDuration := m.runtimeOpts.WriteNewMetricNoLimitWarmupDuration()
@@ -483,7 +497,7 @@ func (m *metricMap) applyNewMetricRateLimitWithLock(now time.Time) error {
 		m.metrics.noRateLimitWarmup.Inc(1)
 		return nil
 	}
-	if m.rateLimiter.IsAllowed(1) {
+	if m.rateLimiter.IsAllowed(1, xtime.ToUnixNano(now)) {
 		return nil
 	}
 	m.metrics.newMetricRateLimitExceeded.Inc(1)

@@ -23,9 +23,6 @@ package aggregator
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/metrics/aggregation"
-	"github.com/m3db/m3/src/metrics/pipeline/applied"
-	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/stretchr/testify/require"
@@ -34,12 +31,12 @@ import (
 func TestCounterElemPool(t *testing.T) {
 	p := NewCounterElemPool(pool.NewObjectPoolOptions().SetSize(1))
 	p.Init(func() *CounterElem {
-		return MustNewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, NoPrefixNoSuffix, NewOptions())
+		return MustNewCounterElem(ElemData{}, NewElemOptions(newTestOptions()))
 	})
 
 	// Retrieve an element from the pool.
 	element := p.Get()
-	require.NoError(t, element.ResetSetData(testCounterID, testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, NoPrefixNoSuffix))
+	require.NoError(t, element.ResetSetData(ElemData{ID: testCounterID, StoragePolicy: testStoragePolicy}))
 	require.Equal(t, testCounterID, element.id)
 	require.Equal(t, testStoragePolicy, element.sp)
 
@@ -55,12 +52,12 @@ func TestCounterElemPool(t *testing.T) {
 func TestTimerElemPool(t *testing.T) {
 	p := NewTimerElemPool(pool.NewObjectPoolOptions().SetSize(1))
 	p.Init(func() *TimerElem {
-		return MustNewTimerElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, NoPrefixNoSuffix, NewOptions())
+		return MustNewTimerElem(ElemData{}, NewElemOptions(newTestOptions()))
 	})
 
 	// Retrieve an element from the pool.
 	element := p.Get()
-	require.NoError(t, element.ResetSetData(testBatchTimerID, testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, NoPrefixNoSuffix))
+	require.NoError(t, element.ResetSetData(ElemData{ID: testBatchTimerID, StoragePolicy: testStoragePolicy}))
 	require.Equal(t, testBatchTimerID, element.id)
 	require.Equal(t, testStoragePolicy, element.sp)
 
@@ -76,12 +73,12 @@ func TestTimerElemPool(t *testing.T) {
 func TestGaugeElemPool(t *testing.T) {
 	p := NewGaugeElemPool(pool.NewObjectPoolOptions().SetSize(1))
 	p.Init(func() *GaugeElem {
-		return MustNewGaugeElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, NoPrefixNoSuffix, NewOptions())
+		return MustNewGaugeElem(testGaugeElemData, NewElemOptions(newTestOptions()))
 	})
 
 	// Retrieve an element from the pool.
 	element := p.Get()
-	require.NoError(t, element.ResetSetData(testGaugeID, testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, NoPrefixNoSuffix))
+	require.NoError(t, element.ResetSetData(ElemData{ID: testGaugeID, StoragePolicy: testStoragePolicy}))
 	require.Equal(t, testGaugeID, element.id)
 	require.Equal(t, testStoragePolicy, element.sp)
 

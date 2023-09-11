@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"testing"
@@ -36,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/ident/testutil"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -49,21 +49,21 @@ var (
 )
 
 type snapshotID struct {
-	blockStart time.Time
+	blockStart xtime.UnixNano
 	minVolume  int
 }
 
 func getLatestSnapshotVolumeIndex(
-	filePathPrefix string,
+	fsOpts fs.Options,
 	shardSet sharding.ShardSet,
 	namespace ident.ID,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 ) int {
 	latestVolumeIndex := -1
 
 	for _, shard := range shardSet.AllIDs() {
 		snapshotFiles, err := fs.SnapshotFiles(
-			filePathPrefix, namespace, shard)
+			fsOpts.FilePathPrefix(), namespace, shard)
 		if err != nil {
 			panic(err)
 		}
@@ -80,7 +80,7 @@ func getLatestSnapshotVolumeIndex(
 }
 
 func waitUntilSnapshotFilesFlushed(
-	filePathPrefix string,
+	fsOpts fs.Options,
 	shardSet sharding.ShardSet,
 	namespace ident.ID,
 	expectedSnapshots []snapshotID,
@@ -88,34 +88,61 @@ func waitUntilSnapshotFilesFlushed(
 ) (uuid.UUID, error) {
 	var snapshotID uuid.UUID
 	dataFlushed := func() bool {
+		// NB(bodu): We want to ensure that we have snapshot data that is consistent across
+		// ALL shards on a per block start basis. For each snapshot block start, we expect
+		// the data to exist in at least one shard.
+		expectedSnapshotsSeen := make([]bool, len(expectedSnapshots))
 		for _, shard := range shardSet.AllIDs() {
-			for _, e := range expectedSnapshots {
+			for i, e := range expectedSnapshots {
 				snapshotFiles, err := fs.SnapshotFiles(
-					filePathPrefix, namespace, shard)
+					fsOpts.FilePathPrefix(), namespace, shard)
 				if err != nil {
 					panic(err)
 				}
 
 				latest, ok := snapshotFiles.LatestVolumeForBlock(e.blockStart)
 				if !ok {
-					return false
+					// Each shard may not own data for all block starts.
+					continue
 				}
 
 				if !(latest.ID.VolumeIndex >= e.minVolume) {
-					return false
+					// Cleanup manager can lag behind.
+					continue
 				}
 
-				_, snapshotID, err = latest.SnapshotTimeAndID()
-				if err != nil {
-					panic(err)
-				}
+				// Mark expected snapshot as seen.
+				expectedSnapshotsSeen[i] = true
+			}
+		}
+		// We should have seen each expected snapshot in at least one shard.
+		for _, maybeSeen := range expectedSnapshotsSeen {
+			if !maybeSeen {
+				return false
 			}
 		}
 		return true
 	}
 	if waitUntil(dataFlushed, timeout) {
-		return snapshotID, nil
+		// Use snapshot metadata to get latest snapshotID as the view of snapshotID can be inconsistent
+		// across TSDB blocks.
+		snapshotMetadataFlushed := func() bool {
+			snapshotMetadatas, _, err := fs.SortedSnapshotMetadataFiles(fsOpts)
+			if err != nil {
+				panic(err)
+			}
+
+			if len(snapshotMetadatas) == 0 {
+				return false
+			}
+			snapshotID = snapshotMetadatas[len(snapshotMetadatas)-1].ID.UUID
+			return true
+		}
+		if waitUntil(snapshotMetadataFlushed, timeout) {
+			return snapshotID, nil
+		}
 	}
+
 	return snapshotID, errDiskFlushTimedOut
 }
 
@@ -131,7 +158,7 @@ func waitUntilDataFilesFlushed(
 			for _, series := range seriesList {
 				shard := shardSet.Lookup(series.ID)
 				exists, err := fs.DataFileSetExists(
-					filePathPrefix, namespace, shard, timestamp.ToTime(), 0)
+					filePathPrefix, namespace, shard, timestamp, 0)
 				if err != nil {
 					panic(err)
 				}
@@ -155,14 +182,6 @@ func waitUntilFileSetFilesExist(
 	timeout time.Duration,
 ) error {
 	return waitUntilFileSetFilesExistOrNot(filePathPrefix, files, true, timeout)
-}
-
-func waitUntilFileSetFilesNotExist(
-	filePathPrefix string,
-	files []fs.FileSetFileIdentifier,
-	timeout time.Duration,
-) error {
-	return waitUntilFileSetFilesExistOrNot(filePathPrefix, files, false, timeout)
 }
 
 func waitUntilFileSetFilesExistOrNot(
@@ -202,7 +221,7 @@ func verifyForTime(
 	reader fs.DataFileSetReader,
 	shardSet sharding.ShardSet,
 	iteratorPool encoding.ReaderIteratorPool,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	nsCtx ns.Context,
 	filesetType persist.FileSetType,
 	expected generate.SeriesBlock,
@@ -218,7 +237,7 @@ func checkForTime(
 	reader fs.DataFileSetReader,
 	shardSet sharding.ShardSet,
 	iteratorPool encoding.ReaderIteratorPool,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	nsCtx ns.Context,
 	filesetType persist.FileSetType,
 	expected generate.SeriesBlock,
@@ -282,7 +301,7 @@ func checkForTime(
 
 			var datapoints []generate.TestValue
 			it := iteratorPool.Get()
-			it.Reset(bytes.NewBuffer(data.Bytes()), nsCtx.Schema)
+			it.Reset(xio.NewBytesReader64(data.Bytes()), nsCtx.Schema)
 			for it.Next() {
 				dp, _, ann := it.Current()
 				datapoints = append(datapoints, generate.TestValue{Datapoint: dp, Annotation: ann})
@@ -335,7 +354,7 @@ func checkFlushedDataFiles(
 	nsCtx := ns.NewContextFor(nsID, storageOpts.SchemaRegistry())
 	for timestamp, seriesList := range seriesMaps {
 		err := checkForTime(
-			storageOpts, reader, shardSet, iteratorPool, timestamp.ToTime(),
+			storageOpts, reader, shardSet, iteratorPool, timestamp,
 			nsCtx, persist.FileSetFlushType, seriesList)
 		if err != nil {
 			return err
@@ -359,7 +378,7 @@ func verifySnapshottedDataFiles(
 	nsCtx := ns.NewContextFor(nsID, storageOpts.SchemaRegistry())
 	for blockStart, seriesList := range seriesMaps {
 		verifyForTime(
-			t, storageOpts, reader, shardSet, iteratorPool, blockStart.ToTime(),
+			t, storageOpts, reader, shardSet, iteratorPool, blockStart,
 			nsCtx, persist.FileSetSnapshotType, seriesList)
 	}
 

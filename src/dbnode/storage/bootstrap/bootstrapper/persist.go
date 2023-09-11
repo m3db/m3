@@ -23,10 +23,10 @@ package bootstrapper
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
@@ -58,10 +58,11 @@ func PersistBootstrapIndexSegment(
 	requestedRanges result.ShardTimeRanges,
 	builder segment.DocumentsBuilder,
 	persistManager *SharedPersistManager,
+	indexClaimsManager fs.IndexClaimsManager,
 	resultOpts result.Options,
 	fulfilled result.ShardTimeRanges,
-	blockStart time.Time,
-	blockEnd time.Time,
+	blockStart xtime.UnixNano,
+	blockEnd xtime.UnixNano,
 ) (result.IndexBlock, error) {
 	// No-op if there are no documents that need to be written for this time block (nothing to persist).
 	if len(builder.Docs()) == 0 {
@@ -91,7 +92,16 @@ func PersistBootstrapIndexSegment(
 	// [10AM     ->     2PM][2PM     ->     6PM] (Index Blocks)
 	retentionOpts := ns.Options().RetentionOptions()
 	nowFn := resultOpts.ClockOptions().NowFn()
-	earliestRetentionTime := retention.FlushTimeStart(retentionOpts, nowFn())
+	now := xtime.ToUnixNano(nowFn())
+	earliestRetentionTime := retention.FlushTimeStart(retentionOpts, now)
+
+	// If bootstrapping is taking more time than our retention period, we might end up in a situation
+	// when earliestRetentionTime is larger than out block end time. This means that the blocks
+	// got outdated during bootstrap so we just skip building index segments for them.
+	if !blockEnd.After(earliestRetentionTime) {
+		return result.IndexBlock{}, fs.ErrIndexOutOfRetention
+	}
+
 	if blockStart.Before(earliestRetentionTime) {
 		expectedRangeStart = earliestRetentionTime
 	}
@@ -111,6 +121,7 @@ func PersistBootstrapIndexSegment(
 		shards,
 		builder,
 		persistManager,
+		indexClaimsManager,
 		requestedRanges,
 		expectedRanges,
 		fulfilled,
@@ -124,11 +135,12 @@ func persistBootstrapIndexSegment(
 	shards map[uint32]struct{},
 	builder segment.DocumentsBuilder,
 	persistManager *SharedPersistManager,
+	indexClaimsManager fs.IndexClaimsManager,
 	requestedRanges result.ShardTimeRanges,
 	expectedRanges result.ShardTimeRanges,
 	fulfilled result.ShardTimeRanges,
-	blockStart time.Time,
-	max time.Time,
+	blockStart xtime.UnixNano,
+	max xtime.UnixNano,
 ) (result.IndexBlock, error) {
 	// Check that we completely fulfilled all shards for the block
 	// and we didn't bootstrap any more/less than expected.
@@ -160,6 +172,14 @@ func persistBootstrapIndexSegment(
 		}
 	}()
 
+	volumeIndex, err := indexClaimsManager.ClaimNextIndexFileSetVolumeIndex(
+		ns,
+		blockStart,
+	)
+	if err != nil {
+		return result.IndexBlock{}, fmt.Errorf("failed to claim next index volume index: %w", err)
+	}
+
 	preparedPersist, err := flush.PrepareIndex(persist.IndexPrepareOptions{
 		NamespaceMetadata: ns,
 		BlockStart:        blockStart,
@@ -167,6 +187,7 @@ func persistBootstrapIndexSegment(
 		Shards:            shards,
 		// NB(bodu): Assume default volume type when persisted bootstrapped index data.
 		IndexVolumeType: idxpersist.DefaultIndexVolumeType,
+		VolumeIndex:     volumeIndex,
 	})
 	if err != nil {
 		return result.IndexBlock{}, err
@@ -209,8 +230,8 @@ func BuildBootstrapIndexSegment(
 	compactor *SharedCompactor,
 	resultOpts result.Options,
 	mmapReporter mmap.Reporter,
-	blockStart time.Time,
-	blockEnd time.Time,
+	blockStart xtime.UnixNano,
+	blockEnd xtime.UnixNano,
 ) (result.IndexBlock, error) {
 	// No-op if there are no documents that need to be written for this time block (nothing to persist).
 	if len(builder.Docs()) == 0 {
@@ -235,11 +256,20 @@ func BuildBootstrapIndexSegment(
 	//  Index block size: 4 hours
 	//  Data block size: 2 hours
 	//  Retention: 6 hours
-	//           [12PM->2PM][2PM->4PM][4PM->6PM] (Data Blocks)
-	// [10AM     ->     2PM][2PM     ->     6PM] (Index Blocks)
+	//           [12PM->2PM)[2PM->4PM)[4PM->6PM) (Data Blocks)
+	// [10AM     ->     2PM)[2PM     ->     6PM) (Index Blocks)
 	retentionOpts := ns.Options().RetentionOptions()
 	nowFn := resultOpts.ClockOptions().NowFn()
-	earliestRetentionTime := retention.FlushTimeStart(retentionOpts, nowFn())
+	now := xtime.ToUnixNano(nowFn())
+	earliestRetentionTime := retention.FlushTimeStart(retentionOpts, now)
+
+	// If bootstrapping is taking more time than our retention period, we might end up in a situation
+	// when earliestRetentionTime is larger than out block end time. This means that the blocks
+	// got outdated during bootstrap so we just skip building index segments for them.
+	if !blockEnd.After(earliestRetentionTime) {
+		return result.IndexBlock{}, fs.ErrIndexOutOfRetention
+	}
+
 	if blockStart.Before(earliestRetentionTime) {
 		expectedRangeStart = earliestRetentionTime
 	}
@@ -272,9 +302,9 @@ func BuildBootstrapIndexSegment(
 // GetDefaultIndexBlockForBlockStart gets the index block for the default volume type from the index results.
 func GetDefaultIndexBlockForBlockStart(
 	results result.IndexResults,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 ) (result.IndexBlock, bool) {
-	indexBlockByVolumeType, ok := results[xtime.ToUnixNano(blockStart)]
+	indexBlockByVolumeType, ok := results[blockStart]
 	if !ok {
 		// NB(bodu): We currently write empty data files to disk, which means that we can attempt to bootstrap
 		// time ranges that have no data and no index block.

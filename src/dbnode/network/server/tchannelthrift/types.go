@@ -18,15 +18,45 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package tchannelthrift contains code for servicing RPC requests via
+// tchannel.
 package tchannelthrift
 
 import (
-	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/serialize"
+)
+
+// Key is a specific string type for context setting.
+type Key string
+
+// EndpointContextKey is the key for setting and retrieving the endpoint from context.
+const EndpointContextKey Key = "endpoint"
+
+// Endpoint is a type representing an API endpoint
+type Endpoint int
+
+const (
+	// Unknown represents an unknown endpoint.
+	Unknown Endpoint = iota
+	// AggregateRaw represents the AggregateRaw endpoint.
+	AggregateRaw
+	// Fetch represents the Fetch endpoint.
+	Fetch
+	// FetchBatchRaw represents the FetchBatchRaw endpoint.
+	FetchBatchRaw
+	// FetchBatchRawV2 represents the FetchBatchRawV2 endpoint.
+	FetchBatchRawV2
+	// FetchTagged represents the FetchTagged endpoint.
+	FetchTagged
+	// Query represents the Query endpoint.
+	Query
 )
 
 // Options controls server behavior
@@ -73,12 +103,6 @@ type Options interface {
 	// TagEncoderPool returns the tag encoder pool.
 	TagEncoderPool() serialize.TagEncoderPool
 
-	// SetTagDecoderPool sets the tag encoder pool.
-	SetTagDecoderPool(value serialize.TagDecoderPool) Options
-
-	// TagDecoderPool returns the tag encoder pool.
-	TagDecoderPool() serialize.TagDecoderPool
-
 	// SetCheckedBytesWrapperPool sets the checked bytes wrapper pool.
 	SetCheckedBytesWrapperPool(value xpool.CheckedBytesWrapperPool) Options
 
@@ -100,4 +124,20 @@ type Options interface {
 	// MaxOutstandingReadRequests returns the maxinum number of allowed
 	// outstanding read requests.
 	MaxOutstandingReadRequests() int
+
+	// QueryLimits returns the QueryLimits.
+	QueryLimits() limits.QueryLimits
+
+	// SetQueryLimits sets the QueryLimits.
+	SetQueryLimits(value limits.QueryLimits) Options
+
+	// PermitsOptions returns the permits options.
+	PermitsOptions() permits.Options
+
+	// SetPermitsOptions sets the permits options.
+	SetPermitsOptions(value permits.Options) Options
+
+	// SetFetchTaggedSeriesBlocksPerBatch sets the series blocks allowed to be read
+	// per permit acquired.
+	SetFetchTaggedSeriesBlocksPerBatch(value int) Options
 }

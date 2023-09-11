@@ -33,12 +33,14 @@ import (
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/kv/fake"
 	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cluster/services"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/validators"
 	"github.com/m3db/m3/src/x/instrument"
 	xjson "github.com/m3db/m3/src/x/json"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -49,8 +51,9 @@ import (
 )
 
 var (
-	testDBCfg = &dbconfig.DBConfiguration{
-		ListenAddress: "0.0.0.0:9000",
+	listenAddress = "0.0.0.0:9000"
+	testDBCfg     = &dbconfig.DBConfiguration{
+		ListenAddress: &listenAddress,
 	}
 
 	svcDefaultOptions = []handleroptions.ServiceOptionsDefault{
@@ -99,7 +102,7 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions(), validators.NamespaceValidator)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -151,8 +154,16 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 			"registry": {
 				"namespaces": {
 					"testNamespace": {
+						"aggregationOptions": {
+							"aggregations": [
+								{
+									"aggregated": false,
+									"attributes": null
+								}
+							]
+						},
 						"bootstrapEnabled": true,
-						"cacheBlocksOnRetrieve": true,
+						"cacheBlocksOnRetrieve": false,
 						"flushEnabled": true,
 						"writesToCommitLog": true,
 						"cleanupEnabled": true,
@@ -173,7 +184,11 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null,
+						"stagingState": {
+							"status": "UNKNOWN"
+						}
 					}
 				}
 			}
@@ -220,7 +235,7 @@ func TestLocalTypeClusteredPlacementAlreadyExists(t *testing.T) {
 
 	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions(), validators.NamespaceValidator)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -266,7 +281,7 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions(), validators.NamespaceValidator)
 	require.NoError(t, err)
 
 	w := httptest.NewRecorder()
@@ -315,8 +330,16 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 			"registry": {
 				"namespaces": {
 					"testNamespace": {
+						"aggregationOptions": {
+							"aggregations": [
+								{
+									"aggregated": false,
+									"attributes": null
+								}
+							]
+						},
 						"bootstrapEnabled": true,
-						"cacheBlocksOnRetrieve": true,
+						"cacheBlocksOnRetrieve": false,
 						"flushEnabled": true,
 						"writesToCommitLog": true,
 						"cleanupEnabled": true,
@@ -337,7 +360,11 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null,
+						"stagingState": {
+							"status": "UNKNOWN"
+						}
 					}
 				}
 			}
@@ -376,6 +403,7 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 
 	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
+
 func TestLocalWithBlockSizeNanos(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -383,7 +411,7 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions(), validators.NamespaceValidator)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -431,8 +459,16 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 			"registry": {
 				"namespaces": {
 					"testNamespace": {
+						"aggregationOptions": {
+							"aggregations": [
+								{
+									"aggregated": false,
+									"attributes": null
+								}
+							]
+						},
 						"bootstrapEnabled": true,
-						"cacheBlocksOnRetrieve": true,
+						"cacheBlocksOnRetrieve": false,
 						"flushEnabled": true,
 						"writesToCommitLog": true,
 						"cleanupEnabled": true,
@@ -453,7 +489,11 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null,
+						"stagingState": {
+							"status": "UNKNOWN"
+						}
 					}
 				}
 			}
@@ -500,7 +540,7 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions(), validators.NamespaceValidator)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -553,8 +593,16 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 			"registry": {
 				"namespaces": {
 					"testNamespace": {
+						"aggregationOptions": {
+							"aggregations": [
+								{
+									"aggregated": false,
+									"attributes": null
+								}
+							]
+						},
 						"bootstrapEnabled": true,
-						"cacheBlocksOnRetrieve": true,
+						"cacheBlocksOnRetrieve": false,
 						"flushEnabled": true,
 						"writesToCommitLog": true,
 						"cleanupEnabled": true,
@@ -575,7 +623,11 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null,
+						"stagingState": {
+							"status": "UNKNOWN"
+						}
 					}
 				}
 			}
@@ -631,7 +683,7 @@ func TestClusterTypeHostsPlacementAlreadyExistsHostsProvided(t *testing.T) {
 	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(nil, nil).AnyTimes()
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions(), validators.NamespaceValidator)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -686,7 +738,7 @@ func TestClusterTypeHostsPlacementAlreadyExistsExistingIsLocal(t *testing.T) {
 
 	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions(), validators.NamespaceValidator)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -732,7 +784,7 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions(), validators.NamespaceValidator)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -805,8 +857,16 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 			"registry": {
 				"namespaces": {
 					"testNamespace": {
+						"aggregationOptions": {
+							"aggregations": [
+								{
+									"aggregated": false,
+									"attributes": null
+								}
+							]
+						},
 						"bootstrapEnabled": true,
-						"cacheBlocksOnRetrieve": true,
+						"cacheBlocksOnRetrieve": false,
 						"flushEnabled": true,
 						"writesToCommitLog": true,
 						"cleanupEnabled": true,
@@ -827,7 +887,11 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null,
+						"stagingState": {
+							"status": "UNKNOWN"
+						}
 					}
 				}
 			}
@@ -890,7 +954,7 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions(), validators.NamespaceValidator)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -950,8 +1014,16 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 			"registry": {
 				"namespaces": {
 					"testNamespace": {
+						"aggregationOptions": {
+							"aggregations": [
+								{
+									"aggregated": false,
+									"attributes": null
+								}
+							]
+						},
 						"bootstrapEnabled": true,
-						"cacheBlocksOnRetrieve": true,
+						"cacheBlocksOnRetrieve": false,
 						"flushEnabled": true,
 						"writesToCommitLog": true,
 						"cleanupEnabled": true,
@@ -972,7 +1044,11 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 						},
 						"runtimeOptions": null,
 						"schemaOptions": null,
-						"coldWritesEnabled": false
+						"coldWritesEnabled": false,
+						"extendedOptions": null,
+						"stagingState": {
+							"status": "UNKNOWN"
+						}
 					}
 				}
 			}
@@ -1034,7 +1110,7 @@ func TestClusterTypeMissingHostnames(t *testing.T) {
 	mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
 
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions(), validators.NamespaceValidator)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -1056,7 +1132,8 @@ func TestClusterTypeMissingHostnames(t *testing.T) {
 	assert.Equal(t,
 		xtest.MustPrettyJSONMap(t,
 			xjson.Map{
-				"error": "missing required field",
+				"status": "error",
+				"error":  "missing required field",
 			},
 		),
 		xtest.MustPrettyJSONString(t, string(body)))
@@ -1070,7 +1147,7 @@ func TestBadType(t *testing.T) {
 	mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
 
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		nil, svcDefaultOptions, instrument.NewOptions())
+		nil, svcDefaultOptions, instrument.NewOptions(), validators.NamespaceValidator)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -1091,8 +1168,183 @@ func TestBadType(t *testing.T) {
 	assert.Equal(t,
 		xtest.MustPrettyJSONMap(t,
 			xjson.Map{
-				"error": "invalid database type",
+				"status": "error",
+				"error":  "invalid database type",
 			},
 		),
 		xtest.MustPrettyJSONString(t, string(body)))
+}
+
+func TestLocalTypeWithAggregatedNamespace(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
+	fakeKV := fake.NewStore()
+	mockClient.EXPECT().Store(gomock.Any()).Return(fakeKV, nil).AnyTimes()
+	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
+		testDBCfg, svcDefaultOptions, instrument.NewOptions(), validators.NamespaceValidator)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+
+	jsonInput := xjson.Map{
+		"namespaceName": "testNamespace",
+		"type":          "local",
+		"aggregatedNamespace": xjson.Map{
+			"name":          "testAggregatedNamespace",
+			"resolution":    "5m",
+			"retentionTime": "2440h",
+		},
+	}
+
+	req := httptest.NewRequest("POST", "/database/create",
+		xjson.MustNewTestReader(t, jsonInput))
+	require.NotNil(t, req)
+
+	placementProto := &placementpb.Placement{
+		Instances: map[string]*placementpb.Instance{
+			"localhost": &placementpb.Instance{
+				Id:             "m3db_local",
+				IsolationGroup: "local",
+				Zone:           "embedded",
+				Weight:         1,
+				Endpoint:       "http://localhost:9000",
+				Hostname:       "localhost",
+				Port:           9000,
+			},
+		},
+	}
+	newPlacement, err := placement.NewPlacementFromProto(placementProto)
+	require.NoError(t, err)
+	mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
+	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Any(), 64, 1).Return(newPlacement, nil)
+
+	createHandler.ServeHTTP(w, req)
+
+	resp := w.Result()
+	body, err := ioutil.ReadAll(resp.Body)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	expectedResponse := `
+	{
+		"namespace": {
+			"registry": {
+				"namespaces": {
+					"testNamespace": {
+						"aggregationOptions": {
+							"aggregations": [
+								{
+									"aggregated": false,
+									"attributes": null
+								}
+							]
+						},
+						"bootstrapEnabled": true,
+						"cacheBlocksOnRetrieve": false,
+						"flushEnabled": true,
+						"writesToCommitLog": true,
+						"cleanupEnabled": true,
+						"repairEnabled": false,
+						"retentionOptions": {
+							"retentionPeriodNanos": "86400000000000",
+							"blockSizeNanos": "3600000000000",
+							"bufferFutureNanos": "120000000000",
+							"bufferPastNanos": "600000000000",
+							"blockDataExpiry": true,
+							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+							"futureRetentionPeriodNanos": "0"
+						},
+						"snapshotEnabled": true,
+						"indexOptions": {
+							"enabled": true,
+							"blockSizeNanos": "3600000000000"
+						},
+						"runtimeOptions": null,
+						"schemaOptions": null,
+						"coldWritesEnabled": false,
+						"extendedOptions": null,
+						"stagingState": {
+							"status": "UNKNOWN"
+						}
+					},
+					"testAggregatedNamespace": {
+						"aggregationOptions": {
+							"aggregations": [
+								{
+									"aggregated": true,
+									"attributes": {
+										"resolutionNanos": "300000000000",
+										"downsampleOptions": {
+											"all": true
+										}
+									}
+								}
+							]
+						},
+						"bootstrapEnabled": true,
+						"cacheBlocksOnRetrieve": false,
+						"flushEnabled": true,
+						"writesToCommitLog": true,
+						"cleanupEnabled": true,
+						"repairEnabled": false,
+						"retentionOptions": {
+							"retentionPeriodNanos": "8784000000000000",
+							"blockSizeNanos": "86400000000000",
+							"bufferFutureNanos": "120000000000",
+							"bufferPastNanos": "600000000000",
+							"blockDataExpiry": true,
+							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+							"futureRetentionPeriodNanos": "0"
+						},
+						"snapshotEnabled": true,
+						"indexOptions": {
+							"enabled": true,
+							"blockSizeNanos": "86400000000000"
+						},
+						"runtimeOptions": null,
+						"schemaOptions": null,
+						"coldWritesEnabled": false,
+						"extendedOptions": null,
+						"stagingState": {
+							"status": "UNKNOWN"
+						}
+					}
+				}
+			}
+		},
+		"placement": {
+			"placement": {
+				"instances": {
+					"m3db_local": {
+						"id": "m3db_local",
+						"isolationGroup": "local",
+						"zone": "embedded",
+						"weight": 1,
+						"endpoint": "http://localhost:9000",
+						"shards": [],
+						"shardSetId": 0,
+						"hostname": "localhost",
+						"port": 9000,
+						"metadata": {
+							"debugPort": 0
+						}
+					}
+				},
+				"replicaFactor": 0,
+				"numShards": 0,
+				"isSharded": false,
+				"cutoverTime": "0",
+				"isMirrored": false,
+				"maxShardSetId": 0
+			},
+			"version": 0
+		}
+	}
+	`
+	expected := xtest.MustPrettyJSONString(t, expectedResponse)
+	actual := xtest.MustPrettyJSONString(t, string(body))
+
+	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }

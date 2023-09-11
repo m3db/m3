@@ -96,11 +96,11 @@ var (
 						Filter:       "tag1:value1 tag2:value2",
 						StoragePolicies: []*policypb.StoragePolicy{
 							&policypb.StoragePolicy{
-								Resolution: &policypb.Resolution{
+								Resolution: policypb.Resolution{
 									WindowSize: int64(10 * time.Second),
 									Precision:  int64(time.Second),
 								},
-								Retention: &policypb.Retention{
+								Retention: policypb.Retention{
 									Period: int64(24 * time.Hour),
 								},
 							},
@@ -119,20 +119,20 @@ var (
 						Filter:       "tag3:value3 tag4:value4",
 						StoragePolicies: []*policypb.StoragePolicy{
 							&policypb.StoragePolicy{
-								Resolution: &policypb.Resolution{
+								Resolution: policypb.Resolution{
 									WindowSize: int64(time.Minute),
 									Precision:  int64(time.Minute),
 								},
-								Retention: &policypb.Retention{
+								Retention: policypb.Retention{
 									Period: int64(24 * time.Hour),
 								},
 							},
 							&policypb.StoragePolicy{
-								Resolution: &policypb.Resolution{
+								Resolution: policypb.Resolution{
 									WindowSize: int64(5 * time.Minute),
 									Precision:  int64(time.Minute),
 								},
-								Retention: &policypb.Retention{
+								Retention: policypb.Retention{
 									Period: int64(48 * time.Hour),
 								},
 							},
@@ -159,11 +159,11 @@ var (
 						},
 						StoragePolicies: []*policypb.StoragePolicy{
 							&policypb.StoragePolicy{
-								Resolution: &policypb.Resolution{
+								Resolution: policypb.Resolution{
 									WindowSize: int64(10 * time.Second),
 									Precision:  int64(time.Second),
 								},
-								Retention: &policypb.Retention{
+								Retention: policypb.Retention{
 									Period: int64(24 * time.Hour),
 								},
 							},
@@ -187,6 +187,12 @@ var (
 						Tombstoned:   false,
 						CutoverNanos: 12345,
 						Filter:       "tag1:value1 tag2:value2",
+						Tags: []*metricpb.Tag{
+							{
+								Name:  []byte("name"),
+								Value: []byte("name"),
+							},
+						},
 						TargetsV2: []*rulepb.RollupTargetV2{
 							&rulepb.RollupTargetV2{
 								Pipeline: &pipelinepb.Pipeline{
@@ -202,11 +208,11 @@ var (
 								},
 								StoragePolicies: []*policypb.StoragePolicy{
 									&policypb.StoragePolicy{
-										Resolution: &policypb.Resolution{
+										Resolution: policypb.Resolution{
 											WindowSize: int64(10 * time.Second),
 											Precision:  int64(time.Second),
 										},
-										Retention: &policypb.Retention{
+										Retention: policypb.Retention{
 											Period: int64(24 * time.Hour),
 										},
 									},
@@ -219,6 +225,12 @@ var (
 						Tombstoned:   true,
 						CutoverNanos: 67890,
 						Filter:       "tag3:value3 tag4:value4",
+						Tags: []*metricpb.Tag{
+							{
+								Name:  []byte("name"),
+								Value: []byte("name"),
+							},
+						},
 						TargetsV2: []*rulepb.RollupTargetV2{
 							&rulepb.RollupTargetV2{
 								Pipeline: &pipelinepb.Pipeline{
@@ -237,20 +249,20 @@ var (
 								},
 								StoragePolicies: []*policypb.StoragePolicy{
 									&policypb.StoragePolicy{
-										Resolution: &policypb.Resolution{
+										Resolution: policypb.Resolution{
 											WindowSize: int64(10 * time.Second),
 											Precision:  int64(time.Second),
 										},
-										Retention: &policypb.Retention{
+										Retention: policypb.Retention{
 											Period: int64(24 * time.Hour),
 										},
 									},
 									&policypb.StoragePolicy{
-										Resolution: &policypb.Resolution{
+										Resolution: policypb.Resolution{
 											WindowSize: int64(5 * time.Minute),
 											Precision:  int64(time.Minute),
 										},
-										Retention: &policypb.Retention{
+										Retention: policypb.Retention{
 											Period: int64(48 * time.Hour),
 										},
 									},
@@ -268,6 +280,12 @@ var (
 						Tombstoned:   false,
 						CutoverNanos: 12345,
 						Filter:       "tag1:value1 tag2:value2",
+						Tags: []*metricpb.Tag{
+							{
+								Name:  []byte("name"),
+								Value: []byte("name"),
+							},
+						},
 						TargetsV2: []*rulepb.RollupTargetV2{
 							&rulepb.RollupTargetV2{
 								Pipeline: &pipelinepb.Pipeline{
@@ -283,11 +301,11 @@ var (
 								},
 								StoragePolicies: []*policypb.StoragePolicy{
 									&policypb.StoragePolicy{
-										Resolution: &policypb.Resolution{
+										Resolution: policypb.Resolution{
 											WindowSize: int64(10 * time.Second),
 											Precision:  int64(time.Second),
 										},
-										Retention: &policypb.Retention{
+										Retention: policypb.Retention{
 											Period: int64(24 * time.Hour),
 										},
 									},
@@ -300,6 +318,12 @@ var (
 						Tombstoned:   false,
 						CutoverNanos: 67890,
 						Filter:       "tag3:value3 tag4:value4",
+						Tags: []*metricpb.Tag{
+							{
+								Name:  []byte("name"),
+								Value: []byte("name"),
+							},
+						},
 						TargetsV2: []*rulepb.RollupTargetV2{
 							&rulepb.RollupTargetV2{
 								Pipeline: &pipelinepb.Pipeline{
@@ -318,20 +342,20 @@ var (
 								},
 								StoragePolicies: []*policypb.StoragePolicy{
 									&policypb.StoragePolicy{
-										Resolution: &policypb.Resolution{
+										Resolution: policypb.Resolution{
 											WindowSize: int64(time.Minute),
 											Precision:  int64(time.Minute),
 										},
-										Retention: &policypb.Retention{
+										Retention: policypb.Retention{
 											Period: int64(24 * time.Hour),
 										},
 									},
 									&policypb.StoragePolicy{
-										Resolution: &policypb.Resolution{
+										Resolution: policypb.Resolution{
 											WindowSize: int64(5 * time.Minute),
 											Precision:  int64(time.Minute),
 										},
-										Retention: &policypb.Retention{
+										Retention: policypb.Retention{
 											Period: int64(48 * time.Hour),
 										},
 									},
@@ -349,7 +373,12 @@ var (
 						Tombstoned:   false,
 						CutoverNanos: 12345,
 						Filter:       "tag1:value1 tag2:value2",
-
+						Tags: []*metricpb.Tag{
+							{
+								Name:  []byte("name"),
+								Value: []byte("name"),
+							},
+						},
 						TargetsV2: []*rulepb.RollupTargetV2{
 							&rulepb.RollupTargetV2{
 								Pipeline: &pipelinepb.Pipeline{
@@ -365,11 +394,11 @@ var (
 								},
 								StoragePolicies: []*policypb.StoragePolicy{
 									&policypb.StoragePolicy{
-										Resolution: &policypb.Resolution{
+										Resolution: policypb.Resolution{
 											WindowSize: int64(10 * time.Second),
 											Precision:  int64(time.Second),
 										},
-										Retention: &policypb.Retention{
+										Retention: policypb.Retention{
 											Period: int64(24 * time.Hour),
 										},
 									},
@@ -592,6 +621,56 @@ func TestWriteRuleSetStaleDataError(t *testing.T) {
 
 	jumpRuleSet := newMutableRuleSetFromProto(t, 5, testRuleSet)
 	err = s.WriteRuleSet(jumpRuleSet)
+	require.Error(t, err)
+	require.IsType(t, merrors.NewStaleDataError(""), err)
+}
+
+func TestWriteNamespace(t *testing.T) {
+	s := testStore()
+	defer s.Close()
+
+	nss, err := rules.NewNamespaces(0, testNamespaces)
+	require.NoError(t, err)
+
+	err = s.WriteNamespaces(&nss)
+	require.NoError(t, err)
+
+	existing, err := s.ReadNamespaces()
+	require.NoError(t, err)
+
+	revived, err := existing.AddNamespace(
+		"new",
+		rules.NewRuleSetUpdateHelper(0).NewUpdateMetadata(time.Now().UnixNano(), "test"),
+	)
+	require.NoError(t, err)
+	require.False(t, revived)
+
+	// Update should succeed
+	err = s.WriteNamespaces(existing)
+	require.NoError(t, err)
+}
+
+func TestWriteNamespaceError(t *testing.T) {
+	s := testStore()
+	defer s.Close()
+
+	err := s.WriteNamespaces(nil)
+	require.Error(t, err)
+}
+
+func TestWriteNamespacesStaleDataError(t *testing.T) {
+	s := testStore()
+	defer s.Close()
+
+	nss, err := rules.NewNamespaces(0, testNamespaces)
+	require.NoError(t, err)
+
+	// First write should succeed
+	err = s.WriteNamespaces(&nss)
+	require.NoError(t, err)
+
+	// writing again will encounter stale version
+	err = s.WriteNamespaces(&nss)
 	require.Error(t, err)
 	require.IsType(t, merrors.NewStaleDataError(""), err)
 }

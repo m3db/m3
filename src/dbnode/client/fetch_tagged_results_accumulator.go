@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"fmt"
 	"sort"
-	"time"
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -63,13 +62,15 @@ type fetchTaggedResultAccumulator struct {
 	numHostsPending         int32
 	numShardsPending        int32
 
-	errors         []error
-	fetchResponses fetchTaggedIDResults
-	aggResponses   aggregateResults
-	exhaustive     bool
+	errors           []error
+	fetchResponses   fetchTaggedIDResults
+	aggResponses     aggregateResults
+	exhaustive       bool
+	waitedIndex      int
+	waitedSeriesRead int
 
-	startTime        time.Time
-	endTime          time.Time
+	startTime        xtime.UnixNano
+	endTime          xtime.UnixNano
 	majority         int
 	consistencyLevel topology.ReadConsistencyLevel
 	topoMap          topology.Map
@@ -84,12 +85,6 @@ type fetchTaggedShardConsistencyResult struct {
 	done     bool
 }
 
-type fetchTaggedResultAccumulatorStats struct {
-	exhaustive            bool
-	responseReplicas      int
-	responseBytesEstimate int
-}
-
 func (rs fetchTaggedShardConsistencyResult) pending() int32 {
 	return int32(rs.enqueued - (rs.success + rs.errors))
 }
@@ -100,6 +95,12 @@ func (accum *fetchTaggedResultAccumulator) AddFetchTaggedResponse(
 ) (bool, error) {
 	if opts.response != nil && resultErr == nil {
 		accum.exhaustive = accum.exhaustive && opts.response.Exhaustive
+		if v := opts.response.WaitedIndex; v != nil {
+			accum.waitedIndex += int(*v)
+		}
+		if v := opts.response.WaitedSeriesRead; v != nil {
+			accum.waitedSeriesRead += int(*v)
+		}
 		for _, elem := range opts.response.Elements {
 			accum.fetchResponses = append(accum.fetchResponses, elem)
 		}
@@ -117,6 +118,9 @@ func (accum *fetchTaggedResultAccumulator) AddAggregateResponse(
 ) (bool, error) {
 	if opts.response != nil && resultErr == nil {
 		accum.exhaustive = accum.exhaustive && opts.response.Exhaustive
+		if v := opts.response.WaitedIndex; v != nil {
+			accum.waitedIndex += int(*v)
+		}
 		for _, elem := range opts.response.Results {
 			accum.aggResponses = append(accum.aggResponses, elem)
 		}
@@ -205,8 +209,14 @@ func (accum *fetchTaggedResultAccumulator) accumulatedResult(
 		doneAccumulating := true
 		// NB(r): Use new renamed error to keep the underlying error
 		// (invalid/retryable) type.
-		err := fmt.Errorf("unable to satisfy consistency requirements: shards=%d, err=%v",
-			accum.numShardsPending, accum.errors)
+		enqueued := accum.topoMap.HostsLen()
+		responded := enqueued
+		consistencyErr := newConsistencyResultError(accum.consistencyLevel, enqueued, responded,
+			accum.errors)
+		err := xerrors.Wrapf(
+			consistencyErr,
+			"unable to satisfy consistency requirements, shards=%d",
+			accum.numShardsPending)
 		for i := range accum.errors {
 			if IsBadRequestError(accum.errors[i]) {
 				err = xerrors.NewInvalidParamsError(err)
@@ -237,20 +247,24 @@ func (accum *fetchTaggedResultAccumulator) Clear() {
 	accum.shardConsistencyResults = accum.shardConsistencyResults[:0]
 	accum.consistencyLevel = topology.ReadConsistencyLevelNone
 	accum.majority, accum.numHostsPending, accum.numShardsPending = 0, 0, 0
-	accum.startTime, accum.endTime = time.Time{}, time.Time{}
+	accum.startTime, accum.endTime = 0, 0
 	accum.topoMap = nil
 	accum.exhaustive = true
+	accum.waitedIndex = 0
+	accum.waitedSeriesRead = 0
 	accum.calcTransport.Reset()
 }
 
 func (accum *fetchTaggedResultAccumulator) Reset(
-	startTime time.Time,
-	endTime time.Time,
+	startTime xtime.UnixNano,
+	endTime xtime.UnixNano,
 	topoMap topology.Map,
 	majority int,
 	consistencyLevel topology.ReadConsistencyLevel,
 ) {
 	accum.exhaustive = true
+	accum.waitedIndex = 0
+	accum.waitedSeriesRead = 0
 	accum.startTime = startTime
 	accum.endTime = endTime
 	accum.topoMap = topoMap
@@ -303,13 +317,14 @@ func (accum *fetchTaggedResultAccumulator) sliceResponsesAsSeriesIter(
 	nsID := pools.CheckedBytesWrapper().Get(elem.NameSpace)
 	seriesIter := pools.SeriesIterator().Get()
 	seriesIter.Reset(encoding.SeriesIteratorOptions{
-		ID:                         pools.ID().BinaryID(tsID),
-		Namespace:                  pools.ID().BinaryID(nsID),
-		Tags:                       decoder,
-		StartInclusive:             xtime.ToUnixNano(accum.startTime),
-		EndExclusive:               xtime.ToUnixNano(accum.endTime),
-		Replicas:                   iters,
-		SeriesIteratorConsolidator: opts.SeriesIteratorConsolidator,
+		ID:                            pools.ID().BinaryID(tsID),
+		Namespace:                     pools.ID().BinaryID(nsID),
+		Tags:                          decoder,
+		StartInclusive:                accum.startTime,
+		EndExclusive:                  accum.endTime,
+		Replicas:                      iters,
+		SeriesIteratorConsolidator:    opts.SeriesIteratorConsolidator,
+		IterateEqualTimestampStrategy: opts.IterateEqualTimestampStrategy,
 	})
 
 	return seriesIter
@@ -329,8 +344,7 @@ func (accum *fetchTaggedResultAccumulator) AsEncodingSeriesIterators(
 		return numElements < limit
 	})
 
-	result := pools.MutableSeriesIterators().Get(numElements)
-	result.Reset(numElements)
+	result := encoding.NewSizedSeriesIterators(numElements)
 	count := 0
 	moreElems := false
 	accum.fetchResponses.forEachID(func(elems fetchTaggedIDResults, hasMore bool) bool {
@@ -346,6 +360,8 @@ func (accum *fetchTaggedResultAccumulator) AsEncodingSeriesIterators(
 		Exhaustive:         exhaustive,
 		Responses:          len(accum.fetchResponses),
 		EstimateTotalBytes: accum.calcTransport.GetSize(),
+		WaitedIndex:        accum.waitedIndex,
+		WaitedSeriesRead:   accum.waitedSeriesRead,
 	}, nil
 }
 
@@ -373,6 +389,8 @@ func (accum *fetchTaggedResultAccumulator) AsTaggedIDsIterator(
 		Exhaustive:         exhaustive,
 		Responses:          len(accum.aggResponses),
 		EstimateTotalBytes: accum.calcTransport.GetSize(),
+		WaitedIndex:        accum.waitedIndex,
+		WaitedSeriesRead:   accum.waitedSeriesRead,
 	}, nil
 }
 
@@ -400,82 +418,47 @@ func (accum *fetchTaggedResultAccumulator) AsAggregatedTagsIterator(
 			values := aggregateValueResultsSortedByValue(tagResponse.TagValues)
 			sort.Sort(values)
 
-			if len(tagResult.tagValues) == 0 {
-				// If first response with values from host then add in order blindly.
-				for _, tagValueResponse := range values {
-					elem := ident.BytesID(tagValueResponse.TagValue)
-					tagResult.tagValues = append(tagResult.tagValues, elem)
-					count++
-				}
-				continue
-			}
-
-			// Otherwise add in order and deduplicate.
 			if tempValues == nil {
 				tempValues = make([]ident.ID, 0, len(tagResult.tagValues))
 			}
 			tempValues = tempValues[:0]
 
-			lastValueIdx := 0
-			addRemaining := false
-			nextLastValue := func() {
-				lastValueIdx++
-				if lastValueIdx >= len(tagResult.tagValues) {
-					// None left to compare against, just blindly add the remaining.
-					addRemaining = true
-				}
-			}
+			// perform a merge sort with the final results.
+			i, j := 0, 0
+			for i < len(tagResult.tagValues) || j < len(values) {
+				var nextValue ident.ID
 
-			for i := 0; i < len(values); i++ {
-				tagValueResponse := values[i]
-				currValue := ident.BytesID(tagValueResponse.TagValue)
-				if addRemaining {
-					// Just add remaining values.
-					elem := ident.BytesID(tagValueResponse.TagValue)
-					tempValues = append(tempValues, elem)
-					count++
-					continue
-				}
-
-				existingValue := tagResult.tagValues[lastValueIdx]
-				cmp := bytes.Compare(currValue.Bytes(), existingValue.Bytes())
-				for !addRemaining && cmp > 0 {
-					// Take the existing value
-					tempValues = append(tempValues, existingValue)
-
-					// Move to next record
-					nextLastValue()
-					if addRemaining {
-						// None left to compare against, just blindly add the remaining.
-						break
+				switch {
+				case i == len(tagResult.tagValues):
+					nextValue = ident.BytesID(values[j].TagValue)
+					j++
+				case j == len(values):
+					nextValue = tagResult.tagValues[i]
+					i++
+				default:
+					switch bytes.Compare(tagResult.tagValues[i].Bytes(), values[j].TagValue) {
+					case -1:
+						nextValue = tagResult.tagValues[i]
+						i++
+					case 0:
+						nextValue = tagResult.tagValues[i]
+						i++
+						j++
+					case 1:
+						nextValue = ident.BytesID(values[j].TagValue)
+						j++
 					}
-
-					// Re-run check
-					existingValue = tagResult.tagValues[lastValueIdx]
-					cmp = bytes.Compare(currValue.Bytes(), existingValue.Bytes())
 				}
-				if addRemaining {
-					// Reprocess this element
-					i--
-					continue
-				}
-
-				if cmp == 0 {
-					// Take existing record, skip this copy
-					tempValues = append(tempValues, existingValue)
-					nextLastValue()
-					continue
-				}
-
-				// This record must come before any existing value, take and move to next
-				tempValues = append(tempValues, currValue)
+				tempValues = append(tempValues, nextValue)
 			}
 
 			// Copy out of temp values back to final result
 			tagResult.tagValues = append(tagResult.tagValues[:0], tempValues...)
 		}
 
+		count += len(tagResult.tagValues)
 		moreElems = hasMore
+		// Would count ever be above limit?
 		return count < limit
 	})
 
@@ -484,6 +467,8 @@ func (accum *fetchTaggedResultAccumulator) AsAggregatedTagsIterator(
 		Exhaustive:         exhaustive,
 		Responses:          len(accum.aggResponses),
 		EstimateTotalBytes: accum.calcTransport.GetSize(),
+		WaitedIndex:        accum.waitedIndex,
+		WaitedSeriesRead:   accum.waitedSeriesRead,
 	}, nil
 }
 
@@ -560,7 +545,7 @@ type aggregateValueResults []*rpc.AggregateQueryRawResultTagValueElement
 // bool indicates if the iteration should be continued past the curent batch.
 type forEachAggregateFn func(responsesForSingleTag aggregateResults, hasMore bool) (continueIterating bool)
 
-// forEachTag iterates over the provide results, and calls `fn` on each
+// forEachTag iterates over the provided results, and calls `fn` on each
 // group of responses with the same TagName.
 // NB: assumes the results array being operated upon has been sorted.
 func (results aggregateResults) forEachTag(fn forEachAggregateFn) {

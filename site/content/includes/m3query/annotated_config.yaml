@@ -1,0 +1,631 @@
+# The server listen address
+listenAddress: <url>
+
+# Options for emitting metrics
+metrics:
+  # Metrics scope
+  scope:
+    # Prefix prepended to metrics collected
+    prefix: <string>
+    # Reporting frequendy of metrics collected
+    reportingInterval: <duration>
+    # Tags shared by metrics collected
+    tags: <map of strings>
+  # Configuration for a Prometheus reporter (if used)
+  prometheus:
+    # Metrics collection endpoint for application
+    # Default = "/metrics"
+    handlerPath: <string>
+    # Listen address for metrics
+    # Default = "0.0.0.0:7203"
+    listenAddress: <url>
+    # The default Prometheus type to use for Tally timers, valid options: [histogram, summary]
+    timerType: <string>
+    # If specified sets the default histogram objectives used by the reporter
+    defaultHistogramBuckets:
+      # Upper bound of the bucket
+      upper: <float>
+    # If specified sets the default summary objectives used by the reporter
+    defaultSummaryObjectives:
+      percentile: <float>
+      allowedError: <float>
+    # What to do with errors when listening on the specified listen address or registering a metric with Prometheus, valid options: [stderr, log, none]
+    # Default = panic and stop exceution of go routine
+    onError: <string>
+  # Metric sanitization type, valid options: [none, m3, prometheus]
+  # Default = "none"
+  sanitization: <string>
+  # Metrics sampling rate. min=0.0, max=1.0
+  samplingRate: <float>
+  # Enable Go runtime metrics, valid options: [none, simple, moderate, detailed]
+  # See https://github.com/m3db/m3/blob/master/src/x/instrument/extended.go#L39:L64 for more details
+  extended: <string>
+
+# Logging configuration
+logging:
+  # Log file location
+  file: <string>
+  # Error logging level
+  level: <string>
+  # Key-value pairs to send to logging
+  fields: <map_of_strings>
+
+# Enables tracing, if nothing configured, tracing is disabled
+tracing:
+  # Name for tracing service
+  serviceName: <string>
+  # Tracing backen to use, valid options: [jaeger, lightstep]
+  backend: <string>
+  # If using Jaeger, options to send to tracing backend
+  jaeger:
+  # If using Lightstep, options to send to tracing backend
+  lightstep:
+
+clusters:
+    client:
+      config:
+        service:
+          # Configures the etcd keyspace, valid options: [default_env, user_defined]
+          # default_env is bare metal single node, user-defined matches a kubernetes-namespace/cluster-name pattern
+          env: <string>
+          # Availability zone, valid options: [user-defined, embedded]
+          # user-defined should match the availabilty zone for your hosting proider
+          zone: <string>
+          # Service name
+          service: <string>
+          # Directory to store cached etcd data
+          cacheDir: <string>
+          # Identify the etcd hosts this node should connect to
+          etcdClusters:
+            # Availability zone, valid options: [user-defined, embedded]
+            # user-defined should match the availabilty zone for your hosting proider
+            - zone: <string>
+              # Member nodes of the etcd cluster, in form url:port
+              endpoints:
+                - <url>
+              # Keep alive header behavior
+              keepAlive:
+                # Enable keep alive
+                enabled: <bool>
+                # Duration of time after which if the client doesn't see any activity the client pings the server to see if transport is alive.
+                period: <duration>
+                # Add jittering to keep alive period to avoid a large number of clients sending keepalive probes at the same time.
+                jitter: <duration>
+                # Time the client waits for a response for the keep alive probe. If the response is not received in this time, the connection is closed.
+                timeout: <duration>
+              # TLS configuration
+              tls:
+                # Certificate path
+                crtPath: <string>
+                # Certificiate authority path
+                caCrtPath: <string>
+                # Key store path
+                keyPath: <string>
+              autoSyncInterval: <duration>    
+        # Seed node configuration, mostly used for single node setups
+        seedNodes:
+          # Path to key-value store directory
+          rootDir: <string>
+          initialAdvertisePeerUrls: <array_of_strings>
+          advertiseClientUrls: <array_of_strings>
+          listenPeerUrls: <array_of_strings>
+          listenClientUrls: <array_of_strings>
+          # A seed node for the cluster
+          initialCluster:
+            # Identifier for node
+            - hostID: <string>
+              # URL of node
+              endpoint: <url>
+              # Specify that this is an existing cluster, or leave blank if it is now, valid options: [existing]
+              clusterState: <string>
+          # Seed node client security configuration
+          clientTransportSecurity:
+            # Certificiate authority path
+            caFile: <string>
+            # Certificate path
+            certFile: <string>
+            # Key store path
+            keyFile: <string>
+            trustedCaFile: <string>
+            clientCertAuth: <bool>
+            autoTls: <bool>
+          # Seed node peer security configuration
+          peerTransportSecurity:
+            # Certificiate authority path
+            caFile: <string>
+            # Certificate path
+            certFile: <string>
+            # Key store path
+            keyFile: <string>
+            trustedCaFile: <string>
+            clientCertAuth: <bool>
+            autoTls: <bool>
+      # The consistency level for writing to a cluster, valid options: [none, one, majority, all]
+      writeConsistencyLevel: <string>
+      # The consistency level for reading from a cluster, valid options: [none, one, unstrict_majority, majority, unstrict_all, all]
+      readConsistencyLevel: <string>
+      # The timeout for writing data
+      # Default = 10s
+      writeTimeout: <duration>
+      # The fetch timeout for any given query
+      # Range = 30s to 5m
+      fetchTimeout: <duration>
+      # The cluster connect timeout    
+      connectTimeout: <duration>
+      # Configuration for retrying write operations
+      writeRetry:
+        # Defaults to 5s.
+        initialBackoff: <duration>
+        # Factor for exponential backoff
+        backoffFactor: <float>
+        # Maximum backoff time
+        maxBackoff: <duration>
+        # Maximum retry attempts
+        maxRetries: <int>
+        # Retry connection forever until the attempt succeeds, or the retry condition becomes false
+        forever: <bool>        
+        # Add randomness to wait intervals
+        jitter: <bool>
+      # Configuration for retrying fetch operations
+      fetchRetry:
+        initialBackoff: <duration>
+        # Factor for exponential backoff
+        backoffFactor: <float>
+        # Maximum backoff time
+        maxBackoff: <duration>
+        # Maximum retry attempts
+        maxRetries: <int>
+        # Retry connection forever until the attempt succeeds, or the retry condition becomes false
+        forever: <bool>        
+        # Add randomness to wait intervals
+        jitter: <bool>
+      # The amount of times a background check fails before a connection is taken out of consideration
+      backgroundHealthCheckFailLimit: <int>
+      # The factor of the host connect time when sleeping between a failed health check and the next check
+      backgroundHealthCheckFailThrottleFactor: <float>
+
+# Local embedded configuration if running embedded coordinator
+local:
+  # Describes the namespaces in a static cluster
+  namespaces:
+    # Name for the namespace
+    namespace: <string>
+    # The type of values stored by the namespace, current, valid options: [unaggregated, aggregated]
+    type: <string>
+    # How long to store metrics data
+    retention: <duration>
+    # Metrics sampling resolution
+    resolution: <duration>
+    # Configuration for downsampling options on an aggregated cluster namespace
+    downsample:
+      all: <bool>
+
+# Configuration for the placemement, namespaces and database management endpoints.
+clusterManagement:
+  # etcd client configuration
+  etcd:
+    # Configures the etcd keyspace, valid options: [default_env, user_defined]
+    # default_env is bare metal single node, user-defined matches a kubernetes-namespace/cluster-name pattern
+    env: <string>
+    # Availability zone, valid options: [user-defined, embedded]
+    # user-defined should match the availabilty zone for your hosting proider
+    zone: <string>
+    # Service name
+    service: <string>
+    # Directory to store cached etcd data
+    cacheDir: <string>
+    # Identify the etcd hosts this node should connect to
+    etcdClusters:
+      # Availability zone, valid options: [user-defined, embedded]
+      # user-defined should match the availabilty zone for your hosting proider
+      - zone: <string>
+        # Member nodes of the etcd cluster, in form url:port
+        endpoints:
+          - <url>
+        # Keep alive header behavior
+        keepAlive:
+          # Enable keep alive
+          enabled: <bool>
+          # Duration of time after which if the client doesn't see any activity the client pings the server to see if transport is alive.
+          period: <duration>
+          # Add jittering to keep alive period to avoid a large number of clients sending keepalive probes at the same time.
+          jitter: <duration>
+          # Time the client waits for a response for the keep alive probe. If the response is not received in this time, the connection is closed.
+          timeout: <duration>
+        # TLS configuration
+        tls:
+          # Certificate path
+          crtPath: <string>
+          # Certificiate authority path
+          caCrtPath: <string>
+          # Key store path
+          keyPath: <string>
+        autoSyncInterval: <duration>    
+    # M3 service discovery configuration
+    m3sd:
+      # Initialization timeout
+      # Default = 5s
+      initTimeout: <duration>
+    # The revision that watch requests start from
+    watchWithRevision: <int>
+    # Changes permissions and mode of cache directory
+    newDirectoryMode: <string>
+    # Configuration for retrying connection operations
+    retry:
+      initialBackoff: <duration>
+      # Factor for exponential backoff
+      backoffFactor: <float>
+      # Maximum backoff time
+      maxBackoff: <duration>
+      # Maximum retry attempts
+      maxRetries: <int>
+      # Retry connection forever until the attempt succeeds, or the retry condition becomes false
+      forever: <bool>      
+      # Add randomness to wait intervals
+      jitter: <bool>
+    # The timeout for etcd requests
+    requestTimeout: <duration>
+    # The timeout for a watchChan initialization
+    # Default = 10s
+    watchChanInitTimeout: <duration>
+    # Frequency to check if a watch chan is no longer subscribed and should be closed
+    # Default = 10s    
+    watchChanCheckInterval: <duration>
+    # The delay before resetting the etcd watch chan
+    # Default = 10s  
+    watchChanResetInterval: <duration>
+
+# Filters for write/read/complete tags storage filters
+# All have the same configuration, so only explained once
+filter:
+  read:
+    # Specifies to use local only storage
+    local_only: <string>
+    # Specifies to use remote only storage
+    remote_only: <string>
+    # Specifies to use all storage
+    allow_all: <string>
+    # Specifies to use no storage
+    allow_none: <string>
+  write:
+  completeTags:
+
+# The RPC configuration for the coordinator for the GRPC server used for remote coordinator to coordinator calls
+rpc:
+  # Enable coordinator RPC for remote calls
+  enabled: <bool>
+  # The RPC server listen address
+  listenAddress: <url>
+  # Configuration settings for remote coordinator zones
+  remotes:
+    name: <string>
+    # Remote listen addresses to call for remote coordinator calls in the zone
+    remoteListenAddresses: <array of urls>
+    # Overrides the default error behavior for this host, valid options: [fail, warning, container]
+    # Default = warning
+    errorBehavior: <string>
+  # Overrides the default error behavior for all rpc hosts, valid options: [fail, warning, container]
+  # Default = warning
+  errorBehavior: <string>
+  # Enable reflection on the GRPC server, useful for testing connectivity with grpcurl, etc.
+  reflectionEnabled: <bool>
+
+
+# Configures methods to contact remote coordinators to distribute M3 clusters across data centers
+# Backend store for query service, valid options: [grpc, m3db, noop-etcd, prom-remote].
+# Default = m3db
+backend: <string>
+
+# Configures Prometheus Remote backend when prom-remote backend is used.
+prometheusRemoteBackend:
+  # Array of Prometheus remote write compatible endpoints.
+  # If storage policy is specified for endpoint only aggregated data matching policy will be sent to it.
+  # Endpoints which do not specify storagePolicy will receive unaggregated writes.
+  endpoints:
+      # Unique endpoint name
+    - name: <string>
+      # HTTP url of and endpoint that accepts Prometheus remote writes.
+      address: <url>
+      # Optional configuration to configure
+      storagePolicy:
+        # How long to store metrics data. This is only used to filter endpoints.
+        retention: <duration>
+        # Metrics sampling resolution. This is only used to filter endpoints.
+        resolution: <duration>
+        # Configuration for downsampling options on an aggregated endpoint
+        # If not specified will default to all=true
+        downsample:
+          all: <bool>
+
+# The worker pool policy for read requests
+readWorkerPoolPolicy:
+  # Worker pool automatically grows to capacity
+  grow: <bool>
+  # Static pool size, or initial size for dynamically growing pools
+  size: <int>
+
+# The worker pool policy for write requests
+writeWorkerPoolPolicy:
+  # Worker pool automatically grows to capacity
+  grow: <bool>
+  # Static pool size, or initial size for dynamically growing pools
+  size: <int>
+
+# Write forwarding to other Prometheus backends for mirroring, high availability etc
+writeForwarding:
+  # Forwarding options for prometheus write handler
+  promRemoteWrite:
+    maxConcurrency: <int>
+    timeout: <duration>
+    # Configuration for retrying connection operations
+    retry:
+      initialBackoff: <duration>
+      # Factor for exponential backoff
+      backoffFactor: <float>
+      # Maximum backoff time
+      maxBackoff: <duration>
+      # Maximum retry attempts
+      maxRetries: <int>
+      # Retry connection forever until the attempt succeeds, or the retry condition becomes false
+      forever: <bool>      
+      # Add randomness to wait intervals
+      jitter: <bool>
+    # Prometheus write handler forwarder target
+    targets:
+      # URL of the target to send to
+      url: <string>
+      # Method defaults to POST if not set
+      method: <string>
+      # Headers to send with requests to the target
+      headers: <map of strings>
+
+# How to downsample metrics
+downsample:
+  # The configuration for the downsampler matcher
+  matcher:
+  # Downsample rules which overrides any rules set in the KV store
+  rules:
+    # Rules (multiple) that set retention and resolution for metrics given a filter to match metrics against
+    mappingRules:
+      # String separated label name to label value glob patterns to filter the mapping rule
+      filter: <string>
+      # Aggregations to apply to the set of metrics
+      # Read https://m3db.io/docs/operational_guide/mapping_rollup/ for full list
+      aggregations: <array_of_strings>
+      # Retention/resolution storage policies to keep matched metrics
+      storagePolicies:
+        # How long to store metrics data
+        retention: <duration>
+        # Metrics sampling resolution
+        resolution: <duration>
+      # Drop any metrics that match the filter rather than keeping them with a storage policy
+      drop: <bool>
+      # Tags to add to the metric while applying the mapping rule
+      tags: <array_of_strings>
+      # Name for the mapping rule
+      name: <string>
+    # Rules (multiple) that sets aggregations for sets of metrics given a filter to match metrics against
+    rollupRules:
+      # String separated label name to label value glob patterns to filter the mapping rule
+      filter: <string>
+      # A set of of rollup rule transforms
+      transforms:
+        rollup:
+          # Name of the new metric emitted after the rollup is applied with its aggregations and group bys
+          metricName: <string>
+          # Set of labels to group by, only these remain on the new metric name produced by the rollup operation
+          groupBy: <array_of_strings>
+          # Aggregations to apply to the set of metrics
+          # Read https://m3db.io/docs/operational_guide/mapping_rollup/ for full list
+          aggregations: <array_of_strings>
+        # Aggregation operation type
+        aggregate:
+          # Read https://m3db.io/docs/operational_guide/mapping_rollup/ for full list
+          type: <string>
+        # Transform operation type
+        transform:
+          # Read https://m3db.io/docs/operational_guide/mapping_rollup/ for full list
+          type: <string>
+      # Retention/resolution storage policies to keep matched metrics
+      storagePolicies:
+        # How long to store metrics data
+        retention: <duration>
+        # Metrics sampling resolution
+        resolution: <duration>
+      # Name for the rollup rule
+      name: <string>
+  # Pool of counter elements
+  counterElemPool:
+    # Size of the pool
+    size: <int>
+    watermark:
+      # The low watermark to start refilling the pool
+      # min=0.0, max=1.0
+      low: <float>
+      # The high watermark to start refilling the pool
+      # min=0.0, max=1.0
+      high: <float>
+  # Pool of timer elements
+  timerElemPool:
+    # Size of the pool
+    size: <int>
+    watermark:
+      # The low watermark to start refilling the pool
+      # min=0.0, max=1.0
+      low: <float>
+      # The high watermark to start refilling the pool
+      # min=0.0, max=1.0
+      high: <float>
+  # Pool of gauge elements
+  gaugeElemPool:
+    # Size of the pool
+    size: <int>
+    watermark:
+      # The low watermark to start refilling the pool
+      # min=0.0, max=1.0
+      low: <float>
+      # The high watermark to start refilling the pool
+      # min=0.0, max=1.0
+      high: <float>
+  # Specifies a custom buffer past limit for aggregation tiles
+  bufferPastLimits:
+    resolution: <duration>
+    bufferPast: <duration>
+  # How long an entry remains alive before it is expired due to inactivity
+  entryTTL: <duration>
+  # Augment the metric type used within the filter for rules
+  augmentM3Tags: <bool>
+  # Include rollup rules when deciding if the downsampler should ignore auto mapping rules based on the storage polices for a given rule
+  includeRollupsOnDefaultRuleFiltering: <bool>
+
+# Ingestion server configuration
+ingest:
+  ingester:
+    workerPoolSize: <int>
+    # Write operation pool size
+    opPool:
+      size: <int>
+      watermark:
+        # The low watermark to start refilling the pool
+        # min=0.0, max=1.0
+        low: <float>
+        # The high watermark to start refilling the pool
+        # min=0.0, max=1.0
+        high: <float>
+    retry:
+      initialBackoff: <duration>
+      # Factor for exponential backoff
+      backoffFactor: <float>
+      # Maximum backoff time
+      maxBackoff: <duration>
+      # Maximum retry attempts
+      maxRetries: <int>
+      # Retry connection forever until the attempt succeeds, or the retry condition becomes false
+      forever: <bool>      
+      # Add randomness to wait intervals
+      jitter: <bool>
+    logSampleRate: <float>
+
+# Configuration for the carbon server that offers graphite metrics support
+carbon:
+  ingester:
+    workerPoolSize: <int>
+    # Write operation pool size
+    opPool:
+      size: <int>
+      watermark:
+        # The low watermark to start refilling the pool
+        # min=0.0, max=1.0
+        low: <float>
+        # The high watermark to start refilling the pool
+        # min=0.0, max=1.0
+        high: <float>
+    retry:
+      initialBackoff: <duration>
+      # Factor for exponential backoff
+      backoffFactor: <float>
+      # Maximum backoff time
+      maxBackoff: <duration>
+      # Maximum retry attempts
+      maxRetries: <int>
+      # Retry connection forever until the attempt succeeds, or the retry condition becomes false
+      forever: <bool>      
+      # Add randomness to wait intervals
+      jitter: <bool>
+    logSampleRate: <float>
+  aggregateNamespacesAllData:
+  # A constant time to shift start by
+  shiftTimeStart: <duration>
+  # A constant time to shift end by
+  shiftTimeEnd: <duration>
+  # A constant set of steps to shift start by
+  shiftStepsStart: <int>
+  # A constant set of steps to shift end by
+  shiftStepsEnd: <int>
+  # A constant set of steps to shift start by, if and only if, the end is an exact match to the resolution boundary of a query, and the start is an exact match to the resolution boundary
+  shiftStepsStartWhenAtResolutionBoundary: <int>
+  # A constant set of steps to shift end by, if and only if, the start is an exact match to the resolution boundary of a query, and the end is an exact match to the resolution boundary
+  shiftStepsEndWhenAtResolutionBoundary: <int>
+  # A constant set of steps to shift start by, if and only if, the start is an exact match to the resolution boundary of a query, and the end is NOT an exact match to the resolution boundary
+  shiftStepsEndWhenStartAtResolutionBoundary: <int>
+  # A constant set of steps to shift end by, if and only if, the end is an exact match to the resolution boundary of a query, and the start is NOT an exact match to the resolution boundary
+  shiftStepsStartWhenEndAtResolutionBoundary: <int>
+  # Render partial datapoints when the start time is between a datapoint's resolution step size
+  renderPartialStart: <bool>
+  # Render partial datapoints when the end time is between a datapoint's resolution step size
+  renderPartialEnd: <bool>
+  # Render series that have only NaNs for entire output instead of returning an empty array of datapoints
+  renderSeriesAllNaNs: <bool>
+  # escape all characters using a backslash in a quoted string instead of only escaping quotes
+  compileEscapeAllNotOnlyQuotes: <bool>
+
+# Configuration for M3 Query component
+query:
+  # Query timeout
+  timeout: <duration>
+  # The default query engine, valid options: [prometheus, m3query]
+  defaultEngine: <string>
+  # Configuration for consolidating fetched queries
+  consolidation:
+    # Determines the options by which series should match, valid options: [ids, tags]
+    matchType: <string>
+  # Prometheus client configuration
+  prometheus:
+    # The limit on fetched samples per query
+    maxSamplesPerQuery: <int>
+  # Optional configuration to restrict all queries with certain tags
+  restrictTags:
+    match:
+      # Tag to match
+      name: <string>
+      # How to match, valid options: [EQUAL, NOTEQUAL, REGEXP, NOTREGEXP, EXISTS, NOTEXISTS, ALL]
+      type: <string>
+      # Value of tag
+      value: <string>
+    # Tags to strip from response 
+    strip: <array_of_strings>
+
+# Specifies limitations on resource usage in the query instance. Limits are split between per-query and global limits
+limits:
+  # Configures limits on resource usage within a single query. Zero or negative values imply no limit
+  perQuery:
+    # Limits the number of time series returned for any given individual storage node per query, before returning result to query service
+    maxFetchedSeries: <int>
+    # Limits the number of index documents matched for any given individual storage node per query, before returning result to query service
+    maxFetchedDocs: <int>
+    # Generate an error if the query exceeds any limit
+    requireExhaustive: <bool>
+
+# Sets the lookback duration for queries
+# Default = 5m
+lookbackDuration: <duration>
+
+# The result options for a query
+resultOptions:
+  # Keeps NaNs before returning query results.
+  # Default = false
+  keepNans: <bool>
+
+# Controls if metrics type stored or not
+storeMetricsType: <bool>
+
+# Multi-process configuration
+multiProcess:
+  # Enable multi-process execution
+  enabled: <bool>
+  # The number of sub-processes to run
+  # use 0 to auto-detect based on number of CPUs
+  count: <int>
+  # The factor of processes to run per CPU, leave
+  # use 0 to use the default of 0.5 per CPU, i.e. one process for every two CPUs
+  # min=0.0, max=1.0
+  perCPU: <float>
+  # Explicitly sets the child GOMAXPROCs env var
+  goMaxProcs: <int>
+
+# Debug package configuration
+debug:
+  # Sets the runtime to report mutex contention events, read https://tip.golang.org/pkg/runtime/#SetMutexProfileFraction for more details about the value
+  mutexProfileFraction: <int>
+  # Sets the runtime to report blocking events, read https://golang.org/pkg/runtime/#SetBlockProfileRate for more details about the value
+  blockProfileRate: <int>

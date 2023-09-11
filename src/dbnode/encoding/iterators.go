@@ -44,8 +44,13 @@ type iterators struct {
 	filtering          bool
 	equalTimesStrategy IterateEqualTimestampStrategy
 
+	firstAnnotationHolder annotationHolder
+
 	// Used for caching reuse of value frequency lookup
 	valueFrequencies map[float64]int
+
+	// closeIters controls whether the iterators is responsible for closing the underlying iters.
+	closeIters bool
 }
 
 func (i *iterators) len() int {
@@ -89,7 +94,7 @@ func (i *iterators) current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 			return freqA < freqB
 		})
 
-		// Reset reuseable value frequencies
+		// Reset reusable value frequencies
 		for key := range i.valueFrequencies {
 			delete(i.valueFrequencies, key)
 		}
@@ -108,15 +113,16 @@ func (i *iterators) at() xtime.UnixNano {
 }
 
 func (i *iterators) push(iter Iterator) bool {
+	_, _, annotation := iter.Current()
 	if i.filtering && !i.moveIteratorToFilterNext(iter) {
 		return false
 	}
 	i.values = append(i.values, iter)
-	i.tryAddEarliest(iter)
+	i.tryAddEarliest(iter, annotation)
 	return true
 }
 
-func (i *iterators) tryAddEarliest(iter Iterator) {
+func (i *iterators) tryAddEarliest(iter Iterator, firstAnnotation ts.Annotation) {
 	dp, _, _ := iter.Current()
 	if dp.TimestampNanos == i.earliestAt {
 		// Push equal earliest
@@ -125,6 +131,9 @@ func (i *iterators) tryAddEarliest(iter Iterator) {
 		// Reset earliest and push new iter
 		i.earliest = append(i.earliest[:0], iter)
 		i.earliestAt = dp.TimestampNanos
+		if len(firstAnnotation) > 0 {
+			i.firstAnnotationHolder.set(firstAnnotation)
+		}
 	}
 }
 
@@ -171,7 +180,9 @@ func (i *iterators) moveToValidNext() (bool, error) {
 		}
 
 		// No next so swap tail in and shrink by one
-		iter.Close()
+		if i.closeIters {
+			iter.Close()
+		}
 		idx := -1
 		for i, curr := range i.values {
 			if curr == iter {
@@ -200,7 +211,7 @@ func (i *iterators) moveToValidNext() (bool, error) {
 	// Force first to be new earliest, evaluate rest
 	i.earliestAt = timeMaxNanos
 	for _, iter := range i.values {
-		i.tryAddEarliest(iter)
+		i.tryAddEarliest(iter, nil)
 	}
 
 	// Apply filter to new earliest if necessary
@@ -224,9 +235,15 @@ func (i *iterators) validateNext(next bool, prevAt xtime.UnixNano) (bool, error)
 	return next, nil
 }
 
+func (i *iterators) firstAnnotation() ts.Annotation {
+	return i.firstAnnotationHolder.get()
+}
+
 func (i *iterators) reset() {
 	for idx := range i.values {
-		i.values[idx].Close()
+		if i.closeIters {
+			i.values[idx].Close()
+		}
 		i.values[idx] = nil
 	}
 	i.values = i.values[:0]
@@ -235,6 +252,7 @@ func (i *iterators) reset() {
 	}
 	i.earliest = i.earliest[:0]
 	i.earliestAt = timeMaxNanos
+	i.firstAnnotationHolder.reset()
 }
 
 func (i *iterators) setFilter(start, end xtime.UnixNano) {

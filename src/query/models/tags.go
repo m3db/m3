@@ -55,6 +55,21 @@ func EmptyTags() Tags {
 	return NewTags(0, nil)
 }
 
+// IsValid is true if the label name matches the pattern of "^[a-zA-Z_][a-zA-Z0-9_]*$". This
+// method, however, does not use regex for the check but a much faster
+// hardcoded implementation.
+func IsValid(ln string) bool {
+	if len(ln) == 0 {
+		return false
+	}
+	for i, b := range ln {
+		if !((b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b == '_' || (b >= '0' && b <= '9' && i > 0)) {
+			return false
+		}
+	}
+	return true
+}
+
 // LastComputedID returns the last computed ID; this should only be
 // used when it is guaranteed that no tag transforms take place between calls.
 func (t *Tags) LastComputedID() []byte {
@@ -291,7 +306,7 @@ func (t Tags) validate() error {
 			}
 
 			prev := tags.Tags[i-1]
-			if bytes.Compare(prev.Name, tag.Name) == 0 {
+			if bytes.Equal(prev.Name, tag.Name) {
 				return fmt.Errorf("tags duplicate: '%s' appears more than once",
 					tags.Tags[i-1].Name)
 			}
@@ -300,16 +315,20 @@ func (t Tags) validate() error {
 		var (
 			allowTagNameDuplicates = t.Opts.AllowTagNameDuplicates()
 			allowTagValueEmpty     = t.Opts.AllowTagValueEmpty()
+			maxTagLiteralLength    = int(t.Opts.MaxTagLiteralLength())
 		)
 		// Sorted alphanumerically otherwise, use bytes.Compare once for
 		// both order and unique test.
 		for i, tag := range t.Tags {
-			if len(tag.Name) == 0 {
+			if nameLen := len(tag.Name); nameLen == 0 {
 				return fmt.Errorf("tag name empty: index=%d", i)
+			} else if nameLen > maxTagLiteralLength {
+				return fmt.Errorf("tag name too long: index=%d, length=%d, maxLength=%d", i, nameLen, maxTagLiteralLength)
 			}
-			if !allowTagValueEmpty && len(tag.Value) == 0 {
-				return fmt.Errorf("tag value empty: index=%d, name=%s",
-					i, t.Tags[i].Name)
+			if valueLen := len(tag.Value); !allowTagValueEmpty && valueLen == 0 {
+				return fmt.Errorf("tag value empty: index=%d, name=%s", i, tag.Name)
+			} else if valueLen > maxTagLiteralLength {
+				return fmt.Errorf("tag value too long: index=%d, length=%d, maxLength=%d", i, valueLen, maxTagLiteralLength)
 			}
 			if i == 0 {
 				continue // Don't check order/unique attributes.
@@ -412,6 +431,24 @@ func (t Tag) ToProto() *metricpb.Tag {
 func (t Tag) String() string {
 	return fmt.Sprintf("%s: %s", t.Name, t.Value)
 }
+
+// GetName returns the name of the tag.
+func (t Tag) GetName() []byte {
+	return t.Name
+}
+
+// GetValue returns the value of the tag.
+func (t Tag) GetValue() []byte {
+	return t.Value
+}
+
+// Label is used to unify logic for prometheus and m3 style labels.
+type Label interface {
+	GetName() []byte
+	GetValue() []byte
+}
+
+var _ Label = (*Tag)(nil)
 
 // Equals returns a boolean indicating whether the provided tags are equal.
 //

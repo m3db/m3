@@ -22,6 +22,9 @@ package block
 
 import (
 	"fmt"
+	"sort"
+	"strings"
+	"time"
 
 	"github.com/m3db/m3/src/query/models"
 )
@@ -52,19 +55,166 @@ func (m Metadata) String() string {
 // Warnings is a slice of warnings.
 type Warnings []Warning
 
+// ResultMetricMetadata describes metadata on a per metric-name basis.
+type ResultMetricMetadata struct {
+	// NoSamples is the total number of series that were fetched to compute
+	// this result but had no samples.
+	NoSamples int
+	// WithSamples is the total number of series that were fetched to compute
+	// this result and had samples.
+	WithSamples int
+	// Aggregated is the total number of aggregated series that were fetched to
+	// compute this result.
+	Aggregated int
+	// Unaggregated is the total number of unaggregated series that were fetched to
+	// compute this result.
+	Unaggregated int
+}
+
+// Equals determines if two result metric metadatas are equal.
+func (m ResultMetricMetadata) Equals(other ResultMetricMetadata) bool {
+	if m.NoSamples != other.NoSamples {
+		return false
+	}
+	if m.WithSamples != other.WithSamples {
+		return false
+	}
+	if m.Aggregated != other.Aggregated {
+		return false
+	}
+	if m.Unaggregated != other.Unaggregated {
+		return false
+	}
+	return true
+}
+
+// Merge takes another ResultMetricMetadata and merges it into this one.
+func (m *ResultMetricMetadata) Merge(other ResultMetricMetadata) {
+	m.NoSamples += other.NoSamples
+	m.WithSamples += other.WithSamples
+	m.Aggregated += other.Aggregated
+	m.Unaggregated += other.Unaggregated
+}
+
+func mergeMetricMetadataMaps(dst, src map[string]*ResultMetricMetadata) {
+	for name, other := range src {
+		m, ok := dst[name]
+		if !ok {
+			dst[name] = other
+		} else {
+			m.Merge(*other)
+		}
+	}
+}
+
 // ResultMetadata describes metadata common to each type of query results,
 // indicating any additional information about the result.
 type ResultMetadata struct {
+	// Namespaces are the set of namespaces queried.
+	// External users must access via `AddNamespace`
+	namespaces map[string]struct{}
+	// FetchedResponses is the number of M3 RPC fetch responses received.
+	FetchedResponses int
+	// FetchedBytesEstimate is the estimated number of bytes fetched.
+	FetchedBytesEstimate int
 	// LocalOnly indicates that this query was executed only on the local store.
 	LocalOnly bool
 	// Exhaustive indicates whether the underlying data set presents a full
 	// collection of retrieved data.
 	Exhaustive bool
-	// Warnings is a list of warnings that indicate potetitally partial or
+	// Warnings is a list of warnings that indicate potentially partial or
 	// incomplete results.
 	Warnings Warnings
 	// Resolutions is a list of resolutions for series obtained by this query.
-	Resolutions []int64
+	Resolutions []time.Duration
+	// KeepNaNs indicates if NaNs should be kept when returning results.
+	KeepNaNs bool
+	// WaitedIndex counts how many times index querying had to wait for permits.
+	WaitedIndex int
+	// WaitedSeriesRead counts how many times series being read had to wait for permits.
+	WaitedSeriesRead int
+	// FetchedSeriesCount is the total number of series that were fetched to compute
+	// this result.
+	FetchedSeriesCount int
+	// FetchedMetadataCount is the total amount of metadata that was fetched to compute
+	// this result.
+	FetchedMetadataCount int
+	// MetricNames is the set of unique metric tag name values across all series in this result.
+	// External users must access via `ByName(name)`.
+	metadataByName map[string]*ResultMetricMetadata
+}
+
+// AddNamespace adds a namespace to the namespace set, initializing the underlying map if necessary.
+func (m *ResultMetadata) AddNamespace(namespace string) {
+	if m.namespaces == nil {
+		m.namespaces = make(map[string]struct{})
+	}
+	m.namespaces[namespace] = struct{}{}
+}
+
+// GetNamespaces returns an array representing the set of namespaces added via AddNamespace.
+func (m ResultMetadata) GetNamespaces() []string {
+	if m.namespaces == nil {
+		return []string{}
+	}
+	namespaces := []string{}
+	for n := range m.namespaces {
+		namespaces = append(namespaces, n)
+	}
+	sort.Strings(namespaces)
+	return namespaces
+}
+
+// ByName returns the ResultMetricMetadata for a given metric name.
+func (m *ResultMetadata) ByName(nameTag []byte) *ResultMetricMetadata {
+	if m.metadataByName == nil {
+		m.metadataByName = make(map[string]*ResultMetricMetadata)
+	}
+
+	r, ok := m.metadataByName[string(nameTag)]
+	if ok {
+		return r
+	}
+
+	r = &ResultMetricMetadata{}
+	m.metadataByName[string(nameTag)] = r
+	return r
+}
+
+// MetadataByNameMerged returns the metadataByName map values merged into one.
+func (m ResultMetadata) MetadataByNameMerged() ResultMetricMetadata {
+	r := ResultMetricMetadata{}
+	for _, m := range m.metadataByName {
+		r.Merge(*m)
+	}
+	return r
+}
+
+// TopMetadataByName returns the top `max` ResultMetricMetadatas by the sum of their
+// contained counters.
+func (m ResultMetadata) TopMetadataByName(max int) map[string]*ResultMetricMetadata {
+	if len(m.metadataByName) <= max {
+		return m.metadataByName
+	}
+
+	keys := []string{}
+	for k := range m.metadataByName {
+		keys = append(keys, k)
+	}
+	sort.SliceStable(keys, func(i, j int) bool {
+		a := m.metadataByName[keys[i]]
+		b := m.metadataByName[keys[j]]
+		n := a.Aggregated + a.Unaggregated + a.NoSamples + a.WithSamples
+		m := b.Aggregated + b.Unaggregated + b.NoSamples + b.WithSamples
+		// Sort in descending order
+		return n > m
+	})
+	top := make(map[string]*ResultMetricMetadata, max)
+	for i := 0; i < max; i++ {
+		k := keys[i]
+		top[k] = m.metadataByName[k]
+	}
+	return top
 }
 
 // NewResultMetadata creates a new result metadata.
@@ -75,7 +225,7 @@ func NewResultMetadata() ResultMetadata {
 	}
 }
 
-func combineResolutions(a, b []int64) []int64 {
+func combineResolutions(a, b []time.Duration) []time.Duration {
 	if len(a) == 0 {
 		if len(b) != 0 {
 			return b
@@ -85,7 +235,7 @@ func combineResolutions(a, b []int64) []int64 {
 			return a
 		}
 
-		combined := make([]int64, 0, len(a)+len(b))
+		combined := make([]time.Duration, 0, len(a)+len(b))
 		combined = append(combined, a...)
 		combined = append(combined, b...)
 		return combined
@@ -110,6 +260,35 @@ func combineWarnings(a, b Warnings) Warnings {
 	}
 
 	return nil
+}
+
+func combineNamespaces(a, b map[string]struct{}) map[string]struct{} {
+	if a == nil {
+		return b
+	}
+	if b == nil {
+		return a
+	}
+	merged := make(map[string]struct{})
+	for n := range a {
+		merged[n] = struct{}{}
+	}
+	for n := range b {
+		merged[n] = struct{}{}
+	}
+	return merged
+}
+
+func combineMetricMetadata(a, b map[string]*ResultMetricMetadata) map[string]*ResultMetricMetadata {
+	if a == nil && b == nil {
+		return nil
+	}
+
+	merged := make(map[string]*ResultMetricMetadata)
+	mergeMetricMetadataMaps(merged, a)
+	mergeMetricMetadataMaps(merged, b)
+
+	return merged
 }
 
 // Equals determines if two result metadatas are equal.
@@ -138,24 +317,71 @@ func (m ResultMetadata) Equals(n ResultMetadata) bool {
 		}
 	}
 
-	return true
+	if m.WaitedIndex != n.WaitedIndex {
+		return false
+	}
+
+	if m.WaitedSeriesRead != n.WaitedSeriesRead {
+		return false
+	}
+
+	if m.FetchedSeriesCount != n.FetchedSeriesCount {
+		return false
+	}
+
+	if !m.MetadataByNameMerged().Equals(n.MetadataByNameMerged()) {
+		return false
+	}
+
+	return m.FetchedMetadataCount == n.FetchedMetadataCount
 }
 
 // CombineMetadata combines two result metadatas.
 func (m ResultMetadata) CombineMetadata(other ResultMetadata) ResultMetadata {
-	meta := ResultMetadata{
-		LocalOnly:   m.LocalOnly && other.LocalOnly,
-		Exhaustive:  m.Exhaustive && other.Exhaustive,
-		Warnings:    combineWarnings(m.Warnings, other.Warnings),
-		Resolutions: combineResolutions(m.Resolutions, other.Resolutions),
+	return ResultMetadata{
+		namespaces:           combineNamespaces(m.namespaces, other.namespaces),
+		FetchedResponses:     m.FetchedResponses + other.FetchedResponses,
+		FetchedBytesEstimate: m.FetchedBytesEstimate + other.FetchedBytesEstimate,
+		LocalOnly:            m.LocalOnly && other.LocalOnly,
+		Exhaustive:           m.Exhaustive && other.Exhaustive,
+		Warnings:             combineWarnings(m.Warnings, other.Warnings),
+		Resolutions:          combineResolutions(m.Resolutions, other.Resolutions),
+		WaitedIndex:          m.WaitedIndex + other.WaitedIndex,
+		WaitedSeriesRead:     m.WaitedSeriesRead + other.WaitedSeriesRead,
+		FetchedSeriesCount:   m.FetchedSeriesCount + other.FetchedSeriesCount,
+		metadataByName:       combineMetricMetadata(m.metadataByName, other.metadataByName),
+		FetchedMetadataCount: m.FetchedMetadataCount + other.FetchedMetadataCount,
 	}
-
-	return meta
 }
 
 // IsDefault returns true if this result metadata matches the unchanged default.
 func (m ResultMetadata) IsDefault() bool {
 	return m.Exhaustive && m.LocalOnly && len(m.Warnings) == 0
+}
+
+// VerifyTemporalRange will verify that each resolution seen is below the
+// given step size, adding warning headers if it is not.
+func (m *ResultMetadata) VerifyTemporalRange(step time.Duration) {
+	// NB: this map is unlikely to have more than 2 elements in real execution,
+	// since these correspond to namespace count.
+	invalidResolutions := make(map[time.Duration]struct{}, 10)
+	for _, res := range m.Resolutions {
+		if res > step {
+			invalidResolutions[res] = struct{}{}
+		}
+	}
+
+	if len(invalidResolutions) > 0 {
+		warnings := make([]string, 0, len(invalidResolutions))
+		for k := range invalidResolutions {
+			warnings = append(warnings, fmt.Sprintf("%v", k))
+		}
+
+		sort.Strings(warnings)
+		warning := fmt.Sprintf("range: %v, resolutions: %s",
+			step, strings.Join(warnings, ", "))
+		m.AddWarning("resolution larger than query range", warning)
+	}
 }
 
 // AddWarning adds a warning to the result metadata.
@@ -166,6 +392,11 @@ func (m *ResultMetadata) AddWarning(name string, message string) {
 		Name:    name,
 		Message: message,
 	})
+}
+
+// AddWarnings adds several warnings to the result metadata.
+func (m *ResultMetadata) AddWarnings(warnings ...Warning) {
+	m.Warnings = m.Warnings.addWarnings(warnings...)
 }
 
 // NB: this is not a very efficient merge but this is extremely unlikely to be

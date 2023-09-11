@@ -20,11 +20,8 @@ vendor/
 # Build binaries
 bin/
 
-# retool dependencies
+# go tool binaries installed via `go install`
 _tools/
-
-# Used to serve swagger documentation
-!**/openapi/*.html
 
 # Debug binaries
 debug.test
@@ -39,9 +36,6 @@ coverage/
 # Release directory
 dist/
 
-# Docs directory
-site/
-
 # Node
 node_modules/
 build/
@@ -49,14 +43,17 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Used to serve m3db.io site
-!m3db.io/**/*.html
-!m3db.io/**/*.xml
-# go modules does not manage this
-!m3db.io/**/vendor
-# Automatically populated from asset sources
-m3db.io/openapi
+# Site ignores
+site/public
+site/v*
+site/.hugo_build.lock
+
+tmp
+
+# Automatically copied over from generated assets
+site/static/openapi
+# Used to serve swagger documentation
+!**/openapi/*.html
 
 # Vagrant
 .vagrant
-

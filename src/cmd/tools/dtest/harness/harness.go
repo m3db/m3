@@ -40,11 +40,10 @@ import (
 	"github.com/m3db/m3/src/cmd/tools/dtest/config"
 	"github.com/m3db/m3/src/cmd/tools/dtest/util"
 	"github.com/m3db/m3/src/cmd/tools/dtest/util/seed"
-	xclock "github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
-	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/x/m3em/convert"
 	m3emnode "github.com/m3db/m3/src/dbnode/x/m3em/node"
 	"github.com/m3db/m3/src/m3em/build"
@@ -52,7 +51,7 @@ import (
 	hb "github.com/m3db/m3/src/m3em/generated/proto/heartbeat"
 	"github.com/m3db/m3/src/m3em/node"
 	xgrpc "github.com/m3db/m3/src/m3em/x/grpc"
-	m3xclock "github.com/m3db/m3/src/x/clock"
+	xclock "github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -419,7 +418,7 @@ func (dt *DTestHarness) WaitUntilAllBootstrapped(nodes []node.ServiceNode) error
 // available, or the configured bootstrap timeout period; whichever is sooner. It returns
 // an error indicating if all the nodes finished bootstrapping.
 func (dt *DTestHarness) WaitUntilAllShardsAvailable() error {
-	allAvailable := m3xclock.WaitUntil(dt.AllShardsAvailable, dt.BootstrapTimeout())
+	allAvailable := xclock.WaitUntil(dt.AllShardsAvailable, dt.BootstrapTimeout())
 	if !allAvailable {
 		return fmt.Errorf("all shards not available")
 	}
@@ -568,5 +567,11 @@ func defaultNamespaceProtoValue() (proto.Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	return namespace.ToProto(nsMap), nil
+
+	registry, err := namespace.ToProto(nsMap)
+	if err != nil {
+		return nil, err
+	}
+
+	return registry, nil
 }

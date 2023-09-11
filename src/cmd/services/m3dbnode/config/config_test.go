@@ -53,6 +53,9 @@ db:
           size: 100
           cacheRegexp: false
           cacheTerms: false
+          cacheSearch: null
+      series:
+          policy: lru
 
   metrics:
       prometheus:
@@ -95,15 +98,8 @@ db:
 
   gcPercentage: 100
 
-  writeNewSeriesLimitPerSecond: 1048576
-  writeNewSeriesBackoffDuration: 2ms
-
   bootstrap:
-      bootstrappers:
-          - filesystem
-          - peers
-          - noop-all
-      fs:
+      filesystem:
           numProcessorsPerCPU: 0.42
       commitlog:
           returnUnfulfilledForCorruptCommitLogFiles: false
@@ -115,7 +111,7 @@ db:
           calculationType: fixed
           size: 2097152
 
-  fs:
+  filesystem:
       filePathPrefix: /var/lib/m3db
       writeBufferSize: 65536
       dataReadBufferSize: 65536
@@ -281,41 +277,42 @@ db:
                 lowWatermark: 0.01
                 highWatermark: 0.02
 
-  config:
-      service:
-          env: production
-          zone: embedded
-          service: m3db
-          cacheDir: /var/lib/m3kv
-          etcdClusters:
-              - zone: embedded
-                endpoints:
-                    - 1.1.1.1:2379
-                    - 1.1.1.2:2379
-                    - 1.1.1.3:2379
+  discovery:
+    config:
+        service:
+            env: production
+            zone: embedded
+            service: m3db
+            cacheDir: /var/lib/m3kv
+            etcdClusters:
+                - zone: embedded
+                  endpoints:
+                      - 1.1.1.1:2379
+                      - 1.1.1.2:2379
+                      - 1.1.1.3:2379
 
-      seedNodes:
-          listenPeerUrls:
-              - http://0.0.0.0:2380
-          listenClientUrls:
-              - http://0.0.0.0:2379
-          rootDir: /var/lib/etcd
-          initialAdvertisePeerUrls:
-              - http://1.1.1.1:2380
-          advertiseClientUrls:
-              - http://1.1.1.1:2379
-          initialCluster:
-              - hostID: host1
-                endpoint: http://1.1.1.1:2380
-                clusterState: existing
-              - hostID: host2
-                endpoint: http://1.1.1.2:2380
-              - hostID: host3
-                endpoint: http://1.1.1.3:2380
+        seedNodes:
+            listenPeerUrls:
+                - http://0.0.0.0:2380
+            listenClientUrls:
+                - http://0.0.0.0:2379
+            rootDir: /var/lib/etcd
+            initialAdvertisePeerUrls:
+                - http://1.1.1.1:2380
+            advertiseClientUrls:
+                - http://1.1.1.1:2379
+            initialCluster:
+                - hostID: host1
+                  endpoint: http://1.1.1.1:2380
+                  clusterState: existing
+                - hostID: host2
+                  endpoint: http://1.1.1.2:2380
+                - hostID: host3
+                  endpoint: http://1.1.1.3:2380
   hashing:
     seed: 42
   writeNewSeriesAsync: true
-
+  writeNewSeriesBackoffDuration: 2ms
   tracing:
     backend: jaeger
 `
@@ -343,10 +340,13 @@ func TestConfiguration(t *testing.T) {
 	expected := `db:
   index:
     maxQueryIDsConcurrency: 0
+    maxWorkerTime: 0s
+    regexpDFALimit: null
+    regexpFSALimit: null
     forwardIndexProbability: 0
     forwardIndexThreshold: 0
   transforms:
-    truncateBy: 0
+    truncateBy: none
     forceValue: null
   logging:
     file: /var/log/m3dbnode.log
@@ -363,8 +363,8 @@ func TestConfiguration(t *testing.T) {
       defaultSummaryObjectives: []
       onError: ""
     samplingRate: 1
-    extended: 3
-    sanitization: 2
+    extended: detailed
+    sanitization: prometheus
   listenAddress: 0.0.0.0:9000
   clusterListenAddress: 0.0.0.0:9001
   httpNodeListenAddress: 0.0.0.0:9002
@@ -378,9 +378,9 @@ func TestConfiguration(t *testing.T) {
     hostname: null
   client:
     config: null
-    writeConsistencyLevel: 2
-    readConsistencyLevel: 2
-    connectConsistencyLevel: 0
+    writeConsistencyLevel: majority
+    readConsistencyLevel: unstrict_majority
+    connectConsistencyLevel: any
     writeTimeout: 10s
     fetchTimeout: 15s
     connectTimeout: 20s
@@ -399,6 +399,8 @@ func TestConfiguration(t *testing.T) {
       forever: null
       jitter: true
     logErrorSampleRate: 0
+    logHostWriteErrorSampleRate: 0
+    logHostFetchErrorSampleRate: 0
     backgroundHealthCheckFailLimit: 4
     backgroundHealthCheckFailThrottleFactor: 0.5
     hashing:
@@ -411,30 +413,33 @@ func TestConfiguration(t *testing.T) {
     fetchSeriesBlocksBatchConcurrency: null
     fetchSeriesBlocksBatchSize: null
     writeShardsInitializing: null
+    shardsLeavingCountTowardsConsistency: null
+    iterateEqualTimestampStrategy: null
   gcPercentage: 100
-  writeNewSeriesLimitPerSecond: 1048576
-  writeNewSeriesBackoffDuration: 2ms
   tick: null
   bootstrap:
-    bootstrappers:
-    - filesystem
-    - peers
-    - noop-all
-    fs:
+    mode: null
+    filesystem:
       numProcessorsPerCPU: 0.42
       migration: null
     commitlog:
       returnUnfulfilledForCorruptCommitLogFiles: false
     peers: null
     cacheSeriesMetadata: null
+    indexSegmentConcurrency: null
+    verify: null
   blockRetrieve: null
   cache:
-    series: null
+    series:
+      policy: lru
+      lru: null
     postingsList:
       size: 100
       cacheRegexp: false
       cacheTerms: false
-  fs:
+      cacheSearch: null
+    regexp: null
+  filesystem:
     filePathPrefix: /var/lib/m3db
     writeBufferSize: 65536
     dataReadBufferSize: 65536
@@ -455,11 +460,14 @@ func TestConfiguration(t *testing.T) {
       calculationType: fixed
       size: 2097152
     queueChannel: null
-    blockSize: null
   repair:
     enabled: false
+    type: default
+    strategy: default
+    force: false
     throttle: 2m0s
     checkInterval: 1m0s
+    concurrency: 0
     debugShadowComparisonsEnabled: false
     debugShadowComparisonsPercentage: 0
   replication: null
@@ -612,76 +620,100 @@ func TestConfiguration(t *testing.T) {
       size: 8
       lowWatermark: 0
       highWatermark: 0
-  config:
-    services:
-    - async: false
-      clientOverrides:
-        hostQueueFlushInterval: null
-        targetHostQueueFlushSize: null
-      service:
-        zone: embedded
-        env: production
-        service: m3db
-        cacheDir: /var/lib/m3kv
-        etcdClusters:
-        - zone: embedded
-          endpoints:
-          - 1.1.1.1:2379
-          - 1.1.1.2:2379
-          - 1.1.1.3:2379
-          keepAlive: null
-          tls: null
-          autoSyncInterval: 0s
-        m3sd:
-          initTimeout: null
-        watchWithRevision: 0
-        newDirectoryMode: null
-    statics: []
-    seedNodes:
-      rootDir: /var/lib/etcd
-      initialAdvertisePeerUrls:
-      - http://1.1.1.1:2380
-      advertiseClientUrls:
-      - http://1.1.1.1:2379
-      listenPeerUrls:
-      - http://0.0.0.0:2380
-      listenClientUrls:
-      - http://0.0.0.0:2379
-      initialCluster:
-      - hostID: host1
-        endpoint: http://1.1.1.1:2380
-        clusterState: existing
-      - hostID: host2
-        endpoint: http://1.1.1.2:2380
-        clusterState: ""
-      - hostID: host3
-        endpoint: http://1.1.1.3:2380
-        clusterState: ""
-      clientTransportSecurity:
-        caFile: ""
-        certFile: ""
-        keyFile: ""
-        trustedCaFile: ""
-        clientCertAuth: false
-        autoTls: false
-      peerTransportSecurity:
-        caFile: ""
-        certFile: ""
-        keyFile: ""
-        trustedCaFile: ""
-        clientCertAuth: false
-        autoTls: false
+  discovery:
+    type: null
+    m3dbCluster: null
+    m3AggregatorCluster: null
+    config:
+      services:
+      - async: false
+        clientOverrides:
+          hostQueueFlushInterval: null
+          targetHostQueueFlushSize: null
+        service:
+          zone: embedded
+          env: production
+          service: m3db
+          cacheDir: /var/lib/m3kv
+          etcdClusters:
+          - zone: embedded
+            endpoints:
+            - 1.1.1.1:2379
+            - 1.1.1.2:2379
+            - 1.1.1.3:2379
+            keepAlive: null
+            tls: null
+            autoSyncInterval: 0s
+            dialTimeout: 0s
+          m3sd:
+            initTimeout: null
+          watchWithRevision: 0
+          newDirectoryMode: null
+          retry:
+            initialBackoff: 0s
+            backoffFactor: 0
+            maxBackoff: 0s
+            maxRetries: 0
+            forever: null
+            jitter: null
+          requestTimeout: 0s
+          watchChanInitTimeout: 0s
+          watchChanCheckInterval: 0s
+          watchChanResetInterval: 0s
+          enableFastGets: false
+      statics: []
+      seedNodes:
+        rootDir: /var/lib/etcd
+        initialAdvertisePeerUrls:
+        - http://1.1.1.1:2380
+        advertiseClientUrls:
+        - http://1.1.1.1:2379
+        listenPeerUrls:
+        - http://0.0.0.0:2380
+        listenClientUrls:
+        - http://0.0.0.0:2379
+        initialCluster:
+        - hostID: host1
+          endpoint: http://1.1.1.1:2380
+          clusterState: existing
+        - hostID: host2
+          endpoint: http://1.1.1.2:2380
+          clusterState: ""
+        - hostID: host3
+          endpoint: http://1.1.1.3:2380
+          clusterState: ""
+        clientTransportSecurity:
+          caFile: ""
+          certFile: ""
+          keyFile: ""
+          trustedCaFile: ""
+          clientCertAuth: false
+          autoTls: false
+        peerTransportSecurity:
+          caFile: ""
+          certFile: ""
+          keyFile: ""
+          trustedCaFile: ""
+          clientCertAuth: false
+          autoTls: false
   hashing:
     seed: 42
   writeNewSeriesAsync: true
+  writeNewSeriesBackoffDuration: 2ms
   proto: null
   tracing:
     serviceName: ""
     backend: jaeger
+    opentelemetry:
+      serviceName: ""
+      endpoint: ""
+      insecure: false
+      attributes: {}
     jaeger:
       serviceName: ""
       disabled: false
       rpc_metrics: false
+      traceid_128bit: false
       tags: []
       sampler: null
       reporter: null
@@ -718,13 +750,20 @@ func TestConfiguration(t *testing.T) {
       reconnect_period: 0s
       meta_event_reporting_enabled: false
   limits:
-    maxRecentlyQueriedSeriesBlocks: null
     maxRecentlyQueriedSeriesDiskBytesRead: null
+    maxRecentlyQueriedSeriesDiskRead: null
+    maxRecentlyQueriedSeriesBlocks: null
+    maxRecentlyQueriedMetadata: null
     maxOutstandingWriteRequests: 0
     maxOutstandingReadRequests: 0
     maxOutstandingRepairedBytes: 0
     maxEncodersPerBlock: 0
+    writeNewSeriesPerSecond: 0
   tchannel: null
+  debug:
+    mutexProfileFraction: 0
+    blockProfileRate: 0
+  forceColdWritesEnabled: null
 coordinator: null
 `
 
@@ -737,7 +776,7 @@ coordinator: null
 
 func TestInitialClusterEndpoints(t *testing.T) {
 	seedNodes := []environment.SeedNode{
-		environment.SeedNode{
+		{
 			HostID:   "host1",
 			Endpoint: "http://1.1.1.1:2380",
 		},
@@ -749,15 +788,15 @@ func TestInitialClusterEndpoints(t *testing.T) {
 	assert.Equal(t, "http://1.1.1.1:2379", endpoints[0])
 
 	seedNodes = []environment.SeedNode{
-		environment.SeedNode{
+		{
 			HostID:   "host1",
 			Endpoint: "http://1.1.1.1:2380",
 		},
-		environment.SeedNode{
+		{
 			HostID:   "host2",
 			Endpoint: "http://1.1.1.2:2380",
 		},
-		environment.SeedNode{
+		{
 			HostID:   "host3",
 			Endpoint: "http://1.1.1.3:2380",
 		},
@@ -776,7 +815,7 @@ func TestInitialClusterEndpoints(t *testing.T) {
 	assert.Equal(t, 0, len(endpoints))
 
 	seedNodes = []environment.SeedNode{
-		environment.SeedNode{
+		{
 			HostID:   "host1",
 			Endpoint: "",
 		},
@@ -787,7 +826,7 @@ func TestInitialClusterEndpoints(t *testing.T) {
 
 func TestIsSeedNode(t *testing.T) {
 	seedNodes := []environment.SeedNode{
-		environment.SeedNode{
+		{
 			HostID:   "host1",
 			Endpoint: "http://1.1.1.1:2380",
 		},
@@ -796,15 +835,15 @@ func TestIsSeedNode(t *testing.T) {
 	assert.Equal(t, true, res)
 
 	seedNodes = []environment.SeedNode{
-		environment.SeedNode{
+		{
 			HostID:   "host1",
 			Endpoint: "http://1.1.1.1:2380",
 		},
-		environment.SeedNode{
+		{
 			HostID:   "host2",
 			Endpoint: "http://1.1.1.2:2380",
 		},
-		environment.SeedNode{
+		{
 			HostID:   "host3",
 			Endpoint: "http://1.1.1.3:2380",
 		},
@@ -813,11 +852,11 @@ func TestIsSeedNode(t *testing.T) {
 	assert.Equal(t, true, res)
 
 	seedNodes = []environment.SeedNode{
-		environment.SeedNode{
+		{
 			HostID:   "host1",
 			Endpoint: "http://1.1.1.1:2380",
 		},
-		environment.SeedNode{
+		{
 			HostID:   "host2",
 			Endpoint: "http://1.1.1.2:2380",
 		},
@@ -828,12 +867,12 @@ func TestIsSeedNode(t *testing.T) {
 
 func TestGetHostAndEndpointFromID(t *testing.T) {
 	test2Seeds := []environment.SeedNode{
-		environment.SeedNode{
+		{
 			HostID:       "host1",
 			Endpoint:     "http://1.1.1.1:2380",
 			ClusterState: "existing",
 		},
-		environment.SeedNode{
+		{
 			HostID:   "host2",
 			Endpoint: "http://1.1.1.2:2380",
 		},
@@ -935,10 +974,6 @@ db:
   httpNodeListenAddress: 0.0.0.0:9002
   httpClusterListenAddress: 0.0.0.0:9003
 
-  bootstrap:
-      bootstrappers:
-          - noop-all
-
   commitlog:
       flushMaxBytes: 524288
       flushEvery: 1s
@@ -982,7 +1017,8 @@ db:
 		"ns2": {
 			SchemaFilePath: "file/path/to/ns2/schema",
 			MessageName:    "ns2_msg_name",
-		}}, cfg.DB.Proto.SchemaRegistry)
+		},
+	}, cfg.DB.Proto.SchemaRegistry)
 }
 
 func TestBootstrapCommitLogConfig(t *testing.T) {
@@ -1003,11 +1039,6 @@ db:
   httpClusterListenAddress: 0.0.0.0:9003
 
   bootstrap:
-      bootstrappers:
-          - filesystem
-          - commitlog
-          - peers
-          - uninitialized_topology
       commitlog:
           returnUnfulfilledForCorruptCommitLogFiles: ` + notDefaultStr + `
 
@@ -1033,25 +1064,62 @@ db:
 	require.NoError(t, err)
 	require.NotNil(t, cfg.DB)
 
-	validator := NewMockBootstrapConfigurationValidator(ctrl)
-	validator.EXPECT().ValidateBootstrappersOrder(gomock.Any()).Return(nil).AnyTimes()
-	validator.EXPECT().ValidateFilesystemBootstrapperOptions(gomock.Any()).Return(nil)
-	validator.EXPECT().ValidatePeersBootstrapperOptions(gomock.Any()).Return(nil)
-	validator.EXPECT().ValidateUninitializedBootstrapperOptions(gomock.Any()).Return(nil)
-	validator.EXPECT().
-		ValidateCommitLogBootstrapperOptions(gomock.Any()).
-		DoAndReturn(func(opts commitlog.Options) error {
-			actual := opts.ReturnUnfulfilledForCorruptCommitLogFiles()
-			expected := notDefault
-			require.Equal(t, expected, actual)
-			return nil
-		})
-
 	mapProvider := topology.NewMockMapProvider(ctrl)
 	origin := topology.NewMockHost(ctrl)
 	adminClient := client.NewMockAdminClient(ctrl)
 
-	_, err = cfg.DB.Bootstrap.New(validator,
-		result.NewOptions(), storage.DefaultTestOptions(), mapProvider, origin, adminClient)
+	_, err = cfg.DB.Bootstrap.New(
+		result.NewOptions(),
+		storage.DefaultTestOptions(),
+		mapProvider,
+		origin,
+		adminClient,
+	)
 	require.NoError(t, err)
+}
+
+func TestConfigurationComponents(t *testing.T) {
+	testConfDB := `
+db: {}
+`
+	testConfMultiple := `
+coordinator: {}
+db: {}
+`
+	tests := []struct {
+		name       string
+		conf       string
+		components int
+	}{
+		{
+			name:       "db configuration",
+			conf:       testConfDB,
+			components: 1,
+		},
+		{
+			name:       "coordinator and db configuration",
+			conf:       testConfMultiple,
+			components: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fd, err := ioutil.TempFile("", "config.yaml")
+			require.NoError(t, err)
+			defer func() {
+				assert.NoError(t, fd.Close())
+				assert.NoError(t, os.Remove(fd.Name()))
+			}()
+
+			_, err = fd.WriteString(tt.conf)
+			require.NoError(t, err)
+
+			var cfg Configuration
+			err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
+			require.NoError(t, err)
+
+			require.Equal(t, tt.components, cfg.Components())
+		})
+	}
 }

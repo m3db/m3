@@ -24,10 +24,10 @@ import (
 	"net/http"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/msg/topic"
-	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
@@ -39,7 +39,7 @@ import (
 
 const (
 	// UpdateURL is the url for the topic update handler (with the PUT method).
-	UpdateURL = handler.RoutePrefixV1 + "/topic"
+	UpdateURL = route.Prefix + "/topic"
 
 	// UpdateHTTPMethod is the HTTP method used with this resource.
 	UpdateHTTPMethod = http.MethodPut
@@ -72,7 +72,7 @@ func (h *UpdateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if rErr := parseRequest(r, &req); rErr != nil {
 		logger.Error("unable to parse request", zap.Error(rErr))
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.WriteError(w, rErr)
 		return
 	}
 
@@ -81,7 +81,7 @@ func (h *UpdateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	service, err := h.serviceFn(h.client, svcOpts)
 	if err != nil {
 		logger.Error("unable to get service", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -90,7 +90,7 @@ func (h *UpdateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	m3Topic, err := service.Get(name)
 	if err != nil {
 		logger.Error("unable to get topic", zap.Error(err))
-		xhttp.Error(w, err, http.StatusNotFound)
+		xhttp.WriteError(w, xhttp.NewError(err, http.StatusNotFound))
 		return
 	}
 
@@ -103,7 +103,7 @@ func (h *UpdateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			err := pkgerrors.WithMessagef(err, "error converting consumer service '%s'", svc.String())
 			svcLogger.Error("convert consumer service error", zap.Error(err))
-			xhttp.Error(w, err, http.StatusBadRequest)
+			xhttp.WriteError(w, xhttp.NewError(err, http.StatusBadRequest))
 			return
 		}
 
@@ -115,7 +115,7 @@ func (h *UpdateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		svcLogger.Error("unable to delete service", zap.Error(err))
 		err := pkgerrors.WithMessagef(err, "error deleting service '%s'", name)
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -124,7 +124,7 @@ func (h *UpdateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	pb, err := topic.ToProto(m3Topic)
 	if err != nil {
 		logger.Error("unable to convert topic to protobuf", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 

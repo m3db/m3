@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/migration"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/storage"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -50,7 +51,7 @@ func TestMigratorRun(t *testing.T) {
 
 	// Create some dummy ReadInfoFileResults as these are used to determine if we need to run a migration or not.
 	// Put some in a state requiring migrations and others not to flex both paths.
-	infoFilesByNamespace := fs.InfoFilesByNamespace{
+	infoFilesByNamespace := bootstrap.InfoFilesByNamespace{
 		md1: {
 			1: {testInfoFileWithVolumeIndex(0), testInfoFileWithVolumeIndex(1)},
 			2: {testInfoFileWithVolumeIndex(0), testInfoFileWithVolumeIndex(1)},
@@ -71,7 +72,7 @@ func TestMigratorRun(t *testing.T) {
 	migrator, err := NewMigrator(opts)
 	require.NoError(t, err)
 
-	err = migrator.Run(context.NewContext())
+	err = migrator.Run(context.NewBackground())
 	require.NoError(t, err)
 
 	// Ensure every info file has a volume index of one.

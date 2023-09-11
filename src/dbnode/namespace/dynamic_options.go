@@ -40,11 +40,12 @@ var (
 )
 
 type dynamicOpts struct {
-	iopts                  instrument.Options
-	csClient               client.Client
-	nsRegistryKey          string
-	initTimeout            time.Duration
-	forceColdWritesEnabled bool
+	iopts                              instrument.Options
+	csClient                           client.Client
+	nsRegistryKey                      string
+	initTimeout                        time.Duration
+	forceColdWritesEnabled             bool
+	allowEmptyInitialNamespaceRegistry bool
 }
 
 // NewDynamicOptions creates a new DynamicOptions
@@ -107,4 +108,14 @@ func (o *dynamicOpts) SetForceColdWritesEnabled(enabled bool) DynamicOptions {
 
 func (o *dynamicOpts) ForceColdWritesEnabled() bool {
 	return o.forceColdWritesEnabled
+}
+
+func (o *dynamicOpts) SetAllowEmptyInitialNamespaceRegistry(value bool) DynamicOptions {
+	opts := *o
+	opts.allowEmptyInitialNamespaceRegistry = value
+	return &opts
+}
+
+func (o *dynamicOpts) AllowEmptyInitialNamespaceRegistry() bool {
+	return o.allowEmptyInitialNamespaceRegistry
 }

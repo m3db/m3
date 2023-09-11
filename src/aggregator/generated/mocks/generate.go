@@ -19,20 +19,22 @@
 // THE SOFTWARE.
 
 // mockgen rules for generating mocks for exported interfaces (reflection mode).
-//go:generate sh -c "mockgen -package=aggregator github.com/m3db/m3/src/aggregator/aggregator Aggregator,ElectionManager,FlushTimesManager,PlacementManager | genclean -pkg github.com/m3db/m3/src/aggregator/aggregator -out $GOPATH/src/github.com/m3db/m3/src/aggregator/aggregator/aggregator_mock.go"
-//go:generate sh -c "mockgen -package=client github.com/m3db/m3/src/aggregator/client Client,AdminClient | genclean -pkg github.com/m3db/m3/src/aggregator/client -out $GOPATH/src/github.com/m3db/m3/src/aggregator/client/client_mock.go"
-//go:generate sh -c "mockgen -package=handler github.com/m3db/m3/src/aggregator/aggregator/handler Handler | genclean -pkg github.com/m3db/m3/src/aggregator/aggregator/handler -out $GOPATH/src/github.com/m3db/m3/src/aggregator/aggregator/handler/handler_mock.go"
-//go:generate sh -c "mockgen -package=runtime github.com/m3db/m3/src/aggregator/runtime OptionsWatcher | genclean -pkg github.com/m3db/m3/src/aggregator/runtime -out $GOPATH/src/github.com/m3db/m3/src/aggregator/runtime/runtime_mock.go"
+//go:generate sh -c "mockgen -package=aggregator github.com/m3db/m3/src/aggregator/aggregator Aggregator,ElectionManager,FlushTimesManager,PlacementManager | genclean -pkg github.com/m3db/m3/src/aggregator/aggregator -out ../../aggregator/aggregator_mock.go"
+//go:generate sh -c "mockgen -package=client github.com/m3db/m3/src/aggregator/client Client,AdminClient | genclean -pkg github.com/m3db/m3/src/aggregator/client -out ../../client/client_mock.go"
+//go:generate sh -c "mockgen -package=handler github.com/m3db/m3/src/aggregator/aggregator/handler Handler | genclean -pkg github.com/m3db/m3/src/aggregator/aggregator/handler -out ../../aggregator/handler/handler_mock.go"
+//go:generate sh -c "mockgen -package=runtime github.com/m3db/m3/src/aggregator/runtime OptionsWatcher | genclean -pkg github.com/m3db/m3/src/aggregator/runtime -out ../../runtime/runtime_mock.go"
+//go:generate sh -c "mockgen -package=client net Conn | genclean -pkg github.com/m3db/m3/src/aggregator/client -out ../../client/conn_mock_test.go"
 
 // mockgen rules for generating mocks for unexported interfaces (file mode).
-//go:generate sh -c "mockgen -package=aggregator -destination=$GOPATH/src/github.com/m3db/m3/src/aggregator/aggregator/flush_mgr_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/aggregator/aggregator/flush_mgr.go"
-//go:generate sh -c "mockgen -package=aggregator -destination=$GOPATH/src/github.com/m3db/m3/src/aggregator/aggregator/flush_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/aggregator/aggregator/flush.go"
-//go:generate sh -c "mockgen -package=client -destination=$GOPATH/src/github.com/m3db/m3/src/aggregator/client/writer_mgr_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/aggregator/client/writer_mgr.go"
-//go:generate sh -c "mockgen -package=client -destination=$GOPATH/src/github.com/m3db/m3/src/aggregator/client/writer_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/aggregator/client/writer.go"
-//go:generate sh -c "mockgen -package=client -destination=$GOPATH/src/github.com/m3db/m3/src/aggregator/client/queue_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/aggregator/client/queue.go"
-//go:generate sh -c "mockgen -package=deploy -destination=$GOPATH/src/github.com/m3db/m3/src/aggregator/tools/deploy/client_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/aggregator/tools/deploy/client.go"
-//go:generate sh -c "mockgen -package=deploy -destination=$GOPATH/src/github.com/m3db/m3/src/aggregator/tools/deploy/manager_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/aggregator/tools/deploy/manager.go"
-//go:generate sh -c "mockgen -package=deploy -destination=$GOPATH/src/github.com/m3db/m3/src/aggregator/tools/deploy/planner_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/aggregator/tools/deploy/planner.go"
-//go:generate sh -c "mockgen -package=deploy -destination=$GOPATH/src/github.com/m3db/m3/src/aggregator/tools/deploy/validator_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/aggregator/tools/deploy/validator.go"
+//go:generate sh -c "mockgen -package=aggregator -destination=../../aggregator/flush_mgr_mock.go -source=../../aggregator/flush_mgr.go"
+//go:generate sh -c "mockgen -package=aggregator -destination=../../aggregator/flush_mock.go -source=../../aggregator/flush.go"
+//go:generate sh -c "mockgen -package=client -destination=../../client/writer_mgr_mock.go -source=../../client/writer_mgr.go"
+//go:generate sh -c "mockgen -package=client -destination=../../client/writer_mock.go -source=../../client/writer.go"
+//go:generate sh -c "mockgen -package=client -destination=../../client/queue_mock.go -source=../../client/queue.go"
+//go:generate sh -c "mockgen -package=deploy -destination=../../tools/deploy/client_mock.go -source=../../tools/deploy/client.go"
+//go:generate sh -c "mockgen -package=deploy -destination=../../tools/deploy/manager_mock.go -source=../../tools/deploy/manager.go"
+//go:generate sh -c "mockgen -package=deploy -destination=../../tools/deploy/planner_mock.go -source=../../tools/deploy/planner.go"
+//go:generate sh -c "mockgen -package=deploy -destination=../../tools/deploy/validator_mock.go -source=../../tools/deploy/validator.go"
+//go:generate sh -c "mockgen -package=client -destination=../../client/keep_alivable_mock_test.go -source=../../client/conn.go client keepAlivableConn"
 
 package mocks

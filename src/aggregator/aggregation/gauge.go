@@ -27,34 +27,51 @@ import (
 	"github.com/m3db/m3/src/metrics/aggregation"
 )
 
-const (
-	minFloat64 = -math.MaxFloat64
-)
-
 // Gauge aggregates gauge values.
 type Gauge struct {
 	Options
 
-	lastAt time.Time
-	last   float64
-	sum    float64
-	sumSq  float64
-	count  int64
-	max    float64
-	min    float64
+	lastAt     time.Time
+	annotation []byte
+	sum        float64
+	sumSq      float64
+	count      int64
+	max        float64
+	min        float64
+	last       float64
 }
 
 // NewGauge creates a new gauge.
 func NewGauge(opts Options) Gauge {
 	return Gauge{
 		Options: opts,
-		max:     minFloat64,
-		min:     math.MaxFloat64,
+		max:     math.NaN(),
+		min:     math.NaN(),
 	}
 }
 
 // Update updates the gauge value.
-func (g *Gauge) Update(timestamp time.Time, value float64) {
+func (g *Gauge) Update(timestamp time.Time, value float64, annotation []byte) {
+	g.annotation = MaybeReplaceAnnotation(g.annotation, annotation)
+	g.updateTotals(timestamp, value)
+}
+
+// UpdatePrevious removes the prevValue from the aggregation and updates with the new value.
+func (g *Gauge) UpdatePrevious(timestamp time.Time, value float64, prevValue float64) {
+	// remove the prevValue from the totals.
+	if !math.IsNaN(prevValue) {
+		g.sum -= prevValue
+		if g.HasExpensiveAggregations {
+			g.sumSq -= prevValue * prevValue
+		}
+	}
+	g.count--
+	// add the new value to the totals.
+	g.updateTotals(timestamp, value)
+}
+
+// update the set of aggregated values that are shared between Update and UpdatePrevious.
+func (g *Gauge) updateTotals(timestamp time.Time, value float64) {
 	if g.lastAt.IsZero() || timestamp.After(g.lastAt) {
 		// NB(r): Only set the last value if this value arrives
 		// after the wall clock timestamp of previous values, not
@@ -65,12 +82,18 @@ func (g *Gauge) Update(timestamp time.Time, value float64) {
 		g.Options.Metrics.Gauge.IncValuesOutOfOrder()
 	}
 
-	g.sum += value
 	g.count++
-	if g.max < value {
+
+	if math.IsNaN(value) {
+		return
+	}
+
+	g.sum += value
+	if math.IsNaN(g.max) || g.max < value {
 		g.max = value
 	}
-	if g.min > value {
+
+	if math.IsNaN(g.min) || g.min > value {
 		g.min = value
 	}
 
@@ -108,10 +131,14 @@ func (g *Gauge) Stdev() float64 {
 }
 
 // Min returns the minimum gauge value.
-func (g *Gauge) Min() float64 { return g.min }
+func (g *Gauge) Min() float64 {
+	return g.min
+}
 
 // Max returns the maximum gauge value.
-func (g *Gauge) Max() float64 { return g.max }
+func (g *Gauge) Max() float64 {
+	return g.max
+}
 
 // ValueOf returns the value for the aggregation type.
 func (g *Gauge) ValueOf(aggType aggregation.Type) float64 {
@@ -135,6 +162,11 @@ func (g *Gauge) ValueOf(aggType aggregation.Type) float64 {
 	default:
 		return 0
 	}
+}
+
+// Annotation returns the annotation associated with the gauge.
+func (g *Gauge) Annotation() []byte {
+	return g.annotation
 }
 
 // Close closes the gauge.

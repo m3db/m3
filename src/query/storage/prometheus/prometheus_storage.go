@@ -25,19 +25,20 @@ import (
 	"sort"
 	"time"
 
+	"github.com/pkg/errors"
+	"github.com/prometheus/common/model"
+	"github.com/prometheus/prometheus/model/labels"
+	promstorage "github.com/prometheus/prometheus/storage"
+	"github.com/prometheus/prometheus/tsdb/chunkenc"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/pkg/errors"
-	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/pkg/labels"
-	promstorage "github.com/prometheus/prometheus/storage"
-	"github.com/prometheus/prometheus/tsdb/chunkenc"
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 type prometheusQueryable struct {
@@ -53,6 +54,28 @@ type PrometheusOptions struct {
 	InstrumentOptions instrument.Options
 }
 
+// StorageErr wraps all errors returned by the storage layer.
+// This allows the http handlers that call the Prometheus library directly to distinguish prometheus library errors
+// and remote storage errors.
+type StorageErr struct {
+	inner error
+}
+
+// NewStorageErr wraps the provided error as a StorageErr.
+func NewStorageErr(err error) *StorageErr {
+	return &StorageErr{inner: err}
+}
+
+// Unwrap returns the underlying error.
+func (e *StorageErr) Unwrap() error {
+	return e.inner
+}
+
+// Error returns the error string for the underlying error.
+func (e *StorageErr) Error() string {
+	return e.inner.Error()
+}
+
 // NewPrometheusQueryable returns a new prometheus queryable backed by a m3
 // storage.
 func NewPrometheusQueryable(opts PrometheusOptions) promstorage.Queryable {
@@ -64,20 +87,9 @@ func NewPrometheusQueryable(opts PrometheusOptions) promstorage.Queryable {
 	}
 }
 
-func (o PrometheusOptions) validate() error {
-	if o.Storage == nil {
-		return errors.New("storage is not set")
-	}
-	if o.InstrumentOptions == nil {
-		return errors.New("instrument options not set")
-	}
-	return nil
-}
-
 // Querier returns a prometheus storage Querier.
 func (q *prometheusQueryable) Querier(
-	ctx context.Context,
-	mint, maxt int64,
+	ctx context.Context, _, _ int64,
 ) (promstorage.Querier, error) {
 	return newQuerier(ctx, q.storage, q.logger), nil
 }
@@ -104,10 +116,10 @@ func (q *querier) Select(
 	sortSeries bool,
 	hints *promstorage.SelectHints,
 	labelMatchers ...*labels.Matcher,
-) (promstorage.SeriesSet, promstorage.Warnings, error) {
+) promstorage.SeriesSet {
 	matchers, err := promql.LabelMatchersToModelMatcher(labelMatchers, models.NewTagOptions())
 	if err != nil {
-		return nil, nil, err
+		return promstorage.ErrSeriesSet(err)
 	}
 
 	query := &storage.FetchQuery{
@@ -122,39 +134,40 @@ func (q *querier) Select(
 	fetchOptions, err := fetchOptions(q.ctx)
 	if err != nil {
 		q.logger.Error("fetch options not provided in context", zap.Error(err))
-		return nil, nil, err
+		return promstorage.ErrSeriesSet(err)
 	}
 
 	result, err := q.storage.FetchProm(q.ctx, query, fetchOptions)
 	if err != nil {
-		return nil, nil, err
+		return promstorage.ErrSeriesSet(NewStorageErr(err))
 	}
-	seriesSet := fromQueryResult(sortSeries, result.PromResult)
-	warnings := fromWarningStrings(result.Metadata.WarningStrings())
+	seriesSet := fromQueryResult(sortSeries, result.PromResult, result.Metadata)
 
-	resultMetadataPtr, err := resultMetadata(q.ctx)
+	receiveResultMetadataFn, err := resultMetadataReceiveFn(q.ctx)
 	if err != nil {
-		q.logger.Error("result metadata not set in context")
-		return nil, nil, err
+		q.logger.Error("result metadata not set in context", zap.Error(err))
+		return promstorage.ErrSeriesSet(err)
 	}
-	if resultMetadataPtr == nil {
-		err := errors.New("result metadata nil for context")
+	if receiveResultMetadataFn == nil {
+		err := errors.New("result metadata receive function nil for context")
 		q.logger.Error(err.Error())
-		return nil, nil, err
+		return promstorage.ErrSeriesSet(err)
 	}
 
-	*resultMetadataPtr = result.Metadata
+	// Pass the result.Metadata back using the receive function.
+	// This handles concurrent updates to a single result metadata.
+	receiveResultMetadataFn(result.Metadata)
 
-	return seriesSet, warnings, err
+	return seriesSet
 }
 
-func (q *querier) LabelValues(name string) ([]string, promstorage.Warnings, error) {
+func (q *querier) LabelValues(string, ...*labels.Matcher) ([]string, promstorage.Warnings, error) {
 	// TODO (@shreyas): Implement this.
 	q.logger.Warn("calling unsupported LabelValues method")
 	return nil, nil, errors.New("not implemented")
 }
 
-func (q *querier) LabelNames() ([]string, promstorage.Warnings, error) {
+func (q *querier) LabelNames(...*labels.Matcher) ([]string, promstorage.Warnings, error) {
 	// TODO (@shreyas): Implement this.
 	q.logger.Warn("calling unsupported LabelNames method")
 	return nil, nil, errors.New("not implemented")
@@ -174,12 +187,12 @@ func fromWarningStrings(warnings []string) []error {
 
 // This is a copy of the prometheus remote.FromQueryResult method. Need to
 // copy so that this can understand m3 prompb struct.
-func fromQueryResult(sortSeries bool, res *prompb.QueryResult) promstorage.SeriesSet {
+func fromQueryResult(sortSeries bool, res *prompb.QueryResult, metadata block.ResultMetadata) promstorage.SeriesSet {
 	series := make([]promstorage.Series, 0, len(res.Timeseries))
 	for _, ts := range res.Timeseries {
 		labels := labelProtosToLabels(ts.Labels)
 		if err := validateLabelsAndMetricName(labels); err != nil {
-			return errSeriesSet{err: err}
+			return promstorage.ErrSeriesSet(err)
 		}
 
 		series = append(series, &concreteSeries{
@@ -191,8 +204,12 @@ func fromQueryResult(sortSeries bool, res *prompb.QueryResult) promstorage.Serie
 	if sortSeries {
 		sort.Sort(byLabel(series))
 	}
+
+	warnings := fromWarningStrings(metadata.WarningStrings())
+
 	return &concreteSeriesSet{
-		series: series,
+		series:   series,
+		warnings: warnings,
 	}
 }
 
@@ -233,8 +250,9 @@ func (e errSeriesSet) Err() error {
 
 // concreteSeriesSet implements storage.SeriesSet.
 type concreteSeriesSet struct {
-	cur    int
-	series []promstorage.Series
+	cur      int
+	series   []promstorage.Series
+	warnings promstorage.Warnings
 }
 
 func (c *concreteSeriesSet) Next() bool {
@@ -248,6 +266,10 @@ func (c *concreteSeriesSet) At() promstorage.Series {
 
 func (c *concreteSeriesSet) Err() error {
 	return nil
+}
+
+func (c *concreteSeriesSet) Warnings() promstorage.Warnings {
+	return c.warnings
 }
 
 // concreteSeries implements storage.Series.

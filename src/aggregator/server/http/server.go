@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	xdebug "github.com/m3db/m3/src/x/debug"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/pprof"
 	xserver "github.com/m3db/m3/src/x/server"
 )
 
@@ -71,9 +70,7 @@ func (s *server) ListenAndServe() error {
 }
 
 func (s *server) Serve(l net.Listener) error {
-	mux := http.NewServeMux()
-	registerHandlers(mux, s.aggregator)
-	pprof.RegisterHandler(mux)
+	registerHandlers(s.opts.Mux(), s.aggregator)
 
 	// create and register debug handler
 	debugWriter, err := xdebug.NewZipWriterWithDefaultSources(
@@ -84,12 +81,12 @@ func (s *server) Serve(l net.Listener) error {
 		return fmt.Errorf("unable to create debug writer: %v", err)
 	}
 
-	if err := debugWriter.RegisterHandler(xdebug.DebugURL, mux); err != nil {
+	if err := debugWriter.RegisterHandler(xdebug.DebugURL, s.opts.Mux()); err != nil {
 		return fmt.Errorf("unable to register debug writer endpoint: %v", err)
 	}
 
 	server := http.Server{
-		Handler:      mux,
+		Handler:      s.opts.Mux(),
 		ReadTimeout:  s.opts.ReadTimeout(),
 		WriteTimeout: s.opts.WriteTimeout(),
 	}

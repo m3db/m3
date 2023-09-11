@@ -32,7 +32,6 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xtest "github.com/m3db/m3/src/x/test"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -47,13 +46,6 @@ func testLongTagIDOutOfOrder(t *testing.T, scheme IDSchemeType) Tags {
 	})
 
 	return tags
-}
-
-func TestLongTagNewIDOutOfOrderLegacy(t *testing.T) {
-	tags := testLongTagIDOutOfOrder(t, TypeLegacy)
-	actual := tags.ID()
-	assert.Equal(t, idLen(tags), len(actual))
-	assert.Equal(t, []byte("t1=v1,t2=v2,t3=v3,t4=v4,"), actual)
 }
 
 func TestLongTagNewIDOutOfOrderQuoted(t *testing.T) {
@@ -82,14 +74,6 @@ func TestLongTagNewIDOutOfOrderGraphite(t *testing.T) {
 
 	actual := tags.ID()
 	assert.Equal(t, []byte("v0.v1.v2.v3.v4.v5.v6.v7.v8.v9.v10.v11.v12"), actual)
-}
-
-func TestHashedID(t *testing.T) {
-	tags := testLongTagIDOutOfOrder(t, TypeLegacy)
-	actual := tags.HashedID()
-
-	expected := xxhash.Sum64String("t1=v1,t2=v2,t3=v3,t4=v4,")
-	assert.Equal(t, expected, actual)
 }
 
 func TestLongTagNewIDOutOfOrderQuotedWithEscape(t *testing.T) {
@@ -508,6 +492,36 @@ func TestTagsValidateDuplicateQuotedWithAllowTagNameDuplicates(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestTagsValidateTagNameTooLong(t *testing.T) {
+	tags := NewTags(0, NewTagOptions().
+		SetIDSchemeType(TypeQuoted).
+		SetMaxTagLiteralLength(10))
+	tags = tags.AddTag(Tag{
+		Name:  []byte("name_longer_than_10_characters"),
+		Value: []byte("baz"),
+	})
+	err := tags.Validate()
+	require.EqualError(t, err, "tag name too long: index=0, length=30, maxLength=10")
+	require.True(t, xerrors.IsInvalidParams(err))
+}
+
+func TestTagsValidateTagValueTooLong(t *testing.T) {
+	tags := NewTags(0, NewTagOptions().
+		SetIDSchemeType(TypeQuoted).
+		SetMaxTagLiteralLength(10))
+	tags = tags.AddTag(Tag{
+		Name:  []byte("bar"),
+		Value: []byte("baz"),
+	})
+	tags = tags.AddTag(Tag{
+		Name:  []byte("foo"),
+		Value: []byte("value_longer_than_10_characters"),
+	})
+	err := tags.Validate()
+	require.EqualError(t, err, "tag value too long: index=1, length=31, maxLength=10")
+	require.True(t, xerrors.IsInvalidParams(err))
+}
+
 func TestTagsValidateEmptyNameGraphite(t *testing.T) {
 	tags := NewTags(0, NewTagOptions().SetIDSchemeType(TypeGraphite))
 	tags = tags.AddTag(Tag{Name: nil, Value: []byte("bar")})
@@ -580,7 +594,6 @@ func TestEmptyTags(t *testing.T) {
 		idType   IDSchemeType
 		expected string
 	}{
-		{TypeLegacy, ""},
 		{TypePrependMeta, ""},
 		{TypeGraphite, ""},
 		{TypeQuoted, "{}"},
@@ -609,7 +622,6 @@ var tagIDSchemes = []struct {
 	name   string
 	scheme IDSchemeType
 }{
-	{"___legacy", TypeLegacy},
 	{"_graphite", TypeGraphite},
 	{"__prepend", TypePrependMeta},
 	// only simple quotable tag values.

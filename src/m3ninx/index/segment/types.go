@@ -28,11 +28,9 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
-var (
-	// ErrClosed is the error returned when attempting to perform operations on a
-	// segment that has already been closed.
-	ErrClosed = errors.New("segment has been closed")
-)
+// ErrClosed is the error returned when attempting to perform operations on a
+// segment that has already been closed.
+var ErrClosed = errors.New("segment has been closed")
 
 // Segment is a sub-collection of documents within an index.
 type Segment interface {
@@ -69,6 +67,7 @@ type Reader interface {
 	index.Reader
 	FieldsIterable
 	TermsIterable
+	FieldsPostingsListIterable
 
 	// ContainsField returns a bool indicating if the Segment contains the provided field.
 	ContainsField(field []byte) (bool, error)
@@ -133,6 +132,9 @@ type FieldsIterator interface {
 	// Current returns the current field.
 	// NB: the field returned is only valid until the subsequent call to Next().
 	Current() []byte
+
+	// Empty returns true if there are no fields in the iterator.
+	Empty() bool
 }
 
 // TermsIterator iterates over all known terms for the provided field.
@@ -142,6 +144,9 @@ type TermsIterator interface {
 	// Current returns the current element.
 	// NB: the element returned is only valid until the subsequent call to Next().
 	Current() (term []byte, postings postings.List)
+
+	// Empty returns true if there are no terms.
+	Empty() bool
 }
 
 // Iterator holds common iterator methods.
@@ -190,7 +195,7 @@ type Builder interface {
 
 	// Docs returns the current docs slice, this is not safe to modify
 	// and is invalidated on a call to reset.
-	Docs() []doc.Document
+	Docs() []doc.Metadata
 
 	// AllDocs returns an iterator over the documents known to the Reader.
 	AllDocs() (index.IDDocIterator, error)
@@ -219,6 +224,38 @@ type CloseableDocumentsBuilder interface {
 type SegmentsBuilder interface {
 	Builder
 
+	// SetFilter sets a filter on which documents to retain
+	// when building the segment.
+	SetFilter(keep DocumentsFilter)
+
 	// AddSegments adds segments to build from.
 	AddSegments(segments []Segment) error
+
+	// SegmentMetadatas returns the segment builder segment metadata.
+	SegmentMetadatas() ([]SegmentsBuilderSegmentMetadata, error)
+}
+
+// SegmentsBuilderSegmentMetadata is a set of metadata about a segment
+// that was used to build a compacted segment.
+type SegmentsBuilderSegmentMetadata struct {
+	Segment Segment
+	Offset  postings.ID
+	// NegativeOffsets is a lookup of document IDs are duplicates or should be skipped,
+	// that is documents that are already contained by other segments or should
+	// not be included in the output segment and hence should not be returned
+	// when looking up documents. If this is the case offset is -1.
+	// If a document ID is not a duplicate or skipped then the offset is
+	// the shift that should be applied when translating this postings ID
+	// to the result postings ID.
+	NegativeOffsets []int64
+	Skips           int64
+}
+
+// DocumentsFilter is a documents filter.
+type DocumentsFilter interface {
+	// Contains is true if the document passes the filter.
+	ContainsDoc(d doc.Metadata) bool
+	// OnDuplicateDoc is a callback for when a duplicate document is
+	// encountered which is then removed from the resulting segment.
+	OnDuplicateDoc(d doc.Metadata)
 }

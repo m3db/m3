@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/cluster/placement/storage"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/x/instrument"
+	xos "github.com/m3db/m3/src/x/os"
 	xwatch "github.com/m3db/m3/src/x/watch"
 
 	"github.com/golang/mock/gomock"
@@ -50,7 +51,7 @@ func TestConvertBetweenProtoAndService(t *testing.T) {
 		SetZone("test_zone")
 	p := &placementpb.Placement{
 		Instances: map[string]*placementpb.Instance{
-			"i1": &placementpb.Instance{
+			"i1": {
 				Id:             "i1",
 				IsolationGroup: "r1",
 				Zone:           "z1",
@@ -58,7 +59,7 @@ func TestConvertBetweenProtoAndService(t *testing.T) {
 				Weight:         1,
 				Shards:         protoShards,
 			},
-			"i2": &placementpb.Instance{
+			"i2": {
 				Id:             "i2",
 				IsolationGroup: "r2",
 				Zone:           "z1",
@@ -899,6 +900,36 @@ func TestWatch_GetAfterTimeout(t *testing.T) {
 			break
 		}
 	}
+}
+
+func TestWatchInterrupted(t *testing.T) {
+	opts, _ := testSetup()
+	sd, err := NewServices(opts.SetInitTimeout(0))
+	require.NoError(t, err)
+
+	testWatchInterrupted(t, sd)
+}
+
+func TestWatchInterruptedWithTimeout(t *testing.T) {
+	opts, _ := testSetup()
+	sd, err := NewServices(opts.SetInitTimeout(1 * time.Minute))
+	require.NoError(t, err)
+
+	testWatchInterrupted(t, sd)
+}
+
+func testWatchInterrupted(t *testing.T, s Services) {
+	sid := NewServiceID().SetName("m3db").SetZone("zone1")
+
+	interruptedCh := make(chan struct{})
+	close(interruptedCh)
+
+	qopts := NewQueryOptions().
+		SetIncludeUnhealthy(true).
+		SetInterruptedCh(interruptedCh)
+	_, err := s.Watch(sid, qopts)
+	require.Error(t, err)
+	require.True(t, errors.Is(err, xos.ErrInterrupted))
 }
 
 func TestHeartbeatService(t *testing.T) {

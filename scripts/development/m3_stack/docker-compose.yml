@@ -13,10 +13,12 @@ services:
     environment:
       - M3DB_HOST_ID=m3db_seed
     expose:
+      - "2379"
       - "9002"
       - "9003"
       - "9004"
     ports:
+      - "0.0.0.0:2379:2379"
       - "0.0.0.0:9002:9002"
       - "0.0.0.0:9003:9003"
       - "0.0.0.0:9004:9004"
@@ -94,21 +96,6 @@ services:
       # Note: Use ".tmp" suffix is git ignored.
       - "./m3coordinator.yml.tmp:/etc/m3coordinator/m3coordinator.yml"
       - "./schema.proto:/etc/m3coordinator/schema.proto"
-  m3collector01:
-    expose:
-      - "7206"
-      - "7207"
-    ports:
-      - "0.0.0.0:7206:7206"
-      - "0.0.0.0:7207:7207"
-    networks:
-      - backend
-    build:
-      context: ../../../bin
-      dockerfile: ./docker/m3collector/development.Dockerfile
-    image: m3collector:dev
-    volumes:
-      - "./m3collector.yml:/etc/m3collector/m3collector.yml"
   prometheus01:
     expose:
       - "9090"

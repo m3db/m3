@@ -22,13 +22,13 @@ package block
 
 import (
 	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // NewDatabaseBlockRetrieverFn is a method for constructing
@@ -104,7 +104,7 @@ func NewDatabaseShardBlockRetriever(
 func (r *shardBlockRetriever) Stream(
 	ctx context.Context,
 	id ident.ID,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	onRetrieve OnRetrieveBlock,
 	nsCtx namespace.Context,
 ) (xio.BlockReader, error) {

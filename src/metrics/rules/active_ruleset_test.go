@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/filters"
+	"github.com/m3db/m3/src/metrics/matcher/namespace"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/pipeline"
@@ -75,6 +76,29 @@ func TestActiveRuleSetCutoverTimesWithRollupRules(t *testing.T) {
 	)
 	expectedCutovers := []int64{10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 38000, 90000, 100000, 120000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
+}
+
+func TestActiveRuleSetLatestRollupRules(t *testing.T) {
+	rules := testRollupRules(t)
+	as := newActiveRuleSet(
+		0,
+		nil,
+		rules,
+		testTagsFilterOptions(),
+		mockNewID,
+		nil,
+	)
+	timeNanos := int64(95000)
+	rollupView, err := as.LatestRollupRules(nil, timeNanos)
+	require.NoError(t, err)
+	// rr3 is tombstoned, so it should not be returned
+	require.Equal(t, len(rules)-1, len(rollupView))
+	for _, rr := range rollupView {
+		// explicitly check that rollupRule3 is not returned..
+		require.NotEqual(t, rr.Name, "rollupRule3.snapshot3")
+		// ..and that we only get the non-Tombstoned entries.
+		require.False(t, rr.Tombstoned)
+	}
 }
 
 func TestActiveRuleSetCutoverTimesWithMappingRulesAndRollupRules(t *testing.T) {
@@ -558,11 +582,43 @@ func TestActiveRuleSetForwardMatchWithMappingRules(t *testing.T) {
 		nil,
 	)
 	for i, input := range inputs {
+		input := input
 		t.Run(fmt.Sprintf("input %d", i), func(t *testing.T) {
-			res := as.ForwardMatch(b(input.id), input.matchFrom, input.matchTo)
+			res, err := as.ForwardMatch(input.ID(), input.matchFrom, input.matchTo, testMatchOptions())
+			require.NoError(t, err)
 			require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 			require.True(t, cmp.Equal(input.forExistingIDResult, res.ForExistingIDAt(0), testStagedMetadatasCmptOpts...))
 			require.Equal(t, 0, res.NumNewRollupIDs())
+		})
+	}
+}
+
+func TestActiveRuleSetForwardMatchWithAnyKeepOriginal(t *testing.T) {
+	inputs := []testMatchInput{
+		{
+			id:           "rtagName1=rtagValue1",
+			matchFrom:    25000,
+			matchTo:      25001,
+			keepOriginal: true,
+		},
+	}
+
+	as := newActiveRuleSet(
+		0,
+		nil,
+		testKeepOriginalRollupRules(t),
+		testTagsFilterOptions(),
+		mockNewID,
+		nil,
+	)
+
+	for i, input := range inputs {
+		input := input
+		t.Run(fmt.Sprintf("input %d", i), func(t *testing.T) {
+			res, err := as.ForwardMatch(input.ID(), input.matchFrom, input.matchTo, testMatchOptions())
+			require.NoError(t, err)
+			require.Equal(t, res.keepOriginal, input.keepOriginal)
+			require.Equal(t, 3, res.NumNewRollupIDs())
 		})
 	}
 }
@@ -574,6 +630,7 @@ func TestActiveRuleSetForwardMatchWithRollupRules(t *testing.T) {
 			matchFrom:     25000,
 			matchTo:       25001,
 			expireAtNanos: 30000,
+			keepOriginal:  true,
 			forExistingIDResult: metadata.StagedMetadatas{
 				metadata.StagedMetadata{
 					CutoverNanos: 22000,
@@ -672,6 +729,7 @@ func TestActiveRuleSetForwardMatchWithRollupRules(t *testing.T) {
 			matchFrom:     25000,
 			matchTo:       25001,
 			expireAtNanos: 30000,
+			keepOriginal:  false,
 			forExistingIDResult: metadata.StagedMetadatas{
 				{
 					CutoverNanos: 24000,
@@ -725,6 +783,7 @@ func TestActiveRuleSetForwardMatchWithRollupRules(t *testing.T) {
 			matchFrom:           25000,
 			matchTo:             25001,
 			expireAtNanos:       30000,
+			keepOriginal:        false,
 			forExistingIDResult: metadata.DefaultStagedMetadatas,
 		},
 		{
@@ -732,6 +791,7 @@ func TestActiveRuleSetForwardMatchWithRollupRules(t *testing.T) {
 			matchFrom:     10000,
 			matchTo:       40000,
 			expireAtNanos: 90000,
+			keepOriginal:  false,
 			forExistingIDResult: metadata.StagedMetadatas{
 				{
 					CutoverNanos: 10000,
@@ -1317,6 +1377,90 @@ func TestActiveRuleSetForwardMatchWithRollupRules(t *testing.T) {
 				},
 			},
 		},
+		//nolint:dupl
+		{
+			id:            "rtagName1=rtagValue3,rtagName2=rtagValue2,rtagName3=rtagValue3",
+			matchFrom:     100000,
+			matchTo:       110000,
+			expireAtNanos: 120000,
+			keepOriginal:  false,
+			forExistingIDResult: metadata.StagedMetadatas{
+				{
+					CutoverNanos: 100000,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							metadata.DefaultPipelineMetadata,
+						},
+					},
+				},
+			},
+			forNewRollupIDsResult: []IDWithMetadatas{
+				{
+					ID: b("rName9A|rtagName2=rtagValue2,rtagName3=rtagValue3"), // rtagName1 is excluded away.
+					Metadatas: metadata.StagedMetadatas{
+						{
+							CutoverNanos: 100000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.MustCompressTypes(aggregation.Last),
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+											policy.NewStoragePolicy(time.Minute, xtime.Second, 10*time.Hour),
+										},
+										Pipeline: applied.Pipeline{Operations: []applied.OpUnion{}},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					ID: b("rName9B|rtagName2=rtagValue2,rtagName3=rtagValue3"), // rtagName1 is excluded away.
+					Metadatas: metadata.StagedMetadatas{
+						{
+							CutoverNanos: 100000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.MustCompressTypes(aggregation.Last),
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+											policy.NewStoragePolicy(time.Minute, xtime.Second, 10*time.Hour),
+										},
+										Pipeline: applied.Pipeline{Operations: []applied.OpUnion{}},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					ID: b("rName9C|rtagName2=rtagValue2"), // rtagName1 and rtagName3 are excluded away.
+					Metadatas: metadata.StagedMetadatas{
+						{
+							CutoverNanos: 100000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.MustCompressTypes(aggregation.Last),
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+											policy.NewStoragePolicy(time.Minute, xtime.Second, 10*time.Hour),
+										},
+										Pipeline: applied.Pipeline{Operations: []applied.OpUnion{}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	as := newActiveRuleSet(
@@ -1327,12 +1471,16 @@ func TestActiveRuleSetForwardMatchWithRollupRules(t *testing.T) {
 		mockNewID,
 		nil,
 	)
+
 	for i, input := range inputs {
+		input := input
 		t.Run(fmt.Sprintf("input %d", i), func(t *testing.T) {
-			res := as.ForwardMatch(b(input.id), input.matchFrom, input.matchTo)
+			res, err := as.ForwardMatch(input.ID(), input.matchFrom, input.matchTo, testMatchOptions())
+			require.NoError(t, err)
 			require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 			require.True(t, cmp.Equal(input.forExistingIDResult, res.ForExistingIDAt(0), testStagedMetadatasCmptOpts...))
 			require.Equal(t, len(input.forNewRollupIDsResult), res.NumNewRollupIDs())
+			require.Equal(t, input.keepOriginal, res.KeepOriginal())
 			for i := 0; i < len(input.forNewRollupIDsResult); i++ {
 				rollup := res.ForNewRollupIDsAt(i, 0)
 				require.True(t, cmp.Equal(input.forNewRollupIDsResult[i], rollup, testIDWithMetadatasCmpOpts...))
@@ -1348,6 +1496,7 @@ func TestActiveRuleSetForwardMatchWithMappingRulesAndRollupRules(t *testing.T) {
 			matchFrom:     25000,
 			matchTo:       25001,
 			expireAtNanos: 30000,
+			keepOriginal:  true,
 			forExistingIDResult: metadata.StagedMetadatas{
 				metadata.StagedMetadata{
 					CutoverNanos: 22000,
@@ -2470,6 +2619,90 @@ func TestActiveRuleSetForwardMatchWithMappingRulesAndRollupRules(t *testing.T) {
 				},
 			},
 		},
+		//nolint:dupl
+		{
+			id:            "rtagName1=rtagValue3,rtagName2=rtagValue2,rtagName3=rtagValue3",
+			matchFrom:     100000,
+			matchTo:       110000,
+			expireAtNanos: 120000,
+			keepOriginal:  false,
+			forExistingIDResult: metadata.StagedMetadatas{
+				{
+					CutoverNanos: 100000,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							metadata.DefaultPipelineMetadata,
+						},
+					},
+				},
+			},
+			forNewRollupIDsResult: []IDWithMetadatas{
+				{
+					ID: b("rName9A|rtagName2=rtagValue2,rtagName3=rtagValue3"), // rtagName1 is excluded away.
+					Metadatas: metadata.StagedMetadatas{
+						{
+							CutoverNanos: 100000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.MustCompressTypes(aggregation.Last),
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+											policy.NewStoragePolicy(time.Minute, xtime.Second, 10*time.Hour),
+										},
+										Pipeline: applied.Pipeline{Operations: []applied.OpUnion{}},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					ID: b("rName9B|rtagName2=rtagValue2,rtagName3=rtagValue3"), // rtagName1 is excluded away.
+					Metadatas: metadata.StagedMetadatas{
+						{
+							CutoverNanos: 100000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.MustCompressTypes(aggregation.Last),
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+											policy.NewStoragePolicy(time.Minute, xtime.Second, 10*time.Hour),
+										},
+										Pipeline: applied.Pipeline{Operations: []applied.OpUnion{}},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					ID: b("rName9C|rtagName2=rtagValue2"), // rtagName1 and rtagName3 are excluded away.
+					Metadatas: metadata.StagedMetadatas{
+						{
+							CutoverNanos: 100000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.MustCompressTypes(aggregation.Last),
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+											policy.NewStoragePolicy(time.Minute, xtime.Second, 10*time.Hour),
+										},
+										Pipeline: applied.Pipeline{Operations: []applied.OpUnion{}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	as := newActiveRuleSet(
@@ -2481,11 +2714,14 @@ func TestActiveRuleSetForwardMatchWithMappingRulesAndRollupRules(t *testing.T) {
 		nil,
 	)
 	for i, input := range inputs {
+		input := input
 		t.Run(fmt.Sprintf("input %d", i), func(t *testing.T) {
-			res := as.ForwardMatch(b(input.id), input.matchFrom, input.matchTo)
+			res, err := as.ForwardMatch(input.ID(), input.matchFrom, input.matchTo, testMatchOptions())
+			require.NoError(t, err)
 			require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 			require.True(t, cmp.Equal(input.forExistingIDResult, res.ForExistingIDAt(0), testStagedMetadatasCmptOpts...))
 			require.Equal(t, len(input.forNewRollupIDsResult), res.NumNewRollupIDs())
+			require.Equal(t, input.keepOriginal, res.KeepOriginal())
 			for i := 0; i < len(input.forNewRollupIDsResult); i++ {
 				rollup := res.ForNewRollupIDsAt(i, 0)
 				require.True(t, cmp.Equal(input.forNewRollupIDsResult[i], rollup, testIDWithMetadatasCmpOpts...))
@@ -2972,11 +3208,14 @@ func TestActiveRuleSetReverseMatchWithMappingRulesForNonRollupID(t *testing.T) {
 		func([]byte, []byte) bool { return false },
 	)
 	for i, input := range inputs {
+		input := input
 		t.Run(fmt.Sprintf("input %d", i), func(t *testing.T) {
-			res := as.ReverseMatch(b(input.id), input.matchFrom, input.matchTo,
+			res, err := as.ReverseMatch(input.ID(), input.matchFrom, input.matchTo,
 				input.metricType, input.aggregationType, isMultiAggregationTypesAllowed, aggTypesOpts)
+			require.NoError(t, err)
 			require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 			require.True(t, cmp.Equal(input.forExistingIDResult, res.ForExistingIDAt(0), testStagedMetadatasCmptOpts...))
+			require.Equal(t, input.keepOriginal, res.KeepOriginal())
 		})
 	}
 }
@@ -3176,10 +3415,117 @@ func TestActiveRuleSetReverseMatchWithRollupRulesForRollupID(t *testing.T) {
 		func([]byte, []byte) bool { return true },
 	)
 	for _, input := range inputs {
-		res := as.ReverseMatch(b(input.id), input.matchFrom, input.matchTo, input.metricType, input.aggregationType, isMultiAggregationTypesAllowed, aggTypesOpts)
+		res, err := as.ReverseMatch(input.ID(), input.matchFrom, input.matchTo, input.metricType, input.aggregationType,
+			isMultiAggregationTypesAllowed, aggTypesOpts)
+		require.NoError(t, err)
 		require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 		require.Equal(t, input.forExistingIDResult, res.ForExistingIDAt(0))
 		require.Equal(t, 0, res.NumNewRollupIDs())
+		require.Equal(t, input.keepOriginal, res.KeepOriginal())
+	}
+}
+
+func TestMatchedKeepOriginal(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rollup.r2",
+		[]string{"foo"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+
+	filter, err := filters.NewTagsFilter(
+		filters.TagFilterValueMap{
+			"foo": filters.FilterValue{Pattern: "bar"},
+			"baz": filters.FilterValue{Pattern: "bat"},
+		},
+		filters.Conjunction,
+		testTagsFilterOptions(),
+	)
+	require.NoError(t, err)
+
+	var (
+		targets = []rollupTarget{
+			{
+				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+					{
+						Type:   pipeline.RollupOpType,
+						Rollup: rr1,
+					},
+				}),
+				StoragePolicies: policy.StoragePolicies{
+					policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+				},
+			},
+		}
+		rollups = []*rollupRule{
+			{
+				uuid: "rollup",
+				snapshots: []*rollupRuleSnapshot{
+					{
+						name:         "rollup.1.nokeep",
+						cutoverNanos: 0,
+						filter:       filter,
+						keepOriginal: false,
+						targets:      targets,
+					},
+					{
+						name:         "rollup.2.keep",
+						cutoverNanos: 10000,
+						filter:       filter,
+						keepOriginal: true,
+						targets:      targets,
+					},
+					{
+						name:         "rollup.2.nokeep",
+						tombstoned:   false,
+						cutoverNanos: 20000,
+						filter:       filter,
+						targets:      targets,
+					},
+				},
+			},
+		}
+		as = newActiveRuleSet(
+			0,
+			nil,
+			rollups,
+			testTagsFilterOptions(),
+			mockNewID,
+			func([]byte, []byte) bool { return true },
+		)
+	)
+
+	cases := map[string]struct {
+		expectKeepOriginal bool
+		cutoverNanos       int64
+	}{
+		"latest-nokeep-first": {
+			expectKeepOriginal: false,
+			cutoverNanos:       0,
+		},
+		"latest-keep-nested": {
+			expectKeepOriginal: true,
+			cutoverNanos:       10000,
+		},
+		"latest-nokeep-last": {
+			expectKeepOriginal: false,
+			cutoverNanos:       20000,
+		},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			res, err := as.ForwardMatch(
+				namespace.NewTestID("baz=bat,foo=bar", "ns"),
+				tt.cutoverNanos,
+				tt.cutoverNanos+10000,
+				testMatchOptions(),
+			)
+			require.NoError(t, err)
+			require.Equal(t, 1, res.NumNewRollupIDs())
+			require.Equal(t, tt.expectKeepOriginal, res.KeepOriginal())
+		})
 	}
 }
 
@@ -3231,7 +3577,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 	mappingRule1 := &mappingRule{
 		uuid: "mappingRule1",
 		snapshots: []*mappingRuleSnapshot{
-			&mappingRuleSnapshot{
+			{
 				name:          "mappingRule1.snapshot1",
 				tombstoned:    false,
 				cutoverNanos:  10000,
@@ -3242,7 +3588,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 				},
 				tags: tags,
 			},
-			&mappingRuleSnapshot{
+			{
 				name:          "mappingRule1.snapshot1",
 				tombstoned:    false,
 				cutoverNanos:  15000,
@@ -3253,7 +3599,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 				},
 				tags: tags,
 			},
-			&mappingRuleSnapshot{
+			{
 				name:          "mappingRule1.snapshot2",
 				tombstoned:    false,
 				cutoverNanos:  20000,
@@ -3266,7 +3612,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 				},
 				tags: tags,
 			},
-			&mappingRuleSnapshot{
+			{
 				name:          "mappingRule1.snapshot3",
 				tombstoned:    false,
 				cutoverNanos:  30000,
@@ -3283,7 +3629,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 	mappingRule2 := &mappingRule{
 		uuid: "mappingRule2",
 		snapshots: []*mappingRuleSnapshot{
-			&mappingRuleSnapshot{
+			{
 				name:          "mappingRule2.snapshot1",
 				tombstoned:    false,
 				cutoverNanos:  15000,
@@ -3293,7 +3639,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 					policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
 				},
 			},
-			&mappingRuleSnapshot{
+			{
 				name:          "mappingRule2.snapshot2",
 				tombstoned:    false,
 				cutoverNanos:  22000,
@@ -3304,7 +3650,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 					policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
 				},
 			},
-			&mappingRuleSnapshot{
+			{
 				name:          "mappingRule2.snapshot3",
 				tombstoned:    true,
 				cutoverNanos:  35000,
@@ -3321,7 +3667,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 	mappingRule3 := &mappingRule{
 		uuid: "mappingRule3",
 		snapshots: []*mappingRuleSnapshot{
-			&mappingRuleSnapshot{
+			{
 				name:          "mappingRule3.snapshot1",
 				tombstoned:    false,
 				cutoverNanos:  22000,
@@ -3333,7 +3679,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 					policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
 				},
 			},
-			&mappingRuleSnapshot{
+			{
 				name:          "mappingRule3.snapshot2",
 				tombstoned:    false,
 				cutoverNanos:  34000,
@@ -3350,7 +3696,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 	mappingRule4 := &mappingRule{
 		uuid: "mappingRule4",
 		snapshots: []*mappingRuleSnapshot{
-			&mappingRuleSnapshot{
+			{
 				name:          "mappingRule4.snapshot1",
 				tombstoned:    false,
 				cutoverNanos:  24000,
@@ -3366,7 +3712,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 	mappingRule5 := &mappingRule{
 		uuid: "mappingRule5",
 		snapshots: []*mappingRuleSnapshot{
-			&mappingRuleSnapshot{
+			{
 				name:          "mappingRule5.snapshot1",
 				tombstoned:    false,
 				cutoverNanos:  100000,
@@ -3382,7 +3728,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 	mappingRule6 := &mappingRule{
 		uuid: "mappingRule6",
 		snapshots: []*mappingRuleSnapshot{
-			&mappingRuleSnapshot{
+			{
 				name:          "mappingRule6.snapshot1",
 				tombstoned:    false,
 				cutoverNanos:  5000,
@@ -3392,7 +3738,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 					policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
 				},
 			},
-			&mappingRuleSnapshot{
+			{
 				name:          "mappingRule6.snapshot2",
 				tombstoned:    false,
 				cutoverNanos:  8000,
@@ -3411,7 +3757,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 	mappingRule7 := &mappingRule{
 		uuid: "mappingRule7",
 		snapshots: []*mappingRuleSnapshot{
-			&mappingRuleSnapshot{
+			{
 				name:          "mappingRule7.snapshot1",
 				tombstoned:    false,
 				cutoverNanos:  20000,
@@ -3427,7 +3773,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 	mappingRule8 := &mappingRule{
 		uuid: "mappingRule8",
 		snapshots: []*mappingRuleSnapshot{
-			&mappingRuleSnapshot{
+			{
 				name:            "mappingRule8.snapshot1",
 				tombstoned:      false,
 				cutoverNanos:    20000,
@@ -3444,7 +3790,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 	mappingRule9 := &mappingRule{
 		uuid: "mappingRule9",
 		snapshots: []*mappingRuleSnapshot{
-			&mappingRuleSnapshot{
+			{
 				name:            "mappingRule9.snapshot1",
 				tombstoned:      false,
 				cutoverNanos:    20000,
@@ -3463,7 +3809,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 	mappingRule10 := &mappingRule{
 		uuid: "mappingRule10",
 		snapshots: []*mappingRuleSnapshot{
-			&mappingRuleSnapshot{
+			{
 				name:          "mappingRule10.snapshot1",
 				tombstoned:    false,
 				cutoverNanos:  20000,
@@ -3479,7 +3825,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 	mappingRule11 := &mappingRule{
 		uuid: "mappingRule11",
 		snapshots: []*mappingRuleSnapshot{
-			&mappingRuleSnapshot{
+			{
 				name:            "mappingRule11.snapshot1",
 				tombstoned:      false,
 				cutoverNanos:    20000,
@@ -3494,6 +3840,119 @@ func testMappingRules(t *testing.T) []*mappingRule {
 	return []*mappingRule{mappingRule1, mappingRule2, mappingRule3, mappingRule4,
 		mappingRule5, mappingRule6, mappingRule7, mappingRule8, mappingRule9,
 		mappingRule10, mappingRule11}
+}
+
+func testKeepOriginalRollupRules(t *testing.T) []*rollupRule {
+	filter, err := filters.NewTagsFilter(
+		filters.TagFilterValueMap{
+			"rtagName1": filters.FilterValue{Pattern: "rtagValue1"},
+		},
+		filters.Conjunction,
+		testTagsFilterOptions(),
+	)
+	require.NoError(t, err)
+
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName1",
+		[]string{"rtagName1"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr2, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName2",
+		[]string{"rtagName1"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr3, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName3",
+		[]string{"rtagName1"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+
+	rollupRule1 := &rollupRule{
+		uuid: "rollupRule1",
+		snapshots: []*rollupRuleSnapshot{
+			{
+				name:         "rollupRule1.snapshot",
+				tombstoned:   false,
+				cutoverNanos: 0,
+				filter:       filter,
+				keepOriginal: false,
+				targets: []rollupTarget{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	rollupRule2 := &rollupRule{
+		uuid: "rollupRule2",
+		snapshots: []*rollupRuleSnapshot{
+			{
+				name:         "rollupRule2.snapshot",
+				tombstoned:   false,
+				cutoverNanos: 0,
+				filter:       filter,
+				keepOriginal: true,
+				targets: []rollupTarget{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type:   pipeline.RollupOpType,
+								Rollup: rr2,
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	rollupRule3 := &rollupRule{
+		uuid: "rollupRule3",
+		snapshots: []*rollupRuleSnapshot{
+			{
+				name:         "rollupRule3.snapshot",
+				tombstoned:   false,
+				cutoverNanos: 0,
+				filter:       filter,
+				keepOriginal: true,
+				targets: []rollupTarget{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type:   pipeline.RollupOpType,
+								Rollup: rr3,
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	return []*rollupRule{rollupRule1, rollupRule2, rollupRule3}
 }
 
 func testRollupRules(t *testing.T) []*rollupRule {
@@ -3514,11 +3973,132 @@ func testRollupRules(t *testing.T) []*rollupRule {
 		testTagsFilterOptions(),
 	)
 	require.NoError(t, err)
+	filter3, err := filters.NewTagsFilter(
+		filters.TagFilterValueMap{
+			"rtagName1": filters.FilterValue{Pattern: "rtagValue3"},
+		},
+		filters.Conjunction,
+		testTagsFilterOptions(),
+	)
+	require.NoError(t, err)
+
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName1",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr2, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName2",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr2_2, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName2",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.MustCompressTypes(aggregation.Sum),
+	)
+	require.NoError(t, err)
+	rr3, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName3",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr3_2, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName3",
+		[]string{"rtagName1"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr4, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName4",
+		[]string{"rtagName1"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr5, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName5",
+		[]string{"rtagName1"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr6, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName6",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr7, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName7",
+		[]string{"rtagName1"},
+		aggregation.MustCompressTypes(aggregation.Sum, aggregation.P90),
+	)
+	require.NoError(t, err)
+	rr8, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName81",
+		[]string{"rtagName1", "rtagName2", "rtagName3"},
+		aggregation.MustCompressTypes(aggregation.Sum, aggregation.P90),
+	)
+	require.NoError(t, err)
+	rr8_2, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName82",
+		[]string{"rtagName1", "rtagName2"},
+		aggregation.MustCompressTypes(aggregation.Count),
+	)
+	require.NoError(t, err)
+	rr8_3, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"rName83",
+		[]string{"rtagName1"},
+		aggregation.MustCompressTypes(aggregation.Min),
+	)
+	require.NoError(t, err)
+
+	rr9, err := pipeline.NewRollupOp(
+		pipeline.ExcludeByRollupType,
+		"rName9A",
+		[]string{"rtagName1"},
+		aggregation.MustCompressTypes(aggregation.Last),
+	)
+	require.NoError(t, err)
+
+	rr10, err := pipeline.NewRollupOp(
+		pipeline.ExcludeByRollupType,
+		"rName9B",
+		// Include a case where an exclude rule references a tag that doesn't
+		// exist in the input metric and is lexicographyically less than the
+		// other rules. This covers regressions around sorted list merge behavior
+		// in the excludeBy (vs groupBy) case.
+		[]string{"atagName1", "rtagName1"},
+		aggregation.MustCompressTypes(aggregation.Last),
+	)
+	require.NoError(t, err)
+
+	rr11, err := pipeline.NewRollupOp(
+		pipeline.ExcludeByRollupType,
+		"rName9C",
+		[]string{"rtagName1", "rtagName3"},
+		aggregation.MustCompressTypes(aggregation.Last),
+	)
+	require.NoError(t, err)
 
 	rollupRule1 := &rollupRule{
 		uuid: "rollupRule1",
 		snapshots: []*rollupRuleSnapshot{
-			&rollupRuleSnapshot{
+			{
 				name:         "rollupRule1.snapshot1",
 				tombstoned:   false,
 				cutoverNanos: 10000,
@@ -3527,12 +4107,8 @@ func testRollupRules(t *testing.T) []*rollupRule {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       b("rName1"),
-									Tags:          bs("rtagName1", "rtagName2"),
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -3541,11 +4117,12 @@ func testRollupRules(t *testing.T) []*rollupRule {
 					},
 				},
 			},
-			&rollupRuleSnapshot{
+			{
 				name:         "rollupRule1.snapshot2",
 				tombstoned:   false,
 				cutoverNanos: 20000,
 				filter:       filter1,
+				keepOriginal: true,
 				targets: []rollupTarget{
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
@@ -3556,12 +4133,8 @@ func testRollupRules(t *testing.T) []*rollupRule {
 								},
 							},
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       b("rName1"),
-									Tags:          bs("rtagName1", "rtagName2"),
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -3572,7 +4145,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 					},
 				},
 			},
-			&rollupRuleSnapshot{
+			{
 				name:         "rollupRule1.snapshot3",
 				tombstoned:   false,
 				cutoverNanos: 30000,
@@ -3587,12 +4160,8 @@ func testRollupRules(t *testing.T) []*rollupRule {
 								},
 							},
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       b("rName1"),
-									Tags:          bs("rtagName1", "rtagName2"),
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -3607,7 +4176,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 	rollupRule2 := &rollupRule{
 		uuid: "rollupRule2",
 		snapshots: []*rollupRuleSnapshot{
-			&rollupRuleSnapshot{
+			{
 				name:         "rollupRule2.snapshot1",
 				tombstoned:   false,
 				cutoverNanos: 15000,
@@ -3616,12 +4185,8 @@ func testRollupRules(t *testing.T) []*rollupRule {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       b("rName2"),
-									Tags:          bs("rtagName1", "rtagName2"),
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr2,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -3630,7 +4195,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 					},
 				},
 			},
-			&rollupRuleSnapshot{
+			{
 				name:         "rollupRule2.snapshot2",
 				tombstoned:   false,
 				cutoverNanos: 22000,
@@ -3651,12 +4216,8 @@ func testRollupRules(t *testing.T) []*rollupRule {
 								},
 							},
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       b("rName2"),
-									Tags:          bs("rtagName1", "rtagName2"),
-									AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr2_2,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -3666,7 +4227,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 					},
 				},
 			},
-			&rollupRuleSnapshot{
+			{
 				name:         "rollupRule2.snapshot3",
 				tombstoned:   false,
 				cutoverNanos: 35000,
@@ -3675,12 +4236,8 @@ func testRollupRules(t *testing.T) []*rollupRule {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       b("rName2"),
-									Tags:          bs("rtagName1", "rtagName2"),
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr2,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -3695,7 +4252,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 	rollupRule3 := &rollupRule{
 		uuid: "rollupRule3",
 		snapshots: []*rollupRuleSnapshot{
-			&rollupRuleSnapshot{
+			{
 				name:         "rollupRule3.snapshot1",
 				tombstoned:   false,
 				cutoverNanos: 22000,
@@ -3704,12 +4261,8 @@ func testRollupRules(t *testing.T) []*rollupRule {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       b("rName3"),
-									Tags:          bs("rtagName1", "rtagName2"),
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr3,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -3721,12 +4274,8 @@ func testRollupRules(t *testing.T) []*rollupRule {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       b("rName3"),
-									Tags:          bs("rtagName1"),
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr3_2,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -3735,7 +4284,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 					},
 				},
 			},
-			&rollupRuleSnapshot{
+			{
 				name:         "rollupRule3.snapshot2",
 				tombstoned:   false,
 				cutoverNanos: 34000,
@@ -3744,12 +4293,8 @@ func testRollupRules(t *testing.T) []*rollupRule {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       b("rName3"),
-									Tags:          bs("rtagName1", "rtagName2"),
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr3,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -3759,7 +4304,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 					},
 				},
 			},
-			&rollupRuleSnapshot{
+			{
 				name:         "rollupRule3.snapshot3",
 				tombstoned:   true,
 				cutoverNanos: 38000,
@@ -3768,12 +4313,8 @@ func testRollupRules(t *testing.T) []*rollupRule {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       b("rName3"),
-									Tags:          bs("rtagName1", "rtagName2"),
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr3,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -3789,7 +4330,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 	rollupRule4 := &rollupRule{
 		uuid: "rollupRule4",
 		snapshots: []*rollupRuleSnapshot{
-			&rollupRuleSnapshot{
+			{
 				name:         "rollupRule4.snapshot1",
 				tombstoned:   false,
 				cutoverNanos: 24000,
@@ -3798,12 +4339,8 @@ func testRollupRules(t *testing.T) []*rollupRule {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       b("rName4"),
-									Tags:          bs("rtagName1"),
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr4,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -3818,7 +4355,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 	rollupRule5 := &rollupRule{
 		uuid: "rollupRule5",
 		snapshots: []*rollupRuleSnapshot{
-			&rollupRuleSnapshot{
+			{
 				name:               "rollupRule5.snapshot1",
 				tombstoned:         false,
 				cutoverNanos:       24000,
@@ -3829,12 +4366,8 @@ func testRollupRules(t *testing.T) []*rollupRule {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       b("rName5"),
-									Tags:          bs("rtagName1"),
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr5,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -3849,7 +4382,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 	rollupRule6 := &rollupRule{
 		uuid: "rollupRule6",
 		snapshots: []*rollupRuleSnapshot{
-			&rollupRuleSnapshot{
+			{
 				name:         "rollupRule6.snapshot1",
 				tombstoned:   false,
 				cutoverNanos: 100000,
@@ -3858,12 +4391,8 @@ func testRollupRules(t *testing.T) []*rollupRule {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       b("rName6"),
-									Tags:          bs("rtagName1", "rtagName2"),
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr6,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -3878,7 +4407,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 	rollupRule7 := &rollupRule{
 		uuid: "rollupRule7",
 		snapshots: []*rollupRuleSnapshot{
-			&rollupRuleSnapshot{
+			{
 				name:               "rollupRule7.snapshot1",
 				tombstoned:         false,
 				cutoverNanos:       120000,
@@ -3889,12 +4418,8 @@ func testRollupRules(t *testing.T) []*rollupRule {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       b("rName7"),
-									Tags:          bs("rtagName1"),
-									AggregationID: aggregation.MustCompressTypes(aggregation.Sum, aggregation.P90),
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr7,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -3910,7 +4435,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 	rollupRule8 := &rollupRule{
 		uuid: "rollupRule8",
 		snapshots: []*rollupRuleSnapshot{
-			&rollupRuleSnapshot{
+			{
 				name:               "rollupRule8.snapshot1",
 				tombstoned:         false,
 				cutoverNanos:       90000,
@@ -3921,28 +4446,16 @@ func testRollupRules(t *testing.T) []*rollupRule {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       b("rName81"),
-									Tags:          bs("rtagName1", "rtagName2", "rtagName3"),
-									AggregationID: aggregation.MustCompressTypes(aggregation.Sum, aggregation.P90),
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr8,
 							},
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       b("rName82"),
-									Tags:          bs("rtagName1", "rtagName2"),
-									AggregationID: aggregation.MustCompressTypes(aggregation.Count),
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr8_2,
 							},
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       b("rName83"),
-									Tags:          bs("rtagName1"),
-									AggregationID: aggregation.MustCompressTypes(aggregation.Min),
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr8_3,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -3955,5 +4468,101 @@ func testRollupRules(t *testing.T) []*rollupRule {
 		},
 	}
 
-	return []*rollupRule{rollupRule1, rollupRule2, rollupRule3, rollupRule4, rollupRule5, rollupRule6, rollupRule7, rollupRule8}
+	rollupRule9 := &rollupRule{
+		uuid: "rollupRule9",
+		snapshots: []*rollupRuleSnapshot{
+			{
+				name:               "rollupRule9.snapshot1",
+				tombstoned:         false,
+				cutoverNanos:       100000,
+				filter:             filter3,
+				lastUpdatedAtNanos: 105000,
+				lastUpdatedBy:      "test",
+				targets: []rollupTarget{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type:   pipeline.RollupOpType,
+								Rollup: rr9,
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+							policy.NewStoragePolicy(time.Minute, xtime.Second, 10*time.Hour),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	rollupRule10 := &rollupRule{
+		uuid: "rollupRule10",
+		snapshots: []*rollupRuleSnapshot{
+			{
+				name:               "rollupRule10.snapshot1",
+				tombstoned:         false,
+				cutoverNanos:       100000,
+				filter:             filter3,
+				lastUpdatedAtNanos: 105000,
+				lastUpdatedBy:      "test",
+				targets: []rollupTarget{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type:   pipeline.RollupOpType,
+								Rollup: rr10,
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+							policy.NewStoragePolicy(time.Minute, xtime.Second, 10*time.Hour),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	rollupRule11 := &rollupRule{
+		uuid: "rollupRule11",
+		snapshots: []*rollupRuleSnapshot{
+			{
+				name:               "rollupRule11.snapshot1",
+				tombstoned:         false,
+				cutoverNanos:       100000,
+				filter:             filter3,
+				lastUpdatedAtNanos: 105000,
+				lastUpdatedBy:      "test",
+				targets: []rollupTarget{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type:   pipeline.RollupOpType,
+								Rollup: rr11,
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+							policy.NewStoragePolicy(time.Minute, xtime.Second, 10*time.Hour),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	return []*rollupRule{
+		rollupRule1,
+		rollupRule2,
+		rollupRule3,
+		rollupRule4,
+		rollupRule5,
+		rollupRule6,
+		rollupRule7,
+		rollupRule8,
+		rollupRule9,
+		rollupRule10,
+		rollupRule11,
+	}
 }

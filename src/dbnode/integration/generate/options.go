@@ -24,9 +24,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/x/clock"
 )
 
 const (
@@ -75,7 +75,7 @@ func NewOptions() Options {
 	encoderPool := encoding.NewEncoderPool(nil)
 	encodingOpts := encoding.NewOptions().SetEncoderPool(encoderPool)
 	encoderPool.Init(func() encoding.Encoder {
-		return m3tsz.NewEncoder(time.Time{}, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+		return m3tsz.NewEncoder(0, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
 	return &options{

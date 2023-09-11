@@ -21,12 +21,18 @@
 package instrument
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"log"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/fortytw2/leaktest"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
@@ -154,4 +160,27 @@ func TestBuildReporterFailsForWrongAge(t *testing.T) {
 	opts := newTestOptions()
 	rep := NewBuildReporter(opts)
 	require.Error(t, rep.Start())
+}
+
+func TestLogBuildInfoJSONReturnsValidJSON(t *testing.T) {
+	defer leaktest.Check(t)()
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	defer func() {
+		log.SetOutput(os.Stderr)
+	}()
+	err := LogBuildInfoWithLoggerJSON(log.Default(), json.Marshal)
+	assert.Nil(t, err)
+	var js json.RawMessage
+
+	// json Unmarshal returns error if the message is invalid json
+	assert.Nil(t, json.Unmarshal(buf.Bytes(), &js))
+}
+
+func TestLogBuildInfoJSONHandlesErrorGracefully(t *testing.T) {
+	defer leaktest.Check(t)()
+	err := LogBuildInfoWithLoggerJSON(log.Default(), func(interface{}) ([]byte, error) {
+		return nil, errors.New("test error")
+	})
+	assert.Equal(t, err.Error(), "test error")
 }

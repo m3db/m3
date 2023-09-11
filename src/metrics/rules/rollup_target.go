@@ -22,13 +22,11 @@ package rules
 
 import (
 	"errors"
-	"sort"
 
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/rules/view"
-	"github.com/m3db/m3/src/metrics/x/bytes"
 )
 
 var (
@@ -44,6 +42,7 @@ var (
 type rollupTarget struct {
 	Pipeline        pipeline.Pipeline
 	StoragePolicies policy.StoragePolicies
+	ResendEnabled   bool
 }
 
 // newRollupTargetFromV1Proto creates a new rollup target from v1 proto
@@ -56,16 +55,16 @@ func newRollupTargetFromV1Proto(pb *rulepb.RollupTarget) (rollupTarget, error) {
 	if err != nil {
 		return emptyRollupTarget, err
 	}
-	tags := make([]string, len(pb.Tags))
-	copy(tags, pb.Tags)
-	sort.Strings(tags)
+
+	rollup, err := pipeline.NewRollupOp(pipeline.GroupByRollupType, pb.Name,
+		pb.Tags, aggregationID)
+	if err != nil {
+		return emptyRollupTarget, err
+	}
+
 	rollupOp := pipeline.OpUnion{
-		Type: pipeline.RollupOpType,
-		Rollup: pipeline.RollupOp{
-			NewName:       []byte(pb.Name),
-			Tags:          bytes.ArraysFromStringArray(tags),
-			AggregationID: aggregationID,
-		},
+		Type:   pipeline.RollupOpType,
+		Rollup: rollup,
 	}
 	pipeline := pipeline.NewPipeline([]pipeline.OpUnion{rollupOp})
 	return rollupTarget{
@@ -90,6 +89,7 @@ func newRollupTargetFromV2Proto(pb *rulepb.RollupTargetV2) (rollupTarget, error)
 	return rollupTarget{
 		Pipeline:        pipeline,
 		StoragePolicies: storagePolicies,
+		ResendEnabled:   pb.ResendEnabled,
 	}, nil
 }
 
@@ -97,6 +97,7 @@ func newRollupTargetFromView(rtv view.RollupTarget) rollupTarget {
 	return rollupTarget{
 		Pipeline:        rtv.Pipeline,
 		StoragePolicies: rtv.StoragePolicies,
+		ResendEnabled:   rtv.ResendEnabled,
 	}
 }
 
@@ -104,6 +105,7 @@ func (t rollupTarget) rollupTargetView() view.RollupTarget {
 	return view.RollupTarget{
 		Pipeline:        t.Pipeline,
 		StoragePolicies: t.StoragePolicies,
+		ResendEnabled:   t.ResendEnabled,
 	}
 }
 
@@ -112,6 +114,7 @@ func (t *rollupTarget) clone() rollupTarget {
 	return rollupTarget{
 		Pipeline:        t.Pipeline.Clone(),
 		StoragePolicies: t.StoragePolicies.Clone(),
+		ResendEnabled:   t.ResendEnabled,
 	}
 }
 
@@ -128,6 +131,7 @@ func (t *rollupTarget) proto() (*rulepb.RollupTargetV2, error) {
 	return &rulepb.RollupTargetV2{
 		Pipeline:        pipeline,
 		StoragePolicies: storagePolicies,
+		ResendEnabled:   t.ResendEnabled,
 	}, nil
 }
 

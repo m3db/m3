@@ -134,6 +134,9 @@ func TestElectionManagerOpenSuccess(t *testing.T) {
 			return make(chan campaign.Status), nil
 		}).
 		AnyTimes()
+	leaderService.EXPECT().
+		Resign(gomock.Any()).
+		AnyTimes()
 
 	opts := testElectionManagerOptions(t, ctrl).SetLeaderService(leaderService)
 	mgr := NewElectionManager(opts).(*electionManager)
@@ -245,6 +248,7 @@ func TestElectionManagerResignLeaderServiceResignError(t *testing.T) {
 }
 
 func TestElectionManagerResignTimeout(t *testing.T) {
+	t.Parallel()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -272,14 +276,16 @@ func TestElectionManagerResignTimeout(t *testing.T) {
 }
 
 func TestElectionManagerResignSuccess(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	var (
-		statusCh = make(chan campaign.Status, 2)
+		statusCh = make(chan campaign.Status, 1)
 		mgr      *electionManager
 	)
 
@@ -290,7 +296,10 @@ func TestElectionManagerResignSuccess(t *testing.T) {
 	leaderService.EXPECT().
 		Resign(gomock.Any()).
 		DoAndReturn(func(string) error {
-			statusCh <- campaign.Status{State: campaign.Follower}
+			select {
+			case statusCh <- campaign.Status{State: campaign.Follower}:
+			default:
+			}
 			return nil
 		}).
 		AnyTimes()
@@ -300,6 +309,7 @@ func TestElectionManagerResignSuccess(t *testing.T) {
 	campaignOpts = campaignOpts.SetLeaderValue(leaderValue)
 	opts := testElectionManagerOptions(t, ctrl).
 		SetCampaignOptions(campaignOpts).
+		// SetCampaignStateCheckInterval(1 * time.Second).
 		SetLeaderService(leaderService)
 	i := placement.NewInstance().SetID("myself")
 	opts.PlacementManager().(*MockPlacementManager).
@@ -312,16 +322,27 @@ func TestElectionManagerResignSuccess(t *testing.T) {
 	opts.PlacementManager().(*MockPlacementManager).
 		EXPECT().
 		Placement().
-		Return(nil, p, nil)
+		Return(p, nil)
 	mgr = NewElectionManager(opts).(*electionManager)
 	mgr.sleepFn = func(time.Duration) {}
 	mgr.electionStateWatchable.Update(LeaderState)
 	require.NoError(t, mgr.Open(testShardSetID))
 
 	require.NoError(t, mgr.Resign(ctx))
-	time.Sleep(time.Second)
+
+	var mgrState electionManagerState
+	for i := 0; i < 10; i++ {
+		mgr.RLock()
+		mgrState = mgr.state
+		mgr.RUnlock()
+		if mgr.ElectionState() == FollowerState && mgrState == electionManagerOpen {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
 	require.Equal(t, FollowerState, mgr.ElectionState())
-	require.Equal(t, electionManagerOpen, mgr.state)
+	require.Equal(t, electionManagerOpen, mgrState)
 	require.NoError(t, mgr.Close())
 }
 
@@ -346,6 +367,8 @@ func TestElectionManagerCloseSuccess(t *testing.T) {
 }
 
 func TestElectionManagerCampaignLoop(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -380,6 +403,7 @@ func TestElectionManagerCampaignLoop(t *testing.T) {
 	campaignOpts = campaignOpts.SetLeaderValue(leaderValue)
 	opts := testElectionManagerOptions(t, ctrl).
 		SetCampaignOptions(campaignOpts).
+		SetCampaignStateCheckInterval(100 * time.Millisecond).
 		SetLeaderService(leaderService)
 	i := placement.NewInstance().SetID("myself")
 	opts.PlacementManager().(*MockPlacementManager).
@@ -393,7 +417,7 @@ func TestElectionManagerCampaignLoop(t *testing.T) {
 	opts.PlacementManager().(*MockPlacementManager).
 		EXPECT().
 		Placement().
-		Return(nil, p, nil).
+		Return(p, nil).
 		AnyTimes()
 	mgr := NewElectionManager(opts).(*electionManager)
 
@@ -479,6 +503,8 @@ func TestElectionManagerCampaignLoop(t *testing.T) {
 }
 
 func TestElectionManagerVerifyLeaderDelayWithValidLeader(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -514,7 +540,7 @@ func TestElectionManagerVerifyLeaderDelayWithValidLeader(t *testing.T) {
 	opts.PlacementManager().(*MockPlacementManager).
 		EXPECT().
 		Placement().
-		Return(nil, p, nil).
+		Return(p, nil).
 		AnyTimes()
 	mgr := NewElectionManager(opts).(*electionManager)
 	retryOpts := retry.NewOptions().
@@ -544,6 +570,8 @@ func TestElectionManagerVerifyLeaderDelayWithValidLeader(t *testing.T) {
 }
 
 func TestElectionManagerVerifyLeaderDelayWithLeaderNotInPlacement(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -574,7 +602,7 @@ func TestElectionManagerVerifyLeaderDelayWithLeaderNotInPlacement(t *testing.T) 
 	opts.PlacementManager().(*MockPlacementManager).
 		EXPECT().
 		Placement().
-		Return(nil, p, nil).
+		Return(p, nil).
 		AnyTimes()
 	mgr := NewElectionManager(opts).(*electionManager)
 	retryOpts := retry.NewOptions().
@@ -603,6 +631,8 @@ func TestElectionManagerVerifyLeaderDelayWithLeaderNotInPlacement(t *testing.T) 
 }
 
 func TestElectionManagerVerifyLeaderDelayWithLeaderOwningDifferentShardSet(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -638,7 +668,7 @@ func TestElectionManagerVerifyLeaderDelayWithLeaderOwningDifferentShardSet(t *te
 	opts.PlacementManager().(*MockPlacementManager).
 		EXPECT().
 		Placement().
-		Return(nil, p, nil).
+		Return(p, nil).
 		AnyTimes()
 	mgr := NewElectionManager(opts).(*electionManager)
 	retryOpts := retry.NewOptions().
@@ -667,6 +697,8 @@ func TestElectionManagerVerifyLeaderDelayWithLeaderOwningDifferentShardSet(t *te
 }
 
 func TestElectionManagerVerifyWithLeaderErrors(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -705,7 +737,7 @@ func TestElectionManagerVerifyWithLeaderErrors(t *testing.T) {
 	opts.PlacementManager().(*MockPlacementManager).
 		EXPECT().
 		Placement().
-		Return(nil, p, nil).
+		Return(p, nil).
 		AnyTimes()
 	mgr := NewElectionManager(opts).(*electionManager)
 	mgr.electionStateWatchable.Update(PendingFollowerState)
@@ -815,6 +847,8 @@ func TestElectionManagerVerifyCampaignDisabled(t *testing.T) {
 }
 
 func TestElectionManagerCheckCampaignStateLoop(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -834,6 +868,7 @@ func TestElectionManagerCheckCampaignStateLoop(t *testing.T) {
 	campaignOpts = campaignOpts.SetLeaderValue(leaderValue)
 	opts := testElectionManagerOptions(t, ctrl).
 		SetCampaignOptions(campaignOpts).
+		SetCampaignStateCheckInterval(100 * time.Millisecond).
 		SetLeaderService(leaderService)
 	mgr := NewElectionManager(opts).(*electionManager)
 	iterCh := make(chan enabledRes)
@@ -957,12 +992,12 @@ func TestElectionManagerCampaignIsEnabledAllCutoffShardsFlushed(t *testing.T) {
 		Get().
 		Return(&schema.ShardSetFlushTimes{
 			ByShard: map[uint32]*schema.ShardFlushTimes{
-				0: &schema.ShardFlushTimes{
+				0: {
 					StandardByResolution: map[int64]int64{
 						int64(time.Second): 8000,
 					},
 				},
-				1: &schema.ShardFlushTimes{
+				1: {
 					StandardByResolution: map[int64]int64{
 						int64(time.Minute): 9000,
 					},
@@ -998,12 +1033,12 @@ func TestElectionManagerCampaignIsEnabledHasReplacementInstance(t *testing.T) {
 		Get().
 		Return(&schema.ShardSetFlushTimes{
 			ByShard: map[uint32]*schema.ShardFlushTimes{
-				0: &schema.ShardFlushTimes{
+				0: {
 					StandardByResolution: map[int64]int64{
 						int64(time.Second): 7000,
 					},
 				},
-				1: &schema.ShardFlushTimes{
+				1: {
 					StandardByResolution: map[int64]int64{
 						int64(time.Minute): 9000,
 					},
@@ -1040,12 +1075,12 @@ func TestElectionManagerCampaignIsEnabledNoReplacementInstance(t *testing.T) {
 		Get().
 		Return(&schema.ShardSetFlushTimes{
 			ByShard: map[uint32]*schema.ShardFlushTimes{
-				0: &schema.ShardFlushTimes{
+				0: {
 					StandardByResolution: map[int64]int64{
 						int64(time.Second): 7000,
 					},
 				},
-				1: &schema.ShardFlushTimes{
+				1: {
 					StandardByResolution: map[int64]int64{
 						int64(time.Minute): 9000,
 					},
@@ -1120,6 +1155,23 @@ func TestElectionManagerCampaignIsEnabledUnexpectedShardCutoverCutoffTimes(t *te
 
 	_, err := mgr.campaignIsEnabled()
 	require.Equal(t, errUnexpectedShardCutoverCutoffTimes, err)
+}
+
+func TestElectionManagerCampaignIsEnabledWhenNoShardsArePresent(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	noShards := shard.NewShards(nil)
+	placementManager := NewMockPlacementManager(ctrl)
+	placementManager.EXPECT().Shards().Return(noShards, nil).AnyTimes()
+
+	opts := testElectionManagerOptions(t, ctrl)
+	mgr := NewElectionManager(opts).(*electionManager)
+	mgr.placementManager = placementManager
+
+	enabled, err := mgr.campaignIsEnabled()
+	require.True(t, enabled)
+	require.NoError(t, err)
 }
 
 func testElectionManagerOptions(t *testing.T, ctrl *gomock.Controller) ElectionManagerOptions {

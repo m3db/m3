@@ -45,8 +45,6 @@ func TestOptions(t *testing.T) {
 	require.Equal(t, defaultMessageQueueFullScanInterval, opts.MessageQueueFullScanInterval())
 	require.Equal(t, time.Minute, opts.SetMessageQueueFullScanInterval(time.Minute).MessageQueueFullScanInterval())
 
-	require.Nil(t, opts.MessagePoolOptions())
-
 	require.Equal(t, defaultInitialAckMapSize, opts.InitialAckMapSize())
 	require.Equal(t, 123, opts.SetInitialAckMapSize(123).InitialAckMapSize())
 
@@ -54,6 +52,8 @@ func TestOptions(t *testing.T) {
 	require.Equal(t, time.Second, opts.SetCloseCheckInterval(time.Second).CloseCheckInterval())
 
 	require.Nil(t, opts.SetInstrumentOptions(nil).InstrumentOptions())
+
+	require.NotNil(t, opts.MessageRetryNanosFn())
 }
 
 func TestConnectionOptions(t *testing.T) {

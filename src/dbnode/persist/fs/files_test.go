@@ -39,6 +39,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	xresource "github.com/m3db/m3/src/x/resource"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
@@ -50,6 +52,7 @@ var (
 	testNs2ID       = ident.StringID("testNs2")
 	testNs1Metadata = func(t *testing.T) namespace.Metadata {
 		md, err := namespace.NewMetadata(testNs1ID, namespace.NewOptions().
+			SetCacheBlocksOnRetrieve(true).
 			SetRetentionOptions(retention.NewOptions().SetBlockSize(testBlockSize)).
 			SetIndexOptions(namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(testBlockSize)))
 		require.NoError(t, err)
@@ -57,6 +60,7 @@ var (
 	}
 	testNs2Metadata = func(t *testing.T) namespace.Metadata {
 		md, err := namespace.NewMetadata(testNs2ID, namespace.NewOptions().
+			SetCacheBlocksOnRetrieve(true).
 			SetRetentionOptions(retention.NewOptions().SetBlockSize(testBlockSize)).
 			SetIndexOptions(namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(testBlockSize)))
 		require.NoError(t, err)
@@ -86,7 +90,7 @@ func TestCloseAllFails(t *testing.T) {
 	defer os.Remove(file.Name())
 
 	assert.NoError(t, file.Close())
-	assert.Error(t, closeAll(file))
+	assert.Error(t, xresource.CloseAll(file))
 }
 
 func TestDeleteFiles(t *testing.T) {
@@ -153,32 +157,32 @@ func TestForEachInfoFile(t *testing.T) {
 	shardDir := ShardDataDirPath(dir, testNs1ID, shard)
 	require.NoError(t, os.MkdirAll(shardDir, os.ModeDir|os.FileMode(0755)))
 
-	blockStart := time.Unix(0, 0)
+	blockStart := xtime.UnixNano(0)
 	buf := digest.NewBuffer()
 
 	// No checkpoint file
-	createDataFile(t, shardDir, blockStart, infoFileSuffix, nil)
+	createDataFile(t, shardDir, blockStart, InfoFileSuffix, nil)
 
 	// No digest file
 	blockStart = blockStart.Add(time.Nanosecond)
-	createDataFile(t, shardDir, blockStart, infoFileSuffix, nil)
-	createDataFile(t, shardDir, blockStart, checkpointFileSuffix, buf)
+	createDataFile(t, shardDir, blockStart, InfoFileSuffix, nil)
+	createDataFile(t, shardDir, blockStart, CheckpointFileSuffix, buf)
 
 	// Digest of digest mismatch
 	blockStart = blockStart.Add(time.Nanosecond)
 	digests := []byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc}
 	buf.WriteDigest(digest.Checksum(append(digests, 0xd)))
-	createDataFile(t, shardDir, blockStart, infoFileSuffix, nil)
-	createDataFile(t, shardDir, blockStart, digestFileSuffix, digests)
-	createDataFile(t, shardDir, blockStart, checkpointFileSuffix, buf)
+	createDataFile(t, shardDir, blockStart, InfoFileSuffix, nil)
+	createDataFile(t, shardDir, blockStart, DigestFileSuffix, digests)
+	createDataFile(t, shardDir, blockStart, CheckpointFileSuffix, buf)
 
 	// Info file digest mismatch
 	blockStart = blockStart.Add(time.Nanosecond)
 
 	buf.WriteDigest(digest.Checksum(digests))
-	createDataFile(t, shardDir, blockStart, infoFileSuffix, []byte{0x1})
-	createDataFile(t, shardDir, blockStart, digestFileSuffix, digests)
-	createDataFile(t, shardDir, blockStart, checkpointFileSuffix, buf)
+	createDataFile(t, shardDir, blockStart, InfoFileSuffix, []byte{0x1})
+	createDataFile(t, shardDir, blockStart, DigestFileSuffix, digests)
+	createDataFile(t, shardDir, blockStart, CheckpointFileSuffix, buf)
 
 	// All digests match
 	blockStart = blockStart.Add(time.Nanosecond)
@@ -188,9 +192,9 @@ func TestForEachInfoFile(t *testing.T) {
 
 	digestOfDigest := append(buf, []byte{0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc}...)
 	buf.WriteDigest(digest.Checksum(digestOfDigest))
-	createDataFile(t, shardDir, blockStart, infoFileSuffix, infoData)
-	createDataFile(t, shardDir, blockStart, digestFileSuffix, digestOfDigest)
-	createDataFile(t, shardDir, blockStart, checkpointFileSuffix, buf)
+	createDataFile(t, shardDir, blockStart, InfoFileSuffix, infoData)
+	createDataFile(t, shardDir, blockStart, DigestFileSuffix, digestOfDigest)
+	createDataFile(t, shardDir, blockStart, CheckpointFileSuffix, buf)
 
 	var fnames []string
 	var res []byte
@@ -203,14 +207,14 @@ func TestForEachInfoFile(t *testing.T) {
 			shard:          shard,
 		},
 		testReaderBufferSize,
-		func(file FileSetFile, data []byte) {
+		func(file FileSetFile, data []byte, _ bool) {
 			fname, ok := file.InfoFilePath()
 			require.True(t, ok)
 			fnames = append(fnames, fname)
 			res = append(res, data...)
 		})
 
-	require.Equal(t, []string{filesetPathFromTimeLegacy(shardDir, blockStart, infoFileSuffix)}, fnames)
+	require.Equal(t, []string{filesetPathFromTimeLegacy(shardDir, blockStart, InfoFileSuffix)}, fnames)
 	require.Equal(t, infoData, res)
 }
 
@@ -223,17 +227,17 @@ func TestTimeFromFileName(t *testing.T) {
 	require.Error(t, err)
 
 	v, err := TimeFromFileName("foo-1-bar.db")
-	expected := time.Unix(0, 1)
+	expected := xtime.UnixNano(1)
 	require.Equal(t, expected, v)
 	require.NoError(t, err)
 
 	v, err = TimeFromFileName("foo-12345-6-bar.db")
-	expected = time.Unix(0, 12345)
+	expected = xtime.UnixNano(12345)
 	require.Equal(t, expected, v)
 	require.NoError(t, err)
 
 	v, err = TimeFromFileName("foo/bar/foo-21234567890-bar.db")
-	expected = time.Unix(0, 21234567890)
+	expected = xtime.UnixNano(21234567890)
 	require.Equal(t, expected, v)
 	require.NoError(t, err)
 }
@@ -247,17 +251,17 @@ func TestTimeAndIndexFromCommitlogFileName(t *testing.T) {
 	require.Error(t, err)
 
 	type expected struct {
-		t time.Time
+		t xtime.UnixNano
 		i int
 	}
 	ts, i, err := TimeAndIndexFromCommitlogFilename("foo-1-0.db")
-	exp := expected{time.Unix(0, 1), 0}
+	exp := expected{xtime.UnixNano(1), 0}
 	require.Equal(t, exp.t, ts)
 	require.Equal(t, exp.i, i)
 	require.NoError(t, err)
 
 	ts, i, err = TimeAndIndexFromCommitlogFilename("foo/bar/foo-21234567890-1.db")
-	exp = expected{time.Unix(0, 21234567890), 1}
+	exp = expected{xtime.UnixNano(21234567890), 1}
 	require.Equal(t, exp.t, ts)
 	require.Equal(t, exp.i, i)
 	require.NoError(t, err)
@@ -272,22 +276,22 @@ func TestTimeAndVolumeIndexFromFileSetFilename(t *testing.T) {
 	require.Error(t, err)
 
 	type expected struct {
-		t time.Time
+		t xtime.UnixNano
 		i int
 	}
 	ts, i, err := TimeAndVolumeIndexFromFileSetFilename("foo-1-0-data.db")
-	exp := expected{time.Unix(0, 1), 0}
+	exp := expected{xtime.UnixNano(1), 0}
 	require.Equal(t, exp.t, ts)
 	require.Equal(t, exp.i, i)
 	require.NoError(t, err)
 
 	validName := "foo/bar/fileset-21234567890-1-data.db"
 	ts, i, err = TimeAndVolumeIndexFromFileSetFilename(validName)
-	exp = expected{time.Unix(0, 21234567890), 1}
+	exp = expected{xtime.UnixNano(21234567890), 1}
 	require.Equal(t, exp.t, ts)
 	require.Equal(t, exp.i, i)
 	require.NoError(t, err)
-	require.Equal(t, filesetPathFromTimeAndIndex("foo/bar", exp.t, exp.i, "data"), validName)
+	require.Equal(t, FilesetPathFromTimeAndIndex("foo/bar", exp.t, exp.i, "data"), validName)
 }
 
 func TestTimeAndVolumeIndexFromDataFileSetFilename(t *testing.T) {
@@ -299,18 +303,18 @@ func TestTimeAndVolumeIndexFromDataFileSetFilename(t *testing.T) {
 	require.Error(t, err)
 
 	type expected struct {
-		t time.Time
+		t xtime.UnixNano
 		i int
 	}
 	ts, i, err := TimeAndVolumeIndexFromDataFileSetFilename("foo-1-0-data.db")
-	exp := expected{time.Unix(0, 1), 0}
+	exp := expected{xtime.UnixNano(1), 0}
 	require.Equal(t, exp.t, ts)
 	require.Equal(t, exp.i, i)
 	require.NoError(t, err)
 
 	validName := "foo/bar/fileset-21234567890-1-data.db"
 	ts, i, err = TimeAndVolumeIndexFromDataFileSetFilename(validName)
-	exp = expected{time.Unix(0, 21234567890), 1}
+	exp = expected{xtime.UnixNano(21234567890), 1}
 	require.Equal(t, exp.t, ts)
 	require.Equal(t, exp.i, i)
 	require.NoError(t, err)
@@ -318,7 +322,7 @@ func TestTimeAndVolumeIndexFromDataFileSetFilename(t *testing.T) {
 
 	unindexedName := "foo/bar/fileset-21234567890-data.db"
 	ts, i, err = TimeAndVolumeIndexFromDataFileSetFilename(unindexedName)
-	exp = expected{time.Unix(0, 21234567890), 0}
+	exp = expected{xtime.UnixNano(21234567890), 0}
 	require.Equal(t, exp.t, ts)
 	require.Equal(t, exp.i, i)
 	require.NoError(t, err)
@@ -384,7 +388,7 @@ func TestFileExists(t *testing.T) {
 	var (
 		dir               = createTempDir(t)
 		shard             = uint32(10)
-		start             = time.Now()
+		start             = xtime.Now()
 		shardDir          = ShardDataDirPath(dir, testNs1ID, shard)
 		checkpointFileBuf = make([]byte, CheckpointFileSizeBytes)
 		err               = os.MkdirAll(shardDir, defaultNewDirectoryMode)
@@ -392,15 +396,15 @@ func TestFileExists(t *testing.T) {
 	defer os.RemoveAll(dir)
 	require.NoError(t, err)
 
-	infoFilePath := filesetPathFromTimeLegacy(shardDir, start, infoFileSuffix)
-	createDataFile(t, shardDir, start, infoFileSuffix, checkpointFileBuf)
+	infoFilePath := filesetPathFromTimeLegacy(shardDir, start, InfoFileSuffix)
+	createDataFile(t, shardDir, start, InfoFileSuffix, checkpointFileBuf)
 	require.True(t, mustFileExists(t, infoFilePath))
 	exists, err := DataFileSetExists(dir, testNs1ID, uint32(shard), start, 0)
 	require.NoError(t, err)
 	require.False(t, exists)
 
-	checkpointFilePath := filesetPathFromTimeLegacy(shardDir, start, checkpointFileSuffix)
-	createDataFile(t, shardDir, start, checkpointFileSuffix, checkpointFileBuf)
+	checkpointFilePath := filesetPathFromTimeLegacy(shardDir, start, CheckpointFileSuffix)
+	createDataFile(t, shardDir, start, CheckpointFileSuffix, checkpointFileBuf)
 	exists, err = DataFileSetExists(dir, testNs1ID, uint32(shard), start, 0)
 	require.NoError(t, err)
 	require.True(t, exists)
@@ -412,8 +416,10 @@ func TestFileExists(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, exists)
 
-	_, err = FileExists(checkpointFilePath)
-	require.Error(t, err)
+	defer instrument.SetShouldPanicEnvironmentVariable(true)()
+	require.Panics(t, func() {
+		_, _ = FileExists(checkpointFilePath)
+	})
 
 	os.Remove(infoFilePath)
 	require.False(t, mustFileExists(t, infoFilePath))
@@ -423,9 +429,9 @@ func TestCompleteCheckpointFileExists(t *testing.T) {
 	var (
 		dir                = createTempDir(t)
 		shard              = uint32(10)
-		start              = time.Now()
+		start              = xtime.Now()
 		shardDir           = ShardDataDirPath(dir, testNs1ID, shard)
-		checkpointFilePath = filesetPathFromTimeLegacy(shardDir, start, checkpointFileSuffix)
+		checkpointFilePath = filesetPathFromTimeLegacy(shardDir, start, CheckpointFileSuffix)
 		err                = os.MkdirAll(shardDir, defaultNewDirectoryMode)
 
 		validCheckpointFileBuf   = make([]byte, CheckpointFileSizeBytes)
@@ -434,19 +440,18 @@ func TestCompleteCheckpointFileExists(t *testing.T) {
 	defer os.RemoveAll(dir)
 	require.NoError(t, err)
 
-	createDataFile(t, shardDir, start, checkpointFileSuffix, invalidCheckpointFileBuf)
+	createDataFile(t, shardDir, start, CheckpointFileSuffix, invalidCheckpointFileBuf)
 	exists, err := CompleteCheckpointFileExists(checkpointFilePath)
 	require.NoError(t, err)
 	require.False(t, exists)
 
-	createDataFile(t, shardDir, start, checkpointFileSuffix, validCheckpointFileBuf)
+	createDataFile(t, shardDir, start, CheckpointFileSuffix, validCheckpointFileBuf)
 	exists, err = CompleteCheckpointFileExists(checkpointFilePath)
 	require.NoError(t, err)
 	require.True(t, exists)
 
-	exists, err = CompleteCheckpointFileExists("some-arbitrary-file")
-	require.Contains(t, err.Error(), instrument.InvariantViolatedMetricName)
-	require.False(t, exists)
+	defer instrument.SetShouldPanicEnvironmentVariable(true)()
+	require.Panics(t, func() { _, _ = CompleteCheckpointFileExists("some-arbitrary-file") })
 }
 
 func TestShardDirPath(t *testing.T) {
@@ -455,17 +460,17 @@ func TestShardDirPath(t *testing.T) {
 }
 
 func TestFilePathFromTime(t *testing.T) {
-	start := time.Unix(1465501321, 123456789)
+	start := xtime.FromSecondsAndNanos(1465501321, 123456789)
 	inputs := []struct {
 		prefix   string
 		suffix   string
 		expected string
 	}{
-		{"foo/bar", infoFileSuffix, "foo/bar/fileset-1465501321123456789-info.db"},
+		{"foo/bar", InfoFileSuffix, "foo/bar/fileset-1465501321123456789-info.db"},
 		{"foo/bar", indexFileSuffix, "foo/bar/fileset-1465501321123456789-index.db"},
 		{"foo/bar", dataFileSuffix, "foo/bar/fileset-1465501321123456789-data.db"},
-		{"foo/bar", checkpointFileSuffix, "foo/bar/fileset-1465501321123456789-checkpoint.db"},
-		{"foo/bar/", infoFileSuffix, "foo/bar/fileset-1465501321123456789-info.db"},
+		{"foo/bar", CheckpointFileSuffix, "foo/bar/fileset-1465501321123456789-checkpoint.db"},
+		{"foo/bar/", InfoFileSuffix, "foo/bar/fileset-1465501321123456789-info.db"},
 	}
 	for _, input := range inputs {
 		require.Equal(t, input.expected, filesetPathFromTimeLegacy(input.prefix, start, input.suffix))
@@ -478,15 +483,15 @@ func TestFileSetFilesBefore(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	cutoffIter := 8
-	cutoff := time.Unix(0, int64(cutoffIter))
+	cutoff := xtime.UnixNano(1 + cutoffIter)
 	res, err := DataFileSetsBefore(dir, testNs1ID, shard, cutoff)
 	require.NoError(t, err)
 	require.Equal(t, cutoffIter, len(res))
 
 	shardDir := path.Join(dir, dataDirName, testNs1ID.String(), strconv.Itoa(int(shard)))
 	for i := 0; i < len(res); i++ {
-		ts := time.Unix(0, int64(i))
-		require.Equal(t, filesetPathFromTimeLegacy(shardDir, ts, infoFileSuffix), res[i])
+		ts := xtime.UnixNano(int64(i + 1))
+		require.Equal(t, filesetPathFromTimeLegacy(shardDir, ts, InfoFileSuffix), res[i])
 	}
 }
 
@@ -497,7 +502,7 @@ func TestFileSetAt(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	for i := 0; i < numIters; i++ {
-		timestamp := time.Unix(0, int64(i))
+		timestamp := xtime.UnixNano(int64(i))
 		res, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp, 0)
 		require.NoError(t, err)
 		require.True(t, ok)
@@ -508,11 +513,11 @@ func TestFileSetAt(t *testing.T) {
 func TestFileSetAtNonLegacy(t *testing.T) {
 	shard := uint32(0)
 	numIters := 20
-	dir := createDataFiles(t, dataDirName, testNs1ID, shard, numIters, true, checkpointFileSuffix)
+	dir := createDataFiles(t, dataDirName, testNs1ID, shard, numIters, true, CheckpointFileSuffix)
 	defer os.RemoveAll(dir)
 
 	for i := 0; i < numIters; i++ {
-		timestamp := time.Unix(0, int64(i))
+		timestamp := xtime.UnixNano(int64(i))
 		res, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp, 0)
 		require.NoError(t, err)
 		require.True(t, ok)
@@ -525,11 +530,11 @@ func TestFileSetAtNotFirstVolumeIndex(t *testing.T) {
 	numIters := 20
 	volumeIndex := 1
 	dir := createDataFilesWithVolumeIndex(t, dataDirName, testNs1ID, shard, numIters, true,
-		checkpointFileSuffix, volumeIndex)
+		CheckpointFileSuffix, volumeIndex)
 	defer os.RemoveAll(dir)
 
 	for i := 0; i < numIters; i++ {
-		timestamp := time.Unix(0, int64(i))
+		timestamp := xtime.UnixNano(int64(i))
 		res, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp, volumeIndex)
 		require.NoError(t, err)
 		require.True(t, ok)
@@ -544,7 +549,7 @@ func TestFileSetAtIgnoresWithoutCheckpoint(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	for i := 0; i < numIters; i++ {
-		timestamp := time.Unix(0, int64(i))
+		timestamp := xtime.UnixNano(int64(i))
 		_, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp, 0)
 		require.NoError(t, err)
 		require.False(t, ok)
@@ -558,7 +563,7 @@ func TestDeleteFileSetAt(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	for i := 0; i < numIters; i++ {
-		timestamp := time.Unix(0, int64(i))
+		timestamp := xtime.UnixNano(int64(i))
 		res, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp, 0)
 		require.NoError(t, err)
 		require.True(t, ok)
@@ -578,7 +583,7 @@ func TestFileSetAtNotExist(t *testing.T) {
 	dir := createDataFlushInfoFilesDir(t, testNs1ID, shard, 0)
 	defer os.RemoveAll(dir)
 
-	timestamp := time.Unix(0, 0)
+	timestamp := xtime.UnixNano(0)
 	_, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp, 0)
 	require.NoError(t, err)
 	require.False(t, ok)
@@ -636,7 +641,7 @@ func TestSnapshotFilesNoFiles(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, len(files))
 	for i, snapshotFile := range files {
-		require.Equal(t, int64(i), snapshotFile.ID.BlockStart.UnixNano())
+		require.Equal(t, int64(i), int64(snapshotFile.ID.BlockStart))
 	}
 
 	require.Equal(t, 0, len(files.Filepaths()))
@@ -647,7 +652,7 @@ func TestNextSnapshotFileSetVolumeIndex(t *testing.T) {
 		shard      = uint32(0)
 		dir        = createTempDir(t)
 		shardDir   = ShardSnapshotsDirPath(dir, testNs1ID, shard)
-		blockStart = time.Now().Truncate(time.Hour)
+		blockStart = xtime.Now().Truncate(time.Hour)
 	)
 	require.NoError(t, os.MkdirAll(shardDir, 0755))
 	defer os.RemoveAll(shardDir)
@@ -802,7 +807,7 @@ func TestNextIndexFileSetVolumeIndex(t *testing.T) {
 	require.NoError(t, os.MkdirAll(dataDir, 0755))
 	defer os.RemoveAll(dataDir)
 
-	blockStart := time.Now().Truncate(time.Hour)
+	blockStart := xtime.Now().Truncate(time.Hour)
 
 	// Check increments properly
 	curr := -1
@@ -812,7 +817,7 @@ func TestNextIndexFileSetVolumeIndex(t *testing.T) {
 		require.Equal(t, curr+1, index)
 		curr = index
 
-		p := filesetPathFromTimeAndIndex(dataDir, blockStart, index, checkpointFileSuffix)
+		p := FilesetPathFromTimeAndIndex(dataDir, blockStart, index, CheckpointFileSuffix)
 
 		digestBuf := digest.NewBuffer()
 		digestBuf.WriteDigest(digest.Checksum([]byte("bar")))
@@ -832,12 +837,12 @@ func TestMultipleForBlockStart(t *testing.T) {
 	require.NoError(t, os.MkdirAll(shardDir, 0755))
 
 	// Write out many files with the same blockStart, but different indices
-	ts := time.Unix(0, 0)
+	ts := xtime.UnixNano(1)
 	for i := 0; i < numSnapshots; i++ {
 		volume := i % numSnapshotsPerBlock
 		// Periodically update the blockStart
 		if volume == 0 {
-			ts = time.Unix(0, int64(i))
+			ts = xtime.UnixNano(int64(i + 1))
 		}
 
 		writeOutTestSnapshot(t, dir, shard, ts, volume)
@@ -913,7 +918,7 @@ func TestShardSnapshotsDirPath(t *testing.T) {
 func TestSnapshotFileSetExistsAt(t *testing.T) {
 	var (
 		shard     = uint32(0)
-		ts        = time.Unix(0, 0)
+		ts        = xtime.UnixNano(1)
 		dir       = createTempDir(t)
 		shardPath = ShardSnapshotsDirPath(dir, testNs1ID, 0)
 	)
@@ -949,8 +954,8 @@ func TestIndexFileSetAt(t *testing.T) {
 
 	var (
 		ns1     = ident.StringID("abc")
-		now     = time.Now().Truncate(time.Hour)
-		timeFor = func(n int) time.Time { return now.Add(time.Hour * time.Duration(n)) }
+		now     = xtime.Now().Truncate(time.Hour)
+		timeFor = func(n int) xtime.UnixNano { return now.Add(time.Hour * time.Duration(n)) }
 	)
 
 	files := indexFileSetFileIdentifiers{
@@ -961,7 +966,7 @@ func TestIndexFileSetAt(t *testing.T) {
 				VolumeIndex:        0,
 				FileSetContentType: persist.FileSetIndexContentType,
 			},
-			Suffix: checkpointFileSuffix,
+			Suffix: CheckpointFileSuffix,
 		},
 	}
 	files.create(t, dir)
@@ -977,8 +982,8 @@ func TestIndexFileSetAtIgnoresLackOfCheckpoint(t *testing.T) {
 
 	var (
 		ns1     = ident.StringID("abc")
-		now     = time.Now().Truncate(time.Hour)
-		timeFor = func(n int) time.Time { return now.Add(time.Hour * time.Duration(n)) }
+		now     = xtime.Now().Truncate(time.Hour)
+		timeFor = func(n int) xtime.UnixNano { return now.Add(time.Hour * time.Duration(n)) }
 	)
 
 	files := indexFileSetFileIdentifiers{
@@ -989,7 +994,7 @@ func TestIndexFileSetAtIgnoresLackOfCheckpoint(t *testing.T) {
 				VolumeIndex:        0,
 				FileSetContentType: persist.FileSetIndexContentType,
 			},
-			Suffix: checkpointFileSuffix,
+			Suffix: CheckpointFileSuffix,
 		},
 		indexFileSetFileIdentifier{
 			FileSetFileIdentifier: FileSetFileIdentifier{
@@ -998,7 +1003,7 @@ func TestIndexFileSetAtIgnoresLackOfCheckpoint(t *testing.T) {
 				VolumeIndex:        0,
 				FileSetContentType: persist.FileSetIndexContentType,
 			},
-			Suffix: infoFileSuffix,
+			Suffix: InfoFileSuffix,
 		},
 	}
 	files.create(t, dir)
@@ -1014,8 +1019,8 @@ func TestIndexFileSetAtMultiple(t *testing.T) {
 
 	var (
 		ns1     = ident.StringID("abc")
-		now     = time.Now().Truncate(time.Hour)
-		timeFor = func(n int) time.Time { return now.Add(time.Hour * time.Duration(n)) }
+		now     = xtime.Now().Truncate(time.Hour)
+		timeFor = func(n int) xtime.UnixNano { return now.Add(time.Hour * time.Duration(n)) }
 	)
 
 	files := indexFileSetFileIdentifiers{
@@ -1026,7 +1031,7 @@ func TestIndexFileSetAtMultiple(t *testing.T) {
 				VolumeIndex:        0,
 				FileSetContentType: persist.FileSetIndexContentType,
 			},
-			Suffix: checkpointFileSuffix,
+			Suffix: CheckpointFileSuffix,
 		},
 		indexFileSetFileIdentifier{
 			FileSetFileIdentifier: FileSetFileIdentifier{
@@ -1035,7 +1040,7 @@ func TestIndexFileSetAtMultiple(t *testing.T) {
 				VolumeIndex:        1,
 				FileSetContentType: persist.FileSetIndexContentType,
 			},
-			Suffix: checkpointFileSuffix,
+			Suffix: CheckpointFileSuffix,
 		},
 		indexFileSetFileIdentifier{
 			FileSetFileIdentifier: FileSetFileIdentifier{
@@ -1044,7 +1049,7 @@ func TestIndexFileSetAtMultiple(t *testing.T) {
 				VolumeIndex:        2,
 				FileSetContentType: persist.FileSetIndexContentType,
 			},
-			Suffix: checkpointFileSuffix,
+			Suffix: CheckpointFileSuffix,
 		},
 	}
 	files.create(t, dir)
@@ -1065,8 +1070,8 @@ func TestIndexFileSetsBefore(t *testing.T) {
 
 	var (
 		ns1     = ident.StringID("abc")
-		now     = time.Now().Truncate(time.Hour)
-		timeFor = func(n int) time.Time { return now.Add(time.Hour * time.Duration(n)) }
+		now     = xtime.Now().Truncate(time.Hour)
+		timeFor = func(n int) xtime.UnixNano { return now.Add(time.Hour * time.Duration(n)) }
 	)
 
 	files := indexFileSetFileIdentifiers{
@@ -1077,7 +1082,7 @@ func TestIndexFileSetsBefore(t *testing.T) {
 				VolumeIndex:        0,
 				FileSetContentType: persist.FileSetIndexContentType,
 			},
-			Suffix: checkpointFileSuffix,
+			Suffix: CheckpointFileSuffix,
 		},
 		indexFileSetFileIdentifier{
 			FileSetFileIdentifier: FileSetFileIdentifier{
@@ -1086,7 +1091,7 @@ func TestIndexFileSetsBefore(t *testing.T) {
 				VolumeIndex:        1,
 				FileSetContentType: persist.FileSetIndexContentType,
 			},
-			Suffix: checkpointFileSuffix,
+			Suffix: CheckpointFileSuffix,
 		},
 		indexFileSetFileIdentifier{
 			FileSetFileIdentifier: FileSetFileIdentifier{
@@ -1095,7 +1100,7 @@ func TestIndexFileSetsBefore(t *testing.T) {
 				VolumeIndex:        0,
 				FileSetContentType: persist.FileSetIndexContentType,
 			},
-			Suffix: checkpointFileSuffix,
+			Suffix: CheckpointFileSuffix,
 		},
 		indexFileSetFileIdentifier{
 			FileSetFileIdentifier: FileSetFileIdentifier{
@@ -1104,7 +1109,7 @@ func TestIndexFileSetsBefore(t *testing.T) {
 				VolumeIndex:        0,
 				FileSetContentType: persist.FileSetIndexContentType,
 			},
-			Suffix: checkpointFileSuffix,
+			Suffix: CheckpointFileSuffix,
 		},
 	}
 	files.create(t, dir)
@@ -1113,7 +1118,7 @@ func TestIndexFileSetsBefore(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, results, 3)
 	for _, res := range results {
-		require.False(t, strings.Contains(res, fmt.Sprintf("%d", timeFor(3).UnixNano())))
+		require.False(t, strings.Contains(res, fmt.Sprintf("%d", timeFor(3))))
 	}
 }
 
@@ -1190,11 +1195,11 @@ func createDataCheckpointFilesDir(t *testing.T, namespace ident.ID, shard uint32
 }
 
 func createDataInfoFiles(t *testing.T, subDirName string, namespace ident.ID, shard uint32, iter int, isSnapshot bool) string {
-	return createDataFiles(t, subDirName, namespace, shard, iter, isSnapshot, infoFileSuffix)
+	return createDataFiles(t, subDirName, namespace, shard, iter, isSnapshot, InfoFileSuffix)
 }
 
 func createDataCheckpointFiles(t *testing.T, subDirName string, namespace ident.ID, shard uint32, iter int, isSnapshot bool) string {
-	return createDataFiles(t, subDirName, namespace, shard, iter, isSnapshot, checkpointFileSuffix)
+	return createDataFiles(t, subDirName, namespace, shard, iter, isSnapshot, CheckpointFileSuffix)
 }
 
 func createDataFilesWithVolumeIndex(t *testing.T,
@@ -1204,15 +1209,15 @@ func createDataFilesWithVolumeIndex(t *testing.T,
 	shardDir := path.Join(dir, subDirName, namespace.String(), strconv.Itoa(int(shard)))
 	require.NoError(t, os.MkdirAll(shardDir, 0755))
 	for i := 0; i < iter; i++ {
-		ts := time.Unix(0, int64(i))
+		ts := xtime.UnixNano(int64(i))
 		var infoFilePath string
 		if isSnapshot {
-			infoFilePath = filesetPathFromTimeAndIndex(shardDir, ts, volumeIndex, fileSuffix)
+			infoFilePath = FilesetPathFromTimeAndIndex(shardDir, ts, volumeIndex, fileSuffix)
 		} else {
 			infoFilePath = filesetPathFromTimeLegacy(shardDir, ts, fileSuffix)
 		}
 		var contents []byte
-		if fileSuffix == checkpointFileSuffix {
+		if fileSuffix == CheckpointFileSuffix {
 			// If writing a checkpoint file then write out a checksum of contents
 			// so that when code that validates the checkpoint file runs it returns
 			// successfully
@@ -1249,7 +1254,7 @@ type fileSetFileIdentifiers []FileSetFileIdentifier
 
 func (filesets fileSetFileIdentifiers) create(t *testing.T, prefixDir string, fileSetType persist.FileSetType, fileSuffixes ...string) {
 	writeFile := func(t *testing.T, path string, contents []byte) {
-		if strings.Contains(path, checkpointFileSuffix) {
+		if strings.Contains(path, CheckpointFileSuffix) {
 			// If writing a checkpoint file then write out a checksum of contents
 			// so that when code that validates the checkpoint file runs it returns
 			// successfully
@@ -1275,7 +1280,7 @@ func (filesets fileSetFileIdentifiers) create(t *testing.T, prefixDir string, fi
 					path = filesetPathFromTimeLegacy(shardDir, blockStart, suffix)
 					writeFile(t, path, nil)
 				case persist.FileSetSnapshotType:
-					path = filesetPathFromTimeAndIndex(shardDir, blockStart, 0, fileSuffix)
+					path = FilesetPathFromTimeAndIndex(shardDir, blockStart, 0, fileSuffix)
 					writeFile(t, path, nil)
 				default:
 					panic("unknown FileSetType")
@@ -1289,7 +1294,7 @@ func (filesets fileSetFileIdentifiers) create(t *testing.T, prefixDir string, fi
 				var path string
 				switch fileSetType {
 				case persist.FileSetFlushType:
-					path = filesetPathFromTimeAndIndex(indexDir, blockStart, volumeIndex, suffix)
+					path = FilesetPathFromTimeAndIndex(indexDir, blockStart, volumeIndex, suffix)
 					writeFile(t, path, nil)
 				case persist.FileSetSnapshotType:
 					fallthrough
@@ -1303,7 +1308,8 @@ func (filesets fileSetFileIdentifiers) create(t *testing.T, prefixDir string, fi
 	}
 }
 
-func createDataFile(t *testing.T, shardDir string, blockStart time.Time, suffix string, b []byte) {
+func createDataFile(t *testing.T, shardDir string, blockStart xtime.UnixNano,
+	suffix string, b []byte) {
 	filePath := filesetPathFromTimeLegacy(shardDir, blockStart, suffix)
 	createFile(t, filePath, b)
 }
@@ -1321,9 +1327,10 @@ func createCommitLogFiles(t *testing.T, iter int) string {
 	return dir
 }
 
+//nolint: unparam
 func writeOutTestSnapshot(
 	t *testing.T, filePathPrefix string,
-	shard uint32, blockStart time.Time, volume int) {
+	shard uint32, blockStart xtime.UnixNano, volume int) {
 	var (
 		entries = []testEntry{
 			{"foo", nil, []byte{1, 2, 3}},

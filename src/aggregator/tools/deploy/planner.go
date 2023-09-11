@@ -53,7 +53,7 @@ type deploymentPlanner struct {
 }
 
 // newPlanner creates a new deployment planner.
-func newPlanner(client aggregatorClient, opts PlannerOptions) planner {
+func newPlanner(client AggregatorClient, opts PlannerOptions) planner {
 	workers := opts.WorkerPool()
 	validatorFactory := newValidatorFactory(client, workers)
 	return deploymentPlanner{

@@ -26,18 +26,34 @@ import (
 	"sort"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/prometheus/common/model"
 )
 
-// The default name for the name and bucket tags in Prometheus metrics.
-// This can be overwritten by setting tagOptions in the config.
 var (
+	// The default name for the name and bucket tags in Prometheus metrics.
+	// This can be overwritten by setting tagOptions in the config.
 	promDefaultName       = []byte(model.MetricNameLabel) // __name__
 	promDefaultBucketName = []byte(model.BucketLabel)     // le
+
+	// The suffix of count metric name in Prometheus histogram/summary metric families.
+	promCountSuffix = []byte("_count")
+	// The suffix of sum metric name in Prometheus histogram/summary metric families.
+	promSumSuffix = []byte("_sum")
+
+	// The suffix of gauge count metric name in Open Metrics GaugeHistogram metric families.
+	openMetricsGaugeCountSuffix = []byte("_gcount")
+	// The suffix of count metric name in Open Metrics Summary metric families.
+	openMetricsCountSuffix = []byte("_count")
+	// The suffix of count metric name in Open Metrics Summary metric families.
+	openMetricsSumSuffix = []byte("_sum")
+	// The suffix of created metric name in Open Metrics Counter/Histogram/Summary metric families.
+	openMetricsCreatedSuffix = []byte("_created")
 )
 
 // PromLabelsToM3Tags converts Prometheus labels to M3 tags
@@ -69,31 +85,219 @@ func PromLabelsToM3Tags(
 // PromTimeSeriesToSeriesAttributes extracts the series info from a prometheus
 // timeseries.
 func PromTimeSeriesToSeriesAttributes(series prompb.TimeSeries) (ts.SeriesAttributes, error) {
-	var (
-		sourceType ts.SourceType
-		metricType ts.MetricType
-	)
 	switch series.Source {
 	case prompb.Source_PROMETHEUS:
-		sourceType = ts.SourceTypePrometheus
+		return seriesAttributesForPrometheusSource(series)
+
+	case prompb.Source_OPEN_METRICS:
+		return seriesAttributesForOpenMetricsSource(series)
+
 	case prompb.Source_GRAPHITE:
-		sourceType = ts.SourceTypeGraphite
+		return seriesAttributesForGraphiteSource(series)
+
 	default:
-		return ts.SeriesAttributes{}, fmt.Errorf("invalid source type %v", series.Source)
+		return ts.SeriesAttributes{}, fmt.Errorf("invalid source type %s", series.Source)
 	}
+}
+
+func seriesAttributesForPrometheusSource(series prompb.TimeSeries) (ts.SeriesAttributes, error) {
+	var (
+		promMetricType    ts.PromMetricType
+		handleValueResets bool
+	)
+
 	switch series.Type {
-	case prompb.Type_COUNTER:
-		metricType = ts.MetricTypeCounter
-	case prompb.Type_GAUGE:
-		metricType = ts.MetricTypeGauge
-	case prompb.Type_TIMER:
-		metricType = ts.MetricTypeTimer
+	case prompb.MetricType_UNKNOWN:
+		promMetricType = ts.PromMetricTypeUnknown
+
+	case prompb.MetricType_COUNTER:
+		promMetricType = ts.PromMetricTypeCounter
+		handleValueResets = true
+
+	case prompb.MetricType_GAUGE:
+		promMetricType = ts.PromMetricTypeGauge
+
+	case prompb.MetricType_HISTOGRAM:
+		promMetricType = ts.PromMetricTypeHistogram
+		handleValueResets = true
+
+	case prompb.MetricType_GAUGE_HISTOGRAM:
+		promMetricType = ts.PromMetricTypeGaugeHistogram
+		name := metricNameFromLabels(series.Labels)
+		handleValueResets = bytes.HasSuffix(name, promCountSuffix) ||
+			bytes.HasSuffix(name, openMetricsGaugeCountSuffix)
+
+	case prompb.MetricType_SUMMARY:
+		promMetricType = ts.PromMetricTypeSummary
+		name := metricNameFromLabels(series.Labels)
+		handleValueResets = bytes.HasSuffix(name, promCountSuffix) ||
+			bytes.HasSuffix(name, promSumSuffix)
+
+	case prompb.MetricType_INFO:
+		promMetricType = ts.PromMetricTypeInfo
+
+	case prompb.MetricType_STATESET:
+		promMetricType = ts.PromMetricTypeStateSet
+
 	default:
-		return ts.SeriesAttributes{}, fmt.Errorf("invalid metric type %v", series.Type)
+		return ts.SeriesAttributes{}, fmt.Errorf("invalid metric type for Prometheus: %s", series.Type)
 	}
+
+	m3MetricType, err := convertM3Type(series.M3Type)
+	if err != nil {
+		return ts.SeriesAttributes{}, err
+	}
+
 	return ts.SeriesAttributes{
-		Type:   metricType,
-		Source: sourceType,
+		Source:            ts.SourceTypePrometheus,
+		M3Type:            m3MetricType,
+		PromType:          promMetricType,
+		HandleValueResets: handleValueResets,
+	}, nil
+}
+
+func seriesAttributesForOpenMetricsSource(series prompb.TimeSeries) (ts.SeriesAttributes, error) {
+	var (
+		promMetricType    ts.PromMetricType
+		handleValueResets bool
+	)
+
+	// https://github.com/OpenObservability/OpenMetrics/blob/2bd6413e040/specification/OpenMetrics.md
+	switch series.Type {
+	case prompb.MetricType_UNKNOWN:
+		promMetricType = ts.PromMetricTypeUnknown
+
+	case prompb.MetricType_COUNTER:
+		promMetricType = ts.PromMetricTypeCounter
+		name := metricNameFromLabels(series.Labels)
+		handleValueResets = !bytes.HasSuffix(name, openMetricsCreatedSuffix)
+
+	case prompb.MetricType_GAUGE:
+		promMetricType = ts.PromMetricTypeGauge
+
+	case prompb.MetricType_HISTOGRAM:
+		promMetricType = ts.PromMetricTypeHistogram
+		name := metricNameFromLabels(series.Labels)
+		handleValueResets = !bytes.HasSuffix(name, openMetricsCreatedSuffix)
+
+	case prompb.MetricType_GAUGE_HISTOGRAM:
+		promMetricType = ts.PromMetricTypeGaugeHistogram
+		name := metricNameFromLabels(series.Labels)
+		handleValueResets = bytes.HasSuffix(name, openMetricsGaugeCountSuffix)
+
+	case prompb.MetricType_SUMMARY:
+		promMetricType = ts.PromMetricTypeSummary
+		name := metricNameFromLabels(series.Labels)
+		handleValueResets = bytes.HasSuffix(name, openMetricsCountSuffix) ||
+			bytes.HasSuffix(name, openMetricsSumSuffix)
+
+	case prompb.MetricType_INFO:
+		promMetricType = ts.PromMetricTypeInfo
+
+	case prompb.MetricType_STATESET:
+		promMetricType = ts.PromMetricTypeStateSet
+
+	default:
+		return ts.SeriesAttributes{}, fmt.Errorf("invalid metric type for Open Metrics: %s", series.Type)
+	}
+
+	m3MetricType, err := convertM3Type(series.M3Type)
+	if err != nil {
+		return ts.SeriesAttributes{}, err
+	}
+
+	return ts.SeriesAttributes{
+		Source:            ts.SourceTypeOpenMetrics,
+		PromType:          promMetricType,
+		M3Type:            m3MetricType,
+		HandleValueResets: handleValueResets,
+	}, nil
+}
+
+func seriesAttributesForGraphiteSource(series prompb.TimeSeries) (ts.SeriesAttributes, error) {
+	m3MetricType, err := convertM3Type(series.M3Type)
+	if err != nil {
+		return ts.SeriesAttributes{}, err
+	}
+
+	var promMetricType ts.PromMetricType
+	switch series.M3Type {
+	case prompb.M3Type_M3_COUNTER:
+		promMetricType = ts.PromMetricTypeCounter
+	case prompb.M3Type_M3_GAUGE:
+		promMetricType = ts.PromMetricTypeGauge
+	case prompb.M3Type_M3_TIMER:
+		promMetricType = ts.PromMetricTypeUnknown
+	}
+
+	return ts.SeriesAttributes{
+		Source:            ts.SourceTypeGraphite,
+		M3Type:            m3MetricType,
+		PromType:          promMetricType,
+		HandleValueResets: false,
+	}, nil
+}
+
+func convertM3Type(m3Type prompb.M3Type) (ts.M3MetricType, error) {
+	switch m3Type {
+	case prompb.M3Type_M3_GAUGE:
+		return ts.M3MetricTypeGauge, nil
+
+	case prompb.M3Type_M3_COUNTER:
+		return ts.M3MetricTypeCounter, nil
+
+	case prompb.M3Type_M3_TIMER:
+		return ts.M3MetricTypeTimer, nil
+
+	default:
+		return 0, fmt.Errorf("invalid M3 metric type: %s", m3Type)
+	}
+}
+
+var (
+	promMetricTypeToProto = map[ts.PromMetricType]annotation.OpenMetricsFamilyType{
+		ts.PromMetricTypeUnknown:        annotation.OpenMetricsFamilyType_UNKNOWN,
+		ts.PromMetricTypeCounter:        annotation.OpenMetricsFamilyType_COUNTER,
+		ts.PromMetricTypeGauge:          annotation.OpenMetricsFamilyType_GAUGE,
+		ts.PromMetricTypeHistogram:      annotation.OpenMetricsFamilyType_HISTOGRAM,
+		ts.PromMetricTypeGaugeHistogram: annotation.OpenMetricsFamilyType_GAUGE_HISTOGRAM,
+		ts.PromMetricTypeSummary:        annotation.OpenMetricsFamilyType_SUMMARY,
+		ts.PromMetricTypeInfo:           annotation.OpenMetricsFamilyType_INFO,
+		ts.PromMetricTypeStateSet:       annotation.OpenMetricsFamilyType_STATESET,
+	}
+
+	graphiteMetricTypeToProto = map[ts.M3MetricType]annotation.GraphiteType{
+		ts.M3MetricTypeGauge:   annotation.GraphiteType_GRAPHITE_GAUGE,
+		ts.M3MetricTypeCounter: annotation.GraphiteType_GRAPHITE_COUNTER,
+		ts.M3MetricTypeTimer:   annotation.GraphiteType_GRAPHITE_TIMER,
+	}
+)
+
+// SeriesAttributesToAnnotationPayload converts ts.SeriesAttributes into an annotation.Payload.
+func SeriesAttributesToAnnotationPayload(seriesAttributes ts.SeriesAttributes) (annotation.Payload, error) {
+	if seriesAttributes.Source == ts.SourceTypeGraphite {
+		metricType, ok := graphiteMetricTypeToProto[seriesAttributes.M3Type]
+		if !ok {
+			return annotation.Payload{}, fmt.Errorf(
+				"invalid Graphite metric type %d", seriesAttributes.M3Type)
+		}
+
+		return annotation.Payload{
+			SourceFormat: annotation.SourceFormat_GRAPHITE,
+			GraphiteType: metricType,
+		}, nil
+	}
+
+	metricType, ok := promMetricTypeToProto[seriesAttributes.PromType]
+	if !ok {
+		return annotation.Payload{}, fmt.Errorf(
+			"invalid Prometheus metric type %d", seriesAttributes.PromType)
+	}
+
+	return annotation.Payload{
+		SourceFormat:                 annotation.SourceFormat_OPEN_METRICS,
+		OpenMetricsFamilyType:        metricType,
+		OpenMetricsHandleValueResets: seriesAttributes.HandleValueResets,
 	}, nil
 }
 
@@ -101,7 +305,7 @@ func PromTimeSeriesToSeriesAttributes(series prompb.TimeSeries) (ts.SeriesAttrib
 func PromSamplesToM3Datapoints(samples []prompb.Sample) ts.Datapoints {
 	datapoints := make(ts.Datapoints, 0, len(samples))
 	for _, sample := range samples {
-		timestamp := PromTimestampToTime(sample.Timestamp)
+		timestamp := promTimestampToUnixNanos(sample.Timestamp)
 		datapoints = append(datapoints, ts.Datapoint{Timestamp: timestamp, Value: sample.Value})
 	}
 
@@ -172,13 +376,18 @@ func PromTypeToM3(labelType prompb.LabelMatcher_Type) (models.MatchType, error) 
 
 // PromTimestampToTime converts a prometheus timestamp to time.Time.
 func PromTimestampToTime(timestampMS int64) time.Time {
-	return time.Unix(0, timestampMS*int64(time.Millisecond))
+	return promTimestampToUnixNanos(timestampMS).ToTime()
 }
 
-// TimeToPromTimestamp converts a time.Time to prometheus timestamp.
-func TimeToPromTimestamp(timestamp time.Time) int64 {
+func promTimestampToUnixNanos(timestampMS int64) xtime.UnixNano {
+	// NB: prometheus format is in milliseconds; convert to unix nanos.
+	return xtime.UnixNano(timestampMS * int64(time.Millisecond))
+}
+
+// TimeToPromTimestamp converts a xtime.UnixNano to prometheus timestamp.
+func TimeToPromTimestamp(timestamp xtime.UnixNano) int64 {
 	// Significantly faster than time.Truncate()
-	return timestamp.UnixNano() / int64(time.Millisecond)
+	return int64(timestamp) / int64(time.Millisecond)
 }
 
 // FetchResultToPromResult converts fetch results from M3 to Prometheus result.
@@ -266,4 +475,13 @@ func SeriesToPromSamples(series *ts.Series) []prompb.Sample {
 	}
 
 	return samples
+}
+
+func metricNameFromLabels(labels []prompb.Label) []byte {
+	for _, label := range labels {
+		if bytes.Equal(promDefaultName, label.GetName()) {
+			return label.GetValue()
+		}
+	}
+	return nil
 }

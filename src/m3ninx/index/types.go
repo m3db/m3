@@ -28,7 +28,6 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	xerrors "github.com/m3db/m3/src/x/errors"
-
 	vregex "github.com/m3dbx/vellum/regexp"
 )
 
@@ -50,7 +49,7 @@ type Index interface {
 type Writer interface {
 	// Insert inserts the given document into the index and returns its ID. The document
 	// is guaranteed to be searchable once the Insert method returns.
-	Insert(d doc.Document) ([]byte, error)
+	Insert(d doc.Metadata) ([]byte, error)
 
 	// InsertBatch inserts a batch of metrics into the index. The documents are guaranteed
 	// to be searchable all at once when the Batch method returns. If the batch supports
@@ -61,6 +60,7 @@ type Writer interface {
 
 // Readable provides a point-in-time accessor to the documents in an index.
 type Readable interface {
+	MetadataRetriever
 	DocRetriever
 
 	// MatchField returns a postings list over all documents which match the given field.
@@ -74,10 +74,14 @@ type Readable interface {
 	MatchRegexp(field []byte, c CompiledRegex) (postings.List, error)
 
 	// MatchAll returns a postings list for all documents known to the Reader.
-	MatchAll() (postings.MutableList, error)
+	MatchAll() (postings.List, error)
 
-	// Docs returns an iterator over the documents whose IDs are in the provided
+	// MetadataIterator returns an iterator over the metadata whose IDs are in the provided
 	// postings list.
+	MetadataIterator(pl postings.List) (doc.MetadataIterator, error)
+
+	// Docs returns an iterator over the document whose IDs
+	// are in the provided postings list.
 	Docs(pl postings.List) (doc.Iterator, error)
 
 	// AllDocs returns an iterator over the documents known to the Reader.
@@ -94,6 +98,12 @@ type CompiledRegex struct {
 	PrefixEnd   []byte
 }
 
+// MetadataRetriever returns the metadata associated with a postings ID. It returns
+// ErrDocNotFound if there is no metadata corresponding to the given postings ID.
+type MetadataRetriever interface {
+	Metadata(id postings.ID) (doc.Metadata, error)
+}
+
 // DocRetriever returns the document associated with a postings ID. It returns
 // ErrDocNotFound if there is no document corresponding to the given postings ID.
 type DocRetriever interface {
@@ -103,7 +113,7 @@ type DocRetriever interface {
 // IDDocIterator is an extented documents Iterator which can also return the postings
 // ID of the current document.
 type IDDocIterator interface {
-	doc.Iterator
+	doc.MetadataIterator
 
 	// PostingsID returns the current document postings ID.
 	PostingsID() postings.ID

@@ -24,20 +24,18 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"time"
 
+	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/m3db/m3/src/dbnode/namespace"
-	"go.uber.org/zap"
 )
 
 var (
@@ -62,11 +60,11 @@ type dbSeries struct {
 	// pooling the ID rather than releasing it to the GC on
 	// calling series.Reset()).
 	// Note: The bytes that back "id ident.ID" are the same bytes
-	// that are behind the ID in "metadata doc.Document", the whole
+	// that are behind the ID in "metadata doc.Metadata", the whole
 	// reason we keep an ident.ID on the series is since there's a lot
 	// of existing callsites that require the ID as an ident.ID.
 	id          ident.ID
-	metadata    doc.Document
+	metadata    doc.Metadata
 	uniqueIndex uint64
 
 	bootstrap dbSeriesBootstrap
@@ -111,9 +109,9 @@ func newDatabaseSeries() *dbSeries {
 	return series
 }
 
-func (s *dbSeries) now() time.Time {
+func (s *dbSeries) now() xtime.UnixNano {
 	nowFn := s.opts.ClockOptions().NowFn()
-	return nowFn()
+	return xtime.ToUnixNano(nowFn())
 }
 
 func (s *dbSeries) ID() ident.ID {
@@ -123,7 +121,7 @@ func (s *dbSeries) ID() ident.ID {
 	return id
 }
 
-func (s *dbSeries) Metadata() doc.Document {
+func (s *dbSeries) Metadata() doc.Metadata {
 	s.RLock()
 	metadata := s.metadata
 	s.RUnlock()
@@ -151,8 +149,7 @@ func (s *dbSeries) Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Con
 		return r, err
 	}
 	r.TickStatus = update.TickStatus
-	r.MadeExpiredBlocks, r.MadeUnwiredBlocks =
-		update.madeExpiredBlocks, update.madeUnwiredBlocks
+	r.MadeExpiredBlocks, r.MadeUnwiredBlocks = update.madeExpiredBlocks, update.madeUnwiredBlocks
 
 	s.Unlock()
 
@@ -191,9 +188,8 @@ func (s *dbSeries) updateBlocksWithLock(
 		expireCutoff = now.Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 		wiredTimeout = ropts.BlockDataExpiryAfterNotAccessedPeriod()
 	)
-	for startNano, currBlock := range s.cachedBlocks.AllBlocks() {
-		start := startNano.ToTime()
-		if start.Before(expireCutoff) || evictedBucketTimes.Contains(xtime.ToUnixNano(start)) {
+	for start, currBlock := range s.cachedBlocks.AllBlocks() {
+		if start.Before(expireCutoff) || evictedBucketTimes.Contains(start) {
 			s.cachedBlocks.RemoveBlockAt(start)
 			// If we're using the LRU policy and the block was retrieved from disk,
 			// then don't close the block because that is the WiredList's
@@ -242,7 +238,7 @@ func (s *dbSeries) updateBlocksWithLock(
 			// Makes sure that the block has been flushed, which
 			// prevents us from unwiring blocks that haven't been flushed yet which
 			// would cause data loss.
-			if blockState := blockStatesSnapshot.Snapshot[startNano]; blockState.WarmRetrievable {
+			if blockState := blockStatesSnapshot.Snapshot[start]; blockState.WarmRetrievable {
 				switch cachePolicy {
 				case CacheNone:
 					shouldUnwire = true
@@ -297,11 +293,10 @@ func (s *dbSeries) IsEmpty() bool {
 	return false
 }
 
-func (s *dbSeries) IsBufferEmptyAtBlockStart(blockStart time.Time) bool {
+func (s *dbSeries) MarkNonEmptyBlocks(nonEmptyBlockStarts map[xtime.UnixNano]struct{}) {
 	s.RLock()
-	bufferEmpty := s.buffer.IsEmptyAtBlockStart(blockStart)
+	s.buffer.MarkNonEmptyBlocks(nonEmptyBlockStarts)
 	s.RUnlock()
-	return bufferEmpty
 }
 
 func (s *dbSeries) NumActiveBlocks() int {
@@ -313,7 +308,7 @@ func (s *dbSeries) NumActiveBlocks() int {
 
 func (s *dbSeries) Write(
 	ctx context.Context,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
@@ -338,7 +333,7 @@ func (s *dbSeries) Write(
 
 func (s *dbSeries) bootstrapWrite(
 	ctx context.Context,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
@@ -392,19 +387,19 @@ func (s *dbSeries) bufferResetOpts() (databaseBufferResetOptions, error) {
 
 func (s *dbSeries) ReadEncoded(
 	ctx context.Context,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	nsCtx namespace.Context,
-) ([][]xio.BlockReader, error) {
+) (BlockReaderIter, error) {
 	s.RLock()
 	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
-	r, err := reader.readersWithBlocksMapAndBuffer(ctx, start, end, s.cachedBlocks, s.buffer, nsCtx)
+	iter, err := reader.readersWithBlocksMapAndBuffer(ctx, start, end, s.cachedBlocks, s.buffer, nsCtx)
 	s.RUnlock()
-	return r, err
+	return iter, err
 }
 
 func (s *dbSeries) FetchBlocksForColdFlush(
 	ctx context.Context,
-	start time.Time,
+	start xtime.UnixNano,
 	version int,
 	nsCtx namespace.Context,
 ) (block.FetchBlockResult, error) {
@@ -419,23 +414,25 @@ func (s *dbSeries) FetchBlocksForColdFlush(
 
 func (s *dbSeries) FetchBlocks(
 	ctx context.Context,
-	starts []time.Time,
+	starts []xtime.UnixNano,
 	nsCtx namespace.Context,
 ) ([]block.FetchBlockResult, error) {
 	s.RLock()
-	r, err := Reader{
+	reader := &Reader{
 		opts:       s.opts,
 		id:         s.id,
 		retriever:  s.blockRetriever,
 		onRetrieve: s.onRetrieveBlock,
-	}.fetchBlocksWithBlocksMapAndBuffer(ctx, starts, s.cachedBlocks, s.buffer, nsCtx)
+	}
+
+	r, err := reader.fetchBlocksWithBlocksMapAndBuffer(ctx, starts, s.cachedBlocks, s.buffer, nsCtx)
 	s.RUnlock()
 	return r, err
 }
 
 func (s *dbSeries) FetchBlocksMetadata(
 	ctx context.Context,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	opts FetchBlocksMetadataOptions,
 ) (block.FetchBlocksMetadataResult, error) {
 	s.RLock()
@@ -504,7 +501,7 @@ func (s *dbSeries) LoadBlock(
 func (s *dbSeries) OnRetrieveBlock(
 	id ident.ID,
 	tags ident.TagIterator,
-	startTime time.Time,
+	startTime xtime.UnixNano,
 	segment ts.Segment,
 	nsCtx namespace.Context,
 ) {
@@ -572,12 +569,13 @@ func (s *dbSeries) OnReadBlock(b block.DatabaseBlock) {
 	}
 }
 
-func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
+func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart xtime.UnixNano) {
 	s.Lock()
 	defer s.Unlock()
 
-	// Should never happen
-	if !id.Equal(s.id) {
+	// id can be nil at this point if this dbSeries gets closed just before it
+	// gets evicted from the wiredlist.
+	if id == nil || s.id == nil || !id.Equal(s.id) {
 		return
 	}
 
@@ -589,7 +587,7 @@ func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 				s.opts.InstrumentOptions(), func(l *zap.Logger) {
 					l.With(
 						zap.String("id", id.String()),
-						zap.Time("blockStart", blockStart),
+						zap.Time("blockStart", blockStart.ToTime()),
 					).Error("tried to evict block that was not retrieved from disk")
 				})
 			return
@@ -601,7 +599,7 @@ func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 
 func (s *dbSeries) WarmFlush(
 	ctx context.Context,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	persistFn persist.DataFn,
 	nsCtx namespace.Context,
 ) (FlushOutcome, error) {
@@ -616,7 +614,7 @@ func (s *dbSeries) WarmFlush(
 
 func (s *dbSeries) Snapshot(
 	ctx context.Context,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	persistFn persist.DataFn,
 	nsCtx namespace.Context,
 ) (SnapshotResult, error) {
@@ -672,7 +670,7 @@ func (s *dbSeries) Close() {
 
 	// See Reset() for why these aren't finalized.
 	s.id = nil
-	s.metadata = doc.Document{}
+	s.metadata = doc.Metadata{}
 	s.uniqueIndex = 0
 
 	switch s.opts.CachePolicy() {

@@ -26,10 +26,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,9 +40,9 @@ import (
 func TestLabelConversion(t *testing.T) {
 	// NB: sorted order (__name__, foo, le)
 	labels := []prompb.Label{
-		prompb.Label{Name: promDefaultName, Value: []byte("name-val")},
-		prompb.Label{Name: []byte("foo"), Value: []byte("bar")},
-		prompb.Label{Name: promDefaultBucketName, Value: []byte("bucket-val")},
+		{Name: promDefaultName, Value: []byte("name-val")},
+		{Name: []byte("foo"), Value: []byte("bar")},
+		{Name: promDefaultBucketName, Value: []byte("bucket-val")},
 	}
 
 	opts := models.NewTagOptions().
@@ -94,54 +96,54 @@ func TestPromReadQueryToM3(t *testing.T) {
 		{
 			name: "single exact match",
 			matchers: []*prompb.LabelMatcher{
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_EQ, Name: name, Value: value},
+				{Type: prompb.LabelMatcher_EQ, Name: name, Value: value},
 			},
 			expected: []*models.Matcher{
-				&models.Matcher{Type: models.MatchEqual, Name: name, Value: value},
+				{Type: models.MatchEqual, Name: name, Value: value},
 			},
 		},
 		{
 			name: "single exact match negated",
 			matchers: []*prompb.LabelMatcher{
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_NEQ, Name: name, Value: value},
+				{Type: prompb.LabelMatcher_NEQ, Name: name, Value: value},
 			},
 			expected: []*models.Matcher{
-				&models.Matcher{Type: models.MatchNotEqual, Name: name, Value: value},
+				{Type: models.MatchNotEqual, Name: name, Value: value},
 			},
 		},
 		{
 			name: "single regexp match",
 			matchers: []*prompb.LabelMatcher{
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_RE, Name: name, Value: value},
+				{Type: prompb.LabelMatcher_RE, Name: name, Value: value},
 			},
 			expected: []*models.Matcher{
-				&models.Matcher{Type: models.MatchRegexp, Name: name, Value: value},
+				{Type: models.MatchRegexp, Name: name, Value: value},
 			},
 		},
 		{
 			name: "single regexp match negated",
 			matchers: []*prompb.LabelMatcher{
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_NRE, Name: name, Value: value},
+				{Type: prompb.LabelMatcher_NRE, Name: name, Value: value},
 			},
 			expected: []*models.Matcher{
-				&models.Matcher{Type: models.MatchNotRegexp, Name: name, Value: value},
+				{Type: models.MatchNotRegexp, Name: name, Value: value},
 			},
 		},
 		{
 			name: "mixed exact match and regexp match",
 			matchers: []*prompb.LabelMatcher{
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_EQ, Name: name, Value: value},
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_RE, Name: []byte("baz"), Value: []byte("qux")},
+				{Type: prompb.LabelMatcher_EQ, Name: name, Value: value},
+				{Type: prompb.LabelMatcher_RE, Name: []byte("baz"), Value: []byte("qux")},
 			},
 			expected: []*models.Matcher{
-				&models.Matcher{Type: models.MatchEqual, Name: name, Value: value},
-				&models.Matcher{Type: models.MatchRegexp, Name: []byte("baz"), Value: []byte("qux")},
+				{Type: models.MatchEqual, Name: name, Value: value},
+				{Type: models.MatchRegexp, Name: []byte("baz"), Value: []byte("qux")},
 			},
 		},
 		{
 			name: "unrecognized matcher type",
 			matchers: []*prompb.LabelMatcher{
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_Type(math.MaxInt32), Name: name, Value: value},
+				{Type: prompb.LabelMatcher_Type(math.MaxInt32), Name: name, Value: value},
 			},
 			expectError: true,
 		},
@@ -182,7 +184,7 @@ func TestFetchResultToPromResult(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	now := time.Now()
+	now := xtime.Now()
 	promNow := TimeToPromTimestamp(now)
 
 	vals := ts.NewMockValues(ctrl)
@@ -210,7 +212,7 @@ func TestFetchResultToPromResult(t *testing.T) {
 	result := FetchResultToPromResult(r, false)
 	expected := &prompb.QueryResult{
 		Timeseries: []*prompb.TimeSeries{
-			&prompb.TimeSeries{
+			{
 				Labels:  []prompb.Label{{Name: []byte("c"), Value: []byte("d")}},
 				Samples: []prompb.Sample{{Timestamp: promNow, Value: 1}},
 			},
@@ -223,11 +225,11 @@ func TestFetchResultToPromResult(t *testing.T) {
 	result = FetchResultToPromResult(r, true)
 	expected = &prompb.QueryResult{
 		Timeseries: []*prompb.TimeSeries{
-			&prompb.TimeSeries{
+			{
 				Labels:  []prompb.Label{{Name: []byte("a"), Value: []byte("b")}},
 				Samples: []prompb.Sample{},
 			},
-			&prompb.TimeSeries{
+			{
 				Labels:  []prompb.Label{{Name: []byte("c"), Value: []byte("d")}},
 				Samples: []prompb.Sample{{Timestamp: promNow, Value: 1}},
 			},
@@ -252,7 +254,7 @@ func BenchmarkFetchResultToPromResult(b *testing.B) {
 		values := make(ts.Datapoints, 0, numDatapointsPerSeries)
 		for i := 0; i < numDatapointsPerSeries; i++ {
 			values = append(values, ts.Datapoint{
-				Timestamp: time.Time{},
+				Timestamp: 0,
 				Value:     float64(i),
 			})
 		}
@@ -274,4 +276,303 @@ func BenchmarkFetchResultToPromResult(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		benchResult = FetchResultToPromResult(fr, false)
 	}
+}
+
+func TestPromTimeSeriesToSeriesAttributesSource(t *testing.T) {
+	attrs, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{})
+	require.NoError(t, err)
+	assert.Equal(t, ts.SourceTypePrometheus, attrs.Source)
+
+	attrs, err = PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{Source: prompb.Source_PROMETHEUS})
+	require.NoError(t, err)
+	assert.Equal(t, ts.SourceTypePrometheus, attrs.Source)
+
+	attrs, err = PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{Source: prompb.Source_OPEN_METRICS})
+	require.NoError(t, err)
+	assert.Equal(t, ts.SourceTypeOpenMetrics, attrs.Source)
+
+	attrs, err = PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{Source: prompb.Source_GRAPHITE})
+	require.NoError(t, err)
+	assert.Equal(t, ts.SourceTypeGraphite, attrs.Source)
+
+	attrs, err = PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{Source: -1})
+	require.Error(t, err)
+}
+
+func TestPromTimeSeriesToSeriesAttributesPromMetricsTypeFromPrometheus(t *testing.T) {
+	mapping := map[prompbMetricTypeWithNameSuffix]promMetricTypeWithBool{
+		{metricType: prompb.MetricType_UNKNOWN}:  {metricType: ts.PromMetricTypeUnknown},
+		{metricType: prompb.MetricType_COUNTER}:  {metricType: ts.PromMetricTypeCounter, handleValueResets: true},
+		{metricType: prompb.MetricType_GAUGE}:    {metricType: ts.PromMetricTypeGauge},
+		{metricType: prompb.MetricType_INFO}:     {metricType: ts.PromMetricTypeInfo},
+		{metricType: prompb.MetricType_STATESET}: {metricType: ts.PromMetricTypeStateSet},
+
+		{prompb.MetricType_HISTOGRAM, "bucket"}: {metricType: ts.PromMetricTypeHistogram, handleValueResets: true},
+		{prompb.MetricType_HISTOGRAM, "count"}:  {metricType: ts.PromMetricTypeHistogram, handleValueResets: true},
+		{prompb.MetricType_HISTOGRAM, "sum"}:    {metricType: ts.PromMetricTypeHistogram, handleValueResets: true},
+
+		{prompb.MetricType_GAUGE_HISTOGRAM, "bucket"}: {metricType: ts.PromMetricTypeGaugeHistogram},
+		{prompb.MetricType_GAUGE_HISTOGRAM, "count"}:  {metricType: ts.PromMetricTypeGaugeHistogram, handleValueResets: true},
+		{prompb.MetricType_GAUGE_HISTOGRAM, "gcount"}: {metricType: ts.PromMetricTypeGaugeHistogram, handleValueResets: true},
+		{prompb.MetricType_GAUGE_HISTOGRAM, "sum"}:    {metricType: ts.PromMetricTypeGaugeHistogram},
+
+		{metricType: prompb.MetricType_SUMMARY}: {metricType: ts.PromMetricTypeSummary},
+		{prompb.MetricType_SUMMARY, "count"}:    {metricType: ts.PromMetricTypeSummary, handleValueResets: true},
+		{prompb.MetricType_SUMMARY, "sum"}:      {metricType: ts.PromMetricTypeSummary, handleValueResets: true},
+	}
+
+	for proto, expected := range mapping { // nolint: dupl
+		var (
+			name     = fmt.Sprintf("Prometheus type: %s, name suffix: '%s'", proto.metricType, proto.nameSuffix)
+			proto    = proto
+			expected = expected
+		)
+
+		t.Run(name, func(t *testing.T) {
+			var labels []prompb.Label
+			if proto.nameSuffix != "" {
+				labels = append(labels, prompb.Label{Name: promDefaultName, Value: []byte("foo_" + proto.nameSuffix)})
+			}
+
+			attrs, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{
+				Source: prompb.Source_PROMETHEUS,
+				Type:   proto.metricType,
+				Labels: labels,
+			})
+
+			require.NoError(t, err)
+			assert.Equal(t, expected.metricType, attrs.PromType)
+			assert.Equal(t, expected.handleValueResets, attrs.HandleValueResets)
+			assert.Equal(t, ts.SourceTypePrometheus, attrs.Source)
+		})
+	}
+
+	_, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{
+		Source: prompb.Source_PROMETHEUS,
+		Type:   -1,
+	})
+	require.Error(t, err)
+}
+
+func TestPromTimeSeriesToSeriesAttributesM3TypeFromPrometheus(t *testing.T) {
+	testPromTimeSeriesToSeriesAttributesM3Type(t, prompb.Source_PROMETHEUS)
+}
+
+func TestPromTimeSeriesToSeriesAttributesM3TypeFromOpenMetrics(t *testing.T) {
+	testPromTimeSeriesToSeriesAttributesM3Type(t, prompb.Source_OPEN_METRICS)
+}
+
+func testPromTimeSeriesToSeriesAttributesM3Type(t *testing.T, source prompb.Source) {
+	mapping := map[prompb.M3Type]ts.M3MetricType{
+		prompb.M3Type_M3_GAUGE:   ts.M3MetricTypeGauge,
+		prompb.M3Type_M3_COUNTER: ts.M3MetricTypeCounter,
+		prompb.M3Type_M3_TIMER:   ts.M3MetricTypeTimer,
+	}
+
+	for proto, expected := range mapping {
+		attrs, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{
+			Source: source,
+			M3Type: proto,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, expected, attrs.M3Type)
+	}
+
+	_, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{
+		Source: source,
+		M3Type: -1,
+	})
+	require.Error(t, err)
+}
+
+func TestPromTimeSeriesToSeriesAttributesMetricsTypeFromOpenMetrics(t *testing.T) {
+	mapping := map[prompbMetricTypeWithNameSuffix]promMetricTypeWithBool{
+		{metricType: prompb.MetricType_UNKNOWN}: {metricType: ts.PromMetricTypeUnknown},
+
+		{prompb.MetricType_COUNTER, "total"}:   {metricType: ts.PromMetricTypeCounter, handleValueResets: true},
+		{prompb.MetricType_COUNTER, "created"}: {metricType: ts.PromMetricTypeCounter},
+
+		{metricType: prompb.MetricType_GAUGE}:    {metricType: ts.PromMetricTypeGauge},
+		{metricType: prompb.MetricType_INFO}:     {metricType: ts.PromMetricTypeInfo},
+		{metricType: prompb.MetricType_STATESET}: {metricType: ts.PromMetricTypeStateSet},
+
+		{prompb.MetricType_HISTOGRAM, "bucket"}:  {metricType: ts.PromMetricTypeHistogram, handleValueResets: true},
+		{prompb.MetricType_HISTOGRAM, "count"}:   {metricType: ts.PromMetricTypeHistogram, handleValueResets: true},
+		{prompb.MetricType_HISTOGRAM, "sum"}:     {metricType: ts.PromMetricTypeHistogram, handleValueResets: true},
+		{prompb.MetricType_HISTOGRAM, "created"}: {metricType: ts.PromMetricTypeHistogram},
+
+		{prompb.MetricType_GAUGE_HISTOGRAM, "bucket"}: {metricType: ts.PromMetricTypeGaugeHistogram},
+		{prompb.MetricType_GAUGE_HISTOGRAM, "gcount"}: {metricType: ts.PromMetricTypeGaugeHistogram, handleValueResets: true},
+		{prompb.MetricType_GAUGE_HISTOGRAM, "gsum"}:   {metricType: ts.PromMetricTypeGaugeHistogram},
+
+		{metricType: prompb.MetricType_SUMMARY}: {metricType: ts.PromMetricTypeSummary},
+		{prompb.MetricType_SUMMARY, "count"}:    {metricType: ts.PromMetricTypeSummary, handleValueResets: true},
+		{prompb.MetricType_SUMMARY, "sum"}:      {metricType: ts.PromMetricTypeSummary, handleValueResets: true},
+		{prompb.MetricType_SUMMARY, "created"}:  {metricType: ts.PromMetricTypeSummary},
+	}
+
+	for proto, expected := range mapping { // nolint: dupl
+		var (
+			name     = fmt.Sprintf("Open Metrics type: %s, name suffix: '%s'", proto.metricType, proto.nameSuffix)
+			proto    = proto
+			expected = expected
+		)
+
+		t.Run(name, func(t *testing.T) {
+			var labels []prompb.Label
+			if proto.nameSuffix != "" {
+				labels = append(labels, prompb.Label{Name: promDefaultName, Value: []byte("foo_" + proto.nameSuffix)})
+			}
+
+			attrs, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{
+				Source: prompb.Source_OPEN_METRICS,
+				Type:   proto.metricType,
+				Labels: labels,
+			})
+
+			require.NoError(t, err)
+			assert.Equal(t, expected.metricType, attrs.PromType)
+			assert.Equal(t, expected.handleValueResets, attrs.HandleValueResets)
+			assert.Equal(t, ts.SourceTypeOpenMetrics, attrs.Source)
+		})
+	}
+
+	_, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{
+		Source: prompb.Source_OPEN_METRICS,
+		Type:   -1,
+	})
+	require.Error(t, err)
+}
+
+func TestPromTimeSeriesToSeriesAttributesMetricsTypeFromGraphite(t *testing.T) {
+	mapping := map[prompb.M3Type]struct {
+		m3Type   ts.M3MetricType
+		promType ts.PromMetricType
+	}{
+		prompb.M3Type_M3_GAUGE:   {ts.M3MetricTypeGauge, ts.PromMetricTypeGauge},
+		prompb.M3Type_M3_COUNTER: {ts.M3MetricTypeCounter, ts.PromMetricTypeCounter},
+		prompb.M3Type_M3_TIMER:   {ts.M3MetricTypeTimer, ts.PromMetricTypeUnknown},
+	}
+
+	for proto, expected := range mapping {
+		attrs, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{
+			Source: prompb.Source_GRAPHITE,
+			M3Type: proto,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, expected.promType, attrs.PromType, "PromType")
+		assert.Equal(t, expected.m3Type, attrs.M3Type, "M3Type")
+		assert.False(t, attrs.HandleValueResets)
+	}
+
+	_, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{
+		Source: prompb.Source_GRAPHITE,
+		M3Type: -1,
+	})
+	require.Error(t, err)
+}
+
+func TestPrometheusSeriesAttributesToAnnotationPayload(t *testing.T) {
+	testSeriesAttributesToAnnotationPayload(t, ts.SourceTypePrometheus)
+}
+
+func TestOpenMetricsSeriesAttributesToAnnotationPayload(t *testing.T) {
+	testSeriesAttributesToAnnotationPayload(t, ts.SourceTypeOpenMetrics)
+}
+
+func testSeriesAttributesToAnnotationPayload(t *testing.T, source ts.SourceType) {
+	mapping := map[ts.PromMetricType]annotation.OpenMetricsFamilyType{
+		ts.PromMetricTypeUnknown:        annotation.OpenMetricsFamilyType_UNKNOWN,
+		ts.PromMetricTypeCounter:        annotation.OpenMetricsFamilyType_COUNTER,
+		ts.PromMetricTypeGauge:          annotation.OpenMetricsFamilyType_GAUGE,
+		ts.PromMetricTypeHistogram:      annotation.OpenMetricsFamilyType_HISTOGRAM,
+		ts.PromMetricTypeGaugeHistogram: annotation.OpenMetricsFamilyType_GAUGE_HISTOGRAM,
+		ts.PromMetricTypeSummary:        annotation.OpenMetricsFamilyType_SUMMARY,
+		ts.PromMetricTypeInfo:           annotation.OpenMetricsFamilyType_INFO,
+		ts.PromMetricTypeStateSet:       annotation.OpenMetricsFamilyType_STATESET,
+	}
+
+	for promType, expectedType := range mapping {
+		payload, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{
+			Source:   source,
+			PromType: promType,
+		})
+		require.NoError(t, err)
+
+		expectedPayload := annotation.Payload{
+			SourceFormat:          annotation.SourceFormat_OPEN_METRICS,
+			OpenMetricsFamilyType: expectedType,
+		}
+		assert.Equal(t, expectedPayload, payload)
+	}
+
+	_, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{PromType: math.MaxUint8})
+	require.Error(t, err)
+
+	payload, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{
+		Source:            source,
+		HandleValueResets: true,
+	})
+	require.NoError(t, err)
+	assert.True(t, payload.OpenMetricsHandleValueResets)
+
+	payload, err = SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{
+		Source:            source,
+		HandleValueResets: false,
+	})
+	require.NoError(t, err)
+	assert.False(t, payload.OpenMetricsHandleValueResets)
+}
+
+func TestGraphiteSeriesAttributesToAnnotationPayload(t *testing.T) {
+	mapping := map[ts.M3MetricType]annotation.GraphiteType{
+		ts.M3MetricTypeGauge:   annotation.GraphiteType_GRAPHITE_GAUGE,
+		ts.M3MetricTypeCounter: annotation.GraphiteType_GRAPHITE_COUNTER,
+		ts.M3MetricTypeTimer:   annotation.GraphiteType_GRAPHITE_TIMER,
+	}
+
+	for graphiteType, expectedType := range mapping {
+		payload, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{
+			Source: ts.SourceTypeGraphite,
+			M3Type: graphiteType,
+		})
+		require.NoError(t, err)
+
+		expectedPayload := annotation.Payload{
+			SourceFormat: annotation.SourceFormat_GRAPHITE,
+			GraphiteType: expectedType,
+		}
+		assert.Equal(t, expectedPayload, payload)
+	}
+
+	_, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{
+		Source: ts.SourceTypeGraphite,
+		M3Type: math.MaxUint8,
+	})
+	require.EqualError(t, err, "invalid Graphite metric type 255")
+}
+
+func TestPromTimestampToTime(t *testing.T) {
+	var (
+		now  = time.Now()
+		xNow = xtime.ToUnixNano(now)
+
+		xNowMillis = xNow.Truncate(time.Millisecond)
+		nowMillis  = now.Truncate(time.Millisecond)
+
+		timestampMs = int64(xNow) / int64(time.Millisecond)
+	)
+
+	require.Equal(t, xNowMillis, promTimestampToUnixNanos(timestampMs))
+	require.Equal(t, nowMillis, PromTimestampToTime(timestampMs))
+}
+
+type prompbMetricTypeWithNameSuffix struct {
+	metricType prompb.MetricType
+	nameSuffix string
+}
+
+type promMetricTypeWithBool struct {
+	metricType        ts.PromMetricType
+	handleValueResets bool
 }

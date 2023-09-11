@@ -24,15 +24,26 @@ import "time"
 
 // LimitsConfiguration contains configuration for configurable limits that can be applied to M3DB.
 type LimitsConfiguration struct {
+	// MaxRecentlyQueriedSeriesDiskBytesRead sets the upper limit on time series bytes
+	// read from disk within a given lookback period. Queries which are issued while this
+	// max is surpassed encounter an error.
+	MaxRecentlyQueriedSeriesDiskBytesRead *MaxRecentQueryResourceLimitConfiguration `yaml:"maxRecentlyQueriedSeriesDiskBytesRead"`
+
+	// MaxRecentlyQueriedSeriesDiskRead sets the upper limit on time series read from disk within a given lookback
+	// period. Queries which are issued while this max is surpassed encounter an error.
+	// This is the number of time series, which is different from the number of bytes controlled by
+	// MaxRecentlyQueriedSeriesDiskBytesRead.
+	MaxRecentlyQueriedSeriesDiskRead *MaxRecentQueryResourceLimitConfiguration `yaml:"maxRecentlyQueriedSeriesDiskRead"`
+
 	// MaxRecentlyQueriedSeriesBlocks sets the upper limit on time series blocks
 	// count within a given lookback period. Queries which are issued while this
 	// max is surpassed encounter an error.
 	MaxRecentlyQueriedSeriesBlocks *MaxRecentQueryResourceLimitConfiguration `yaml:"maxRecentlyQueriedSeriesBlocks"`
 
-	// MaxRecentlyQueriedSeriesDiskBytesRead sets the upper limit on time series bytes
-	// read from disk within a given lookback period. Queries which are issued while this
-	// max is surpassed encounter an error.
-	MaxRecentlyQueriedSeriesDiskBytesRead *MaxRecentQueryResourceLimitConfiguration `yaml:"maxRecentlyQueriedSeriesDiskBytesRead"`
+	// MaxRecentlyQueriedMetadata sets the upper limit on metadata counts
+	// within a given lookback period. Metadata queries which are issued while
+	// this max is surpassed encounter an error.
+	MaxRecentlyQueriedMetadata *MaxRecentQueryResourceLimitConfiguration `yaml:"maxRecentlyQueriedMetadata"`
 
 	// MaxOutstandingWriteRequests controls the maximum number of outstanding write requests
 	// that the server will allow before it begins rejecting requests. Note that this value
@@ -58,6 +69,9 @@ type LimitsConfiguration struct {
 	// load on the CPU, which can prevent other DB operations.
 	// A setting of 0 means there is no maximum.
 	MaxEncodersPerBlock int `yaml:"maxEncodersPerBlock" validate:"min=0"`
+
+	// Write new series limit per second to limit overwhelming during new ID bursts.
+	WriteNewSeriesPerSecond int `yaml:"writeNewSeriesPerSecond" validate:"min=0"`
 }
 
 // MaxRecentQueryResourceLimitConfiguration sets an upper limit on resources consumed by all queries

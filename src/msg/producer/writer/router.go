@@ -30,21 +30,23 @@ type ackRouter interface {
 	Ack(ack metadata) error
 
 	// Register registers a message writer.
-	Register(replicatedShardID uint64, mw messageWriter)
+	Register(replicatedShardID uint64, mw *messageWriter)
 
 	// Unregister removes a message writer.
 	Unregister(replicatedShardID uint64)
 }
 
+var _ ackRouter = (*router)(nil)
+
 type router struct {
 	sync.RWMutex
 
-	messageWriters map[uint64]messageWriter
+	messageWriters map[uint64]*messageWriter
 }
 
-func newAckRouter(size int) ackRouter {
+func newAckRouter(size int) *router {
 	return &router{
-		messageWriters: make(map[uint64]messageWriter, size),
+		messageWriters: make(map[uint64]*messageWriter, size),
 	}
 }
 
@@ -60,7 +62,7 @@ func (r *router) Ack(meta metadata) error {
 	return nil
 }
 
-func (r *router) Register(replicatedShardID uint64, mw messageWriter) {
+func (r *router) Register(replicatedShardID uint64, mw *messageWriter) {
 	r.Lock()
 	r.messageWriters[replicatedShardID] = mw
 	r.Unlock()

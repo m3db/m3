@@ -22,6 +22,9 @@ package namespace
 
 import (
 	"errors"
+	"fmt"
+	"strings"
+	"sync"
 	"time"
 
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
@@ -29,12 +32,16 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/gogo/protobuf/proto"
 	protobuftypes "github.com/gogo/protobuf/types"
 )
 
 var (
-	errRetentionNil = errors.New("retention options must be set")
-	errNamespaceNil = errors.New("namespace options must be set")
+	errRetentionNil       = errors.New("retention options must be set")
+	errNamespaceNil       = errors.New("namespace options must be set")
+	errExtendedOptionsNil = errors.New("extendedOptions.Options must be set")
+
+	dynamicExtendedOptionsConverters = sync.Map{}
 )
 
 // FromNanos converts nanoseconds to a namespace-compatible duration.
@@ -70,8 +77,11 @@ func ToRetention(
 // ToIndexOptions converts nsproto.IndexOptions to IndexOptions
 func ToIndexOptions(
 	io *nsproto.IndexOptions,
+	defaultBlockSize time.Duration,
 ) (IndexOptions, error) {
-	iopts := NewIndexOptions().SetEnabled(false)
+	iopts := NewIndexOptions().
+		SetBlockSize(defaultBlockSize).
+		SetEnabled(false)
 	if io == nil {
 		return iopts, nil
 	}
@@ -101,6 +111,44 @@ func ToRuntimeOptions(
 	return runtimeOpts, nil
 }
 
+// ExtendedOptsConverter is function for converting from protobuf message to ExtendedOptions.
+type ExtendedOptsConverter func(p *protobuftypes.Struct) (ExtendedOptions, error)
+
+// RegisterExtendedOptionsConverter registers conversion function from protobuf message to ExtendedOptions.
+func RegisterExtendedOptionsConverter(_type string, converter ExtendedOptsConverter) {
+	dynamicExtendedOptionsConverters.Store(_type, converter)
+}
+
+// ToExtendedOptions converts protobuf message to ExtendedOptions.
+func ToExtendedOptions(
+	extendedOptsProto *nsproto.ExtendedOptions,
+) (ExtendedOptions, error) {
+	var extendedOpts ExtendedOptions
+	if extendedOptsProto == nil {
+		return extendedOpts, nil
+	}
+
+	converter, ok := dynamicExtendedOptionsConverters.Load(extendedOptsProto.Type)
+	if !ok {
+		return nil, fmt.Errorf("dynamic ExtendedOptions converter not registered for type %s", extendedOptsProto.Type)
+	}
+
+	if extendedOptsProto.Options == nil {
+		return nil, errExtendedOptionsNil
+	}
+
+	extendedOpts, err := converter.(ExtendedOptsConverter)(extendedOptsProto.Options)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = extendedOpts.Validate(); err != nil {
+		return nil, err
+	}
+
+	return extendedOpts, nil
+}
+
 // ToMetadata converts nsproto.Options to Metadata
 func ToMetadata(
 	id string,
@@ -115,7 +163,10 @@ func ToMetadata(
 		return nil, err
 	}
 
-	iOpts, err := ToIndexOptions(opts.IndexOptions)
+	iOpts, err := ToIndexOptions(opts.IndexOptions,
+		// Default to the retention block size if no index options are specified.
+		rOpts.BlockSize(),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -126,6 +177,21 @@ func ToMetadata(
 	}
 
 	runtimeOpts, err := ToRuntimeOptions(opts.RuntimeOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	extendedOpts, err := ToExtendedOptions(opts.ExtendedOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	aggOpts, err := ToAggregationOptions(opts.AggregationOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	stagingState, err := ToStagingState(opts.StagingState)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +207,10 @@ func ToMetadata(
 		SetRetentionOptions(rOpts).
 		SetIndexOptions(iOpts).
 		SetColdWritesEnabled(opts.ColdWritesEnabled).
-		SetRuntimeOptions(runtimeOpts)
+		SetRuntimeOptions(runtimeOpts).
+		SetExtendedOptions(extendedOpts).
+		SetAggregationOptions(aggOpts).
+		SetStagingState(stagingState)
 
 	if opts.CacheBlocksOnRetrieve != nil {
 		mOpts = mOpts.SetCacheBlocksOnRetrieve(opts.CacheBlocksOnRetrieve.Value)
@@ -154,17 +223,62 @@ func ToMetadata(
 	return NewMetadata(ident.StringID(id), mOpts)
 }
 
+// ToStagingState converts nsproto.StagingState to StagingState.
+func ToStagingState(state *nsproto.StagingState) (StagingState, error) {
+	if state == nil {
+		return StagingState{}, nil
+	}
+
+	return NewStagingState(state.Status)
+}
+
+// ToAggregationOptions converts nsproto.AggregationOptions to AggregationOptions.
+func ToAggregationOptions(opts *nsproto.AggregationOptions) (AggregationOptions, error) {
+	aggOpts := NewAggregationOptions()
+	if opts == nil || len(opts.Aggregations) == 0 {
+		return aggOpts, nil
+	}
+	aggregations := make([]Aggregation, 0, len(opts.Aggregations))
+	for _, agg := range opts.Aggregations {
+		if agg.Aggregated {
+			if agg.Attributes == nil {
+				return nil, errors.New("must set Attributes when aggregated is true")
+			}
+
+			var dsOpts DownsampleOptions
+			if agg.Attributes.DownsampleOptions == nil {
+				dsOpts = NewDownsampleOptions(true)
+			} else {
+				dsOpts = NewDownsampleOptions(agg.Attributes.DownsampleOptions.All)
+			}
+
+			attrs, err := NewAggregatedAttributes(time.Duration(agg.Attributes.ResolutionNanos), dsOpts)
+			if err != nil {
+				return nil, err
+			}
+			aggregations = append(aggregations, NewAggregatedAggregation(attrs))
+		} else {
+			aggregations = append(aggregations, NewUnaggregatedAggregation())
+		}
+	}
+	return aggOpts.SetAggregations(aggregations), nil
+}
+
 // ToProto converts Map to nsproto.Registry
-func ToProto(m Map) *nsproto.Registry {
+func ToProto(m Map) (*nsproto.Registry, error) {
 	reg := nsproto.Registry{
 		Namespaces: make(map[string]*nsproto.NamespaceOptions, len(m.Metadatas())),
 	}
 
 	for _, md := range m.Metadatas() {
-		reg.Namespaces[md.ID().String()] = OptionsToProto(md.Options())
+		protoMsg, err := OptionsToProto(md.Options())
+		if err != nil {
+			return nil, err
+		}
+		reg.Namespaces[md.ID().String()] = protoMsg
 	}
 
-	return &reg
+	return &reg, nil
 }
 
 // FromProto converts nsproto.Registry -> Map
@@ -181,11 +295,25 @@ func FromProto(protoRegistry nsproto.Registry) (Map, error) {
 }
 
 // OptionsToProto converts Options -> nsproto.NamespaceOptions
-func OptionsToProto(opts Options) *nsproto.NamespaceOptions {
+func OptionsToProto(opts Options) (*nsproto.NamespaceOptions, error) {
+	var extendedOpts *nsproto.ExtendedOptions
+	if extOpts := opts.ExtendedOptions(); extOpts != nil {
+		extOptsType, extOptsStruct := extOpts.ToProto()
+		extendedOpts = &nsproto.ExtendedOptions{
+			Type:    extOptsType,
+			Options: extOptsStruct,
+		}
+	}
+
 	ropts := opts.RetentionOptions()
 	iopts := opts.IndexOptions()
 
-	return &nsproto.NamespaceOptions{
+	stagingState, err := toProtoStagingState(opts.StagingState())
+	if err != nil {
+		return nil, err
+	}
+
+	nsOpts := &nsproto.NamespaceOptions{
 		BootstrapEnabled:  opts.BootstrapEnabled(),
 		FlushEnabled:      opts.FlushEnabled(),
 		CleanupEnabled:    opts.CleanupEnabled(),
@@ -209,7 +337,46 @@ func OptionsToProto(opts Options) *nsproto.NamespaceOptions {
 		ColdWritesEnabled:     opts.ColdWritesEnabled(),
 		RuntimeOptions:        toRuntimeOptions(opts.RuntimeOptions()),
 		CacheBlocksOnRetrieve: &protobuftypes.BoolValue{Value: opts.CacheBlocksOnRetrieve()},
+		ExtendedOptions:       extendedOpts,
+		AggregationOptions:    toProtoAggregationOptions(opts.AggregationOptions()),
+		StagingState:          stagingState,
 	}
+
+	return nsOpts, nil
+}
+
+func toProtoStagingState(state StagingState) (*nsproto.StagingState, error) {
+	var protoStatus nsproto.StagingStatus
+	switch state.Status() {
+	case UnknownStagingStatus:
+		protoStatus = nsproto.StagingStatus_UNKNOWN
+	case InitializingStagingStatus:
+		protoStatus = nsproto.StagingStatus_INITIALIZING
+	case ReadyStagingStatus:
+		protoStatus = nsproto.StagingStatus_READY
+	default:
+		return nil, fmt.Errorf("invalid StagingState: %v", state.Status())
+	}
+
+	return &nsproto.StagingState{Status: protoStatus}, nil
+}
+
+func toProtoAggregationOptions(aggOpts AggregationOptions) *nsproto.AggregationOptions {
+	if aggOpts == nil || len(aggOpts.Aggregations()) == 0 {
+		return nil
+	}
+	protoAggs := make([]*nsproto.Aggregation, 0, len(aggOpts.Aggregations()))
+	for _, agg := range aggOpts.Aggregations() {
+		protoAgg := nsproto.Aggregation{Aggregated: agg.Aggregated}
+		if agg.Aggregated {
+			protoAgg.Attributes = &nsproto.AggregatedAttributes{
+				ResolutionNanos:   agg.Attributes.Resolution.Nanoseconds(),
+				DownsampleOptions: &nsproto.DownsampleOptions{All: agg.Attributes.DownsampleOptions.All},
+			}
+		}
+		protoAggs = append(protoAggs, &protoAgg)
+	}
+	return &nsproto.AggregationOptions{Aggregations: protoAggs}
 }
 
 // toRuntimeOptions returns the corresponding RuntimeOptions proto.
@@ -235,4 +402,11 @@ func toRuntimeOptions(opts RuntimeOptions) *nsproto.NamespaceRuntimeOptions {
 		WriteIndexingPerCPUConcurrency: writeIndexingPerCPUConcurrency,
 		FlushIndexingPerCPUConcurrency: flushIndexingPerCPUConcurrency,
 	}
+}
+
+func typeUrlForMessage(typeURLPrefix string, msg proto.Message) string {
+	if !strings.HasSuffix(typeURLPrefix, "/") {
+		typeURLPrefix += "/"
+	}
+	return typeURLPrefix + proto.MessageName(msg)
 }

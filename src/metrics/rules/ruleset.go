@@ -28,10 +28,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/metrics/aggregation"
 	merrors "github.com/m3db/m3/src/metrics/errors"
 	"github.com/m3db/m3/src/metrics/filters"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
-	metricID "github.com/m3db/m3/src/metrics/metric/id"
+	"github.com/m3db/m3/src/metrics/metric"
+	metricid "github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/metrics/rules/view/changes"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -53,6 +55,39 @@ var (
 	ruleSetActionErrorFmt   = "cannot %s ruleset %s"
 	unknownOpTypeFmt        = "unknown op type %v"
 )
+
+// Matcher matches metrics against rules to determine applicable policies.
+type Matcher interface {
+	// ForwardMatch matches the applicable policies for a metric id between [fromNanos, toNanos).
+	ForwardMatch(id metricid.ID, fromNanos, toNanos int64, opts MatchOptions) (MatchResult, error)
+}
+
+// Fetcher fetches rules.
+type Fetcher interface {
+	// LatestRollupRules returns the latest rollup rules for a given time.
+	LatestRollupRules(namespace []byte, timeNanos int64) ([]view.RollupRule, error)
+}
+
+// ReverseMatcher matches metrics against rules to determine applicable policies.
+type ReverseMatcher interface {
+	// ReverseMatch reverse matches the applicable policies for a metric id between [fromNanos, toNanos),
+	// with aware of the metric type and aggregation type for the given id.
+	ReverseMatch(
+		id metricid.ID,
+		fromNanos, toNanos int64,
+		mt metric.Type,
+		at aggregation.Type,
+		isMultiAggregationTypesAllowed bool,
+		aggTypesOpts aggregation.TypesOptions,
+	) (MatchResult, error)
+}
+
+// ActiveSet is the currently active RuleSet.
+type ActiveSet interface {
+	Matcher
+	Fetcher
+	ReverseMatcher
+}
 
 // RuleSet is a read-only set of rules associated with a namespace.
 type RuleSet interface {
@@ -88,7 +123,7 @@ type RuleSet interface {
 	Latest() (view.RuleSet, error)
 
 	// ActiveSet returns the active ruleset at a given time.
-	ActiveSet(timeNanos int64) Matcher
+	ActiveSet(timeNanos int64) ActiveSet
 
 	// ToMutableRuleSet returns a mutable version of this ruleset.
 	ToMutableRuleSet() MutableRuleSet
@@ -143,8 +178,8 @@ type ruleSet struct {
 	mappingRules       []*mappingRule
 	rollupRules        []*rollupRule
 	tagsFilterOpts     filters.TagsFilterOptions
-	newRollupIDFn      metricID.NewIDFn
-	isRollupIDFn       metricID.MatchIDFn
+	newRollupIDFn      metricid.NewIDFn
+	isRollupIDFn       metricid.MatchIDFn
 }
 
 // NewRuleSetFromProto creates a new RuleSet from a proto object.
@@ -208,7 +243,7 @@ func (rs *ruleSet) LastUpdatedAtNanos() int64        { return rs.lastUpdatedAtNa
 func (rs *ruleSet) CreatedAtNanos() int64            { return rs.createdAtNanos }
 func (rs *ruleSet) ToMutableRuleSet() MutableRuleSet { return rs }
 
-func (rs *ruleSet) ActiveSet(timeNanos int64) Matcher {
+func (rs *ruleSet) ActiveSet(timeNanos int64) ActiveSet {
 	mappingRules := make([]*mappingRule, 0, len(rs.mappingRules))
 	for _, mappingRule := range rs.mappingRules {
 		activeRule := mappingRule.activeRule(timeNanos)
@@ -423,6 +458,8 @@ func (rs *ruleSet) AddRollupRule(rrv view.RollupRule, meta UpdateMetadata) (stri
 			rrv.Filter,
 			targets,
 			meta,
+			rrv.KeepOriginal,
+			rrv.Tags,
 		); err != nil {
 			return "", xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "add", rrv.Name))
 		}
@@ -433,6 +470,8 @@ func (rs *ruleSet) AddRollupRule(rrv view.RollupRule, meta UpdateMetadata) (stri
 			rrv.Filter,
 			targets,
 			meta,
+			rrv.KeepOriginal,
+			rrv.Tags,
 		); err != nil {
 			return "", xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "revive", rrv.Name))
 		}
@@ -452,6 +491,8 @@ func (rs *ruleSet) UpdateRollupRule(rrv view.RollupRule, meta UpdateMetadata) er
 		rrv.Filter,
 		targets,
 		meta,
+		rrv.KeepOriginal,
+		rrv.Tags,
 	); err != nil {
 		return xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "update", rrv.Name))
 	}

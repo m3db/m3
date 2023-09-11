@@ -26,9 +26,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
@@ -39,9 +40,7 @@ import (
 	"github.com/uber-go/tally"
 )
 
-var (
-	errWriteQueryNoDatapoints = errors.New("write query with no datapoints")
-)
+var errWriteQueryNoDatapoints = errors.New("write query with no datapoints")
 
 // Type describes the type of storage.
 type Type int
@@ -53,8 +52,6 @@ const (
 	TypeRemoteDC
 	// TypeMultiDC is for storages that will aggregate multiple datacenters.
 	TypeMultiDC
-	// TypeDebug is for storages that are used for debugging purposes.
-	TypeDebug
 )
 
 // ErrorBehavior describes what this storage type should do on error. This is
@@ -115,10 +112,24 @@ type FetchOptions struct {
 	Remote bool
 	// SeriesLimit is the maximum number of series to return.
 	SeriesLimit int
+	// InstanceMultiple is how much to increase the per database instance series limit.
+	InstanceMultiple float32
 	// DocsLimit is the maximum number of docs to return.
 	DocsLimit int
+	// RangeLimit is the maximum time range to return.
+	RangeLimit time.Duration
+	// ReturnedSeriesLimit is the maximum number of series to return.
+	ReturnedSeriesLimit int
+	// ReturnedDatapointsLimit is the maximum number of datapoints to return.
+	ReturnedDatapointsLimit int
+	// ReturnedSeriesMetadataLimit is the maximum number of series metadata to return.
+	ReturnedSeriesMetadataLimit int
 	// RequireExhaustive results in an error if the query exceeds the series limit.
 	RequireExhaustive bool
+	// RequireNoWait results in an error if the query execution must wait for permits.
+	RequireNoWait bool
+	// MaxMetricMetadataStats is the maximum number of metric metadata stats to return.
+	MaxMetricMetadataStats int
 	// BlockType is the block type that the fetch function returns.
 	BlockType models.FetchedBlockType
 	// FanoutOptions are the options for the fetch namespace fanout.
@@ -130,16 +141,30 @@ type FetchOptions struct {
 	Step time.Duration
 	// LookbackDuration if set overrides the default lookback duration.
 	LookbackDuration *time.Duration
-	// Enforcer is used to enforce resource limits on the number of datapoints
-	// used by a given query. Limits are imposed at time of decompression.
-	Enforcer cost.ChainedEnforcer
 	// Scope is used to report metrics about the fetch.
 	Scope tally.Scope
-	// IncludeResolution if set, appends resolution information to fetch results.
-	// Currently only used for graphite queries.
-	IncludeResolution bool
 	// Timeout is the timeout for the request.
 	Timeout time.Duration
+	// ReadConsistencyLevel defines the read consistency for the fetch.
+	ReadConsistencyLevel *topology.ReadConsistencyLevel
+	// IterateEqualTimestampStrategy provides the conflict resolution strategy for the same timestamp.
+	IterateEqualTimestampStrategy *encoding.IterateEqualTimestampStrategy
+	// Source is the source for the query.
+	Source []byte
+
+	RelatedQueryOptions *RelatedQueryOptions
+}
+
+// QueryTimespan represents the start and end time of a query
+type QueryTimespan struct {
+	Start xtime.UnixNano
+	End   xtime.UnixNano
+}
+
+// RelatedQueryOptions describes the timespan of any related queries the client might be making
+// This is used to align the resolution of returned data across all queries.
+type RelatedQueryOptions struct {
+	Timespans []QueryTimespan
 }
 
 // FanoutOptions describes which namespaces should be fanned out to for
@@ -198,6 +223,9 @@ type RestrictQueryOptions struct {
 	// RestrictByTag are specific restrictions to enforce behavior for given
 	// tags.
 	RestrictByTag *RestrictByTag
+	// RestrictByTypes are specific restrictions to query from specified data
+	// types.
+	RestrictByTypes []*RestrictByType
 }
 
 // Querier handles queries against a storage.
@@ -219,6 +247,12 @@ type Querier interface {
 		options *FetchOptions,
 	) (block.Result, error)
 
+	FetchCompressed(
+		ctx context.Context,
+		query *FetchQuery,
+		options *FetchOptions,
+	) (consolidators.MultiFetchResult, error)
+
 	// SearchSeries returns series IDs matching the current query.
 	SearchSeries(
 		ctx context.Context,
@@ -232,6 +266,14 @@ type Querier interface {
 		query *CompleteTagsQuery,
 		options *FetchOptions,
 	) (*consolidators.CompleteTagsResult, error)
+
+	// QueryStorageMetadataAttributes returns the storage metadata
+	// attributes for a query.
+	QueryStorageMetadataAttributes(
+		ctx context.Context,
+		queryStart, queryEnd time.Time,
+		opts *FetchOptions,
+	) ([]storagemetadata.Attributes, error)
 }
 
 // WriteQuery represents the input timeseries that is written to the database.
@@ -265,9 +307,9 @@ type CompleteTagsQuery struct {
 	// TagMatchers is the search criteria for the query.
 	TagMatchers models.Matchers
 	// Start is the inclusive start for the query.
-	Start time.Time
+	Start xtime.UnixNano
 	// End is the exclusive end for the query.
-	End time.Time
+	End xtime.UnixNano
 }
 
 // SeriesMatchQuery represents a query that returns a set of series
@@ -319,4 +361,28 @@ type PromResult struct {
 	PromResult *prompb.QueryResult
 	// ResultMetadata is the metadata for the result.
 	Metadata block.ResultMetadata
+}
+
+// PromConvertOptions are options controlling the conversion of raw series iterators
+// to a Prometheus-compatible result.
+type PromConvertOptions interface {
+	// SetResolutionThresholdForCounterNormalization sets resolution
+	// starting from which (inclusive) a normalization of counter values is performed.
+	SetResolutionThresholdForCounterNormalization(time.Duration) PromConvertOptions
+
+	// ResolutionThresholdForCounterNormalization returns resolution
+	// starting from which (inclusive) a normalization of counter values is performed.
+	ResolutionThresholdForCounterNormalization() time.Duration
+
+	// SetValueDecreaseTolerance sets relative tolerance against decoded time series value decrease.
+	SetValueDecreaseTolerance(value float64) PromConvertOptions
+
+	// ValueDecreaseTolerance returns relative tolerance against decoded time series value decrease.
+	ValueDecreaseTolerance() float64
+
+	// SetValueDecreaseToleranceUntil sets the timestamp (exclusive) until which the tolerance applies.
+	SetValueDecreaseToleranceUntil(value xtime.UnixNano) PromConvertOptions
+
+	// ValueDecreaseToleranceUntil the timestamp (exclusive) until which the tolerance applies.
+	ValueDecreaseToleranceUntil() xtime.UnixNano
 }

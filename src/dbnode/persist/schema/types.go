@@ -22,6 +22,8 @@ package schema
 
 import (
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 // MajorVersion is the major schema version for a set of fileset files,
@@ -34,7 +36,7 @@ const MajorVersion = 1
 // we want to have some level of control around how they're rolled out.
 const MinorVersion = 1
 
-// IndexInfo stores metadata information about block filesets
+// IndexInfo stores metadata information about block filesets.
 type IndexInfo struct {
 	MajorVersion int64
 	BlockStart   int64
@@ -49,39 +51,53 @@ type IndexInfo struct {
 	MinorVersion int64
 }
 
-// IndexSummariesInfo stores metadata about the summaries
+// IndexSummariesInfo stores metadata about the summaries.
 type IndexSummariesInfo struct {
 	Summaries int64
 }
 
-// IndexBloomFilterInfo stores metadata about the bloom filter
+// IndexBloomFilterInfo stores metadata about the bloom filter.
 type IndexBloomFilterInfo struct {
 	NumElementsM int64
 	NumHashesK   int64
 }
 
-// IndexEntry stores entry-level data indexing
+// IndexEntry stores entry-level data indexing.
 //
 // When serialized to disk, the encoder will automatically add the IndexEntryChecksum, a checksum to validate
 // the index entry itself, to the end of the entry. That field is not exposed on this struct as this is handled
 // transparently by the encoder and decoder. Appending of checksum starts in V3.
 type IndexEntry struct {
-	Index        int64
-	ID           []byte
-	Size         int64
-	Offset       int64
-	DataChecksum int64
-	EncodedTags  []byte
+	Index         int64
+	ID            []byte
+	Size          int64
+	Offset        int64
+	DataChecksum  int64
+	EncodedTags   []byte
+	IndexChecksum int64
 }
 
-// IndexSummary stores a summary of an index entry to lookup
+// IndexEntryHasher hashes an index entry.
+type IndexEntryHasher interface {
+	// HashIndexEntry computes a hash value for this index entry using its ID, tags,
+	// and the computed data checksum.
+	// NB: not passing the whole IndexEntry because of linter message:
+	// "hugeParam: e is heavy (88 bytes); consider passing it by pointer".
+	HashIndexEntry(
+		id ident.BytesID,
+		encodedTags ts.EncodedTags,
+		dataChecksum int64,
+	) int64
+}
+
+// IndexSummary stores a summary of an index entry to lookup.
 type IndexSummary struct {
 	Index            int64
 	ID               []byte
 	IndexEntryOffset int64
 }
 
-// LogInfo stores summary information about a commit log
+// LogInfo stores summary information about a commit log.
 type LogInfo struct {
 	// Deprecated fields, left intact as documentation for the actual
 	// format on disk.
@@ -102,7 +118,7 @@ type LogEntry struct {
 	Annotation []byte
 }
 
-// LogMetadata stores metadata information about a commit log
+// LogMetadata stores metadata information about a commit log.
 type LogMetadata struct {
 	ID          []byte
 	Namespace   []byte

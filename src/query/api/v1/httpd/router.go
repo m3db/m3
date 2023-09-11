@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package httpd contains http routers.
 package httpd
 
 import (
@@ -25,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/x/headers"
 )
 
 type router struct {
@@ -49,7 +51,7 @@ func (r *router) Setup(opts options.QueryRouterOptions) {
 }
 
 func (r *router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	engine := strings.ToLower(req.Header.Get(EngineHeaderName))
+	engine := strings.ToLower(req.Header.Get(headers.EngineHeaderName))
 	urlParam := req.URL.Query().Get(EngineURLParam)
 
 	if len(urlParam) > 0 {
@@ -60,7 +62,7 @@ func (r *router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		engine = string(r.defaultQueryEngine)
 	}
 
-	w.Header().Add(EngineHeaderName, engine)
+	w.Header().Add(headers.EngineHeaderName, engine)
 
 	if engine == string(options.M3QueryEngine) {
 		r.m3QueryHandler(w, req)

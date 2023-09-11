@@ -45,3 +45,18 @@ func FromIdentTagIteratorToTags(
 
 	return tags, nil
 }
+
+// MustIdentTagIteratorToTags converts ident tags to coordinator tags.
+func MustIdentTagIteratorToTags(
+	identTags ident.TagIterator,
+	tagOptions models.TagOptions,
+) models.Tags {
+	if tagOptions == nil {
+		tagOptions = models.NewTagOptions()
+	}
+	tags, err := FromIdentTagIteratorToTags(identTags, tagOptions)
+	if err != nil {
+		panic(err)
+	}
+	return tags
+}

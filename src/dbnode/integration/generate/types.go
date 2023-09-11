@@ -24,11 +24,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	ns "github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -43,7 +43,7 @@ type BlockConfig struct {
 	IDs       []string
 	Tags      ident.Tags
 	NumPoints int
-	Start     time.Time
+	Start     xtime.UnixNano
 	AnnGen    AnnotationGenerator
 }
 

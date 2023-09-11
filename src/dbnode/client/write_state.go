@@ -23,13 +23,18 @@ package client
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/x/checked"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/sampler"
 	"github.com/m3db/m3/src/x/serialize"
+
+	"go.uber.org/zap"
 )
 
 // writeOp represents a generic write operation
@@ -48,15 +53,18 @@ type writeState struct {
 	sync.Mutex
 	refCounter
 
-	consistencyLevel  topology.ConsistencyLevel
-	topoMap           topology.Map
-	op                writeOp
-	nsID              ident.ID
-	tsID              ident.ID
-	tagEncoder        serialize.TagEncoder
-	majority, pending int32
-	success           int32
-	errors            []error
+	consistencyLevel                     topology.ConsistencyLevel
+	shardsLeavingCountTowardsConsistency bool
+	topoMap                              topology.Map
+	op                                   writeOp
+	nsID                                 ident.ID
+	tsID                                 ident.ID
+	tagEncoder                           serialize.TagEncoder
+	annotation                           checked.Bytes
+	majority, pending                    int32
+	success                              int32
+	errors                               []error
+	lastResetTime                        time.Time
 
 	queues         []hostQueue
 	tagEncoderPool serialize.TagEncoderPool
@@ -82,17 +90,24 @@ func (w *writeState) close() {
 	w.nsID.Finalize()
 	w.tsID.Finalize()
 
+	if w.annotation != nil {
+		w.annotation.DecRef()
+		w.annotation.Finalize()
+	}
+
 	if enc := w.tagEncoder; enc != nil {
 		enc.Finalize()
 	}
 
 	w.op, w.majority, w.pending, w.success = nil, 0, 0, 0
-	w.nsID, w.tsID, w.tagEncoder = nil, nil, nil
+	w.nsID, w.tsID, w.tagEncoder, w.annotation = nil, nil, nil, nil
 
 	for i := range w.errors {
 		w.errors[i] = nil
 	}
 	w.errors = w.errors[:0]
+
+	w.lastResetTime = time.Time{}
 
 	for i := range w.queues {
 		w.queues[i] = nil
@@ -106,14 +121,20 @@ func (w *writeState) close() {
 }
 
 func (w *writeState) completionFn(result interface{}, err error) {
-	hostID := result.(topology.Host).ID()
+	host := result.(topology.Host)
+	hostID := host.ID()
 	// NB(bl) panic on invalid result, it indicates a bug in the code
 
 	w.Lock()
 	w.pending--
 
-	var wErr error
-
+	var (
+		took time.Duration
+		wErr error
+	)
+	if !w.lastResetTime.IsZero() {
+		took = time.Since(w.lastResetTime)
+	}
 	if err != nil {
 		if IsBadRequestError(err) {
 			// Wrap with invalid params and non-retryable so it is
@@ -121,6 +142,8 @@ func (w *writeState) completionFn(result interface{}, err error) {
 			err = xerrors.NewInvalidParamsError(err)
 			err = xerrors.NewNonRetryableError(err)
 		}
+
+		w.pool.MaybeLogHostError(maybeHostWriteError{err: err, host: host, reqRespTime: took})
 		wErr = xerrors.NewRenamedError(err, fmt.Errorf("error writing to host %s: %v", hostID, err))
 	} else if hostShardSet, ok := w.topoMap.LookupHostShardSet(hostID); !ok {
 		errStr := "missing host shard in writeState completionFn: %s"
@@ -128,20 +151,29 @@ func (w *writeState) completionFn(result interface{}, err error) {
 	} else if shardState, err := hostShardSet.ShardSet().LookupStateByID(w.op.ShardID()); err != nil {
 		errStr := "missing shard %d in host %s"
 		wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
-	} else if shardState != shard.Available {
-		// NB(bl): only count writes to available shards towards success
-		var errStr string
-		switch shardState {
-		case shard.Initializing:
-			errStr = "shard %d in host %s is not available (initializing)"
-		case shard.Leaving:
-			errStr = "shard %d in host %s not available (leaving)"
-		default:
-			errStr = "shard %d in host %s not available (unknown state)"
-		}
-		wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
 	} else {
-		w.success++
+		available := shardState == shard.Available
+		leaving := shardState == shard.Leaving
+		leavingAndShardsLeavingCountTowardsConsistency := leaving &&
+			w.shardsLeavingCountTowardsConsistency
+		// NB(bl): Only count writes to available shards towards success.
+		// NB(r): If shard is leaving and configured to allow writes to leaving
+		// shards to count towards consistency then allow that to count
+		// to success.
+		if !available && !leavingAndShardsLeavingCountTowardsConsistency {
+			var errStr string
+			switch shardState {
+			case shard.Initializing:
+				errStr = "shard %d in host %s is not available (initializing)"
+			case shard.Leaving:
+				errStr = "shard %d in host %s not available (leaving)"
+			default:
+				errStr = "shard %d in host %s not available (unknown state)"
+			}
+			wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
+		} else {
+			w.success++
+		}
 	}
 
 	if wErr != nil {
@@ -168,18 +200,24 @@ func (w *writeState) completionFn(result interface{}, err error) {
 }
 
 type writeStatePool struct {
-	pool           pool.ObjectPool
-	tagEncoderPool serialize.TagEncoderPool
+	pool                pool.ObjectPool
+	tagEncoderPool      serialize.TagEncoderPool
+	logger              *zap.Logger
+	logHostErrorSampler *sampler.Sampler
 }
 
 func newWriteStatePool(
 	tagEncoderPool serialize.TagEncoderPool,
 	opts pool.ObjectPoolOptions,
+	logger *zap.Logger,
+	logHostErrorSampler *sampler.Sampler,
 ) *writeStatePool {
 	p := pool.NewObjectPool(opts)
 	return &writeStatePool{
-		pool:           p,
-		tagEncoderPool: tagEncoderPool,
+		pool:                p,
+		tagEncoderPool:      tagEncoderPool,
+		logger:              logger,
+		logHostErrorSampler: logHostErrorSampler,
 	}
 }
 
@@ -195,4 +233,30 @@ func (p *writeStatePool) Get() *writeState {
 
 func (p *writeStatePool) Put(w *writeState) {
 	p.pool.Put(w)
+}
+
+func (p *writeStatePool) MaybeLogHostError(hostErr maybeHostWriteError) {
+	if hostErr.err == nil {
+		// No error, this is an expected code path when host request doesn't
+		// encounter an error.
+		return
+	}
+
+	if !p.logHostErrorSampler.Sample() {
+		return
+	}
+
+	p.logger.Warn("sampled error writing to host (may not lead to consistency result error)",
+		zap.Stringer("host", hostErr.host),
+		zap.Duration("reqRespTime", hostErr.reqRespTime),
+		zap.Error(hostErr.err))
+}
+
+type maybeHostWriteError struct {
+	// Note: both these fields should be set always.
+	host        topology.Host
+	reqRespTime time.Duration
+
+	// Error field is optionally set when there is actually an error.
+	err error
 }

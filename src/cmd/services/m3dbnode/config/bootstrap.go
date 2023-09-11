@@ -21,9 +21,8 @@
 package config
 
 import (
+	"errors"
 	"fmt"
-	"math"
-	"runtime"
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -45,16 +44,106 @@ import (
 var (
 	// defaultNumProcessorsPerCPU is the default number of processors per CPU.
 	defaultNumProcessorsPerCPU = 0.125
+
+	// default order in which bootstrappers are run
+	// (run in ascending order of precedence).
+	defaultOrderedBootstrappers = []string{
+		// Filesystem bootstrapping must be first.
+		bfs.FileSystemBootstrapperName,
+		// Peers and commitlog must come before the uninitialized topology bootrapping.
+		commitlog.CommitLogBootstrapperName,
+		peers.PeersBootstrapperName,
+		uninitialized.UninitializedTopologyBootstrapperName,
+	}
+
+	// bootstrapper order where peers is prefered over commitlog.
+	preferPeersOrderedBootstrappers = []string{
+		// Filesystem bootstrapping must be first.
+		bfs.FileSystemBootstrapperName,
+		// Prefer peers over commitlog.
+		peers.PeersBootstrapperName,
+		commitlog.CommitLogBootstrapperName,
+		uninitialized.UninitializedTopologyBootstrapperName,
+	}
+
+	// bootstrapper order where commitlog is excluded.
+	excludeCommitLogOrderedBootstrappers = []string{
+		// Filesystem bootstrapping must be first.
+		bfs.FileSystemBootstrapperName,
+		// Commitlog excluded.
+		peers.PeersBootstrapperName,
+		uninitialized.UninitializedTopologyBootstrapperName,
+	}
+
+	validBootstrapModes = []BootstrapMode{
+		DefaultBootstrapMode,
+		PreferPeersBootstrapMode,
+		ExcludeCommitLogBootstrapMode,
+	}
+
+	errReadBootstrapModeInvalid = errors.New("bootstrap mode invalid")
 )
+
+// BootstrapMode defines the mode in which bootstrappers are run.
+type BootstrapMode uint
+
+const (
+	// DefaultBootstrapMode executes bootstrappers in default order.
+	DefaultBootstrapMode BootstrapMode = iota
+	// PreferPeersBootstrapMode executes peers before commitlog bootstrapper.
+	PreferPeersBootstrapMode
+	// ExcludeCommitLogBootstrapMode executes all default bootstrappers except commitlog.
+	ExcludeCommitLogBootstrapMode
+)
+
+// MarshalYAML marshals a BootstrapMode.
+func (m *BootstrapMode) MarshalYAML() (interface{}, error) {
+	return m.String(), nil
+}
+
+// UnmarshalYAML unmarshals an BootstrapMode into a valid type from string.
+func (m *BootstrapMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+
+	// If unspecified, use default mode.
+	if str == "" {
+		*m = DefaultBootstrapMode
+		return nil
+	}
+
+	for _, valid := range validBootstrapModes {
+		if str == valid.String() {
+			*m = valid
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid BootstrapMode '%s' valid types are: %s",
+		str, validBootstrapModes)
+}
+
+// String returns the bootstrap mode as a string
+func (m BootstrapMode) String() string {
+	switch m {
+	case DefaultBootstrapMode:
+		return "default"
+	case PreferPeersBootstrapMode:
+		return "prefer_peers"
+	case ExcludeCommitLogBootstrapMode:
+		return "exclude_commitlog"
+	}
+	return "unknown"
+}
 
 // BootstrapConfiguration specifies the config for bootstrappers.
 type BootstrapConfiguration struct {
-	// Bootstrappers is the list of bootstrappers, ordered by precedence in
-	// descending order.
-	Bootstrappers []string `yaml:"bootstrappers" validate:"nonzero"`
+	// BootstrapMode defines the mode in which bootstrappers are run.
+	BootstrapMode *BootstrapMode `yaml:"mode"`
 
 	// Filesystem bootstrapper configuration.
-	Filesystem *BootstrapFilesystemConfiguration `yaml:"fs"`
+	Filesystem *BootstrapFilesystemConfiguration `yaml:"filesystem"`
 
 	// Commitlog bootstrapper configuration.
 	Commitlog *BootstrapCommitlogConfiguration `yaml:"commitlog"`
@@ -65,20 +154,50 @@ type BootstrapConfiguration struct {
 	// CacheSeriesMetadata determines whether individual bootstrappers cache
 	// series metadata across all calls (namespaces / shards / blocks).
 	CacheSeriesMetadata *bool `yaml:"cacheSeriesMetadata"`
+
+	// IndexSegmentConcurrency determines the concurrency for building index
+	// segments.
+	IndexSegmentConcurrency *int `yaml:"indexSegmentConcurrency"`
+
+	// Verify specifies verification checks.
+	Verify *BootstrapVerifyConfiguration `yaml:"verify"`
+}
+
+// VerifyOrDefault returns verify configuration or default.
+func (bsc BootstrapConfiguration) VerifyOrDefault() BootstrapVerifyConfiguration {
+	if bsc.Verify == nil {
+		return BootstrapVerifyConfiguration{}
+	}
+
+	return *bsc.Verify
+}
+
+// BootstrapVerifyConfiguration outlines verification checks to enable
+// during a bootstrap.
+type BootstrapVerifyConfiguration struct {
+	VerifyIndexSegments *bool `yaml:"verifyIndexSegments"`
+}
+
+// VerifyIndexSegmentsOrDefault returns whether to verify index segments
+// or use default value.
+func (c BootstrapVerifyConfiguration) VerifyIndexSegmentsOrDefault() bool {
+	if c.VerifyIndexSegments == nil {
+		return false
+	}
+
+	return *c.VerifyIndexSegments
 }
 
 // BootstrapFilesystemConfiguration specifies config for the fs bootstrapper.
 type BootstrapFilesystemConfiguration struct {
-	// NumProcessorsPerCPU is the number of processors per CPU.
-	NumProcessorsPerCPU float64 `yaml:"numProcessorsPerCPU" validate:"min=0.0"`
+	// DeprecatedNumProcessorsPerCPU is the number of processors per CPU.
+	// TODO: Remove, this is deprecated since BootstrapDataNumProcessors() is
+	// no longer actually used anywhere.
+	DeprecatedNumProcessorsPerCPU float64 `yaml:"numProcessorsPerCPU" validate:"min=0.0"`
 
 	// Migration configuration specifies what version, if any, existing data filesets should be migrated to
 	// if necessary.
 	Migration *BootstrapMigrationConfiguration `yaml:"migration"`
-}
-
-func (c BootstrapFilesystemConfiguration) numCPUs() int {
-	return int(math.Ceil(float64(c.NumProcessorsPerCPU * float64(runtime.NumCPU()))))
 }
 
 func (c BootstrapFilesystemConfiguration) migration() BootstrapMigrationConfiguration {
@@ -90,8 +209,7 @@ func (c BootstrapFilesystemConfiguration) migration() BootstrapMigrationConfigur
 
 func newDefaultBootstrapFilesystemConfiguration() BootstrapFilesystemConfiguration {
 	return BootstrapFilesystemConfiguration{
-		NumProcessorsPerCPU: defaultNumProcessorsPerCPU,
-		Migration:           &BootstrapMigrationConfiguration{},
+		Migration: &BootstrapMigrationConfiguration{},
 	}
 }
 
@@ -138,48 +256,28 @@ type BootstrapPeersConfiguration struct {
 	// StreamShardConcurrency controls how many shards in parallel to stream
 	// for in memory data being streamed between peers (most recent block).
 	// Defaults to: numCPU.
-	StreamShardConcurrency int `yaml:"streamShardConcurrency"`
+	StreamShardConcurrency *int `yaml:"streamShardConcurrency"`
 	// StreamPersistShardConcurrency controls how many shards in parallel to stream
 	// for historical data being streamed between peers (historical blocks).
 	// Defaults to: numCPU / 2.
-	StreamPersistShardConcurrency int `yaml:"streamPersistShardConcurrency"`
-}
-
-func newDefaultBootstrapPeersConfiguration() BootstrapPeersConfiguration {
-	return BootstrapPeersConfiguration{
-		StreamShardConcurrency:        peers.DefaultShardConcurrency,
-		StreamPersistShardConcurrency: peers.DefaultShardPersistenceConcurrency,
-	}
-}
-
-// BootstrapConfigurationValidator can be used to validate the option sets
-// that the  bootstrap configuration builds.
-// Useful for tests and perhaps verifying same options set across multiple
-// bootstrappers.
-type BootstrapConfigurationValidator interface {
-	ValidateBootstrappersOrder(names []string) error
-	ValidateFilesystemBootstrapperOptions(opts bfs.Options) error
-	ValidateCommitLogBootstrapperOptions(opts commitlog.Options) error
-	ValidatePeersBootstrapperOptions(opts peers.Options) error
-	ValidateUninitializedBootstrapperOptions(opts uninitialized.Options) error
+	StreamPersistShardConcurrency *int `yaml:"streamPersistShardConcurrency"`
+	// StreamPersistShardFlushConcurrency controls how many shards in parallel to flush
+	// for historical data being streamed between peers (historical blocks).
+	// Defaults to: 1.
+	StreamPersistShardFlushConcurrency *int `yaml:"streamPersistShardFlushConcurrency"`
 }
 
 // New creates a bootstrap process based on the bootstrap configuration.
 func (bsc BootstrapConfiguration) New(
-	validator BootstrapConfigurationValidator,
 	rsOpts result.Options,
 	opts storage.Options,
 	topoMapProvider topology.MapProvider,
 	origin topology.Host,
 	adminClient client.AdminClient,
 ) (bootstrap.ProcessProvider, error) {
-	if err := validator.ValidateBootstrappersOrder(bsc.Bootstrappers); err != nil {
-		return nil, err
-	}
-
 	idxOpts := opts.IndexOptions()
-	compactor, err := compaction.NewCompactor(idxOpts.DocumentArrayPool(),
-		index.DocumentArrayPoolCapacity,
+	compactor, err := compaction.NewCompactor(idxOpts.MetadataArrayPool(),
+		index.MetadataArrayPoolCapacity,
 		idxOpts.SegmentBuilderOptions(),
 		idxOpts.FSTSegmentOptions(),
 		compaction.CompactorOptions{
@@ -195,12 +293,14 @@ func (bsc BootstrapConfiguration) New(
 	}
 
 	var (
-		bs     bootstrap.BootstrapperProvider
-		fsOpts = opts.CommitLogOptions().FilesystemOptions()
+		bs                   bootstrap.BootstrapperProvider
+		fsOpts               = opts.CommitLogOptions().FilesystemOptions()
+		orderedBootstrappers = bsc.orderedBootstrappers()
 	)
 	// Start from the end of the list because the bootstrappers are ordered by precedence in descending order.
-	for i := len(bsc.Bootstrappers) - 1; i >= 0; i-- {
-		switch bsc.Bootstrappers[i] {
+	// I.e. each bootstrapper wraps the preceding bootstrapper, and so the outer-most bootstrapper is run first.
+	for i := len(orderedBootstrappers) - 1; i >= 0; i-- {
+		switch orderedBootstrappers[i] {
 		case bootstrapper.NoOpAllBootstrapperName:
 			bs = bootstrapper.NewNoOpAllBootstrapperProvider()
 		case bootstrapper.NoOpNoneBootstrapperName:
@@ -213,13 +313,17 @@ func (bsc BootstrapConfiguration) New(
 				SetFilesystemOptions(fsOpts).
 				SetIndexOptions(opts.IndexOptions()).
 				SetPersistManager(opts.PersistManager()).
+				SetIndexClaimsManager(opts.IndexClaimsManager()).
 				SetCompactor(compactor).
-				SetBoostrapDataNumProcessors(fsCfg.numCPUs()).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
 				SetIdentifierPool(opts.IdentifierPool()).
 				SetMigrationOptions(fsCfg.migration().NewOptions()).
-				SetStorageOptions(opts)
-			if err := validator.ValidateFilesystemBootstrapperOptions(fsbOpts); err != nil {
+				SetStorageOptions(opts).
+				SetIndexSegmentsVerify(bsc.VerifyOrDefault().VerifyIndexSegmentsOrDefault())
+			if v := bsc.IndexSegmentConcurrency; v != nil {
+				fsbOpts = fsbOpts.SetIndexSegmentConcurrency(*v)
+			}
+			if err := fsbOpts.Validate(); err != nil {
 				return nil, err
 			}
 			bs, err = bfs.NewFileSystemBootstrapperProvider(fsbOpts, bs)
@@ -233,7 +337,7 @@ func (bsc BootstrapConfiguration) New(
 				SetCommitLogOptions(opts.CommitLogOptions()).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
 				SetReturnUnfulfilledForCorruptCommitLogFiles(cCfg.ReturnUnfulfilledForCorruptCommitLogFiles)
-			if err := validator.ValidateCommitLogBootstrapperOptions(cOpts); err != nil {
+			if err := cOpts.Validate(); err != nil {
 				return nil, err
 			}
 			inspection, err := fs.InspectFilesystem(fsOpts)
@@ -252,12 +356,23 @@ func (bsc BootstrapConfiguration) New(
 				SetIndexOptions(opts.IndexOptions()).
 				SetAdminClient(adminClient).
 				SetPersistManager(opts.PersistManager()).
+				SetIndexClaimsManager(opts.IndexClaimsManager()).
 				SetCompactor(compactor).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
-				SetContextPool(opts.ContextPool()).
-				SetDefaultShardConcurrency(pCfg.StreamShardConcurrency).
-				SetShardPersistenceConcurrency(pCfg.StreamPersistShardConcurrency)
-			if err := validator.ValidatePeersBootstrapperOptions(pOpts); err != nil {
+				SetContextPool(opts.ContextPool())
+			if pCfg.StreamShardConcurrency != nil {
+				pOpts = pOpts.SetDefaultShardConcurrency(*pCfg.StreamShardConcurrency)
+			}
+			if pCfg.StreamPersistShardConcurrency != nil {
+				pOpts = pOpts.SetShardPersistenceConcurrency(*pCfg.StreamPersistShardConcurrency)
+			}
+			if pCfg.StreamPersistShardFlushConcurrency != nil {
+				pOpts = pOpts.SetShardPersistenceFlushConcurrency(*pCfg.StreamPersistShardFlushConcurrency)
+			}
+			if v := bsc.IndexSegmentConcurrency; v != nil {
+				pOpts = pOpts.SetIndexSegmentConcurrency(*v)
+			}
+			if err := pOpts.Validate(); err != nil {
 				return nil, err
 			}
 			bs, err = peers.NewPeersBootstrapperProvider(pOpts, bs)
@@ -268,12 +383,12 @@ func (bsc BootstrapConfiguration) New(
 			uOpts := uninitialized.NewOptions().
 				SetResultOptions(rsOpts).
 				SetInstrumentOptions(opts.InstrumentOptions())
-			if err := validator.ValidateUninitializedBootstrapperOptions(uOpts); err != nil {
+			if err := uOpts.Validate(); err != nil {
 				return nil, err
 			}
 			bs = uninitialized.NewUninitializedTopologyBootstrapperProvider(uOpts, bs)
 		default:
-			return nil, fmt.Errorf("unknown bootstrapper: %s", bsc.Bootstrappers[i])
+			return nil, fmt.Errorf("unknown bootstrapper: %s", orderedBootstrappers[i])
 		}
 	}
 
@@ -283,7 +398,7 @@ func (bsc BootstrapConfiguration) New(
 	if bsc.CacheSeriesMetadata != nil {
 		providerOpts = providerOpts.SetCacheSeriesMetadata(*bsc.CacheSeriesMetadata)
 	}
-	return bootstrap.NewProcessProvider(bs, providerOpts, rsOpts)
+	return bootstrap.NewProcessProvider(bs, providerOpts, rsOpts, fsOpts)
 }
 
 func (bsc BootstrapConfiguration) filesystemConfig() BootstrapFilesystemConfiguration {
@@ -304,96 +419,19 @@ func (bsc BootstrapConfiguration) peersConfig() BootstrapPeersConfiguration {
 	if cfg := bsc.Peers; cfg != nil {
 		return *cfg
 	}
-	return newDefaultBootstrapPeersConfiguration()
+	return BootstrapPeersConfiguration{}
 }
 
-type bootstrapConfigurationValidator struct {
-}
-
-// NewBootstrapConfigurationValidator returns a new bootstrap configuration
-// validator that validates certain options configured by the bootstrap
-// configuration.
-func NewBootstrapConfigurationValidator() BootstrapConfigurationValidator {
-	return bootstrapConfigurationValidator{}
-}
-
-func (v bootstrapConfigurationValidator) ValidateBootstrappersOrder(names []string) error {
-	dataFetchingBootstrappers := []string{
-		bfs.FileSystemBootstrapperName,
-		peers.PeersBootstrapperName,
-		commitlog.CommitLogBootstrapperName,
-	}
-
-	precedingBootstrappersAllowedByBootstrapper := map[string][]string{
-		bootstrapper.NoOpAllBootstrapperName:  dataFetchingBootstrappers,
-		bootstrapper.NoOpNoneBootstrapperName: dataFetchingBootstrappers,
-		bfs.FileSystemBootstrapperName:        []string{
-			// Filesystem bootstrapper must always appear first
-		},
-		peers.PeersBootstrapperName: []string{
-			// Peers must always appear after filesystem
-			bfs.FileSystemBootstrapperName,
-			// Peers may appear before OR after commitlog
-			commitlog.CommitLogBootstrapperName,
-		},
-		commitlog.CommitLogBootstrapperName: []string{
-			// Commit log bootstrapper may appear after filesystem or peers
-			bfs.FileSystemBootstrapperName,
-			peers.PeersBootstrapperName,
-		},
-		uninitialized.UninitializedTopologyBootstrapperName: []string{
-			// Unintialized bootstrapper may appear after filesystem or peers or commitlog
-			bfs.FileSystemBootstrapperName,
-			commitlog.CommitLogBootstrapperName,
-			peers.PeersBootstrapperName,
-		},
-	}
-
-	validated := make(map[string]struct{})
-	for _, name := range names {
-		precedingAllowed, ok := precedingBootstrappersAllowedByBootstrapper[name]
-		if !ok {
-			return fmt.Errorf("unknown bootstrapper: %v", name)
+func (bsc BootstrapConfiguration) orderedBootstrappers() []string {
+	if bsc.BootstrapMode != nil {
+		switch *bsc.BootstrapMode {
+		case DefaultBootstrapMode:
+			return defaultOrderedBootstrappers
+		case PreferPeersBootstrapMode:
+			return preferPeersOrderedBootstrappers
+		case ExcludeCommitLogBootstrapMode:
+			return excludeCommitLogOrderedBootstrappers
 		}
-
-		allowed := make(map[string]struct{})
-		for _, elem := range precedingAllowed {
-			allowed[elem] = struct{}{}
-		}
-
-		for existing := range validated {
-			if _, ok := allowed[existing]; !ok {
-				return fmt.Errorf("bootstrapper %s cannot appear after %s: ",
-					name, existing)
-			}
-		}
-
-		validated[name] = struct{}{}
 	}
-
-	return nil
-}
-
-func (v bootstrapConfigurationValidator) ValidateFilesystemBootstrapperOptions(
-	opts bfs.Options,
-) error {
-	return opts.Validate()
-}
-
-func (v bootstrapConfigurationValidator) ValidateCommitLogBootstrapperOptions(
-	opts commitlog.Options,
-) error {
-	return opts.Validate()
-}
-
-func (v bootstrapConfigurationValidator) ValidatePeersBootstrapperOptions(
-	opts peers.Options,
-) error {
-	return opts.Validate()
-}
-
-func (v bootstrapConfigurationValidator) ValidateUninitializedBootstrapperOptions(
-	opts uninitialized.Options,
-) error {
-	return opts.Validate()
+	return defaultOrderedBootstrappers
 }

@@ -33,6 +33,7 @@ var (
 	defaultAckBufferSize        = 1048576
 	defaultAckFlushInterval     = 200 * time.Millisecond
 	defaultConnectionBufferSize = 1048576
+	defaultWriteTimeout         = 5 * time.Second
 )
 
 type options struct {
@@ -43,6 +44,7 @@ type options struct {
 	ackBufferSize    int
 	writeBufferSize  int
 	readBufferSize   int
+	writeTimeout     time.Duration
 	iOpts            instrument.Options
 	rwOpts           xio.Options
 }
@@ -57,6 +59,7 @@ func NewOptions() Options {
 		ackBufferSize:    defaultAckBufferSize,
 		writeBufferSize:  defaultConnectionBufferSize,
 		readBufferSize:   defaultConnectionBufferSize,
+		writeTimeout:     defaultWriteTimeout,
 		iOpts:            instrument.NewOptions(),
 		rwOpts:           xio.NewOptions(),
 	}
@@ -129,6 +132,16 @@ func (opts *options) ConnectionReadBufferSize() int {
 func (opts *options) SetConnectionReadBufferSize(value int) Options {
 	o := *opts
 	o.readBufferSize = value
+	return &o
+}
+
+func (opts *options) ConnectionWriteTimeout() time.Duration {
+	return opts.writeTimeout
+}
+
+func (opts *options) SetConnectionWriteTimeout(value time.Duration) Options {
+	o := *opts
+	o.writeTimeout = value
 	return &o
 }
 

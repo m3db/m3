@@ -24,7 +24,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/m3db/m3/src/x/close"
+	xresource "github.com/m3db/m3/src/x/resource"
 
 	"go.uber.org/zap"
 )
@@ -41,7 +41,7 @@ type SourceInput interface {
 
 // Source polls data by calling SourcePollFn and notifies its watches on updates.
 type Source interface {
-	close.SimpleCloser
+	xresource.SimpleCloser
 
 	// Get returns the latest value.
 	Get() interface{}

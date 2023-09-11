@@ -21,7 +21,6 @@
 package m3tsz
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"time"
@@ -29,39 +28,53 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/cespare/xxhash/v2"
 )
 
 // TimestampEncoder encapsulates the state required for a logical stream of
 // bits that represent a stream of timestamps compressed using delta-of-delta
 type TimestampEncoder struct {
-	PrevTime       time.Time
-	PrevTimeDelta  time.Duration
-	PrevAnnotation []byte
-
-	Options encoding.Options
+	PrevTime               xtime.UnixNano
+	PrevTimeDelta          time.Duration
+	PrevAnnotationChecksum uint64
 
 	TimeUnit xtime.Unit
+
+	markerEncodingScheme *encoding.MarkerEncodingScheme
+	timeEncodingSchemes  encoding.TimeEncodingSchemes
 
 	// Used to keep track of time unit changes that occur directly via the WriteTimeUnit()
 	// API as opposed to indirectly via the WriteTime() API.
 	timeUnitEncodedManually bool
 	// Only taken into account if using the WriteTime() API.
 	hasWrittenFirst bool
+
+	metrics encoding.TimestampEncoderMetrics
 }
+
+var emptyAnnotationChecksum = xxhash.Sum64(nil)
 
 // NewTimestampEncoder creates a new TimestampEncoder.
 func NewTimestampEncoder(
-	start time.Time, timeUnit xtime.Unit, opts encoding.Options) TimestampEncoder {
+	start xtime.UnixNano, timeUnit xtime.Unit, opts encoding.Options) TimestampEncoder {
 	return TimestampEncoder{
-		PrevTime: start,
-		TimeUnit: initialTimeUnit(xtime.ToUnixNano(start), timeUnit),
-		Options:  opts,
+		PrevTime:               start,
+		TimeUnit:               initialTimeUnit(start, timeUnit),
+		PrevAnnotationChecksum: emptyAnnotationChecksum,
+		markerEncodingScheme:   opts.MarkerEncodingScheme(),
+		timeEncodingSchemes:    opts.TimeEncodingSchemes(),
+		metrics:                opts.Metrics().TimestampEncoder,
 	}
 }
 
 // WriteTime encode the timestamp using delta-of-delta compression.
 func (enc *TimestampEncoder) WriteTime(
-	stream encoding.OStream, currTime time.Time, ant ts.Annotation, timeUnit xtime.Unit) error {
+	stream encoding.OStream,
+	currTime xtime.UnixNano,
+	ant ts.Annotation,
+	timeUnit xtime.Unit,
+) error {
 	if !enc.hasWrittenFirst {
 		if err := enc.WriteFirstTime(stream, currTime, ant, timeUnit); err != nil {
 			return err
@@ -75,17 +88,25 @@ func (enc *TimestampEncoder) WriteTime(
 
 // WriteFirstTime encodes the first timestamp.
 func (enc *TimestampEncoder) WriteFirstTime(
-	stream encoding.OStream, currTime time.Time, ant ts.Annotation, timeUnit xtime.Unit) error {
+	stream encoding.OStream,
+	currTime xtime.UnixNano,
+	ant ts.Annotation,
+	timeUnit xtime.Unit,
+) error {
 	// NB(xichen): Always write the first time in nanoseconds because we don't know
 	// if the start time is going to be a multiple of the time unit provided.
-	nt := xtime.ToNormalizedTime(enc.PrevTime, time.Nanosecond)
+	nt := enc.PrevTime
 	stream.WriteBits(uint64(nt), 64)
 	return enc.WriteNextTime(stream, currTime, ant, timeUnit)
 }
 
 // WriteNextTime encodes the next (non-first) timestamp.
 func (enc *TimestampEncoder) WriteNextTime(
-	stream encoding.OStream, currTime time.Time, ant ts.Annotation, timeUnit xtime.Unit) error {
+	stream encoding.OStream,
+	currTime xtime.UnixNano,
+	ant ts.Annotation,
+	timeUnit xtime.Unit,
+) error {
 	enc.writeAnnotation(stream, ant)
 	tuChanged := enc.maybeWriteTimeUnitChange(stream, timeUnit)
 
@@ -122,7 +143,7 @@ func (enc *TimestampEncoder) maybeWriteTimeUnitChange(stream encoding.OStream, t
 		return false
 	}
 
-	scheme := enc.Options.MarkerEncodingScheme()
+	scheme := enc.markerEncodingScheme
 	encoding.WriteSpecialMarker(stream, scheme, scheme.TimeUnit())
 	enc.WriteTimeUnit(stream, timeUnit)
 	return true
@@ -139,20 +160,22 @@ func (enc *TimestampEncoder) shouldWriteTimeUnit(timeUnit xtime.Unit) bool {
 
 // shouldWriteAnnotation determines whether we should write ant as an annotation.
 // Returns true if ant is not empty and differs from the existing annotation, false otherwise.
-func (enc *TimestampEncoder) shouldWriteAnnotation(ant ts.Annotation) bool {
-	numAnnotationBytes := len(ant)
-	if numAnnotationBytes == 0 {
-		return false
+// Also returns the checksum of the given annotation.
+func (enc *TimestampEncoder) shouldWriteAnnotation(ant ts.Annotation) (bool, uint64) {
+	if len(ant) == 0 {
+		return false, emptyAnnotationChecksum
 	}
-	return !bytes.Equal(enc.PrevAnnotation, ant)
+	checksum := xxhash.Sum64(ant)
+	return checksum != enc.PrevAnnotationChecksum, checksum
 }
 
 func (enc *TimestampEncoder) writeAnnotation(stream encoding.OStream, ant ts.Annotation) {
-	if !enc.shouldWriteAnnotation(ant) {
+	shouldWrite, checksum := enc.shouldWriteAnnotation(ant)
+	if !shouldWrite {
 		return
 	}
 
-	scheme := enc.Options.MarkerEncodingScheme()
+	scheme := enc.markerEncodingScheme
 	encoding.WriteSpecialMarker(stream, scheme, scheme.Annotation())
 
 	var buf [binary.MaxVarintLen32]byte
@@ -161,7 +184,14 @@ func (enc *TimestampEncoder) writeAnnotation(stream encoding.OStream, ant ts.Ann
 
 	stream.WriteBytes(buf[:annotationLength])
 	stream.WriteBytes(ant)
-	enc.PrevAnnotation = ant
+
+	if enc.PrevAnnotationChecksum != emptyAnnotationChecksum {
+		// NB: current assumption is that each time series should have a single annotation write per block
+		// and that annotations should be rewritten rarely. If this assumption changes, it might not be worth
+		// keeping this metric around.
+		enc.metrics.IncAnnotationRewritten()
+	}
+	enc.PrevAnnotationChecksum = checksum
 }
 
 func (enc *TimestampEncoder) writeDeltaOfDeltaTimeUnitChanged(
@@ -180,9 +210,19 @@ func (enc *TimestampEncoder) writeDeltaOfDeltaTimeUnitUnchanged(
 	}
 
 	deltaOfDelta := xtime.ToNormalizedDuration(curDelta-prevDelta, u)
-	tes, exists := enc.Options.TimeEncodingSchemes().SchemeForUnit(timeUnit)
+	if timeUnit == xtime.Millisecond || timeUnit == xtime.Second {
+		// Only milliseconds and seconds are encoded using
+		// up to 32 bits (see defaultTimeEncodingSchemes).
+		dod32 := int32(deltaOfDelta)
+		if int64(dod32) != deltaOfDelta {
+			return fmt.Errorf(
+				"deltaOfDelta value %d %s overflows 32 bits", deltaOfDelta, timeUnit)
+		}
+	}
+
+	tes, exists := enc.timeEncodingSchemes.SchemeForUnit(timeUnit)
 	if !exists {
-		return fmt.Errorf("time encoding scheme for time unit %v doesn't exist", timeUnit)
+		return errNoTimeSchemaForUnit
 	}
 
 	if deltaOfDelta == 0 {

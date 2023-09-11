@@ -20,7 +20,10 @@
 
 package transformation
 
-import "math"
+import (
+	"math"
+	"time"
+)
 
 var (
 	emptyDatapoint = Datapoint{Value: math.NaN()}
@@ -51,18 +54,39 @@ func (fn UnaryTransformFn) Evaluate(dp Datapoint) Datapoint {
 	return fn(dp)
 }
 
+// FeatureFlags holds options passed into transformations from
+// the aggregator configuration file.
+// nolint:gofumpt
+type FeatureFlags struct {
+}
+
 // BinaryTransform is a binary transformation that takes the
 // previous and the current datapoint as input and produces
 // a single datapoint as the transformation result.
 // It can keep state if it requires.
 type BinaryTransform interface {
-	Evaluate(prev, curr Datapoint) Datapoint
+	Evaluate(prev, curr Datapoint, flags FeatureFlags) Datapoint
 }
 
 // BinaryTransformFn implements BinaryTransform as a function.
-type BinaryTransformFn func(prev, curr Datapoint) Datapoint
+type BinaryTransformFn func(prev, curr Datapoint, flags FeatureFlags) Datapoint
 
 // Evaluate implements BinaryTransform as a function.
-func (fn BinaryTransformFn) Evaluate(prev, curr Datapoint) Datapoint {
-	return fn(prev, curr)
+func (fn BinaryTransformFn) Evaluate(prev, curr Datapoint, flags FeatureFlags) Datapoint {
+	return fn(prev, curr, flags)
+}
+
+// UnaryMultiOutputTransform is like UnaryTransform, but can output an additional datapoint.
+// The additional datapoint is not passed to subsequent transforms.
+type UnaryMultiOutputTransform interface {
+	// Evaluate applies the transform on the provided datapoint.
+	Evaluate(dp Datapoint, resolution time.Duration) (Datapoint, Datapoint)
+}
+
+// UnaryMultiOutputTransformFn implements UnaryMultiOutputTransform as a function.
+type UnaryMultiOutputTransformFn func(dp Datapoint, resolution time.Duration) (Datapoint, Datapoint)
+
+// Evaluate applies the transform on the provided datapoint.
+func (fn UnaryMultiOutputTransformFn) Evaluate(dp Datapoint, resolution time.Duration) (Datapoint, Datapoint) {
+	return fn(dp, resolution)
 }

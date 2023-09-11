@@ -26,9 +26,9 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/services/leader"
 
-	"go.etcd.io/etcd/clientv3"
-	"go.etcd.io/etcd/integration"
+	integration "github.com/m3db/m3/src/integration/resources/docker/dockerexternal/etcdintegration"
 	"github.com/stretchr/testify/require"
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 var (
@@ -40,26 +40,38 @@ var (
 )
 
 type testCluster struct {
-	t       *testing.T
-	cluster *integration.ClusterV3
+	t             *testing.T
+	cluster       *integration.Cluster
+	leaderService services.LeaderService
 }
 
 func newTestCluster(t *testing.T) *testCluster {
-	return &testCluster{
+	integration.BeforeTestExternal(t)
+	cluster := &testCluster{
 		t: t,
-		cluster: integration.NewClusterV3(t, &integration.ClusterConfig{
+		cluster: integration.NewCluster(t, &integration.ClusterConfig{
 			Size: testClusterSize,
 		}),
 	}
+	return cluster
 }
 
 func (tc *testCluster) LeaderService() services.LeaderService {
+	if tc.leaderService != nil {
+		return tc.leaderService
+	}
+
 	svc, err := leader.NewService(tc.etcdClient(), tc.options())
 	require.NoError(tc.t, err)
-	return svc
+	tc.leaderService = svc
+	return tc.leaderService
 }
 
 func (tc *testCluster) Close() {
+	if tc.leaderService != nil {
+		// amainsd: check error here!
+		_ = tc.leaderService.Close()
+	}
 	tc.cluster.Terminate(tc.t)
 }
 

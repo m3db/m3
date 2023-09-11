@@ -23,6 +23,7 @@
 package main_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -111,7 +112,11 @@ func TestIndexEnabledServer(t *testing.T) {
 	err = xconfig.LoadFile(&cfg, configFd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
-	syncCluster, err := cfg.DB.EnvironmentConfig.Services.SyncCluster()
+	discoveryCfg := cfg.DB.DiscoveryOrDefault()
+	envCfg, err := discoveryCfg.EnvironmentConfig(hostID)
+	require.NoError(t, err)
+
+	syncCluster, err := envCfg.Services.SyncCluster()
 	require.NoError(t, err)
 	configSvcClient, err := syncCluster.Service.NewClient(instrument.NewOptions().
 		SetLogger(zap.NewNop()))
@@ -193,7 +198,7 @@ func TestIndexEnabledServer(t *testing.T) {
 	// NB(r): Make sure client config points to the root config
 	// service since we're going to instantiate the client configuration
 	// just by itself.
-	cfg.DB.Client.EnvironmentConfig = &cfg.DB.EnvironmentConfig
+	cfg.DB.Client.EnvironmentConfig = &envCfg
 
 	cli, err := cfg.DB.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)
@@ -212,10 +217,10 @@ func TestIndexEnabledServer(t *testing.T) {
 	session := adminSession.(client.Session)
 	defer session.Close()
 
-	start := time.Now().Add(-time.Minute)
+	start := xtime.Now().Add(-time.Minute)
 	values := []struct {
 		value float64
-		at    time.Time
+		at    xtime.UnixNano
 		unit  xtime.Unit
 	}{
 		{value: 1.0, at: start, unit: xtime.Second},
@@ -257,10 +262,17 @@ func TestIndexEnabledServer(t *testing.T) {
 
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 	assert.NoError(t, err)
-	iters, fetchResponse, err := session.FetchTagged(ident.StringID(namespaceID), index.Query{reQuery}, index.QueryOptions{
-		StartInclusive: fetchStart,
-		EndExclusive:   fetchEnd,
-	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	iters, fetchResponse, err := session.FetchTagged(ctx,
+		ident.StringID(namespaceID),
+		index.Query{reQuery},
+		index.QueryOptions{
+			StartInclusive: fetchStart,
+			EndExclusive:   fetchEnd,
+		})
 	assert.NoError(t, err)
 	assert.True(t, fetchResponse.Exhaustive)
 	assert.Equal(t, 1, iters.Len())
@@ -275,14 +287,17 @@ func TestIndexEnabledServer(t *testing.T) {
 		assert.Equal(t, v.value, dp.Value)
 		// Account for xtime.Second precision on values going in
 		expectAt := v.at.Truncate(time.Second)
-		assert.Equal(t, expectAt, dp.Timestamp)
+		assert.Equal(t, expectAt, dp.TimestampNanos)
 		assert.Equal(t, v.unit, unit)
 	}
 
-	resultsIter, resultsFetchResponse, err := session.FetchTaggedIDs(ident.StringID(namespaceID), index.Query{reQuery}, index.QueryOptions{
-		StartInclusive: fetchStart,
-		EndExclusive:   fetchEnd,
-	})
+	resultsIter, resultsFetchResponse, err := session.FetchTaggedIDs(ctx,
+		ident.StringID(namespaceID),
+		index.Query{reQuery},
+		index.QueryOptions{
+			StartInclusive: fetchStart,
+			EndExclusive:   fetchEnd,
+		})
 	assert.NoError(t, err)
 	assert.True(t, resultsFetchResponse.Exhaustive)
 	assert.True(t, resultsIter.Next())
@@ -347,15 +362,7 @@ db:
     gcPercentage: 100
 
     writeNewSeriesAsync: false
-    writeNewSeriesLimitPerSecond: 1048576
     writeNewSeriesBackoffDuration: 2ms
-
-    bootstrap:
-        bootstrappers:
-            - filesystem
-            - commitlog
-            - peers
-            - uninitialized_topology
 
     commitlog:
         flushMaxBytes: 524288
@@ -364,7 +371,7 @@ db:
             calculationType: fixed
             size: 2097152
 
-    fs:
+    filesystem:
         filePathPrefix: {{.DataDir}}
         writeBufferSize: 65536
         dataReadBufferSize: 65536
@@ -455,13 +462,14 @@ db:
                 - capacity: 4096
                   size: 128
 
-    config:
-        service:
-            env: {{.ServiceEnv}}
-            zone: {{.ServiceZone}}
-            service: {{.ServiceName}}
-            cacheDir: {{.ConfigServiceCacheDir}}
-            etcdClusters:
-                - zone: {{.ServiceZone}}
-                  endpoints: {{.EtcdEndpoints}}
+    discovery:
+      config:
+          service:
+              env: {{.ServiceEnv}}
+              zone: {{.ServiceZone}}
+              service: {{.ServiceName}}
+              cacheDir: {{.ConfigServiceCacheDir}}
+              etcdClusters:
+                  - zone: {{.ServiceZone}}
+                    endpoints: {{.EtcdEndpoints}}
 `

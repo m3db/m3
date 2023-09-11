@@ -69,12 +69,15 @@ func testPeersBootstrapMergePeerBlocks(t *testing.T, setTestOpts setTestOptions,
 		opts = setTestOpts(t, opts)
 		namesp = opts.Namespaces()[0]
 	}
-	setupOpts := []bootstrappableTestSetupOptions{
-		{disablePeersBootstrapper: true},
-		{disablePeersBootstrapper: true},
-		{disablePeersBootstrapper: false},
+	setupOpts := []BootstrappableTestSetupOptions{
+		{DisablePeersBootstrapper: true},
+		{DisablePeersBootstrapper: true},
+		{
+			DisableCommitLogBootstrapper: true,
+			DisablePeersBootstrapper:     false,
+		},
 	}
-	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
+	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
 
 	// Write test data alternating missing data for left/right nodes

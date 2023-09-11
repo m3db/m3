@@ -21,69 +21,153 @@
 package matcher
 
 import (
+	"time"
+
+	"github.com/uber-go/tally"
+
+	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/matcher/cache"
+	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/rules"
+	"github.com/m3db/m3/src/metrics/rules/view"
 )
 
 // Matcher matches rules against metric IDs.
 type Matcher interface {
-	// ForwardMatch matches rules against metric ID for time range [fromNanos, toNanos)
-	// and returns the match result.
-	ForwardMatch(id id.ID, fromNanos, toNanos int64) rules.MatchResult
+	rules.ActiveSet
 
 	// Close closes the matcher.
 	Close() error
 }
 
 type matcher struct {
-	opts             Options
-	namespaceTag     []byte
-	defaultNamespace []byte
-
 	namespaces Namespaces
 	cache      cache.Cache
+	metrics    matcherMetrics
 }
 
-// NewMatcher creates a new rule matcher.
+// NewMatcher creates a new rule matcher, optionally with a cache.
 func NewMatcher(cache cache.Cache, opts Options) (Matcher, error) {
 	instrumentOpts := opts.InstrumentOptions()
 	scope := instrumentOpts.MetricsScope()
 	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("namespaces"))
-	namespacesOpts := opts.SetInstrumentOptions(iOpts).
-		SetOnNamespaceAddedFn(func(namespace []byte, ruleSet RuleSet) {
-			cache.Register(namespace, ruleSet)
-		}).
-		SetOnNamespaceRemovedFn(func(namespace []byte) {
-			cache.Unregister(namespace)
-		}).
-		SetOnRuleSetUpdatedFn(func(namespace []byte, ruleSet RuleSet) {
-			cache.Refresh(namespace, ruleSet)
-		})
-	key := opts.NamespacesKey()
-	namespaces := NewNamespaces(key, namespacesOpts)
+	namespacesOpts := opts.SetInstrumentOptions(iOpts)
+
+	if cache != nil {
+		namespacesOpts = namespacesOpts.
+			SetOnNamespaceAddedFn(func(namespace []byte, ruleSet RuleSet) {
+				cache.Register(namespace, ruleSet)
+			}).
+			SetOnNamespaceRemovedFn(func(namespace []byte) {
+				cache.Unregister(namespace)
+			}).
+			SetOnRuleSetUpdatedFn(func(namespace []byte, ruleSet RuleSet) {
+				cache.Refresh(namespace, ruleSet)
+			})
+	}
+
+	namespaces := NewNamespaces(opts.NamespacesKey(), namespacesOpts)
 	if err := namespaces.Open(); err != nil {
 		return nil, err
 	}
 
+	if cache == nil {
+		return &noCacheMatcher{
+			namespaces: namespaces,
+			metrics:    newMatcherMetrics(scope.SubScope("matcher")),
+		}, nil
+	}
+
 	return &matcher{
-		opts:             opts,
-		namespaceTag:     opts.NamespaceTag(),
-		defaultNamespace: opts.DefaultNamespace(),
-		namespaces:       namespaces,
-		cache:            cache,
+		namespaces: namespaces,
+		cache:      cache,
+		metrics:    newMatcherMetrics(scope.SubScope("cached-matcher")),
 	}, nil
 }
 
-func (m *matcher) ForwardMatch(id id.ID, fromNanos, toNanos int64) rules.MatchResult {
-	ns, found := id.TagValue(m.namespaceTag)
-	if !found {
-		ns = m.defaultNamespace
-	}
-	return m.cache.ForwardMatch(ns, id.Bytes(), fromNanos, toNanos)
+func (m *matcher) LatestRollupRules(namespace []byte, timeNanos int64) ([]view.RollupRule, error) {
+	return m.namespaces.LatestRollupRules(namespace, timeNanos)
+}
+
+func (m *matcher) ForwardMatch(
+	id id.ID,
+	fromNanos, toNanos int64,
+	opts rules.MatchOptions,
+) (rules.MatchResult, error) {
+	sw := m.metrics.matchLatency.Start()
+	defer sw.Stop()
+	return m.cache.ForwardMatch(id, fromNanos, toNanos, opts)
+}
+
+func (m *matcher) ReverseMatch(
+	id id.ID,
+	fromNanos, toNanos int64,
+	mt metric.Type,
+	at aggregation.Type,
+	isMultiAggregationTypesAllowed bool,
+	aggTypesOpts aggregation.TypesOptions,
+) (rules.MatchResult, error) {
+	sw := m.metrics.matchLatency.Start()
+	defer sw.Stop()
+	// Cache does not support reverse matching.
+	return m.namespaces.ReverseMatch(id, fromNanos, toNanos, mt, at, isMultiAggregationTypesAllowed, aggTypesOpts)
 }
 
 func (m *matcher) Close() error {
 	m.namespaces.Close()
 	return m.cache.Close()
+}
+
+type noCacheMatcher struct {
+	namespaces Namespaces
+	metrics    matcherMetrics
+}
+
+type matcherMetrics struct {
+	matchLatency tally.Histogram
+}
+
+func newMatcherMetrics(scope tally.Scope) matcherMetrics {
+	return matcherMetrics{
+		matchLatency: scope.Histogram(
+			"match-latency",
+			append(
+				tally.DurationBuckets{0},
+				tally.MustMakeExponentialDurationBuckets(time.Millisecond, 1.5, 15)...,
+			),
+		),
+	}
+}
+
+func (m *noCacheMatcher) LatestRollupRules(namespace []byte, timeNanos int64) ([]view.RollupRule, error) {
+	return m.namespaces.LatestRollupRules(namespace, timeNanos)
+}
+
+func (m *noCacheMatcher) ForwardMatch(
+	id id.ID,
+	fromNanos, toNanos int64,
+	opts rules.MatchOptions,
+) (rules.MatchResult, error) {
+	sw := m.metrics.matchLatency.Start()
+	defer sw.Stop()
+	return m.namespaces.ForwardMatch(id, fromNanos, toNanos, opts)
+}
+
+func (m *noCacheMatcher) ReverseMatch(
+	id id.ID,
+	fromNanos, toNanos int64,
+	mt metric.Type,
+	at aggregation.Type,
+	isMultiAggregationTypesAllowed bool,
+	aggTypesOpts aggregation.TypesOptions,
+) (rules.MatchResult, error) {
+	sw := m.metrics.matchLatency.Start()
+	defer sw.Stop()
+	return m.namespaces.ReverseMatch(id, fromNanos, toNanos, mt, at, isMultiAggregationTypesAllowed, aggTypesOpts)
+}
+
+func (m *noCacheMatcher) Close() error {
+	m.namespaces.Close()
+	return nil
 }

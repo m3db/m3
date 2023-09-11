@@ -28,8 +28,9 @@ import (
 
 // ReaderOpenOptionsMatcher is a matcher for the DataReaderOpenOptions struct
 type ReaderOpenOptionsMatcher struct {
-	ID          FileSetFileIdentifier
-	FileSetType persist.FileSetType
+	ID               FileSetFileIdentifier
+	FileSetType      persist.FileSetType
+	StreamingEnabled bool
 }
 
 // Matches determine whether m matches a DataWriterOpenOptions
@@ -54,13 +55,17 @@ func (m ReaderOpenOptionsMatcher) Matches(x interface{}) bool {
 	if m.FileSetType != readerOpenOptions.FileSetType {
 		return false
 	}
+	if m.StreamingEnabled != readerOpenOptions.StreamingEnabled {
+		return false
+	}
 
 	return true
 }
 
 func (m ReaderOpenOptionsMatcher) String() string {
 	return fmt.Sprintf(
-		"namespace: %s, shard: %d, blockstart: %d, volumeIndex: %d, filesetType: %s",
-		m.ID.Namespace.String(), m.ID.Shard, m.ID.BlockStart.Unix(), m.ID.VolumeIndex, m.FileSetType,
+		"namespace: %s, shard: %d, blockstart: %d, volumeIndex: %d, filesetType: %s, streamingEnabled: %t", // nolint: lll
+		m.ID.Namespace.String(), m.ID.Shard, m.ID.BlockStart.Seconds(), m.ID.VolumeIndex,
+		m.FileSetType, m.StreamingEnabled,
 	)
 }

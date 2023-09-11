@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 // Copyright (c) 2018 Uber Technologies, Inc.
@@ -31,9 +32,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/aggregator/aggregation"
-	aggclient "github.com/m3db/m3/src/aggregator/client"
-	"github.com/m3db/m3/src/cluster/kv/mem"
-	"github.com/m3db/m3/src/cluster/placement"
 	maggregation "github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
@@ -42,14 +40,11 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/transformation"
-	"github.com/m3db/m3/src/x/clock"
-	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func TestMultiServerForwardingPipelineKeepNaNAggregatedValues(t *testing.T) {
@@ -65,125 +60,12 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		t.SkipNow()
 	}
 
-	// Clock setup.
-	var lock sync.RWMutex
-	now := time.Now().Truncate(time.Hour)
-	getNowFn := func() time.Time {
-		lock.RLock()
-		t := now
-		lock.RUnlock()
-		return t
-	}
-	setNowFn := func(t time.Time) {
-		lock.Lock()
-		now = t
-		lock.Unlock()
-	}
-	clockOpts := clock.NewOptions().SetNowFn(getNowFn)
-
-	// Placement setup.
-	var (
-		numTotalShards = 1024
-		placementKey   = "/placement"
-		kvStore        = mem.NewStore()
-	)
-	multiServerSetup := []struct {
-		rawTCPAddr     string
-		httpAddr       string
-		instanceConfig placementInstanceConfig
-	}{
-		{
-			rawTCPAddr: "localhost:6000",
-			httpAddr:   "localhost:16000",
-			instanceConfig: placementInstanceConfig{
-				instanceID:          "localhost:6000",
-				shardSetID:          1,
-				shardStartInclusive: 0,
-				shardEndExclusive:   512,
-			},
-		},
-		{
-			rawTCPAddr: "localhost:6001",
-			httpAddr:   "localhost:16001",
-			instanceConfig: placementInstanceConfig{
-				instanceID:          "localhost:6001",
-				shardSetID:          1,
-				shardStartInclusive: 0,
-				shardEndExclusive:   512,
-			},
-		},
-		{
-			rawTCPAddr: "localhost:6002",
-			httpAddr:   "localhost:16002",
-			instanceConfig: placementInstanceConfig{
-				instanceID:          "localhost:6002",
-				shardSetID:          2,
-				shardStartInclusive: 512,
-				shardEndExclusive:   1024,
-			},
-		},
-		{
-			rawTCPAddr: "localhost:6003",
-			httpAddr:   "localhost:16003",
-			instanceConfig: placementInstanceConfig{
-				instanceID:          "localhost:6003",
-				shardSetID:          2,
-				shardStartInclusive: 512,
-				shardEndExclusive:   1024,
-			},
-		},
-	}
-	instances := make([]placement.Instance, 0, len(multiServerSetup))
-	for _, mss := range multiServerSetup {
-		instance := mss.instanceConfig.newPlacementInstance()
-		instances = append(instances, instance)
-	}
-	initPlacement := newPlacement(numTotalShards, instances)
-	require.NoError(t, setPlacement(placementKey, kvStore, initPlacement))
-
-	// Election cluster setup.
-	electionCluster := newTestCluster(t)
-
-	// Sharding function maps all metrics to shard 0 except for the rollup metric,
-	// which gets mapped to the last shard.
-	pipelineRollupID := "pipelineRollup"
-	shardFn := func(id []byte, numShards uint32) uint32 {
-		if pipelineRollupID == string(id) {
-			return numShards - 1
-		}
-		return 0
-	}
-
-	// Admin client connection options setup.
-	connectionOpts := aggclient.NewConnectionOptions().
-		SetInitReconnectThreshold(1).
-		SetMaxReconnectThreshold(1).
-		SetMaxReconnectDuration(2 * time.Second).
-		SetWriteTimeout(time.Second)
-
-	// Create servers.
-	servers := make([]*testServerSetup, 0, len(multiServerSetup))
-	for _, mss := range multiServerSetup {
-		instrumentOpts := instrument.NewOptions()
-		logger := instrumentOpts.Logger().With(
-			zap.String("serverAddr", mss.rawTCPAddr),
-		)
-		instrumentOpts = instrumentOpts.SetLogger(logger)
-		serverOpts := newTestServerOptions().
-			SetClockOptions(clockOpts).
-			SetInstrumentOptions(instrumentOpts).
-			SetElectionCluster(electionCluster).
-			SetHTTPAddr(mss.httpAddr).
-			SetInstanceID(mss.instanceConfig.instanceID).
-			SetKVStore(kvStore).
-			SetRawTCPAddr(mss.rawTCPAddr).
-			SetShardFn(shardFn).
-			SetShardSetID(mss.instanceConfig.shardSetID).
-			SetClientConnectionOptions(connectionOpts).
-			SetDiscardNaNAggregatedValues(discardNaNAggregatedValues)
-		server := newTestServerSetup(t, serverOpts)
-		servers = append(servers, server)
-	}
+	testParams := newTestServerSetups(t, func(opts testServerOptions) testServerOptions {
+		return opts.SetDiscardNaNAggregatedValues(discardNaNAggregatedValues)
+	})
+	servers := testParams.servers
+	clock := testParams.clock
+	topicService := testParams.topicService
 
 	// Start the servers.
 	log := xtest.NewLogger(t)
@@ -194,12 +76,8 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	}
 
 	// Create clients for writing to the servers.
-	clients := make([]*client, 0, len(servers))
-	for _, server := range servers {
-		client := server.newClient()
-		require.NoError(t, client.connect())
-		clients = append(clients, client)
-	}
+	client := servers.newClient(t)
+	require.NoError(t, client.connect())
 
 	// Waiting for two leaders to come up.
 	var (
@@ -233,7 +111,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	var (
 		idPrefix        = "foo"
 		numIDs          = 2
-		start           = getNowFn()
+		start           = clock.Now()
 		stop            = start.Add(12 * time.Second)
 		interval        = time.Second
 		storagePolicies = policy.StoragePolicies{
@@ -302,18 +180,13 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		metadataFn:   metadataFn,
 	})
 
-	writingClients := clients[:2]
 	for _, data := range dataset {
-		setNowFn(data.timestamp)
+		clock.SetNow(data.timestamp)
 
 		for _, mm := range data.metricWithMetadatas {
-			for _, c := range writingClients {
-				require.NoError(t, c.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
-			}
+			require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
 		}
-		for _, c := range writingClients {
-			require.NoError(t, c.flush())
-		}
+		require.NoError(t, client.flush())
 
 		// Give server some time to process the incoming packets.
 		time.Sleep(time.Second)
@@ -323,7 +196,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	// at the originating server (where the raw metrics are aggregated).
 	originatingServerflushTime := stop.Add(2 * storagePolicies[1].Resolution().Window)
 	for currTime := stop; !currTime.After(originatingServerflushTime); currTime = currTime.Add(time.Second) {
-		setNowFn(currTime)
+		clock.SetNow(currTime)
 		time.Sleep(time.Second)
 	}
 
@@ -331,19 +204,23 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	// happen at the destination server (where the rollup metrics are aggregated).
 	destinationServerflushTime := originatingServerflushTime.Add(2 * storagePolicies[1].Resolution().Window)
 	for currTime := originatingServerflushTime; !currTime.After(destinationServerflushTime); currTime = currTime.Add(time.Second) {
-		setNowFn(currTime)
+		clock.SetNow(currTime)
 		time.Sleep(time.Second)
 	}
+
+	// Remove all the topic consumers before closing clients and servers. This allows to close the
+	// connections between servers while they still are running. Otherwise, during server shutdown,
+	// the yet-to-be-closed servers would repeatedly try to reconnect to recently closed ones, which
+	// results in longer shutdown times.
+	require.NoError(t, removeAllTopicConsumers(topicService, defaultTopicName))
+
+	// Stop the client.
+	require.NoError(t, client.close())
 
 	// Stop the servers.
 	for i, server := range servers {
 		require.NoError(t, server.stopServer())
 		log.Sugar().Infof("server %d is now down", i)
-	}
-
-	// Stop the clients.
-	for _, client := range clients {
-		client.close()
 	}
 
 	// Validate results.
@@ -400,7 +277,8 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 			currTime := start.Add(time.Duration(i+1) * storagePolicy.Resolution().Window)
 			instrumentOpts := aggregatorOpts.InstrumentOptions()
 			agg := aggregation.NewGauge(aggregation.NewOptions(instrumentOpts))
-			agg.Update(time.Now(), expectedValuesList[spIdx][i])
+			expectedAnnotation := generateAnnotation(metric.GaugeType, numIDs-1)
+			agg.Update(time.Now(), expectedValuesList[spIdx][i], expectedAnnotation)
 			expectedValuesByTimeList[spIdx][currTime.UnixNano()] = agg
 		}
 	}
@@ -428,5 +306,6 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		expectedResultsFlattened = append(expectedResultsFlattened, expectedResults...)
 	}
 	sort.Sort(byTimeIDPolicyAscending(expectedResultsFlattened))
-	require.True(t, cmp.Equal(expectedResultsFlattened, destinationServer.sortedResults(), testCmpOpts...))
+	actual := destinationServer.sortedResults()
+	require.True(t, cmp.Equal(expectedResultsFlattened, actual, testCmpOpts...))
 }

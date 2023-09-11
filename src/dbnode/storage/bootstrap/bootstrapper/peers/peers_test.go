@@ -46,8 +46,8 @@ func TestNewPeersBootstrapper(t *testing.T) {
 	defer ctrl.Finish()
 
 	idxOpts := index.NewOptions()
-	compactor, err := compaction.NewCompactor(idxOpts.DocumentArrayPool(),
-		index.DocumentArrayPoolCapacity,
+	compactor, err := compaction.NewCompactor(idxOpts.MetadataArrayPool(),
+		index.MetadataArrayPoolCapacity,
 		idxOpts.SegmentBuilderOptions(),
 		idxOpts.FSTSegmentOptions(),
 		compaction.CompactorOptions{
@@ -60,12 +60,16 @@ func TestNewPeersBootstrapper(t *testing.T) {
 		})
 	require.NoError(t, err)
 
+	fsOpts := fs.NewOptions()
+	icm, err := fs.NewIndexClaimsManager(fsOpts)
+	require.NoError(t, err)
 	opts := NewOptions().
 		SetFilesystemOptions(fs.NewOptions()).
 		SetIndexOptions(idxOpts).
 		SetAdminClient(client.NewMockAdminClient(ctrl)).
 		SetPersistManager(persist.NewMockManager(ctrl)).
-		SetFilesystemOptions(fs.NewOptions()).
+		SetIndexClaimsManager(icm).
+		SetFilesystemOptions(fsOpts).
 		SetCompactor(compactor).
 		SetRuntimeOptionsManager(runtime.NewMockOptionsManager(ctrl))
 

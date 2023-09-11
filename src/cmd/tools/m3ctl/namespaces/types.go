@@ -22,7 +22,7 @@ package namespaces
 
 const (
 	// DefaultPath is the default url path for the namespace api calls
-	DefaultPath = "/api/v1/namespace"
+	DefaultPath = "/api/v1/services/m3db/namespace"
 	// DebugQS this is the query string to activate debug output in api responses
 	DebugQS = "debug=true"
 )

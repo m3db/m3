@@ -64,7 +64,8 @@ etcdClusters:
       period: 10s
       jitter: 5s
       timeout: 1s
-    autoSyncInterval: 60s
+    autoSyncInterval: 160s
+    dialTimeout: 42s
   - zone: z2
     endpoints:
       - etcd3:2379
@@ -93,7 +94,7 @@ m3sd:
 	require.Equal(t, "/tmp/cache.json", cfg.CacheDir)
 	require.Equal(t, int64(1), cfg.WatchWithRevision)
 	require.Equal(t, []ClusterConfig{
-		ClusterConfig{
+		{
 			Zone:      "z1",
 			Endpoints: []string{"etcd1:2379", "etcd2:2379"},
 			KeepAlive: &KeepAliveConfig{
@@ -102,9 +103,10 @@ m3sd:
 				Jitter:  5 * time.Second,
 				Timeout: time.Second,
 			},
-			AutoSyncInterval: time.Second * 60,
+			AutoSyncInterval: 160 * time.Second,
+			DialTimeout:      42 * time.Second,
 		},
-		ClusterConfig{
+		{
 			Zone:      "z2",
 			Endpoints: []string{"etcd3:2379", "etcd4:2379"},
 			TLS: &TLSConfig{
@@ -112,7 +114,7 @@ m3sd:
 				KeyPath: "foo.key.pem",
 			},
 		},
-		ClusterConfig{
+		{
 			Zone:      "z3",
 			Endpoints: []string{"etcd5:2379", "etcd6:2379"},
 			TLS: &TLSConfig{
@@ -132,15 +134,16 @@ m3sd:
 	require.Equal(t, 10*time.Second, keepAliveOpts.KeepAlivePeriod())
 	require.Equal(t, 5*time.Second, keepAliveOpts.KeepAlivePeriodMaxJitter())
 	require.Equal(t, time.Second, keepAliveOpts.KeepAliveTimeout())
-	require.Equal(t, 60*time.Second, cluster1.AutoSyncInterval())
+	require.Equal(t, 160*time.Second, cluster1.AutoSyncInterval())
+	require.Equal(t, 42*time.Second, cluster1.DialTimeout())
 
 	cluster2, exists := opts.ClusterForZone("z2")
 	require.True(t, exists)
 	keepAliveOpts = cluster2.KeepAliveOptions()
 	require.Equal(t, true, keepAliveOpts.KeepAliveEnabled())
-	require.Equal(t, 5*time.Minute, keepAliveOpts.KeepAlivePeriod())
-	require.Equal(t, 5*time.Minute, keepAliveOpts.KeepAlivePeriodMaxJitter())
-	require.Equal(t, 20*time.Second, keepAliveOpts.KeepAliveTimeout())
+	require.Equal(t, 20*time.Second, keepAliveOpts.KeepAlivePeriod())
+	require.Equal(t, 10*time.Second, keepAliveOpts.KeepAlivePeriodMaxJitter())
+	require.Equal(t, 10*time.Second, keepAliveOpts.KeepAliveTimeout())
 
 	t.Run("TestOptionsNewDirectoryMode", func(t *testing.T) {
 		opts := cfg.NewOptions()
@@ -171,4 +174,17 @@ m3sd:
 		require.NoError(t, yaml.Unmarshal([]byte(testConfigWithDir), &cfg2))
 		require.Equal(t, os.FileMode(0744), *cfg2.NewDirectoryMode)
 	})
+}
+
+func TestDefaultConfig(t *testing.T) {
+	cluster := ClusterConfig{}.NewCluster()
+	require.Equal(t, defaultDialTimeout, cluster.DialTimeout())
+	require.Equal(t, defaultAutoSyncInterval, cluster.AutoSyncInterval())
+}
+
+func TestConfig_negativeAutosync(t *testing.T) {
+	cluster := ClusterConfig{
+		AutoSyncInterval: -5,
+	}.NewCluster()
+	require.Equal(t, time.Duration(-5), cluster.AutoSyncInterval())
 }

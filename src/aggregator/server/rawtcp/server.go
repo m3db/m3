@@ -24,7 +24,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"math/rand"
 	"net"
 	"sync"
 	"time"
@@ -32,8 +31,6 @@ import (
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/rate"
 	"github.com/m3db/m3/src/metrics/encoding"
-	"github.com/m3db/m3/src/metrics/encoding/migration"
-	"github.com/m3db/m3/src/metrics/encoding/msgpack"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
@@ -41,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	xio "github.com/m3db/m3/src/x/io"
 	xserver "github.com/m3db/m3/src/x/server"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -88,11 +86,9 @@ type handler struct {
 	aggregator     aggregator.Aggregator
 	log            *zap.Logger
 	readBufferSize int
-	msgpackItOpts  msgpack.UnaggregatedIteratorOptions
 	protobufItOpts protobuf.UnaggregatedOptions
 
 	errLogRateLimiter *rate.Limiter
-	rand              *rand.Rand
 	metrics           handlerMetrics
 
 	opts Options
@@ -100,20 +96,17 @@ type handler struct {
 
 // NewHandler creates a new raw TCP handler.
 func NewHandler(aggregator aggregator.Aggregator, opts Options) xserver.Handler {
-	nowFn := opts.ClockOptions().NowFn()
 	iOpts := opts.InstrumentOptions()
 	var limiter *rate.Limiter
 	if rateLimit := opts.ErrorLogLimitPerSecond(); rateLimit != 0 {
-		limiter = rate.NewLimiter(rateLimit, nowFn)
+		limiter = rate.NewLimiter(rateLimit)
 	}
 	return &handler{
 		aggregator:        aggregator,
 		log:               iOpts.Logger(),
 		readBufferSize:    opts.ReadBufferSize(),
-		msgpackItOpts:     opts.MsgpackUnaggregatedIteratorOptions(),
 		protobufItOpts:    opts.ProtobufUnaggregatedIteratorOptions(),
 		errLogRateLimiter: limiter,
-		rand:              rand.New(rand.NewSource(nowFn().UnixNano())),
 		metrics:           newHandlerMetrics(iOpts.MetricsScope()),
 		opts:              opts,
 	}
@@ -125,10 +118,11 @@ func (s *handler) Handle(conn net.Conn) {
 		remoteAddress = remoteAddr.String()
 	}
 
+	nowFn := s.opts.ClockOptions().NowFn()
 	rOpts := xio.ResettableReaderOptions{ReadBufferSize: s.readBufferSize}
 	read := s.opts.RWOptions().ResettableReaderFn()(conn, rOpts)
 	reader := bufio.NewReaderSize(read, s.readBufferSize)
-	it := migration.NewUnaggregatedIterator(reader, s.msgpackItOpts, s.protobufItOpts)
+	it := protobuf.NewUnaggregatedIterator(reader, s.protobufItOpts)
 	defer it.Close()
 
 	// Iterate over the incoming metrics stream and queue up metrics.
@@ -148,32 +142,39 @@ func (s *handler) Handle(conn net.Conn) {
 		switch current.Type {
 		case encoding.CounterWithMetadatasType:
 			untimedMetric = current.CounterWithMetadatas.Counter.ToUnion()
+			untimedMetric.Annotation = current.CounterWithMetadatas.Annotation
 			stagedMetadatas = current.CounterWithMetadatas.StagedMetadatas
-			err = toAddUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
+			err = s.aggregator.AddUntimed(untimedMetric, stagedMetadatas)
 		case encoding.BatchTimerWithMetadatasType:
 			untimedMetric = current.BatchTimerWithMetadatas.BatchTimer.ToUnion()
+			untimedMetric.Annotation = current.BatchTimerWithMetadatas.Annotation
 			stagedMetadatas = current.BatchTimerWithMetadatas.StagedMetadatas
-			err = toAddUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
+			err = s.aggregator.AddUntimed(untimedMetric, stagedMetadatas)
 		case encoding.GaugeWithMetadatasType:
 			untimedMetric = current.GaugeWithMetadatas.Gauge.ToUnion()
+			untimedMetric.Annotation = current.GaugeWithMetadatas.Annotation
 			stagedMetadatas = current.GaugeWithMetadatas.StagedMetadatas
-			err = toAddUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
+			err = s.aggregator.AddUntimed(untimedMetric, stagedMetadatas)
 		case encoding.ForwardedMetricWithMetadataType:
 			forwardedMetric = current.ForwardedMetricWithMetadata.ForwardedMetric
+			untimedMetric.Annotation = current.ForwardedMetricWithMetadata.Annotation
 			forwardMetadata = current.ForwardedMetricWithMetadata.ForwardMetadata
-			err = toAddForwardedError(s.aggregator.AddForwarded(forwardedMetric, forwardMetadata))
+			err = s.aggregator.AddForwarded(forwardedMetric, forwardMetadata)
 		case encoding.TimedMetricWithMetadataType:
 			timedMetric = current.TimedMetricWithMetadata.Metric
+			timedMetric.Annotation = current.TimedMetricWithMetadata.Annotation
 			timedMetadata = current.TimedMetricWithMetadata.TimedMetadata
-			err = toAddTimedError(s.aggregator.AddTimed(timedMetric, timedMetadata))
+			err = s.aggregator.AddTimed(timedMetric, timedMetadata)
 		case encoding.TimedMetricWithMetadatasType:
 			timedMetric = current.TimedMetricWithMetadatas.Metric
+			timedMetric.Annotation = current.TimedMetricWithMetadatas.Annotation
 			stagedMetadatas = current.TimedMetricWithMetadatas.StagedMetadatas
-			err = toAddTimedError(s.aggregator.AddTimedWithStagedMetadatas(timedMetric, stagedMetadatas))
+			err = s.aggregator.AddTimedWithStagedMetadatas(timedMetric, stagedMetadatas)
 		case encoding.PassthroughMetricWithMetadataType:
 			passthroughMetric = current.PassthroughMetricWithMetadata.Metric
+			passthroughMetric.Annotation = current.PassthroughMetricWithMetadata.Annotation
 			passthroughMetadata = current.PassthroughMetricWithMetadata.StoragePolicy
-			err = toAddPassthroughError(s.aggregator.AddPassthrough(passthroughMetric, passthroughMetadata))
+			err = s.aggregator.AddPassthrough(passthroughMetric, passthroughMetadata)
 		default:
 			err = newUnknownMessageTypeError(current.Type)
 		}
@@ -184,7 +185,7 @@ func (s *handler) Handle(conn net.Conn) {
 
 		// We rate limit the error log here because the error rate may scale with
 		// the metrics incoming rate and consume lots of cpu cycles.
-		if s.errLogRateLimiter != nil && !s.errLogRateLimiter.IsAllowed(1) {
+		if s.errLogRateLimiter != nil && !s.errLogRateLimiter.IsAllowed(1, xtime.ToUnixNano(nowFn())) {
 			s.metrics.errLogRateLimited.Inc(1)
 			continue
 		}
@@ -195,48 +196,55 @@ func (s *handler) Handle(conn net.Conn) {
 				zap.String("remoteAddress", remoteAddress),
 				zap.Error(err),
 			)
-		case addUntimedError:
-			s.metrics.addUntimedErrors.Inc(1)
-			s.log.Error("error adding untimed metric",
-				zap.String("remoteAddress", remoteAddress),
-				zap.Stringer("type", untimedMetric.Type),
-				zap.Stringer("id", untimedMetric.ID),
-				zap.Any("metadatas", stagedMetadatas),
-				zap.Error(err),
-			)
-		case addForwardedError:
-			s.metrics.addForwardedErrors.Inc(1)
-			s.log.Error("error adding forwarded metric",
-				zap.String("remoteAddress", remoteAddress),
-				zap.Stringer("id", forwardedMetric.ID),
-				zap.Time("timestamp", time.Unix(0, forwardedMetric.TimeNanos)),
-				zap.Float64s("values", forwardedMetric.Values),
-				zap.Error(err),
-			)
-		case addTimedError:
-			s.metrics.addTimedErrors.Inc(1)
-			s.log.Error("error adding timed metric",
-				zap.String("remoteAddress", remoteAddress),
-				zap.Stringer("id", timedMetric.ID),
-				zap.Time("timestamp", time.Unix(0, timedMetric.TimeNanos)),
-				zap.Float64("value", timedMetric.Value),
-				zap.Error(err),
-			)
-		case addPassthroughError:
-			s.metrics.addPassthroughErrors.Inc(1)
-			s.log.Error("error adding passthrough metric",
-				zap.String("remoteAddress", remoteAddress),
-				zap.Stringer("id", timedMetric.ID),
-				zap.Time("timestamp", time.Unix(0, timedMetric.TimeNanos)),
-				zap.Float64("value", timedMetric.Value),
-				zap.Error(err),
-			)
 		default:
-			s.metrics.unknownErrorTypeErrors.Inc(1)
-			s.log.Error("unknown error type",
-				zap.String("errorType", fmt.Sprintf("%T", err)),
-				zap.Error(err),
-			)
+			switch current.Type {
+			case encoding.CounterWithMetadatasType:
+				fallthrough
+			case encoding.BatchTimerWithMetadatasType:
+				fallthrough
+			case encoding.GaugeWithMetadatasType:
+				s.metrics.addUntimedErrors.Inc(1)
+				s.log.Error("error adding untimed metric",
+					zap.String("remoteAddress", remoteAddress),
+					zap.Stringer("type", untimedMetric.Type),
+					zap.Stringer("id", untimedMetric.ID),
+					zap.Any("metadatas", stagedMetadatas),
+					zap.Error(err),
+				)
+			case encoding.ForwardedMetricWithMetadataType:
+				s.metrics.addForwardedErrors.Inc(1)
+				s.log.Error("error adding forwarded metric",
+					zap.String("remoteAddress", remoteAddress),
+					zap.Stringer("id", forwardedMetric.ID),
+					zap.Time("timestamp", time.Unix(0, forwardedMetric.TimeNanos)),
+					zap.Float64s("values", forwardedMetric.Values),
+					zap.Error(err),
+				)
+			case encoding.TimedMetricWithMetadataType:
+				fallthrough
+			case encoding.TimedMetricWithMetadatasType:
+				s.metrics.addTimedErrors.Inc(1)
+				s.log.Error("error adding timed metric",
+					zap.String("remoteAddress", remoteAddress),
+					zap.Stringer("id", timedMetric.ID),
+					zap.Time("timestamp", time.Unix(0, timedMetric.TimeNanos)),
+					zap.Float64("value", timedMetric.Value),
+					zap.Any("metadatas", stagedMetadatas),
+					zap.Error(err),
+				)
+			case encoding.PassthroughMetricWithMetadataType:
+				s.metrics.addPassthroughErrors.Inc(1)
+				s.log.Error("error adding passthrough metric",
+					zap.String("remoteAddress", remoteAddress),
+					zap.Stringer("id", timedMetric.ID),
+					zap.Time("timestamp", time.Unix(0, timedMetric.TimeNanos)),
+					zap.Float64("value", timedMetric.Value),
+					zap.Error(err),
+				)
+			default:
+				// make the linter happy.
+				s.log.Error("unknown message type for error. this cannot happen")
+			}
 		}
 	}
 
@@ -270,55 +278,3 @@ func newUnknownMessageTypeError(
 func (e unknownMessageTypeError) Error() string {
 	return fmt.Sprintf("unknown message type %v", e.msgType)
 }
-
-type addUntimedError struct {
-	err error
-}
-
-func toAddUntimedError(err error) error {
-	if err == nil {
-		return nil
-	}
-	return addUntimedError{err: err}
-}
-
-func (e addUntimedError) Error() string { return e.err.Error() }
-
-type addTimedError struct {
-	err error
-}
-
-func toAddTimedError(err error) error {
-	if err == nil {
-		return nil
-	}
-	return addTimedError{err: err}
-}
-
-func (e addTimedError) Error() string { return e.err.Error() }
-
-type addForwardedError struct {
-	err error
-}
-
-func toAddForwardedError(err error) error {
-	if err == nil {
-		return nil
-	}
-	return addForwardedError{err: err}
-}
-
-func (e addForwardedError) Error() string { return e.err.Error() }
-
-type addPassthroughError struct {
-	err error
-}
-
-func toAddPassthroughError(err error) error {
-	if err == nil {
-		return nil
-	}
-	return addPassthroughError{err: err}
-}
-
-func (e addPassthroughError) Error() string { return e.err.Error() }

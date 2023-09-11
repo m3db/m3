@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -51,11 +52,17 @@ const (
 	// defaultTruncateRequestTimeout is the default truncate request timeout.
 	defaultTruncateRequestTimeout = 2 * time.Second
 
+	// defaultFetchRequestTimeout is the default fetch request timeout
+	defaultFetchRequestTimeout = 15 * time.Second
+
 	// defaultWorkerPoolSize is the default number of workers in the worker pool.
 	defaultWorkerPoolSize = 10
 
 	// defaultTickMinimumInterval is the default minimum tick interval.
 	defaultTickMinimumInterval = 1 * time.Second
+
+	// defaultTickCancellationCheckInterval is the default minimum tick cancellation check interval.
+	defaultTickCancellationCheckInterval = 1 * time.Second
 
 	// defaultUseTChannelClientForReading determines whether we use the tchannel client for reading by default.
 	defaultUseTChannelClientForReading = false
@@ -78,10 +85,14 @@ const (
 
 	// defaultWriteNewSeriesAsync inserts, and index series' synchronously by default.
 	defaultWriteNewSeriesAsync = false
+
+	// defaultReportInterval is the default time interval of reporting metrics within the system.
+	defaultReportInterval = time.Second
 )
 
 var (
-	defaultIntegrationTestRetentionOpts = retention.NewOptions().SetRetentionPeriod(6 * time.Hour)
+	// DefaultIntegrationTestRetentionOpts are default integration test retention options.
+	DefaultIntegrationTestRetentionOpts = retention.NewOptions().SetRetentionPeriod(6 * time.Hour)
 )
 
 // TestOptions contains integration test options.
@@ -110,6 +121,12 @@ type TestOptions interface {
 
 	// TickMinimumInterval returns the tick interval.
 	TickMinimumInterval() time.Duration
+
+	// SetTickCancellationCheckInterval sets the tick cancellation check interval.
+	SetTickCancellationCheckInterval(value time.Duration) TestOptions
+
+	// TickCancellationCheckInterval returns the tick cancellation check interval.
+	TickCancellationCheckInterval() time.Duration
 
 	// SetHTTPClusterAddr sets the http cluster address.
 	SetHTTPClusterAddr(value string) TestOptions
@@ -171,6 +188,12 @@ type TestOptions interface {
 	// TruncateRequestTimeout returns the truncate request timeout.
 	TruncateRequestTimeout() time.Duration
 
+	// SetFetchRequestTimeout sets the fetch request timeout.
+	SetFetchRequestTimeout(value time.Duration) TestOptions
+
+	// FetchRequestTimeout returns the fetch request timeout.
+	FetchRequestTimeout() time.Duration
+
 	// SetWorkerPoolSize sets the number of workers in the worker pool.
 	SetWorkerPoolSize(value int) TestOptions
 
@@ -184,6 +207,12 @@ type TestOptions interface {
 	// ClusterDatabaseTopologyInitializer returns the topology initializer that
 	// is used when creating a cluster database
 	ClusterDatabaseTopologyInitializer() topology.Initializer
+
+	// SetCustomClientAdminOptions sets any custom admin options to set.
+	SetCustomClientAdminOptions(value []client.CustomAdminOption) TestOptions
+
+	// CustomClientAdminOptions returns any custom admin options to set.
+	CustomClientAdminOptions() []client.CustomAdminOption
 
 	// SetUseTChannelClientForReading sets whether we use the tchannel client for reading.
 	SetUseTChannelClientForReading(value bool) TestOptions
@@ -238,6 +267,12 @@ type TestOptions interface {
 	// SetNumShards sets the number of shards to use.
 	SetNumShards(value int) TestOptions
 
+	// ShardSetOptions returns the test shard set options.
+	ShardSetOptions() *TestShardSetOptions
+
+	// SetShardSetOptions returns the test shard set options.
+	SetShardSetOptions(value *TestShardSetOptions) TestOptions
+
 	// MaxWiredBlocks returns the maximum number of wired blocks to keep in memory using the LRU cache.
 	MaxWiredBlocks() uint
 
@@ -274,6 +309,24 @@ type TestOptions interface {
 
 	// NowFn returns the now fn.
 	NowFn() func() time.Time
+
+	// SetReportInterval sets the time between reporting metrics within the system.
+	SetReportInterval(value time.Duration) TestOptions
+
+	// ReportInterval returns the time between reporting metrics within the system.
+	ReportInterval() time.Duration
+
+	// SetStorageOptsFn sets the StorageOpts modifier.
+	SetStorageOptsFn(StorageOption) TestOptions
+
+	// StorageOptsFn returns the StorageOpts modifier.
+	StorageOptsFn() StorageOption
+
+	// SetCustomAdminOptions sets custom options to apply to the admin client connection.
+	SetCustomAdminOptions(value []client.CustomAdminOption) TestOptions
+
+	// CustomAdminOptions gets custom options to apply to the admin client connection.
+	CustomAdminOptions() []client.CustomAdminOption
 }
 
 type options struct {
@@ -281,6 +334,7 @@ type options struct {
 	nsInitializer                      namespace.Initializer
 	id                                 string
 	tickMinimumInterval                time.Duration
+	tickCancellationCheckInterval      time.Duration
 	httpClusterAddr                    string
 	tchannelClusterAddr                string
 	httpNodeAddr                       string
@@ -292,13 +346,16 @@ type options struct {
 	readRequestTimeout                 time.Duration
 	writeRequestTimeout                time.Duration
 	truncateRequestTimeout             time.Duration
+	fetchRequestTimeout                time.Duration
 	workerPoolSize                     int
 	clusterDatabaseTopologyInitializer topology.Initializer
 	blockRetrieverManager              block.DatabaseBlockRetrieverManager
 	verifySeriesDebugFilePathPrefix    string
 	writeConsistencyLevel              topology.ConsistencyLevel
 	numShards                          int
+	shardSetOptions                    *TestShardSetOptions
 	maxWiredBlocks                     uint
+	customClientAdminOptions           []client.CustomAdminOption
 	useTChannelClientForReading        bool
 	useTChannelClientForWriting        bool
 	useTChannelClientForTruncation     bool
@@ -306,6 +363,9 @@ type options struct {
 	protoEncoding                      bool
 	assertEqual                        assertTestDataEqual
 	nowFn                              func() time.Time
+	reportInterval                     time.Duration
+	storageOptsFn                      StorageOption
+	customAdminOpts                    []client.CustomAdminOption
 }
 
 // NewTestOptions returns a new set of integration test options.
@@ -313,7 +373,7 @@ func NewTestOptions(t *testing.T) TestOptions {
 	var namespaces []namespace.Metadata
 	nsOpts := namespace.NewOptions().
 		SetRepairEnabled(false).
-		SetRetentionOptions(defaultIntegrationTestRetentionOpts)
+		SetRetentionOptions(DefaultIntegrationTestRetentionOpts)
 
 	for _, ns := range testNamespaces {
 		md, err := namespace.NewMetadata(ns, nsOpts)
@@ -325,11 +385,13 @@ func NewTestOptions(t *testing.T) TestOptions {
 		namespaces:                     namespaces,
 		id:                             defaultID,
 		tickMinimumInterval:            defaultTickMinimumInterval,
+		tickCancellationCheckInterval:  defaultTickCancellationCheckInterval,
 		serverStateChangeTimeout:       defaultServerStateChangeTimeout,
 		clusterConnectionTimeout:       defaultClusterConnectionTimeout,
 		readRequestTimeout:             defaultReadRequestTimeout,
 		writeRequestTimeout:            defaultWriteRequestTimeout,
 		truncateRequestTimeout:         defaultTruncateRequestTimeout,
+		fetchRequestTimeout:            defaultFetchRequestTimeout,
 		workerPoolSize:                 defaultWorkerPoolSize,
 		writeConsistencyLevel:          defaultWriteConsistencyLevel,
 		numShards:                      defaultNumShards,
@@ -338,6 +400,7 @@ func NewTestOptions(t *testing.T) TestOptions {
 		useTChannelClientForWriting:    defaultUseTChannelClientForWriting,
 		useTChannelClientForTruncation: defaultUseTChannelClientForTruncation,
 		writeNewSeriesAsync:            defaultWriteNewSeriesAsync,
+		reportInterval:                 defaultReportInterval,
 	}
 }
 
@@ -371,6 +434,7 @@ func (o *options) SetID(value string) TestOptions {
 func (o *options) ID() string {
 	return o.id
 }
+
 func (o *options) SetTickMinimumInterval(value time.Duration) TestOptions {
 	opts := *o
 	opts.tickMinimumInterval = value
@@ -379,6 +443,16 @@ func (o *options) SetTickMinimumInterval(value time.Duration) TestOptions {
 
 func (o *options) TickMinimumInterval() time.Duration {
 	return o.tickMinimumInterval
+}
+
+func (o *options) SetTickCancellationCheckInterval(value time.Duration) TestOptions {
+	opts := *o
+	opts.tickCancellationCheckInterval = value
+	return &opts
+}
+
+func (o *options) TickCancellationCheckInterval() time.Duration {
+	return o.tickCancellationCheckInterval
 }
 
 func (o *options) SetHTTPClusterAddr(value string) TestOptions {
@@ -481,6 +555,16 @@ func (o *options) TruncateRequestTimeout() time.Duration {
 	return o.truncateRequestTimeout
 }
 
+func (o *options) SetFetchRequestTimeout(value time.Duration) TestOptions {
+	opts := *o
+	opts.fetchRequestTimeout = value
+	return &opts
+}
+
+func (o *options) FetchRequestTimeout() time.Duration {
+	return o.fetchRequestTimeout
+}
+
 func (o *options) SetWorkerPoolSize(value int) TestOptions {
 	opts := *o
 	opts.workerPoolSize = value
@@ -499,6 +583,16 @@ func (o *options) SetClusterDatabaseTopologyInitializer(value topology.Initializ
 
 func (o *options) ClusterDatabaseTopologyInitializer() topology.Initializer {
 	return o.clusterDatabaseTopologyInitializer
+}
+
+func (o *options) SetCustomClientAdminOptions(value []client.CustomAdminOption) TestOptions {
+	opts := *o
+	opts.customClientAdminOptions = value
+	return &opts
+}
+
+func (o *options) CustomClientAdminOptions() []client.CustomAdminOption {
+	return o.customClientAdminOptions
 }
 
 func (o *options) SetUseTChannelClientForReading(value bool) TestOptions {
@@ -573,6 +667,16 @@ func (o *options) SetNumShards(value int) TestOptions {
 	return &opts
 }
 
+func (o *options) ShardSetOptions() *TestShardSetOptions {
+	return o.shardSetOptions
+}
+
+func (o *options) SetShardSetOptions(value *TestShardSetOptions) TestOptions {
+	opts := *o
+	opts.shardSetOptions = value
+	return &opts
+}
+
 func (o *options) MaxWiredBlocks() uint {
 	return o.maxWiredBlocks
 }
@@ -631,4 +735,34 @@ func (o *options) SetNowFn(value func() time.Time) TestOptions {
 
 func (o *options) NowFn() func() time.Time {
 	return o.nowFn
+}
+
+func (o *options) SetReportInterval(value time.Duration) TestOptions {
+	opts := *o
+	opts.reportInterval = value
+	return &opts
+}
+
+func (o *options) ReportInterval() time.Duration {
+	return o.reportInterval
+}
+
+func (o *options) SetStorageOptsFn(storageOptsFn StorageOption) TestOptions {
+	opts := *o
+	opts.storageOptsFn = storageOptsFn
+	return &opts
+}
+
+func (o *options) StorageOptsFn() StorageOption {
+	return o.storageOptsFn
+}
+
+func (o *options) SetCustomAdminOptions(value []client.CustomAdminOption) TestOptions {
+	opts := *o
+	opts.customAdminOpts = value
+	return &opts
+}
+
+func (o *options) CustomAdminOptions() []client.CustomAdminOption {
+	return o.customAdminOpts
 }

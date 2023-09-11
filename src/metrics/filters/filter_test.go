@@ -349,6 +349,16 @@ func TestMultiCharSequenceFilter(t *testing.T) {
 	validateLookup(t, f, "12test", true, "12")
 	validateLookup(t, f, "12test2", true, "12")
 	validateLookup(t, f, "123book", true, "123")
+
+	f, err = newMultiCharSequenceFilter([]byte("test,test_post,extra_unused_filter"), false)
+	require.NoError(t, err)
+	validateLookup(t, f, "test", true, "")
+	validateLookup(t, f, "test_post", true, "")
+
+	f, err = newMultiCharSequenceFilter([]byte("test,pre_test,extra_unused_filter"), true)
+	require.NoError(t, err)
+	validateLookup(t, f, "test", true, "")
+	validateLookup(t, f, "pre_test", true, "")
 }
 
 func validateLookup(t *testing.T, f chainFilter, val string, expectedMatch bool, expectedRemainder string) {
@@ -360,6 +370,7 @@ func validateLookup(t *testing.T, f chainFilter, val string, expectedMatch bool,
 type mockFilterData struct {
 	val   string
 	match bool
+	err   error
 }
 
 type testPattern struct {

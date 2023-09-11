@@ -57,7 +57,8 @@ func TestFromNormalizedTime(t *testing.T) {
 		{60100, time.Millisecond, time.Unix(60, 100000000)},
 	}
 	for _, input := range inputs {
-		require.Equal(t, input.expected, FromNormalizedTime(input.nt, input.u))
+		exTime := ToUnixNano(input.expected)
+		require.Equal(t, exTime, FromNormalizedTime(input.nt, input.u))
 	}
 }
 
@@ -101,9 +102,7 @@ func TestFromNanoseconds(t *testing.T) {
 	require.Equal(t, expected, FromNanoseconds(1100000000))
 }
 
-var (
-	testTime = time.Date(2015, 5, 21, 18, 17, 46, 0, time.UTC)
-)
+var testTime = time.Date(2015, 5, 21, 18, 17, 46, 0, time.UTC)
 
 func TestToUnixMillis(t *testing.T) {
 	ms := ToUnixMillis(testTime)
@@ -158,5 +157,47 @@ func TestMaxTime(t *testing.T) {
 	}
 	for _, input := range inputs {
 		require.Equal(t, input.expected, MaxTime(input.t1, input.t2))
+	}
+}
+
+func TestTruncate(t *testing.T) {
+	var (
+		n      = time.Now().UTC()
+		format = "1 2 3:04:05PM"
+
+		day   = time.Hour * 24
+		week  = day * 7
+		month = day * 30
+		year  = day * 365
+
+		blockSizes = []time.Duration{
+			time.Nanosecond,
+			time.Nanosecond * 123,
+			time.Microsecond,
+			time.Microsecond,
+			time.Millisecond * 123,
+			time.Second,
+			time.Second * 11,
+			time.Minute,
+			time.Hour,
+			day,
+			day * 2,
+			day*2 + time.Hour*6,
+			week,
+			month,
+			year,
+		}
+	)
+
+	for _, blockSize := range blockSizes {
+		blockSize := blockSize
+		t.Run(blockSize.String(), func(t *testing.T) {
+			xNow := ToUnixNano(n).Truncate(blockSize)
+			now := n.Truncate(blockSize)
+
+			require.Equal(t, now.String(), xNow.String())
+			require.Equal(t, now.Format(format), xNow.Format(format))
+			require.Equal(t, now.UnixNano(), int64(xNow))
+		})
 	}
 }

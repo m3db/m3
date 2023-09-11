@@ -135,7 +135,7 @@ func TestConsumerServiceWriterWithSharedConsumerWithNonShardedPlacement(t *testi
 	}
 
 	for _, sw := range w.(*consumerServiceWriterImpl).shardWriters {
-		require.Equal(t, 3, len(sw.(*sharedShardWriter).mw.(*messageWriterImpl).consumerWriters))
+		require.Equal(t, 3, len(sw.(*sharedShardWriter).mw.consumerWriters))
 	}
 
 	p2 := placement.NewPlacement().
@@ -162,7 +162,7 @@ func TestConsumerServiceWriterWithSharedConsumerWithNonShardedPlacement(t *testi
 	}
 
 	for _, sw := range w.(*consumerServiceWriterImpl).shardWriters {
-		require.Equal(t, 2, len(sw.(*sharedShardWriter).mw.(*messageWriterImpl).consumerWriters))
+		require.Equal(t, 2, len(sw.(*sharedShardWriter).mw.consumerWriters))
 	}
 
 	csw.Close()
@@ -512,6 +512,9 @@ func TestConsumerServiceWriterFilter(t *testing.T) {
 	mm1 := producer.NewMockMessage(ctrl)
 	mm1.EXPECT().Shard().Return(uint32(1)).AnyTimes()
 	mm1.EXPECT().Size().Return(3).AnyTimes()
+	mm2 := producer.NewMockMessage(ctrl)
+	mm2.EXPECT().Shard().Return(uint32(0)).AnyTimes()
+	mm2.EXPECT().Size().Return(4).AnyTimes()
 
 	sw0.EXPECT().Write(gomock.Any())
 	csw.Write(producer.NewRefCountedMessage(mm0, nil))
@@ -519,14 +522,29 @@ func TestConsumerServiceWriterFilter(t *testing.T) {
 	csw.Write(producer.NewRefCountedMessage(mm1, nil))
 
 	csw.RegisterFilter(func(m producer.Message) bool { return m.Shard() == uint32(0) })
+	// Write is not expected due to mm1 shard != 0
 	csw.Write(producer.NewRefCountedMessage(mm1, nil))
 
 	sw0.EXPECT().Write(gomock.Any())
+	// Write is expected due to mm0 shard == 0
 	csw.Write(producer.NewRefCountedMessage(mm0, nil))
 
-	csw.UnregisterFilter()
+	csw.RegisterFilter(func(m producer.Message) bool { return m.Size() == 3 })
+	sw0.EXPECT().Write(gomock.Any())
+	// Write is expected because to mm0 shard == 0 and mm0 size == 3
+	csw.Write(producer.NewRefCountedMessage(mm0, nil))
+
+	// Write is not expected because to mm2 size != 3
+	csw.Write(producer.NewRefCountedMessage(mm2, nil))
+
+	// All messages are expected to write after unregistering filters
+	csw.UnregisterFilters()
+	sw0.EXPECT().Write(gomock.Any())
+	csw.Write(producer.NewRefCountedMessage(mm0, nil))
 	sw1.EXPECT().Write(gomock.Any())
 	csw.Write(producer.NewRefCountedMessage(mm1, nil))
+	sw0.EXPECT().Write(gomock.Any())
+	csw.Write(producer.NewRefCountedMessage(mm2, nil))
 }
 
 func TestConsumerServiceWriterAllowInitValueErrorWithCreateWatchError(t *testing.T) {
@@ -608,7 +626,8 @@ func TestConsumerServiceWriterUpdateNonShardedPlacementWithReplicatedConsumption
 	cs := topic.NewConsumerService().SetServiceID(sid).SetConsumptionType(topic.Replicated)
 	sd := services.NewMockServices(ctrl)
 	pOpts := placement.NewOptions().SetIsSharded(false)
-	ps := service.NewPlacementService(storage.NewPlacementStorage(mem.NewStore(), sid.String(), pOpts), pOpts)
+	ps := service.NewPlacementService(storage.NewPlacementStorage(mem.NewStore(), sid.String(), pOpts),
+		service.WithPlacementOptions(pOpts))
 	sd.EXPECT().PlacementService(sid, gomock.Any()).Return(ps, nil)
 	_, err := ps.BuildInitialPlacement([]placement.Instance{
 		placement.NewInstance().SetID("i1").SetEndpoint("i1").SetWeight(1),
@@ -668,5 +687,7 @@ func TestConsumerServiceCloseShardWritersConcurrently(t *testing.T) {
 }
 
 func testPlacementService(store kv.Store, sid services.ServiceID) placement.Service {
-	return service.NewPlacementService(storage.NewPlacementStorage(store, sid.String(), placement.NewOptions()), placement.NewOptions())
+	return service.NewPlacementService(
+		storage.NewPlacementStorage(store, sid.String(), placement.NewOptions()),
+	)
 }

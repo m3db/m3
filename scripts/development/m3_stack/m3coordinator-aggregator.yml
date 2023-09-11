@@ -1,5 +1,4 @@
-listenAddress:
-  value: "0.0.0.0:7201"
+listenAddress: 0.0.0.0:7201
 
 logging:
   level: info
@@ -81,3 +80,5 @@ carbon:
 
 tagOptions:
   idScheme: quoted
+
+storeMetricsType: true

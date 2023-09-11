@@ -21,437 +21,264 @@
 package index
 
 import (
-	"bytes"
+	"sort"
 	"testing"
-
-	"github.com/m3db/m3/src/m3ninx/doc"
-	"github.com/m3db/m3/src/x/ident"
-	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	xtest "github.com/m3db/m3/src/x/test"
 )
 
-func genDoc(strs ...string) doc.Document {
-	if len(strs)%2 != 0 {
-		panic("invalid test setup; need even str length")
+func entries(entries ...AggregateResultsEntry) []AggregateResultsEntry { return entries }
+
+func genResultsEntry(field string, terms ...string) AggregateResultsEntry {
+	entryTerms := make([]ident.ID, 0, len(terms))
+	for _, term := range terms {
+		entryTerms = append(entryTerms, ident.StringID(term))
 	}
 
-	fields := make([]doc.Field, len(strs)/2)
-	for i := range fields {
-		fields[i] = doc.Field{
-			Name:  []byte(strs[i*2]),
-			Value: []byte(strs[i*2+1]),
+	return AggregateResultsEntry{
+		Field: ident.StringID(field),
+		Terms: entryTerms,
+	}
+}
+
+func toMap(res AggregateResults) map[string][]string {
+	entries := res.Map().Iter()
+	resultMap := make(map[string][]string, len(entries))
+	for _, entry := range entries { //nolint:gocritic
+		terms := entry.value.Map().Iter()
+		resultTerms := make([]string, 0, len(terms))
+		for _, term := range terms {
+			resultTerms = append(resultTerms, term.Key().String())
 		}
+
+		sort.Strings(resultTerms)
+		resultMap[entry.Key().String()] = resultTerms
 	}
 
-	return doc.Document{Fields: fields}
+	return resultMap
 }
 
-func TestAggResultsInsertInvalid(t *testing.T) {
-	res := NewAggregateResults(nil, AggregateResultsOptions{}, testOpts)
-	dInvalid := doc.Document{Fields: []doc.Field{{}}}
-	size, docsCount, err := res.AddDocuments([]doc.Document{dInvalid})
-	require.Error(t, err)
-	require.Equal(t, 0, size)
-	require.Equal(t, 1, docsCount)
+func TestWithLimits(t *testing.T) {
+	tests := []struct {
+		name      string
+		entries   []AggregateResultsEntry
+		sizeLimit int
+		docLimit  int
+		exSeries  int
+		exDocs    int
+		expected  map[string][]string
+		exMetrics map[string]int64
+	}{
+		{
+			name:     "single term",
+			entries:  entries(genResultsEntry("foo")),
+			exSeries: 1,
+			exDocs:   1,
+			expected: map[string][]string{"foo": {}},
 
-	require.Equal(t, 0, res.Size())
-	require.Equal(t, 1, res.TotalDocsCount())
+			exMetrics: map[string]int64{
+				"total": 1, "total-fields": 1, "deduped-fields": 1,
+				"total-terms": 0, "deduped-terms": 0,
+			},
+		},
+		{
+			name:     "same term",
+			entries:  entries(genResultsEntry("foo"), genResultsEntry("foo")),
+			exSeries: 1,
+			exDocs:   2,
+			expected: map[string][]string{"foo": {}},
+			exMetrics: map[string]int64{
+				"total": 2, "total-fields": 2, "deduped-fields": 1,
+				"total-terms": 0, "deduped-terms": 0,
+			},
+		},
+		{
+			name:     "multiple terms",
+			entries:  entries(genResultsEntry("foo"), genResultsEntry("bar")),
+			exSeries: 2,
+			exDocs:   2,
+			expected: map[string][]string{"foo": {}, "bar": {}},
+			exMetrics: map[string]int64{
+				"total": 2, "total-fields": 2, "deduped-fields": 2,
+				"total-terms": 0, "deduped-terms": 0,
+			},
+		},
+		{
+			name:     "single entry",
+			entries:  entries(genResultsEntry("foo", "bar")),
+			exSeries: 2,
+			exDocs:   2,
+			expected: map[string][]string{"foo": {"bar"}},
+			exMetrics: map[string]int64{
+				"total": 2, "total-fields": 1, "deduped-fields": 1,
+				"total-terms": 1, "deduped-terms": 1,
+			},
+		},
+		{
+			name:     "single entry multiple fields",
+			entries:  entries(genResultsEntry("foo", "bar", "baz", "baz", "baz", "qux")),
+			exSeries: 4,
+			exDocs:   6,
+			expected: map[string][]string{"foo": {"bar", "baz", "qux"}},
+			exMetrics: map[string]int64{
+				"total": 6, "total-fields": 1, "deduped-fields": 1,
+				"total-terms": 5, "deduped-terms": 3,
+			},
+		},
+		{
+			name: "multiple entry multiple fields",
+			entries: entries(
+				genResultsEntry("foo", "bar", "baz"),
+				genResultsEntry("foo", "baz", "baz", "qux")),
+			exSeries: 4,
+			exDocs:   7,
+			expected: map[string][]string{"foo": {"bar", "baz", "qux"}},
+			exMetrics: map[string]int64{
+				"total": 7, "total-fields": 2, "deduped-fields": 1,
+				"total-terms": 5, "deduped-terms": 3,
+			},
+		},
+		{
+			name:     "multiple entries",
+			entries:  entries(genResultsEntry("foo", "baz"), genResultsEntry("bar", "baz", "qux")),
+			exSeries: 5,
+			exDocs:   5,
+			expected: map[string][]string{"foo": {"baz"}, "bar": {"baz", "qux"}},
+			exMetrics: map[string]int64{
+				"total": 5, "total-fields": 2, "deduped-fields": 2,
+				"total-terms": 3, "deduped-terms": 3,
+			},
+		},
 
-	dInvalid = genDoc("", "foo")
-	size, docsCount, err = res.AddDocuments([]doc.Document{dInvalid})
-	require.Error(t, err)
-	require.Equal(t, 0, size)
-	require.Equal(t, 2, docsCount)
+		{
+			name:      "single entry query at size limit",
+			entries:   entries(genResultsEntry("foo", "bar", "baz", "baz", "qux")),
+			sizeLimit: 4,
+			exSeries:  4,
+			exDocs:    5,
+			expected:  map[string][]string{"foo": {"bar", "baz", "qux"}},
+			exMetrics: map[string]int64{
+				"total": 5, "total-fields": 1, "deduped-fields": 1,
+				"total-terms": 4, "deduped-terms": 3,
+			},
+		},
+		{
+			name:     "single entry query at doc limit",
+			entries:  entries(genResultsEntry("foo", "bar", "baz", "baz", "qux")),
+			docLimit: 5,
+			exSeries: 4,
+			exDocs:   5,
+			expected: map[string][]string{"foo": {"bar", "baz", "qux"}},
+			exMetrics: map[string]int64{
+				"total": 5, "total-fields": 1, "deduped-fields": 1,
+				"total-terms": 4, "deduped-terms": 3,
+			},
+		},
 
-	require.Equal(t, 0, res.Size())
-	require.Equal(t, 2, res.TotalDocsCount())
-}
-
-func TestAggResultsInsertEmptyTermValue(t *testing.T) {
-	res := NewAggregateResults(nil, AggregateResultsOptions{}, testOpts)
-	dValidEmptyTerm := genDoc("foo", "")
-	size, docsCount, err := res.AddDocuments([]doc.Document{dValidEmptyTerm})
-	require.NoError(t, err)
-	require.Equal(t, 1, size)
-	require.Equal(t, 1, docsCount)
-
-	require.Equal(t, 1, res.Size())
-	require.Equal(t, 1, res.TotalDocsCount())
-}
-
-func TestAggResultsInsertBatchOfTwo(t *testing.T) {
-	res := NewAggregateResults(nil, AggregateResultsOptions{}, testOpts)
-	d1 := genDoc("d1", "")
-	d2 := genDoc("d2", "")
-	size, docsCount, err := res.AddDocuments([]doc.Document{d1, d2})
-	require.NoError(t, err)
-	require.Equal(t, 2, size)
-	require.Equal(t, 2, docsCount)
-
-	require.Equal(t, 2, res.Size())
-	require.Equal(t, 2, res.TotalDocsCount())
-}
-
-func TestAggResultsTermOnlyInsert(t *testing.T) {
-	res := NewAggregateResults(nil, AggregateResultsOptions{
-		Type: AggregateTagNames,
-	}, testOpts)
-	dInvalid := doc.Document{Fields: []doc.Field{{}}}
-	size, docsCount, err := res.AddDocuments([]doc.Document{dInvalid})
-	require.Error(t, err)
-	require.Equal(t, 0, size)
-	require.Equal(t, 1, docsCount)
-
-	require.Equal(t, 0, res.Size())
-	require.Equal(t, 1, res.TotalDocsCount())
-
-	dInvalid = genDoc("", "foo")
-	size, docsCount, err = res.AddDocuments([]doc.Document{dInvalid})
-	require.Error(t, err)
-	require.Equal(t, 0, size)
-	require.Equal(t, 2, docsCount)
-
-	require.Equal(t, 0, res.Size())
-	require.Equal(t, 2, res.TotalDocsCount())
-
-	valid := genDoc("foo", "")
-	size, docsCount, err = res.AddDocuments([]doc.Document{valid})
-	require.NoError(t, err)
-	require.Equal(t, 1, size)
-	require.Equal(t, 3, docsCount)
-
-	require.Equal(t, 1, res.Size())
-	require.Equal(t, 3, res.TotalDocsCount())
-}
-
-func testAggResultsInsertIdempotency(t *testing.T, res AggregateResults) {
-	dValid := genDoc("foo", "bar")
-	size, docsCount, err := res.AddDocuments([]doc.Document{dValid})
-	require.NoError(t, err)
-	require.Equal(t, 1, size)
-	require.Equal(t, 1, docsCount)
-
-	require.Equal(t, 1, res.Size())
-	require.Equal(t, 1, res.TotalDocsCount())
-
-	size, docsCount, err = res.AddDocuments([]doc.Document{dValid})
-	require.NoError(t, err)
-	require.Equal(t, 1, size)
-	require.Equal(t, 2, docsCount)
-
-	require.Equal(t, 1, res.Size())
-	require.Equal(t, 2, res.TotalDocsCount())
-}
-
-func TestAggResultsInsertIdempotency(t *testing.T) {
-	res := NewAggregateResults(nil, AggregateResultsOptions{}, testOpts)
-	testAggResultsInsertIdempotency(t, res)
-}
-
-func TestAggResultsTermOnlyInsertIdempotency(t *testing.T) {
-	res := NewAggregateResults(nil, AggregateResultsOptions{
-		Type: AggregateTagNames,
-	}, testOpts)
-	testAggResultsInsertIdempotency(t, res)
-}
-
-func TestInvalidAggregateType(t *testing.T) {
-	res := NewAggregateResults(nil, AggregateResultsOptions{
-		Type: 100,
-	}, testOpts)
-	dValid := genDoc("foo", "bar")
-	size, docsCount, err := res.AddDocuments([]doc.Document{dValid})
-	require.Error(t, err)
-	require.Equal(t, 0, size)
-	require.Equal(t, 1, docsCount)
-}
-
-func TestAggResultsSameName(t *testing.T) {
-	res := NewAggregateResults(nil, AggregateResultsOptions{}, testOpts)
-	d1 := genDoc("foo", "bar")
-	size, docsCount, err := res.AddDocuments([]doc.Document{d1})
-	require.NoError(t, err)
-	require.Equal(t, 1, size)
-	require.Equal(t, 1, docsCount)
-
-	rMap := res.Map()
-	aggVals, ok := rMap.Get(ident.StringID("foo"))
-	require.True(t, ok)
-	require.Equal(t, 1, aggVals.Size())
-	assert.True(t, aggVals.Map().Contains(ident.StringID("bar")))
-
-	d2 := genDoc("foo", "biz")
-	size, docsCount, err = res.AddDocuments([]doc.Document{d2})
-	require.NoError(t, err)
-	require.Equal(t, 1, size)
-	require.Equal(t, 2, docsCount)
-
-	aggVals, ok = rMap.Get(ident.StringID("foo"))
-	require.True(t, ok)
-	require.Equal(t, 2, aggVals.Size())
-	assert.True(t, aggVals.Map().Contains(ident.StringID("bar")))
-	assert.True(t, aggVals.Map().Contains(ident.StringID("biz")))
-}
-
-func assertNoValuesInNameOnlyAggregate(t *testing.T, v AggregateValues) {
-	assert.False(t, v.hasValues)
-	assert.Nil(t, v.valuesMap)
-	assert.Nil(t, v.pool)
-
-	assert.Equal(t, 0, v.Size())
-	assert.Nil(t, v.Map())
-	assert.False(t, v.HasValues())
-}
-
-func TestAggResultsTermOnlySameName(t *testing.T) {
-	res := NewAggregateResults(nil, AggregateResultsOptions{
-		Type: AggregateTagNames,
-	}, testOpts)
-	d1 := genDoc("foo", "bar")
-	size, docsCount, err := res.AddDocuments([]doc.Document{d1})
-	require.NoError(t, err)
-	require.Equal(t, 1, size)
-	require.Equal(t, 1, docsCount)
-
-	rMap := res.Map()
-	aggVals, ok := rMap.Get(ident.StringID("foo"))
-	require.True(t, ok)
-	assertNoValuesInNameOnlyAggregate(t, aggVals)
-
-	d2 := genDoc("foo", "biz")
-	size, docsCount, err = res.AddDocuments([]doc.Document{d2})
-	require.NoError(t, err)
-	require.Equal(t, 1, size)
-	require.Equal(t, 2, docsCount)
-
-	aggVals, ok = rMap.Get(ident.StringID("foo"))
-	require.True(t, ok)
-	require.False(t, aggVals.hasValues)
-	assertNoValuesInNameOnlyAggregate(t, aggVals)
-}
-
-func addMultipleDocuments(t *testing.T, res AggregateResults) (int, int) {
-	_, _, err := res.AddDocuments([]doc.Document{
-		genDoc("foo", "bar"),
-		genDoc("fizz", "bar"),
-		genDoc("buzz", "bar"),
-	})
-	require.NoError(t, err)
-
-	_, _, err = res.AddDocuments([]doc.Document{
-		genDoc("foo", "biz"),
-		genDoc("fizz", "bar"),
-	})
-	require.NoError(t, err)
-
-	size, docsCount, err := res.AddDocuments([]doc.Document{
-		genDoc("foo", "baz", "buzz", "bag", "qux", "qaz"),
-	})
-
-	require.NoError(t, err)
-	return size, docsCount
-}
-
-func expectedTermsOnly(ex map[string][]string) map[string][]string {
-	m := make(map[string][]string, len(ex))
-	for k := range ex {
-		m[k] = []string{}
+		{
+			name:      "single entry query below size limit",
+			entries:   entries(genResultsEntry("foo", "bar", "baz", "qux")),
+			sizeLimit: 3,
+			exSeries:  3,
+			exDocs:    4,
+			expected:  map[string][]string{"foo": {"bar", "baz"}},
+			exMetrics: map[string]int64{
+				"total": 4, "total-fields": 1, "deduped-fields": 1,
+				"total-terms": 3, "deduped-terms": 2,
+			},
+		},
+		{
+			name:     "single entry query below doc limit",
+			entries:  entries(genResultsEntry("foo", "bar", "bar", "bar", "baz")),
+			docLimit: 3,
+			exSeries: 2,
+			exDocs:   3,
+			expected: map[string][]string{"foo": {"bar"}},
+			exMetrics: map[string]int64{
+				"total": 5, "total-fields": 1, "deduped-fields": 1,
+				"total-terms": 4, "deduped-terms": 1,
+			},
+		},
+		{
+			name:      "multiple entry query below series limit",
+			entries:   entries(genResultsEntry("foo", "bar"), genResultsEntry("baz", "qux")),
+			sizeLimit: 3,
+			exSeries:  3,
+			exDocs:    4,
+			expected:  map[string][]string{"foo": {"bar"}, "baz": {}},
+			exMetrics: map[string]int64{
+				"total": 4, "total-fields": 2, "deduped-fields": 2,
+				"total-terms": 2, "deduped-terms": 1,
+			},
+		},
+		{
+			name:     "multiple entry query below doc limit",
+			entries:  entries(genResultsEntry("foo", "bar"), genResultsEntry("baz", "qux")),
+			docLimit: 3,
+			exSeries: 3,
+			exDocs:   3,
+			expected: map[string][]string{"foo": {"bar"}, "baz": {}},
+			exMetrics: map[string]int64{
+				"total": 4, "total-fields": 2, "deduped-fields": 2,
+				"total-terms": 2, "deduped-terms": 1,
+			},
+		},
+		{
+			name:      "multiple entry query both limits",
+			entries:   entries(genResultsEntry("foo", "bar"), genResultsEntry("baz", "qux")),
+			docLimit:  3,
+			sizeLimit: 10,
+			exSeries:  3,
+			exDocs:    3,
+			expected:  map[string][]string{"foo": {"bar"}, "baz": {}},
+			exMetrics: map[string]int64{
+				"total": 4, "total-fields": 2, "deduped-fields": 2,
+				"total-terms": 2, "deduped-terms": 1,
+			},
+		},
 	}
 
-	return m
-}
-
-func toFilter(strs ...string) AggregateFieldFilter {
-	b := make([][]byte, len(strs))
-	for i, s := range strs {
-		b[i] = []byte(s)
-	}
-
-	return AggregateFieldFilter(b)
-}
-
-var mergeTests = []struct {
-	name     string
-	opts     AggregateResultsOptions
-	expected map[string][]string
-}{
-	{
-		name: "no limit no filter",
-		opts: AggregateResultsOptions{},
-		expected: map[string][]string{
-			"foo":  {"bar", "biz", "baz"},
-			"fizz": {"bar"},
-			"buzz": {"bar", "bag"},
-			"qux":  {"qaz"},
-		},
-	},
-	{
-		name: "with limit no filter",
-		opts: AggregateResultsOptions{SizeLimit: 2},
-		expected: map[string][]string{
-			"foo":  {"bar", "biz", "baz"},
-			"fizz": {"bar"},
-		},
-	},
-	{
-		name: "no limit empty filter",
-		opts: AggregateResultsOptions{FieldFilter: toFilter()},
-		expected: map[string][]string{
-			"foo":  {"bar", "biz", "baz"},
-			"fizz": {"bar"},
-			"buzz": {"bar", "bag"},
-			"qux":  {"qaz"},
-		},
-	},
-	{
-		name:     "no limit matchless filter",
-		opts:     AggregateResultsOptions{FieldFilter: toFilter("zig")},
-		expected: map[string][]string{},
-	},
-	{
-		name: "empty limit with filter",
-		opts: AggregateResultsOptions{FieldFilter: toFilter("buzz")},
-		expected: map[string][]string{
-			"buzz": {"bar", "bag"},
-		},
-	},
-	{
-		name: "with limit with filter",
-		opts: AggregateResultsOptions{
-			SizeLimit: 2, FieldFilter: toFilter("buzz", "qux", "fizz")},
-		expected: map[string][]string{
-			"fizz": {"bar"},
-			"buzz": {"bar", "bag"},
-		},
-	},
-}
-
-func TestAggResultsMerge(t *testing.T) {
-	for _, tt := range mergeTests {
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			res := NewAggregateResults(nil, tt.opts, testOpts)
-			size, docsCount := addMultipleDocuments(t, res)
+			scope := tally.NewTestScope("", nil)
+			iOpts := instrument.NewOptions().SetMetricsScope(scope)
+			res := NewAggregateResults(ident.StringID("ns"), AggregateResultsOptions{
+				SizeLimit:             tt.sizeLimit,
+				DocsLimit:             tt.docLimit,
+				AggregateUsageMetrics: NewAggregateUsageMetrics(ident.StringID("ns"), iOpts),
+			}, testOpts)
 
-			require.Equal(t, len(tt.expected), size)
-			require.Equal(t, 6, docsCount)
-			ac := res.Map()
-			require.Equal(t, len(tt.expected), ac.Len())
-			for k, v := range tt.expected {
-				aggVals, ok := ac.Get(ident.StringID(k))
-				require.True(t, ok)
-				require.Equal(t, len(v), aggVals.Size())
-				for _, actual := range v {
-					require.True(t, aggVals.Map().Contains(ident.StringID(actual)))
-				}
+			size, docsCount := res.AddFields(tt.entries)
+			assert.Equal(t, tt.exSeries, size)
+			assert.Equal(t, tt.exDocs, docsCount)
+			assert.Equal(t, tt.exSeries, res.Size())
+			assert.Equal(t, tt.exDocs, res.TotalDocsCount())
+
+			assert.Equal(t, tt.expected, toMap(res))
+
+			counters := scope.Snapshot().Counters()
+			actualCounters := make(map[string]int64, len(counters))
+			for _, v := range counters {
+				actualCounters[v.Tags()["type"]] = v.Value()
 			}
+
+			assert.Equal(t, tt.exMetrics, actualCounters)
 		})
 	}
-}
-
-func TestAggResultsMergeNameOnly(t *testing.T) {
-	for _, tt := range mergeTests {
-		t.Run(tt.name+" name only", func(t *testing.T) {
-			tt.opts.Type = AggregateTagNames
-			res := NewAggregateResults(nil, tt.opts, testOpts)
-			size, docsCount := addMultipleDocuments(t, res)
-
-			require.Equal(t, len(tt.expected), size)
-			require.Equal(t, 6, docsCount)
-
-			ac := res.Map()
-			require.Equal(t, len(tt.expected), ac.Len())
-			for k := range tt.expected {
-				aggVals, ok := ac.Get(ident.StringID(k))
-				require.True(t, ok)
-				assertNoValuesInNameOnlyAggregate(t, aggVals)
-			}
-		})
-	}
-}
-
-func TestAggResultsInsertCopies(t *testing.T) {
-	res := NewAggregateResults(nil, AggregateResultsOptions{}, testOpts)
-	dValid := genDoc("foo", "bar")
-	name := dValid.Fields[0].Name
-	value := dValid.Fields[0].Value
-	size, docsCount, err := res.AddDocuments([]doc.Document{dValid})
-	require.NoError(t, err)
-	require.Equal(t, 1, size)
-	require.Equal(t, 1, docsCount)
-
-	found := false
-
-	// our genny generated maps don't provide access to MapEntry directly,
-	// so we iterate over the map to find the added entry. Could avoid this
-	// in the future if we expose `func (m *Map) Entry(k Key) Entry {}`
-	for _, entry := range res.Map().Iter() {
-		// see if this key has the same value as the added document's ID.
-		n := entry.Key().Bytes()
-		if !bytes.Equal(name, n) {
-			continue
-		}
-		// ensure the underlying []byte for ID/Fields is at a different address
-		// than the original.
-		require.False(t, xtest.ByteSlicesBackedBySameData(n, name))
-		v := entry.Value()
-		for _, f := range v.Map().Iter() {
-			v := f.Key().Bytes()
-			if !bytes.Equal(value, v) {
-				continue
-			}
-
-			found = true
-			// ensure the underlying []byte for ID/Fields is at a different address
-			// than the original.
-			require.False(t, xtest.ByteSlicesBackedBySameData(v, value))
-		}
-	}
-
-	require.True(t, found)
-}
-
-func TestAggResultsNameOnlyInsertCopies(t *testing.T) {
-	res := NewAggregateResults(nil, AggregateResultsOptions{
-		Type: AggregateTagNames,
-	}, testOpts)
-	dValid := genDoc("foo", "bar")
-	name := dValid.Fields[0].Name
-	size, docsCount, err := res.AddDocuments([]doc.Document{dValid})
-	require.NoError(t, err)
-	require.Equal(t, 1, size)
-	require.Equal(t, 1, docsCount)
-
-	found := false
-	// our genny generated maps don't provide access to MapEntry directly,
-	// so we iterate over the map to find the added entry. Could avoid this
-	// in the future if we expose `func (m *Map) Entry(k Key) Entry {}`
-	for _, entry := range res.Map().Iter() {
-		// see if this key has the same value as the added document's ID.
-		n := entry.Key().Bytes()
-		if !bytes.Equal(name, n) {
-			continue
-		}
-
-		// ensure the underlying []byte for ID/Fields is at a different address
-		// than the original.
-		require.False(t, xtest.ByteSlicesBackedBySameData(n, name))
-		found = true
-		assertNoValuesInNameOnlyAggregate(t, entry.Value())
-	}
-
-	require.True(t, found)
 }
 
 func TestAggResultsReset(t *testing.T) {
 	res := NewAggregateResults(ident.StringID("qux"),
 		AggregateResultsOptions{}, testOpts)
-	d1 := genDoc("foo", "bar")
-	size, docsCount, err := res.AddDocuments([]doc.Document{d1})
-	require.NoError(t, err)
-	require.Equal(t, 1, size)
-	require.Equal(t, 1, docsCount)
+	size, docsCount := res.AddFields(entries(genResultsEntry("foo", "bar")))
+	require.Equal(t, 2, size)
+	require.Equal(t, 2, docsCount)
 
 	aggVals, ok := res.Map().Get(ident.StringID("foo"))
 	require.True(t, ok)
@@ -497,11 +324,9 @@ func TestAggResultsResetNamespaceClones(t *testing.T) {
 func TestAggResultFinalize(t *testing.T) {
 	// Create a Results and insert some data.
 	res := NewAggregateResults(nil, AggregateResultsOptions{}, testOpts)
-	d1 := genDoc("foo", "bar")
-	size, docsCount, err := res.AddDocuments([]doc.Document{d1})
-	require.NoError(t, err)
-	require.Equal(t, 1, size)
-	require.Equal(t, 1, docsCount)
+	size, docsCount := res.AddFields(entries(genResultsEntry("foo", "bar")))
+	require.Equal(t, 2, size)
+	require.Equal(t, 2, docsCount)
 
 	// Ensure the data is present.
 	rMap := res.Map()
@@ -522,4 +347,30 @@ func TestAggResultFinalize(t *testing.T) {
 		id := entry.Key()
 		require.False(t, id.IsNoFinalize())
 	}
+}
+
+func TestResetUpdatesMetics(t *testing.T) {
+	scope := tally.NewTestScope("", nil)
+	iOpts := instrument.NewOptions().SetMetricsScope(scope)
+	testOpts = testOpts.SetInstrumentOptions(iOpts)
+	res := NewAggregateResults(nil, AggregateResultsOptions{
+		AggregateUsageMetrics: NewAggregateUsageMetrics(ident.StringID("ns1"), iOpts),
+	}, testOpts)
+	res.AddFields(entries(genResultsEntry("foo")))
+	res.Reset(ident.StringID("ns2"), AggregateResultsOptions{})
+	res.AddFields(entries(genResultsEntry("bar")))
+
+	counters := scope.Snapshot().Counters()
+	seenNamespaces := make(map[string]struct{})
+	for _, v := range counters {
+		ns := v.Tags()["namespace"]
+		seenNamespaces[ns] = struct{}{}
+	}
+
+	assert.Equal(t, map[string]struct{}{
+		"ns1": {},
+		"ns2": {},
+	}, seenNamespaces)
+
+	res.Finalize()
 }

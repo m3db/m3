@@ -53,9 +53,6 @@ var (
 
 	errUnexpectedSortByOffset = errors.New("should not sort index by offsets when doing reads sorted by id")
 
-	// errReadMetadataOptimizedForRead returned when we optimized for only reading metadata but are attempting a regular read
-	errReadMetadataOptimizedForRead = errors.New("read metadata optimized for regular read")
-
 	errStreamingRequired    = errors.New("streaming must be enabled for streaming read methods")
 	errStreamingUnsupported = errors.New("streaming mode be disabled for non streaming read methods")
 )
@@ -72,7 +69,7 @@ type reader struct {
 	filePathPrefix string
 	namespace      ident.ID
 
-	start     time.Time
+	start     xtime.UnixNano
 	blockSize time.Duration
 
 	infoFdWithDigest           digest.FdWithDigestReader
@@ -112,10 +109,6 @@ type reader struct {
 	volume                    int
 	open                      bool
 	streamingEnabled          bool
-	// NB(bodu): Informs whether or not we optimize for only reading
-	// metadata. We don't need to sort for reading metadata but sorting is
-	// required if we are performing regulars reads.
-	optimizedReadMetadataOnly bool
 }
 
 // NewReader returns a new reader and expects all files to exist. Will read the
@@ -173,29 +166,36 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 	switch opts.FileSetType {
 	case persist.FileSetSnapshotType:
 		shardDir = ShardSnapshotsDirPath(r.filePathPrefix, namespace, shard)
-		checkpointFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, checkpointFileSuffix)
-		infoFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix)
-		digestFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix)
-		bloomFilterFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix)
-		indexFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix)
-		dataFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix)
+		checkpointFilepath = FilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, CheckpointFileSuffix)
+		infoFilepath = FilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, InfoFileSuffix)
+		digestFilepath = FilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, DigestFileSuffix)
+		bloomFilterFilepath = FilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix)
+		indexFilepath = FilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix)
+		dataFilepath = FilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix)
 	case persist.FileSetFlushType:
 		shardDir = ShardDataDirPath(r.filePathPrefix, namespace, shard)
 
 		isLegacy := false
 		if volumeIndex == 0 {
-			isLegacy, err = isFirstVolumeLegacy(shardDir, blockStart, checkpointFileSuffix)
+			isLegacy, err = isFirstVolumeLegacy(shardDir, blockStart, CheckpointFileSuffix)
 			if err != nil {
 				return err
 			}
 		}
 
-		checkpointFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, checkpointFileSuffix, isLegacy)
-		infoFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix, isLegacy)
-		digestFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix, isLegacy)
-		bloomFilterFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix, isLegacy)
-		indexFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix, isLegacy)
-		dataFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix, isLegacy)
+		checkpointFilepath = dataFilesetPathFromTimeAndIndex(
+			shardDir, blockStart, volumeIndex, CheckpointFileSuffix, isLegacy)
+		infoFilepath = dataFilesetPathFromTimeAndIndex(
+			shardDir, blockStart, volumeIndex, InfoFileSuffix, isLegacy)
+		digestFilepath = dataFilesetPathFromTimeAndIndex(
+			shardDir, blockStart, volumeIndex, DigestFileSuffix, isLegacy)
+		bloomFilterFilepath = dataFilesetPathFromTimeAndIndex(
+			shardDir, blockStart, volumeIndex, bloomFilterFileSuffix, isLegacy)
+		indexFilepath = dataFilesetPathFromTimeAndIndex(
+			shardDir, blockStart, volumeIndex, indexFileSuffix, isLegacy)
+		dataFilepath = dataFilesetPathFromTimeAndIndex(
+			shardDir, blockStart, volumeIndex, dataFileSuffix, isLegacy)
+
 	default:
 		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FileSetType)
 	}
@@ -227,7 +227,7 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 	}()
 
 	result, err := mmap.Files(os.Open, map[string]mmap.FileDesc{
-		indexFilepath: mmap.FileDesc{
+		indexFilepath: {
 			File:       &r.indexFd,
 			Descriptor: &r.indexMmap,
 			Options: mmap.Options{
@@ -241,7 +241,7 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 				},
 			},
 		},
-		dataFilepath: mmap.FileDesc{
+		dataFilepath: {
 			File:       &r.dataFd,
 			Descriptor: &r.dataMmap,
 			Options: mmap.Options{
@@ -292,7 +292,6 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 	r.open = true
 	r.namespace = namespace
 	r.shard = shard
-	r.optimizedReadMetadataOnly = opts.OptimizedReadMetadataOnly
 
 	return nil
 }
@@ -340,7 +339,7 @@ func (r *reader) readInfo(size int) error {
 	if err != nil {
 		return err
 	}
-	r.start = xtime.FromNanoseconds(info.BlockStart)
+	r.start = xtime.UnixNano(info.BlockStart)
 	r.volume = info.VolumeIndex
 	r.blockSize = time.Duration(info.BlockSize)
 	r.entries = int(info.Entries)
@@ -363,31 +362,29 @@ func (r *reader) readIndexAndSortByOffsetAsc() error {
 		}
 		r.indexEntriesByOffsetAsc = append(r.indexEntriesByOffsetAsc, entry)
 	}
-	// This is false by default so we always sort unless otherwise specified.
-	if !r.optimizedReadMetadataOnly {
-		// NB(r): As we decode each block we need access to each index entry
-		// in the order we decode the data. This is only required for regular reads.
-		sort.Sort(indexEntriesByOffsetAsc(r.indexEntriesByOffsetAsc))
-	}
+	// NB(r): As we decode each block we need access to each index entry
+	// in the order we decode the data. This is only required for regular reads.
+	sort.Sort(indexEntriesByOffsetAsc(r.indexEntriesByOffsetAsc))
+
 	return nil
 }
 
-func (r *reader) StreamingRead() (ident.BytesID, []byte, []byte, uint32, error) {
+func (r *reader) StreamingRead() (StreamedDataEntry, error) {
 	if !r.streamingEnabled {
-		return nil, nil, nil, 0, errStreamingRequired
+		return StreamedDataEntry{}, errStreamingRequired
 	}
 
 	if r.entriesRead >= r.entries {
-		return nil, nil, nil, 0, io.EOF
+		return StreamedDataEntry{}, io.EOF
 	}
 
 	entry, err := r.decoder.DecodeIndexEntry(nil)
 	if err != nil {
-		return nil, nil, nil, 0, err
+		return StreamedDataEntry{}, err
 	}
 
 	if entry.Offset+entry.Size > int64(len(r.dataMmap.Bytes)) {
-		return nil, nil, nil, 0, fmt.Errorf(
+		return StreamedDataEntry{}, fmt.Errorf(
 			"attempt to read beyond data file size (offset=%d, size=%d, file size=%d)",
 			entry.Offset, entry.Size, len(r.dataMmap.Bytes))
 	}
@@ -396,7 +393,7 @@ func (r *reader) StreamingRead() (ident.BytesID, []byte, []byte, uint32, error) 
 	// NB(r): _must_ check the checksum against known checksum as the data
 	// file might not have been verified if we haven't read through the file yet.
 	if entry.DataChecksum != int64(digest.Checksum(data)) {
-		return nil, nil, nil, 0, errSeekChecksumMismatch
+		return StreamedDataEntry{}, errSeekChecksumMismatch
 	}
 
 	r.streamingData = append(r.streamingData[:0], data...)
@@ -405,7 +402,12 @@ func (r *reader) StreamingRead() (ident.BytesID, []byte, []byte, uint32, error) 
 
 	r.entriesRead++
 
-	return r.streamingID, r.streamingTags, r.streamingData, uint32(entry.DataChecksum), nil
+	return StreamedDataEntry{
+		ID:           r.streamingID,
+		EncodedTags:  r.streamingTags,
+		Data:         r.streamingData,
+		DataChecksum: uint32(entry.DataChecksum),
+	}, nil
 }
 
 func (r *reader) Read() (ident.ID, ident.TagIterator, checked.Bytes, uint32, error) {
@@ -413,10 +415,6 @@ func (r *reader) Read() (ident.ID, ident.TagIterator, checked.Bytes, uint32, err
 		return nil, nil, nil, 0, errStreamingUnsupported
 	}
 
-	// NB(bodu): We cannot perform regular reads if we're optimizing for only reading metadata.
-	if r.optimizedReadMetadataOnly {
-		return nil, nil, nil, 0, errReadMetadataOptimizedForRead
-	}
 	if r.entries > 0 && len(r.indexEntriesByOffsetAsc) < r.entries {
 		// Have not read the index yet, this is required when reading
 		// data as we need each index entry in order by by the offset ascending
@@ -456,6 +454,33 @@ func (r *reader) Read() (ident.ID, ident.TagIterator, checked.Bytes, uint32, err
 
 	r.entriesRead++
 	return id, tags, data, uint32(entry.DataChecksum), nil
+}
+
+func (r *reader) StreamingReadMetadata() (StreamedMetadataEntry, error) {
+	if !r.streamingEnabled {
+		return StreamedMetadataEntry{}, errStreamingRequired
+	}
+
+	if r.metadataRead >= r.entries {
+		return StreamedMetadataEntry{}, io.EOF
+	}
+
+	entry, err := r.decoder.DecodeIndexEntry(nil)
+	if err != nil {
+		return StreamedMetadataEntry{}, err
+	}
+
+	r.streamingID = append(r.streamingID[:0], entry.ID...)
+	r.streamingTags = append(r.streamingTags[:0], entry.EncodedTags...)
+
+	r.metadataRead++
+
+	return StreamedMetadataEntry{
+		ID:           r.streamingID,
+		EncodedTags:  r.streamingTags,
+		Length:       int(entry.Size),
+		DataChecksum: uint32(entry.DataChecksum),
+	}, nil
 }
 
 func (r *reader) ReadMetadata() (ident.ID, ident.TagIterator, int, uint32, error) {

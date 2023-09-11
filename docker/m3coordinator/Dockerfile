@@ -1,5 +1,5 @@
 # stage 1: build
-FROM golang:1.13-alpine3.11 AS builder
+FROM golang:1.18-alpine3.15 AS builder
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
 # Install deps
@@ -15,8 +15,13 @@ RUN cd /go/src/github.com/m3db/m3/ && \
     make m3coordinator-linux-amd64
 
 # stage 2: lightweight "release"
-FROM alpine:3.11
+FROM alpine:3.14
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
+
+# Provide timezone data to allow TZ environment variable to be set
+# for parsing relative times such as "9am" correctly and respect
+# the TZ environment variable.
+RUN apk add --no-cache tzdata
 
 EXPOSE 7201/tcp 7203/tcp
 

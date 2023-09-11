@@ -23,17 +23,25 @@ package etcd
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/services"
+	integration "github.com/m3db/m3/src/integration/resources/docker/dockerexternal/etcdintegration"
+	"github.com/m3db/m3/src/x/retry"
 
-	"go.etcd.io/etcd/clientv3"
-	"go.etcd.io/etcd/integration"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"google.golang.org/grpc"
 )
 
 func TestETCDClientGen(t *testing.T) {
-	cs, err := NewConfigServiceClient(testOptions())
+	cs, err := NewConfigServiceClient(
+		testOptions().
+			// These are error cases; don't retry for no reason.
+			SetRetryOptions(retry.NewOptions().SetMaxRetries(0)),
+	)
 	require.NoError(t, err)
 
 	c := cs.(*csclient)
@@ -297,6 +305,29 @@ func TestReuseKVStore(t *testing.T) {
 	client.storeLock.Unlock()
 }
 
+func TestGetEtcdClients(t *testing.T) {
+	opts := testOptions()
+	c, err := NewEtcdConfigServiceClient(opts)
+	require.NoError(t, err)
+
+	c1, err := c.etcdClientGen("zone2")
+	require.NoError(t, err)
+	require.Equal(t, 1, len(c.clis))
+
+	c2, err := c.etcdClientGen("zone1")
+	require.NoError(t, err)
+	require.Equal(t, 2, len(c.clis))
+	require.False(t, c1 == c2)
+
+	clients := c.Clients()
+	require.Len(t, clients, 2)
+
+	assert.Equal(t, clients[0].Zone, "zone1")
+	assert.Equal(t, clients[0].Client, c2)
+	assert.Equal(t, clients[1].Zone, "zone2")
+	assert.Equal(t, clients[1].Client, c1)
+}
+
 func TestValidateNamespace(t *testing.T) {
 	inputs := []struct {
 		ns        string
@@ -344,6 +375,77 @@ func TestValidateNamespace(t *testing.T) {
 	}
 }
 
+func Test_newConfigFromCluster(t *testing.T) {
+	testRnd := func(n int64) (int64, error) {
+		return 10, nil
+	}
+
+	newFullConfig := func() ClusterConfig {
+		// Go all the way from config; might as well.
+		return ClusterConfig{
+			Zone:      "foo",
+			Endpoints: []string{"i1"},
+			KeepAlive: &KeepAliveConfig{
+				Enabled: true,
+				Period:  5 * time.Second,
+				Jitter:  6 * time.Second,
+				Timeout: 7 * time.Second,
+			},
+			TLS:              nil, // TODO: TLS config gets read eagerly here; test it separately.
+			AutoSyncInterval: 21 * time.Second,
+			DialTimeout:      42 * time.Second,
+		}
+	}
+
+	t.Run("translates config options", func(t *testing.T) {
+		cfg, err := newConfigFromCluster(testRnd, newFullConfig().NewCluster())
+		require.NoError(t, err)
+
+		assert.Equal(t,
+			clientv3.Config{
+				Endpoints:            []string{"i1"},
+				AutoSyncInterval:     21 * time.Second,
+				DialTimeout:          42 * time.Second,
+				DialKeepAliveTime:    5*time.Second + 10, // generated using fake rnd above
+				DialKeepAliveTimeout: 7 * time.Second,
+				MaxCallSendMsgSize:   33554432,
+				MaxCallRecvMsgSize:   33554432,
+				RejectOldCluster:     false,
+				DialOptions:          []grpc.DialOption(nil),
+
+				PermitWithoutStream: true,
+			},
+			cfg,
+		)
+	})
+
+	t.Run("negative autosync on M3 disables autosync for etcd", func(t *testing.T) {
+		inputCfg := newFullConfig()
+		inputCfg.AutoSyncInterval = -1
+		etcdCfg, err := newConfigFromCluster(testRnd, inputCfg.NewCluster())
+		require.NoError(t, err)
+
+		assert.Equal(t, time.Duration(0), etcdCfg.AutoSyncInterval)
+	})
+
+	// Separate test just because the assert.Equal won't work for functions.
+	t.Run("passes through dial options", func(t *testing.T) {
+		clusterCfg := newFullConfig()
+		clusterCfg.DialOptions = []grpc.DialOption{grpc.WithNoProxy()}
+		etcdCfg, err := newConfigFromCluster(testRnd, clusterCfg.NewCluster())
+		require.NoError(t, err)
+
+		assert.Len(t, etcdCfg.DialOptions, 1)
+	})
+}
+
+func Test_cryptoRandInt63n(t *testing.T) {
+	r, err := cryptoRandInt63n(185)
+	require.NoError(t, err)
+	// Real dumb sanity check. Doesn't flake on -test.count=10000, so probably ok.
+	assert.True(t, r >= 0 && r < 185)
+}
+
 func testOptions() Options {
 	clusters := []Cluster{
 		NewCluster().SetZone("zone1").SetEndpoints([]string{"i1"}),
@@ -363,7 +465,8 @@ func testOptions() Options {
 }
 
 func testNewETCDFn(t *testing.T) (newClientFn, func()) {
-	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
+	integration.BeforeTestExternal(t)
+	ecluster := integration.NewCluster(t, &integration.ClusterConfig{Size: 1})
 	ec := ecluster.RandClient()
 
 	newFn := func(Cluster) (*clientv3.Client, error) {

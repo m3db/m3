@@ -174,7 +174,7 @@ func clusterLimitToPerShardLimit(
 	if clusterLimit < 1 {
 		return 0, nil
 	}
-	_, placement, err := placementManager.Placement()
+	placement, err := placementManager.Placement()
 	if err != nil {
 		return clusterLimit, err
 	}

@@ -23,30 +23,34 @@ package config
 import (
 	"fmt"
 	"testing"
+	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage"
 	xconfig "github.com/m3db/m3/src/x/config"
-	"github.com/m3db/m3/src/x/cost"
-	xdocs "github.com/m3db/m3/src/x/docs"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/validator.v2"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 )
 
 const testConfigFile = "./testdata/config.yml"
 
-func TestTagOptionsFromEmptyConfigErrors(t *testing.T) {
+func TestDefaultTagOptionsFromEmptyConfig(t *testing.T) {
 	cfg := TagOptionsConfiguration{}
 	opts, err := TagOptionsFromConfig(cfg)
-	require.Error(t, err)
-	require.Nil(t, opts)
+	require.NoError(t, err)
+	require.Equal(t, models.TypeQuoted, opts.IDSchemeType())
 }
 
 func TestTagOptionsFromConfigWithIDGenerationScheme(t *testing.T) {
-	schemes := []models.IDSchemeType{models.TypeLegacy,
-		models.TypePrependMeta, models.TypeQuoted}
+	schemes := []models.IDSchemeType{
+		models.TypePrependMeta,
+		models.TypeQuoted,
+	}
 	for _, scheme := range schemes {
 		cfg := TagOptionsConfiguration{
 			Scheme: scheme,
@@ -64,7 +68,7 @@ func TestTagOptionsFromConfig(t *testing.T) {
 	name := "foobar"
 	cfg := TagOptionsConfiguration{
 		MetricName: name,
-		Scheme:     models.TypeLegacy,
+		Scheme:     models.TypeQuoted,
 		Filters: []TagFilter{
 			{Name: "foo", Values: []string{".", "abc"}},
 			{Name: "bar", Values: []string{".*"}},
@@ -86,106 +90,44 @@ func TestTagOptionsFromConfig(t *testing.T) {
 	}
 }
 
-func TestLimitsConfigurationAsLimitManagerOptions(t *testing.T) {
-	cases := []struct {
-		input interface {
-			AsLimitManagerOptions() cost.LimitManagerOptions
-		}
-		expectedDefault int
-	}{{
-		input: &PerQueryLimitsConfiguration{
-			MaxFetchedDatapoints: 5,
-		},
-		expectedDefault: 5,
-	}, {
-		input: &GlobalLimitsConfiguration{
-			MaxFetchedDatapoints: 6,
-		},
-		expectedDefault: 6,
-	}}
-
-	for _, tc := range cases {
-		t.Run(fmt.Sprintf("type_%T", tc.input), func(t *testing.T) {
-			res := tc.input.AsLimitManagerOptions()
-			assert.Equal(t, cost.Limit{
-				Threshold: cost.Cost(tc.expectedDefault),
-				Enabled:   true,
-			}, res.DefaultLimit())
-		})
-	}
-}
-
-func TestLimitsConfigurationMaxComputedDatapoints(t *testing.T) {
-	t.Run("uses PerQuery value if provided", func(t *testing.T) {
-		lc := &LimitsConfiguration{
-			DeprecatedMaxComputedDatapoints: 6,
-			PerQuery: PerQueryLimitsConfiguration{
-				PrivateMaxComputedDatapoints: 5,
-			},
-		}
-
-		assert.Equal(t, 5, lc.MaxComputedDatapoints())
-	})
-
-	t.Run("uses deprecated value if PerQuery not provided", func(t *testing.T) {
-		lc := &LimitsConfiguration{
-			DeprecatedMaxComputedDatapoints: 6,
-		}
-
-		assert.Equal(t, 6, lc.MaxComputedDatapoints())
-	})
-}
-
-func TestToLimitManagerOptions(t *testing.T) {
-	cases := []struct {
-		name          string
-		input         int
-		expectedLimit cost.Limit
-	}{{
-		name:  "negative is disabled",
-		input: -5,
-		expectedLimit: cost.Limit{
-			Threshold: cost.Cost(-5),
-			Enabled:   false,
-		},
-	}, {
-		name:  "zero is disabled",
-		input: 0,
-		expectedLimit: cost.Limit{
-			Threshold: cost.Cost(0),
-			Enabled:   false,
-		},
-	}, {
-		name:  "positive is enabled",
-		input: 5,
-		expectedLimit: cost.Limit{
-			Threshold: cost.Cost(5),
-			Enabled:   true,
-		},
-	}}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expectedLimit, toLimitManagerOptions(tc.input).DefaultLimit())
-		})
-	}
-}
-
 func TestConfigLoading(t *testing.T) {
 	var cfg Configuration
 	require.NoError(t, xconfig.LoadFile(&cfg, testConfigFile, xconfig.Options{}))
 
+	var requireExhaustive bool
+	requireExhaustive = true
 	assert.Equal(t, &LimitsConfiguration{
-		DeprecatedMaxComputedDatapoints: 10555,
 		PerQuery: PerQueryLimitsConfiguration{
-			PrivateMaxComputedDatapoints: 12000,
-			MaxFetchedDatapoints:         11000,
-		},
-		Global: GlobalLimitsConfiguration{
-			MaxFetchedDatapoints: 13000,
+			MaxFetchedSeries:  12000,
+			MaxFetchedDocs:    11000,
+			RequireExhaustive: &requireExhaustive,
 		},
 	}, &cfg.Limits)
+
+	assert.Equal(t, HTTPConfiguration{EnableH2C: true}, cfg.HTTP)
+
+	expectedTimestamp, err := time.Parse(time.RFC3339, "2022-01-01T00:00:00Z")
+	require.NoError(t, err)
+	expectedPromConvertOptions := storage.NewPromConvertOptions().
+		SetResolutionThresholdForCounterNormalization(10 * time.Minute).
+		SetValueDecreaseTolerance(0.0000000001).
+		SetValueDecreaseToleranceUntil(xtime.UnixNano(expectedTimestamp.UnixNano()))
+	actualPromConvertOptions := cfg.Query.Prometheus.ConvertOptionsOrDefault()
+	assert.Equal(t, expectedPromConvertOptions, actualPromConvertOptions)
+
 	// TODO: assert on more fields here.
+}
+
+func TestDefaultAsFetchOptionsBuilderLimitsOptions(t *testing.T) {
+	limits := LimitsConfiguration{}
+	assert.Equal(t, handleroptions.FetchOptionsBuilderLimitsOptions{
+		SeriesLimit:            defaultStorageQuerySeriesLimit,
+		InstanceMultiple:       float32(0),
+		DocsLimit:              defaultStorageQueryDocsLimit,
+		RangeLimit:             0,
+		RequireExhaustive:      defaultRequireExhaustive,
+		MaxMetricMetadataStats: defaultMaxMetricMetadataStats,
+	}, limits.PerQuery.AsFetchOptionsBuilderLimitsOptions())
 }
 
 func TestConfigValidation(t *testing.T) {
@@ -217,8 +159,9 @@ func TestConfigValidation(t *testing.T) {
 			cfg := baseCfg(t)
 			cfg.Limits = LimitsConfiguration{
 				PerQuery: PerQueryLimitsConfiguration{
-					PrivateMaxComputedDatapoints: tc.limit,
-				}}
+					MaxFetchedSeries: tc.limit,
+				},
+			}
 
 			assert.NoError(t, validator.Validate(cfg))
 		})
@@ -229,11 +172,8 @@ func TestDefaultTagOptionsConfigErrors(t *testing.T) {
 	var cfg TagOptionsConfiguration
 	require.NoError(t, yaml.Unmarshal([]byte(""), &cfg))
 	opts, err := TagOptionsFromConfig(cfg)
-
-	docLink := xdocs.Path("how_to/query#migration")
-	expectedError := fmt.Sprintf(errNoIDGenerationScheme, docLink)
-	require.EqualError(t, err, expectedError)
-	require.Nil(t, opts)
+	require.NoError(t, err)
+	require.Equal(t, models.TypeQuoted, opts.IDSchemeType())
 }
 
 func TestGraphiteIDGenerationSchemeIsInvalid(t *testing.T) {
@@ -242,11 +182,10 @@ func TestGraphiteIDGenerationSchemeIsInvalid(t *testing.T) {
 }
 
 func TestTagOptionsConfigWithTagGenerationScheme(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		schemeStr string
 		scheme    models.IDSchemeType
 	}{
-		{"legacy", models.TypeLegacy},
 		{"prepend_meta", models.TypePrependMeta},
 		{"quoted", models.TypeQuoted},
 	}
@@ -275,10 +214,10 @@ func TestTagOptionsConfig(t *testing.T) {
 
 func TestKeepNaNsDefault(t *testing.T) {
 	r := ResultOptions{
-		KeepNans: true,
+		KeepNaNs: true,
 	}
-	assert.Equal(t, true, r.KeepNans)
+	assert.Equal(t, true, r.KeepNaNs)
 
 	r = ResultOptions{}
-	assert.Equal(t, false, r.KeepNans)
+	assert.Equal(t, false, r.KeepNaNs)
 }

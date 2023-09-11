@@ -30,7 +30,6 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/x/instrument"
 	xnet "github.com/m3db/m3/src/x/net"
 	"github.com/m3db/m3/src/x/panicmon"
 
@@ -50,6 +49,7 @@ type multiProcessResult struct {
 	cfg          config.Configuration
 	logger       *zap.Logger
 	listenerOpts xnet.ListenerOptions
+	commonLabels map[string]string
 }
 
 func multiProcessProcessID() string {
@@ -77,19 +77,11 @@ func multiProcessRun(
 				fmt.Errorf("multi-process process ID is non-integer: %v", err)
 		}
 
-		// Set the root scope multi-process process ID.
-		if cfg.Metrics.RootScope == nil {
-			cfg.Metrics.RootScope = &instrument.ScopeConfiguration{}
-		}
-		if cfg.Metrics.RootScope.CommonTags == nil {
-			cfg.Metrics.RootScope.CommonTags = make(map[string]string)
-		}
-		cfg.Metrics.RootScope.CommonTags[multiProcessMetricTagID] = multiProcessInstance
-
+		metrics := cfg.MetricsOrDefault()
 		// Listen on a different Prometheus metrics handler listen port.
-		if cfg.Metrics.PrometheusReporter != nil && cfg.Metrics.PrometheusReporter.ListenAddress != "" {
-			// Simply increment the listen address port by instance numbe
-			host, port, err := net.SplitHostPort(cfg.Metrics.PrometheusReporter.ListenAddress)
+		if metrics.PrometheusReporter != nil && metrics.PrometheusReporter.ListenAddress != "" {
+			// Simply increment the listen address port by instance number
+			host, port, err := net.SplitHostPort(metrics.PrometheusReporter.ListenAddress)
 			if err != nil {
 				return multiProcessResult{},
 					fmt.Errorf("could not split host:port for metrics reporter: %v", err)
@@ -103,7 +95,7 @@ func multiProcessRun(
 			if portValue > 0 {
 				// Increment port value by process ID if valid port.
 				address := net.JoinHostPort(host, strconv.Itoa(portValue+instance-1))
-				cfg.Metrics.PrometheusReporter.ListenAddress = address
+				metrics.PrometheusReporter.ListenAddress = address
 				logger.Info("multi-process prometheus metrics reporter listen address configured",
 					zap.String("address", address))
 			}
@@ -112,6 +104,8 @@ func multiProcessRun(
 			cfg:          cfg,
 			logger:       logger,
 			listenerOpts: listenerOpts,
+			// Ensure multi-process process ID is set on all metrics.
+			commonLabels: map[string]string{multiProcessMetricTagID: multiProcessInstance},
 		}, nil
 	}
 

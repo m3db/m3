@@ -24,7 +24,6 @@ package integration
 
 import (
 	"testing"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
@@ -76,7 +75,7 @@ func TestTruncateNamespace(t *testing.T) {
 	for _, input := range inputData {
 		testSetup.SetNowFn(input.conf.Start)
 		testData := generate.Block(input.conf)
-		seriesMaps[xtime.ToUnixNano(input.conf.Start)] = testData
+		seriesMaps[input.conf.Start] = testData
 		require.NoError(t, testSetup.WriteBatch(input.namespace, testData))
 	}
 	log.Debug("test data is now written")
@@ -84,8 +83,8 @@ func TestTruncateNamespace(t *testing.T) {
 	fetchReq := rpc.NewFetchRequest()
 	fetchReq.ID = "foo"
 	fetchReq.NameSpace = testNamespaces[1].String()
-	fetchReq.RangeStart = xtime.ToNormalizedTime(now, time.Second)
-	fetchReq.RangeEnd = xtime.ToNormalizedTime(now.Add(blockSize), time.Second)
+	fetchReq.RangeStart = now.Seconds()
+	fetchReq.RangeEnd = now.Add(blockSize).Seconds()
 	fetchReq.ResultTimeType = rpc.TimeType_UNIX_SECONDS
 
 	log.Debug("fetching data from nonexistent namespace")
@@ -119,8 +118,8 @@ func TestTruncateNamespace(t *testing.T) {
 	log.Sugar().Debugf("fetching data from a different namespace %s", testNamespaces[1])
 	fetchReq.ID = "bar"
 	fetchReq.NameSpace = testNamespaces[1].String()
-	fetchReq.RangeStart = xtime.ToNormalizedTime(now.Add(blockSize), time.Second)
-	fetchReq.RangeEnd = xtime.ToNormalizedTime(now.Add(blockSize*2), time.Second)
+	fetchReq.RangeStart = now.Add(blockSize).Seconds()
+	fetchReq.RangeEnd = now.Add(blockSize * 2).Seconds()
 	res, err = testSetup.Fetch(fetchReq)
 	require.NoError(t, err)
 	require.Equal(t, 50, len(res))

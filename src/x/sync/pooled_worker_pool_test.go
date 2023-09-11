@@ -21,10 +21,13 @@
 package sync
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,6 +49,87 @@ func TestPooledWorkerPoolGo(t *testing.T) {
 	wg.Wait()
 
 	require.Equal(t, uint32(testWorkerPoolSize*2), count)
+}
+
+func TestPooledWorkerPoolGoWithContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	wp, err := NewPooledWorkerPool(testWorkerPoolSize,
+		NewPooledWorkerPoolOptions().SetGrowOnDemand(false))
+	require.NoError(t, err)
+	wp.Init()
+
+	// Cancel and make sure worker will prefer to return from canceled
+	// work rather than always enqueue.
+	cancel()
+
+	var aborted uint32
+	for i := 0; i < 100; i++ {
+		go func() {
+			result := wp.GoWithContext(ctx, func() {
+				time.Sleep(time.Second)
+			})
+			if !result {
+				atomic.AddUint32(&aborted, 1)
+			}
+		}()
+	}
+
+	n := atomic.LoadUint32(&aborted)
+	require.True(t, n > 0)
+	t.Logf("aborted: %d", n)
+}
+
+func TestPooledWorkerPoolGoWithTimeout(t *testing.T) {
+	var (
+		workers = 2
+		opts    = NewPooledWorkerPoolOptions().SetNumShards(int64(workers))
+	)
+	p, err := NewPooledWorkerPool(workers, opts)
+	require.NoError(t, err)
+	p.Init()
+
+	pooledWorkerPool, ok := p.(*pooledWorkerPool)
+	require.True(t, ok)
+
+	// First fill up all the queues without blocking.
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	// Enqueue workers * 2 since buffered channel will allow workers / shards
+	// (which is 1, since 2 / 2 = 1) which means we need to enqueue two times
+	// the workers.
+	totalEnqueue := workers * 2
+	now := time.Now()
+	for i := 0; i < totalEnqueue; i++ {
+		// Set now in such a way that independent shards are selected.
+		shardNowSelect := now.
+			Truncate(time.Duration(totalEnqueue) * time.Nanosecond).
+			Add(time.Duration(i) * time.Nanosecond)
+		pooledWorkerPool.nowFn = func() time.Time {
+			return shardNowSelect
+		}
+
+		result := p.GoWithTimeout(func() {
+			wg.Wait()
+		}, 100*time.Millisecond)
+		assert.True(t, result)
+	}
+
+	// Restore the now fn.
+	pooledWorkerPool.nowFn = time.Now
+
+	// Now ensure all further enqueues time out.
+	for i := 0; i < workers; i++ {
+		result := p.GoWithTimeout(func() {
+			wg.Wait()
+		}, 100*time.Millisecond)
+		assert.False(t, result)
+	}
+
+	// Release goroutines.
+	wg.Done()
 }
 
 func TestPooledWorkerPoolGrowOnDemand(t *testing.T) {
@@ -143,4 +227,21 @@ func TestPooledWorkerPoolGoKillWorker(t *testing.T) {
 func TestPooledWorkerPoolSizeTooSmall(t *testing.T) {
 	_, err := NewPooledWorkerPool(0, NewPooledWorkerPoolOptions())
 	require.Error(t, err)
+}
+
+func TestPooledWorkerFast(t *testing.T) {
+	wp, err := NewPooledWorkerPool(1, NewPooledWorkerPoolOptions())
+	require.NoError(t, err)
+	wp.Init()
+
+	fast := wp.FastContextCheck(3)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	require.False(t, fast.GoWithContext(ctx, func() {}))
+	require.True(t, fast.GoWithContext(ctx, func() {}))
+	require.True(t, fast.GoWithContext(ctx, func() {}))
+	require.False(t, fast.GoWithContext(ctx, func() {}))
+	require.True(t, fast.GoWithContext(ctx, func() {}))
 }

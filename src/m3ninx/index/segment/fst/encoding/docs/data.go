@@ -21,6 +21,7 @@
 package docs
 
 import (
+	"errors"
 	"fmt"
 	"io"
 
@@ -44,7 +45,7 @@ func NewDataWriter(w io.Writer) *DataWriter {
 	}
 }
 
-func (w *DataWriter) Write(d doc.Document) (int, error) {
+func (w *DataWriter) Write(d doc.Metadata) (int, error) {
 	n := w.enc.PutBytes(d.ID)
 	n += w.enc.PutUvarint(uint64(len(d.Fields)))
 	for _, f := range d.Fields {
@@ -90,23 +91,23 @@ func NewDataReader(data []byte) *DataReader {
 	}
 }
 
-func (r *DataReader) Read(offset uint64) (doc.Document, error) {
+func (r *DataReader) Read(offset uint64) (doc.Metadata, error) {
 	if offset >= uint64(len(r.data)) {
-		return doc.Document{}, fmt.Errorf("invalid offset: %v is past the end of the data file", offset)
+		return doc.Metadata{}, fmt.Errorf("invalid offset: %v is past the end of the data file", offset)
 	}
 	dec := encoding.NewDecoder(r.data[int(offset):])
 	id, err := dec.Bytes()
 	if err != nil {
-		return doc.Document{}, err
+		return doc.Metadata{}, err
 	}
 
 	x, err := dec.Uvarint()
 	if err != nil {
-		return doc.Document{}, err
+		return doc.Metadata{}, err
 	}
 	n := int(x)
 
-	d := doc.Document{
+	d := doc.Metadata{
 		ID:     id,
 		Fields: make([]doc.Field, n),
 	}
@@ -114,11 +115,11 @@ func (r *DataReader) Read(offset uint64) (doc.Document, error) {
 	for i := 0; i < n; i++ {
 		name, err := dec.Bytes()
 		if err != nil {
-			return doc.Document{}, err
+			return doc.Metadata{}, err
 		}
 		val, err := dec.Bytes()
 		if err != nil {
-			return doc.Document{}, err
+			return doc.Metadata{}, err
 		}
 		d.Fields[i] = doc.Field{
 			Name:  name,
@@ -127,4 +128,113 @@ func (r *DataReader) Read(offset uint64) (doc.Document, error) {
 	}
 
 	return d, nil
+}
+
+// EncodedDataReader is a reader for the data file for encoded document metadata.
+type EncodedDataReader struct {
+	data []byte
+}
+
+// NewEncodedDataReader returns a new EncodedDataReader.
+func NewEncodedDataReader(data []byte) *EncodedDataReader {
+	return &EncodedDataReader{
+		data: data,
+	}
+}
+
+// Read reads a doc.Encoded from a data stream starting at the specified offset.
+func (e *EncodedDataReader) Read(offset uint64) (doc.Encoded, error) {
+	if offset >= uint64(len(e.data)) {
+		return doc.Encoded{}, fmt.Errorf(
+			"invalid offset: %v is past the end of the data file", offset,
+		)
+	}
+
+	return doc.Encoded{
+		Bytes: e.data[int(offset):],
+	}, nil
+}
+
+// EncodedDocumentReader is a reader for reading documents from encoded metadata.
+type EncodedDocumentReader struct {
+	currFields []doc.Field
+}
+
+// NewEncodedDocumentReader returns a new EncodedDocumentReader.
+func NewEncodedDocumentReader() *EncodedDocumentReader {
+	return &EncodedDocumentReader{}
+}
+
+// Read reads a doc.Metadata from a doc.Encoded. Returned doc.Metadata should be
+// processed before calling Read again as the underlying array pointed to by the Fields
+// slice will be updated. This approach avoids allocating a new slice with a new backing
+// array for every document processed, unlike (*DataReader).Read
+func (r *EncodedDocumentReader) Read(encoded doc.Encoded) (doc.Metadata, error) {
+	for i := range r.currFields {
+		r.currFields[i] = doc.Field{}
+	}
+	r.currFields = r.currFields[:0]
+	id, buf, err := encoding.ReadBytes(encoded.Bytes)
+	if err != nil {
+		return doc.Metadata{}, err
+	}
+
+	x, buf, err := encoding.ReadUvarint(buf)
+	if err != nil {
+		return doc.Metadata{}, err
+	}
+	n := int(x)
+
+	var name, val []byte
+	for i := 0; i < n; i++ {
+		name, buf, err = encoding.ReadBytes(buf)
+		if err != nil {
+			return doc.Metadata{}, err
+		}
+		val, buf, err = encoding.ReadBytes(buf)
+		if err != nil {
+			return doc.Metadata{}, err
+		}
+		r.currFields = append(r.currFields, doc.Field{
+			Name:  name,
+			Value: val,
+		})
+	}
+
+	return doc.Metadata{
+		ID:     id,
+		Fields: r.currFields,
+	}, nil
+}
+
+// ReadEncodedDocumentID reads the document ID from the encoded document metadata.
+func ReadEncodedDocumentID(encoded doc.Encoded) ([]byte, error) {
+	id, _, err := encoding.ReadBytes(encoded.Bytes)
+	return id, err
+}
+
+// MetadataFromDocument retrieves a doc.Metadata from a doc.Document.
+func MetadataFromDocument(document doc.Document, reader *EncodedDocumentReader) (doc.Metadata, error) {
+	if d, ok := document.Metadata(); ok {
+		return d, nil
+	}
+
+	if e, ok := document.Encoded(); ok {
+		return reader.Read(e)
+	}
+
+	return doc.Metadata{}, errors.New("document does not contain metadata or encoded metadata")
+}
+
+// ReadIDFromDocument reads the document ID from the document.
+func ReadIDFromDocument(document doc.Document) ([]byte, error) {
+	if d, ok := document.Metadata(); ok {
+		return d.ID, nil
+	}
+
+	if e, ok := document.Encoded(); ok {
+		return ReadEncodedDocumentID(e)
+	}
+
+	return nil, errors.New("document does not contain metadata or encoded metadata")
 }

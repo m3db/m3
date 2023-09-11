@@ -30,4 +30,5 @@ enum TransformationType {
   PERSECOND = 2;
   INCREASE = 3;
   ADD = 4;
+  RESET = 5;
 }

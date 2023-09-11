@@ -33,6 +33,7 @@ import (
 	ps "github.com/m3db/m3/src/cluster/placement/service"
 	"github.com/m3db/m3/src/cluster/placement/storage"
 	"github.com/m3db/m3/src/cluster/shard"
+	xos "github.com/m3db/m3/src/x/os"
 	xwatch "github.com/m3db/m3/src/x/watch"
 
 	"github.com/uber-go/tally"
@@ -88,7 +89,7 @@ type client struct {
 }
 
 func (c *client) Metadata(sid ServiceID) (Metadata, error) {
-	if err := validateServiceID(sid); err != nil {
+	if err := ValidateServiceID(sid); err != nil {
 		return nil, err
 	}
 
@@ -111,7 +112,7 @@ func (c *client) Metadata(sid ServiceID) (Metadata, error) {
 }
 
 func (c *client) SetMetadata(sid ServiceID, meta Metadata) error {
-	if err := validateServiceID(sid); err != nil {
+	if err := ValidateServiceID(sid); err != nil {
 		return err
 	}
 
@@ -129,7 +130,7 @@ func (c *client) SetMetadata(sid ServiceID, meta Metadata) error {
 }
 
 func (c *client) DeleteMetadata(sid ServiceID) error {
-	if err := validateServiceID(sid); err != nil {
+	if err := ValidateServiceID(sid); err != nil {
 		return err
 	}
 
@@ -143,7 +144,7 @@ func (c *client) DeleteMetadata(sid ServiceID) error {
 }
 
 func (c *client) PlacementService(sid ServiceID, opts placement.Options) (placement.Service, error) {
-	if err := validateServiceID(sid); err != nil {
+	if err := ValidateServiceID(sid); err != nil {
 		return nil, err
 	}
 
@@ -154,7 +155,7 @@ func (c *client) PlacementService(sid ServiceID, opts placement.Options) (placem
 
 	return ps.NewPlacementService(
 		storage.NewPlacementStorage(store, c.placementKeyFn(sid), opts),
-		opts,
+		ps.WithPlacementOptions(opts),
 	), nil
 }
 
@@ -244,7 +245,7 @@ func (c *client) Unadvertise(sid ServiceID, id string) error {
 }
 
 func (c *client) Query(sid ServiceID, opts QueryOptions) (Service, error) {
-	if err := validateServiceID(sid); err != nil {
+	if err := ValidateServiceID(sid); err != nil {
 		return nil, err
 	}
 
@@ -276,7 +277,7 @@ func (c *client) Query(sid ServiceID, opts QueryOptions) (Service, error) {
 }
 
 func (c *client) Watch(sid ServiceID, opts QueryOptions) (Watch, error) {
-	if err := validateServiceID(sid); err != nil {
+	if err := ValidateServiceID(sid); err != nil {
 		return nil, err
 	}
 
@@ -307,9 +308,9 @@ func (c *client) Watch(sid ServiceID, opts QueryOptions) (Watch, error) {
 		return nil, err
 	}
 
-	initValue, err := c.waitForInitValue(kvm.kv, placementWatch, sid, c.opts.InitTimeout())
+	initValue, err := c.waitForInitValue(kvm.kv, placementWatch, sid, c.opts.InitTimeout(), opts.InterruptedCh())
 	if err != nil {
-		return nil, fmt.Errorf("could not get init value for '%s' within timeout, err: %v", key, err)
+		return nil, fmt.Errorf("could not get init value for '%s',  err: %w", key, err)
 	}
 
 	initService, err := getServiceFromValue(initValue, sid)
@@ -358,7 +359,7 @@ func (c *client) Watch(sid ServiceID, opts QueryOptions) (Watch, error) {
 }
 
 func (c *client) HeartbeatService(sid ServiceID) (HeartbeatService, error) {
-	if err := validateServiceID(sid); err != nil {
+	if err := ValidateServiceID(sid); err != nil {
 		return nil, err
 	}
 
@@ -587,19 +588,37 @@ func getServiceFromValue(value kv.Value, sid ServiceID) (Service, error) {
 	return NewServiceFromPlacement(p, sid), nil
 }
 
-func (c *client) waitForInitValue(kvStore kv.Store, w kv.ValueWatch, sid ServiceID, timeout time.Duration) (kv.Value, error) {
+func (c *client) waitForInitValue(
+	kvStore kv.Store,
+	w kv.ValueWatch,
+	sid ServiceID,
+	timeout time.Duration,
+	interruptedCh <-chan struct{},
+) (kv.Value, error) {
+	if interruptedCh == nil {
+		// NB(nate): if no interrupted channel is provided, then this wait is not
+		// gracefully interruptable.
+		interruptedCh = make(chan struct{})
+	}
+
 	if timeout < 0 {
 		timeout = defaultInitTimeout
 	} else if timeout == 0 {
 		// We want no timeout if specifically asking for none
-		<-w.C()
-		return w.Get(), nil
+		select {
+		case <-w.C():
+			return w.Get(), nil
+		case <-interruptedCh:
+			return nil, xos.ErrInterrupted
+		}
 	}
 	select {
 	case <-w.C():
 		return w.Get(), nil
 	case <-time.After(timeout):
 		return kvStore.Get(c.placementKeyFn(sid))
+	case <-interruptedCh:
+		return nil, xos.ErrInterrupted
 	}
 }
 

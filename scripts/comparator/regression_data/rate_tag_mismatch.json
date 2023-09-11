@@ -2,8 +2,8 @@
 {
     "name": "aggregated_30d rate must be smaller than default",
     "query": "sum(rate(database_write_tagged_success[1m])) by (namespace)",
-    "startMillis": 1584825526,
-    "endMillis": 1584828792,
+    "startSeconds": 1584825526,
+    "endSeconds": 1584828792,
     "step": 2,
     "data": [
         {

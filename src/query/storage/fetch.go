@@ -23,26 +23,29 @@ package storage
 import (
 	"time"
 
-	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 
 	"github.com/uber-go/tally"
 )
 
+const (
+	defaultMaxMetricMetadataStats = 4
+)
+
 // NewFetchOptions creates a new fetch options.
 func NewFetchOptions() *FetchOptions {
 	return &FetchOptions{
-		SeriesLimit: 0,
-		DocsLimit:   0,
-		BlockType:   models.TypeSingleBlock,
+		SeriesLimit:            0,
+		DocsLimit:              0,
+		MaxMetricMetadataStats: defaultMaxMetricMetadataStats,
+		BlockType:              models.TypeSingleBlock,
 		FanoutOptions: &FanoutOptions{
 			FanoutUnaggregated:        FanoutDefault,
 			FanoutAggregated:          FanoutDefault,
 			FanoutAggregatedOptimized: FanoutDefault,
 		},
-		Enforcer: cost.NoopChainedEnforcer(),
-		Scope:    tally.NoopScope,
+		Scope: tally.NoopScope,
 	}
 }
 

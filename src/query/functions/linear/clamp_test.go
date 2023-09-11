@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/compare"
 	"github.com/m3db/m3/src/query/test/executor"
 
 	"github.com/stretchr/testify/assert"
@@ -54,7 +55,7 @@ func TestClampMin(t *testing.T) {
 	values[0][0] = math.NaN()
 
 	block := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	clampOp, err := NewClampOp([]interface{}{3.0}, ClampMinType)
 	require.NoError(t, err)
 
@@ -62,11 +63,11 @@ func TestClampMin(t *testing.T) {
 	require.True(t, ok)
 
 	node := op.Node(c, transform.Options{})
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), block)
 	require.NoError(t, err)
 	expected := expectedClampVals(values, 3.0, math.Max)
 	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 }
 
 func TestClampMax(t *testing.T) {
@@ -74,7 +75,7 @@ func TestClampMax(t *testing.T) {
 	values[0][0] = math.NaN()
 
 	block := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	clampOp, err := NewClampOp([]interface{}{3.0}, ClampMaxType)
 	require.NoError(t, err)
 
@@ -82,11 +83,11 @@ func TestClampMax(t *testing.T) {
 	require.True(t, ok)
 
 	node := op.Node(c, transform.Options{})
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), block)
 	require.NoError(t, err)
 	expected := expectedClampVals(values, 3.0, math.Min)
 	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 }
 
 func TestClampFailsParse(t *testing.T) {
@@ -103,7 +104,7 @@ func runClamp(t *testing.T, args []interface{},
 
 	v := [][]float64{vals}
 	block := test.NewBlockFromValues(bounds, v)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	roundOp, err := NewClampOp(args, opType)
 	require.NoError(t, err)
 
@@ -111,7 +112,7 @@ func runClamp(t *testing.T, args []interface{},
 	require.True(t, ok)
 
 	node := op.Node(c, transform.Options{})
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), block)
 	require.NoError(t, err)
 	require.Len(t, sink.Values, 1)
 
@@ -126,8 +127,8 @@ func TestClampWithArgs(t *testing.T) {
 	)
 
 	max := runClamp(t, toArgs(2), ClampMaxType, v)
-	test.EqualsWithNans(t, exMax, max)
+	compare.EqualsWithNans(t, exMax, max)
 
 	min := runClamp(t, toArgs(2), ClampMinType, v)
-	test.EqualsWithNans(t, exMin, min)
+	compare.EqualsWithNans(t, exMin, min)
 }

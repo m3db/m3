@@ -36,8 +36,6 @@ func id(t Tags) []byte {
 	}
 
 	switch schemeType {
-	case TypeLegacy:
-		return legacyID(t)
 	case TypeQuoted:
 		return quotedID(t)
 	case TypePrependMeta:
@@ -49,20 +47,6 @@ func id(t Tags) []byte {
 		// NB: realistically, schema defaults should be set by here.
 		return quotedID(t)
 	}
-}
-
-func legacyID(t Tags) []byte {
-	// TODO: pool these bytes.
-	id := make([]byte, idLen(t))
-	idx := -1
-	for _, tag := range t.Tags {
-		idx += copy(id[idx+1:], tag.Name) + 1
-		id[idx] = eq
-		idx += copy(id[idx+1:], tag.Value) + 1
-		id[idx] = sep
-	}
-
-	return id
 }
 
 func idLen(t Tags) int {

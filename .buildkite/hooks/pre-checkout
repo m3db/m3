@@ -1,6 +1,0 @@
-#!/bin/bash
-
-set -eo pipefail
-
-echo "--- :git: cleaning checkout"
-chmod -R +w ./_tools

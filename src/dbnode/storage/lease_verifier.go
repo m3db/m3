@@ -22,14 +22,14 @@ package storage
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type flushStateRetriever interface {
-	FlushState(namespace ident.ID, shardID uint32, blockStart time.Time) (fileOpState, error)
+	FlushState(namespace ident.ID, shardID uint32, blockStart xtime.UnixNano) (fileOpState, error)
 }
 
 type leaseVerifier struct {
@@ -73,7 +73,7 @@ func (v *leaseVerifier) VerifyLease(
 
 func (v *leaseVerifier) LatestState(descriptor block.LeaseDescriptor) (block.LeaseState, error) {
 	flushState, err := v.flushStateRetriever.FlushState(
-		descriptor.Namespace, uint32(descriptor.Shard), descriptor.BlockStart)
+		descriptor.Namespace, descriptor.Shard, descriptor.BlockStart)
 	if err != nil {
 		return block.LeaseState{}, fmt.Errorf(
 			"err retrieving flushState for LatestState, ns: %s, shard: %d, blockStart: %s, err: %v",

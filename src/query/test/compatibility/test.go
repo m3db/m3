@@ -52,7 +52,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/util/testutil"
@@ -545,7 +545,7 @@ func (t *Test) clear() error {
 func (t *Test) Close() {
 }
 
-// samplesAlmostEqual returns true if the two sample lines only differ by a
+// almostEqual returns true if the two sample lines only differ by a
 // small relative error in their sample value.
 func almostEqual(a, b float64) bool {
 	// NaN has no equality but for testing we still want to know whether both values
@@ -562,7 +562,7 @@ func almostEqual(a, b float64) bool {
 	diff := math.Abs(a - b)
 
 	if a == 0 || b == 0 || diff < minNormal {
-		return diff < epsilon
+		return diff < epsilon*minNormal
 	}
 	return diff/(math.Abs(a)+math.Abs(b)) < epsilon
 }

@@ -21,12 +21,24 @@
 package influxdb
 
 import (
+	"bytes"
+	"compress/gzip"
+	"context"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
-	imodels "github.com/influxdata/influxdb/models"
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
+	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/models"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/golang/mock/gomock"
+	imodels "github.com/influxdata/influxdb/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -38,7 +50,7 @@ func (self *ingestIterator) pop(t *testing.T) string {
 		value := self.Current()
 		assert.Equal(t, 1, len(value.Datapoints))
 
-		return fmt.Sprintf("%s %v %s", value.Tags.String(), value.Datapoints[0].Value, value.Datapoints[0].Timestamp)
+		return fmt.Sprintf("%s %v %d", value.Tags.String(), value.Datapoints[0].Value, int64(value.Datapoints[0].Timestamp))
 	}
 	return ""
 }
@@ -54,9 +66,9 @@ func TestIngestIterator(t *testing.T) {
 	iter := &ingestIterator{points: points, promRewriter: newPromRewriter()}
 	require.NoError(t, iter.Error())
 	for _, line := range []string{
-		"__name__: _measure:___key1:_, _tag1__: tval1, _tag2__: tval2 3 2019-11-27 07:11:10.3864698 +0000 UTC",
-		"__name__: _measure:___key2:_, _tag1__: tval1, _tag2__: tval2 2 2019-11-27 07:11:10.3864698 +0000 UTC",
-		"__name__: _measure:___key4:_, _tag1__: tval1, _tag2__: tval2 1 2019-11-27 07:11:10.386469801 +0000 UTC",
+		"__name__: _measure:___key1:_, _tag1__: tval1, _tag2__: tval2 3 1574838670386469800",
+		"__name__: _measure:___key2:_, _tag1__: tval1, _tag2__: tval2 2 1574838670386469800",
+		"__name__: _measure:___key4:_, _tag1__: tval1, _tag2__: tval2 1 1574838670386469801",
 		"",
 		"",
 	} {
@@ -118,6 +130,31 @@ func TestIngestIteratorIssue2125(t *testing.T) {
 	assert.Equal(t, value2.Tags.String(), "__name__: measure_k2, lab: foo")
 }
 
+func TestIngestIteratorWriteTags(t *testing.T) {
+	s := `measure,lab=foo k1=1,k2=2 1574838670386469800
+`
+	points, err := imodels.ParsePoints([]byte(s))
+	require.NoError(t, err)
+
+	writeTags := models.EmptyTags().
+		AddTag(models.Tag{Name: []byte("lab"), Value: []byte("bar")}).
+		AddTag(models.Tag{Name: []byte("new"), Value: []byte("tag")})
+
+	iter := &ingestIterator{points: points, promRewriter: newPromRewriter(), writeTags: writeTags}
+
+	assert.True(t, iter.Next())
+	value1 := iter.Current()
+	require.NoError(t, iter.Error())
+
+	assert.Equal(t, value1.Tags.String(), "__name__: measure_k1, lab: bar, new: tag")
+
+	assert.True(t, iter.Next())
+	value2 := iter.Current()
+	require.NoError(t, iter.Error())
+
+	assert.Equal(t, value2.Tags.String(), "__name__: measure_k2, lab: bar, new: tag")
+}
+
 func TestDetermineTimeUnit(t *testing.T) {
 	now := time.Now()
 	zerot := now.Add(time.Duration(-now.UnixNano() % int64(time.Second)))
@@ -125,5 +162,190 @@ func TestDetermineTimeUnit(t *testing.T) {
 	assert.Equal(t, determineTimeUnit(zerot.Add(2*time.Millisecond)), xtime.Millisecond)
 	assert.Equal(t, determineTimeUnit(zerot.Add(3*time.Microsecond)), xtime.Microsecond)
 	assert.Equal(t, determineTimeUnit(zerot.Add(4*time.Nanosecond)), xtime.Nanosecond)
+}
 
+func makeOptions(ds ingest.DownsamplerAndWriter) options.HandlerOptions {
+	return options.EmptyHandlerOptions().
+		SetDownsamplerAndWriter(ds)
+}
+
+func makeInfluxDBLineProtocolMessage(t *testing.T, isGzipped bool, time time.Time, precision time.Duration) io.Reader {
+	t.Helper()
+	ts := fmt.Sprintf("%d", time.UnixNano()/precision.Nanoseconds())
+	line := fmt.Sprintf("weather,location=us-midwest,season=summer temperature=82 %s", ts)
+	var msg bytes.Buffer
+	if isGzipped {
+		gz := gzip.NewWriter(&msg)
+		_, err := gz.Write([]byte(line))
+		require.NoError(t, err)
+		err = gz.Close()
+		require.NoError(t, err)
+	} else {
+		msg.WriteString(line)
+	}
+	return bytes.NewReader(msg.Bytes())
+}
+
+func TestInfluxDBWrite(t *testing.T) {
+	type checkWriteBatchFunc func(context.Context, *ingestIterator, ingest.WriteOptions) interface{}
+
+	// small helper for tests where we dont want to check the batch
+	dontCheckWriteBatch := checkWriteBatchFunc(
+		func(context.Context, *ingestIterator, ingest.WriteOptions) interface{} {
+			return nil
+		},
+	)
+
+	tests := []struct {
+		name            string
+		expectedStatus  int
+		requestHeaders  map[string]string
+		isGzipped       bool
+		checkWriteBatch checkWriteBatchFunc
+	}{
+		{
+			name:           "Gzip Encoded Message",
+			expectedStatus: http.StatusNoContent,
+			isGzipped:      true,
+			requestHeaders: map[string]string{
+				"Content-Encoding": "gzip",
+			},
+			checkWriteBatch: dontCheckWriteBatch,
+		},
+		{
+			name:           "Wrong Content Encoding",
+			expectedStatus: http.StatusBadRequest,
+			isGzipped:      false,
+			requestHeaders: map[string]string{
+				"Content-Encoding": "gzip",
+			},
+			checkWriteBatch: dontCheckWriteBatch,
+		},
+		{
+			name:            "Plaintext Message",
+			expectedStatus:  http.StatusNoContent,
+			isGzipped:       false,
+			requestHeaders:  map[string]string{},
+			checkWriteBatch: dontCheckWriteBatch,
+		},
+		{
+			name:           "Map-Tags-JSON Add Tag",
+			expectedStatus: http.StatusNoContent,
+			isGzipped:      false,
+			requestHeaders: map[string]string{
+				"M3-Map-Tags-JSON": `{"tagMappers": [{"write": {"tag": "t", "value": "v"}}]}`,
+			},
+			checkWriteBatch: checkWriteBatchFunc(
+				func(_ context.Context, iter *ingestIterator, opts ingest.WriteOptions) interface{} {
+					_, found := iter.writeTags.Get([]byte("t"))
+					require.True(t, found, "tag t will be overwritten")
+					return nil
+				},
+			),
+		},
+	}
+
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	for _, testCase := range tests {
+		testCase := testCase
+		t.Run(testCase.name, func(tt *testing.T) {
+			mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
+			// For error reponses we don't expect WriteBatch to be called
+			if testCase.expectedStatus != http.StatusBadRequest {
+				mockDownsamplerAndWriter.
+					EXPECT().
+					WriteBatch(gomock.Any(), gomock.Any(), gomock.Any()).
+					DoAndReturn(testCase.checkWriteBatch).
+					Times(1)
+			}
+
+			opts := makeOptions(mockDownsamplerAndWriter)
+			handler := NewInfluxWriterHandler(opts)
+			msg := makeInfluxDBLineProtocolMessage(t, testCase.isGzipped, time.Now(), time.Nanosecond)
+			req := httptest.NewRequest(InfluxWriteHTTPMethod, InfluxWriteURL, msg)
+			for header, value := range testCase.requestHeaders {
+				req.Header.Set(header, value)
+			}
+			writer := httptest.NewRecorder()
+			handler.ServeHTTP(writer, req)
+			resp := writer.Result()
+			require.Equal(t, testCase.expectedStatus, resp.StatusCode)
+			resp.Body.Close()
+		})
+	}
+}
+
+func TestInfluxDBWritePrecision(t *testing.T) {
+	tests := []struct {
+		name           string
+		expectedStatus int
+		precision      string
+	}{
+		{
+			name:           "No precision",
+			expectedStatus: http.StatusNoContent,
+			precision:      "",
+		},
+		{
+			name:           "Millisecond precision",
+			expectedStatus: http.StatusNoContent,
+			precision:      "ms",
+		},
+		{
+			name:           "Second precision",
+			expectedStatus: http.StatusNoContent,
+			precision:      "s",
+		},
+	}
+
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	for _, testCase := range tests {
+		testCase := testCase
+		t.Run(testCase.name, func(tt *testing.T) {
+			var precision time.Duration
+			switch testCase.precision {
+			case "":
+				precision = time.Nanosecond
+			case "ms":
+				precision = time.Millisecond
+			case "s":
+				precision = time.Second
+			}
+
+			now := time.Now()
+
+			mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
+			mockDownsamplerAndWriter.
+				EXPECT().
+				WriteBatch(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(
+				_ context.Context,
+				iter *ingestIterator,
+				opts ingest.WriteOptions,
+			) interface{} {
+				require.Equal(tt, now.Truncate(precision).UnixNano(), iter.points[0].UnixNano(), "correct precision")
+				return nil
+			}).Times(1)
+
+			opts := makeOptions(mockDownsamplerAndWriter)
+			handler := NewInfluxWriterHandler(opts)
+
+			msg := makeInfluxDBLineProtocolMessage(t, false, now, precision)
+			var url string
+			if testCase.precision == "" {
+				url = InfluxWriteURL
+			} else {
+				url = InfluxWriteURL + fmt.Sprintf("?precision=%s", testCase.precision)
+			}
+			req := httptest.NewRequest(InfluxWriteHTTPMethod, url, msg)
+			writer := httptest.NewRecorder()
+			handler.ServeHTTP(writer, req)
+			resp := writer.Result()
+			require.Equal(t, testCase.expectedStatus, resp.StatusCode)
+			resp.Body.Close()
+		})
+	}
 }

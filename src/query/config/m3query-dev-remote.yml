@@ -1,6 +1,4 @@
-listenAddress:
-  type: "config"
-  value: "0.0.0.0:7201"
+listenAddress: 0.0.0.0:7201
 
 backend: grpc
 

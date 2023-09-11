@@ -21,17 +21,19 @@
 package bootstrap
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
-	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -40,27 +42,32 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+var (
+	errNoOrigin      = errors.New("no origin set for initial topology state")
+	errNoTopologyMap = errors.New("no topology map set for initial topology state")
+)
+
 // bootstrapProcessProvider is the bootstrapping process provider.
 type bootstrapProcessProvider struct {
 	sync.RWMutex
 	processOpts          ProcessOptions
 	resultOpts           result.Options
+	fsOpts               fs.Options
 	log                  *zap.Logger
 	bootstrapperProvider BootstrapperProvider
 }
 
-type bootstrapRunType string
-
-const (
-	bootstrapDataRunType  = bootstrapRunType("bootstrap-data")
-	bootstrapIndexRunType = bootstrapRunType("bootstrap-index")
-)
+// ErrFileSetSnapshotTypeRangeAdvanced is an error of bootstrap time ranges for snapshot-type
+// blocks advancing during the bootstrap
+var ErrFileSetSnapshotTypeRangeAdvanced = errors.New(
+	"retrying bootstrap in order to recalculate time ranges (this is OK)")
 
 // NewProcessProvider creates a new bootstrap process provider.
 func NewProcessProvider(
 	bootstrapperProvider BootstrapperProvider,
 	processOpts ProcessOptions,
 	resultOpts result.Options,
+	fsOpts fs.Options,
 ) (ProcessProvider, error) {
 	if err := processOpts.Validate(); err != nil {
 		return nil, err
@@ -69,6 +76,7 @@ func NewProcessProvider(
 	return &bootstrapProcessProvider{
 		processOpts:          processOpts,
 		resultOpts:           resultOpts,
+		fsOpts:               fsOpts,
 		log:                  resultOpts.InstrumentOptions().Logger(),
 		bootstrapperProvider: bootstrapperProvider,
 	}, nil
@@ -94,7 +102,13 @@ func (b *bootstrapProcessProvider) Provide() (Process, error) {
 		return nil, err
 	}
 
-	initialTopologyState, err := b.newInitialTopologyState()
+	topoMap, err := b.processOpts.TopologyMapProvider().TopologyMap()
+	if err != nil {
+		return nil, err
+	}
+
+	origin := b.processOpts.Origin()
+	initialTopologyState, err := newInitialTopologyState(origin, topoMap)
 	if err != nil {
 		return nil, err
 	}
@@ -102,6 +116,7 @@ func (b *bootstrapProcessProvider) Provide() (Process, error) {
 	return bootstrapProcess{
 		processOpts:          b.processOpts,
 		resultOpts:           b.resultOpts,
+		fsOpts:               b.fsOpts,
 		nowFn:                b.resultOpts.ClockOptions().NowFn(),
 		log:                  b.log,
 		bootstrapper:         bootstrapper,
@@ -109,16 +124,21 @@ func (b *bootstrapProcessProvider) Provide() (Process, error) {
 	}, nil
 }
 
-func (b *bootstrapProcessProvider) newInitialTopologyState() (*topology.StateSnapshot, error) {
-	topoMap, err := b.processOpts.TopologyMapProvider().TopologyMap()
-	if err != nil {
-		return nil, err
+func newInitialTopologyState(
+	origin topology.Host,
+	topoMap topology.Map,
+) (*topology.StateSnapshot, error) {
+	if origin == nil {
+		return nil, errNoOrigin
+	}
+	if topoMap == nil {
+		return nil, errNoTopologyMap
 	}
 
 	var (
 		hostShardSets = topoMap.HostShardSets()
 		topologyState = &topology.StateSnapshot{
-			Origin:           b.processOpts.Origin(),
+			Origin:           origin,
 			MajorityReplicas: topoMap.MajorityReplicas(),
 			ShardStates:      topology.ShardStates{},
 		}
@@ -147,6 +167,7 @@ func (b *bootstrapProcessProvider) newInitialTopologyState() (*topology.StateSna
 type bootstrapProcess struct {
 	processOpts          ProcessOptions
 	resultOpts           result.Options
+	fsOpts               fs.Options
 	nowFn                clock.NowFn
 	log                  *zap.Logger
 	bootstrapper         Bootstrapper
@@ -155,7 +176,7 @@ type bootstrapProcess struct {
 
 func (b bootstrapProcess) Run(
 	ctx context.Context,
-	at time.Time,
+	at xtime.UnixNano,
 	namespaces []ProcessNamespace,
 ) (NamespaceResults, error) {
 	namespacesRunFirst := Namespaces{
@@ -164,15 +185,18 @@ func (b bootstrapProcess) Run(
 	namespacesRunSecond := Namespaces{
 		Namespaces: NewNamespacesMap(NamespacesMapOptions{}),
 	}
+	namespaceDetails := make([]NamespaceDetails, 0, len(namespaces))
 	for _, namespace := range namespaces {
-		ropts := namespace.Metadata.Options().RetentionOptions()
-		idxopts := namespace.Metadata.Options().IndexOptions()
-		dataRanges := b.targetRangesForData(at, ropts)
-		indexRanges := b.targetRangesForIndex(at, ropts, idxopts)
-		firstRanges := b.newShardTimeRanges(
-			dataRanges.firstRangeWithPersistTrue.Range,
-			namespace.Shards,
+		var (
+			nsOpts      = namespace.Metadata.Options()
+			dataRanges  = b.targetRangesForData(at, nsOpts)
+			indexRanges = b.targetRangesForIndex(at, nsOpts)
+			firstRanges = b.newShardTimeRanges(
+				dataRanges.firstRangeWithPersistTrue.Range,
+				namespace.Shards,
+			)
 		)
+
 		namespacesRunFirst.Namespaces.Set(namespace.Metadata.ID(), Namespace{
 			Metadata:         namespace.Metadata,
 			Shards:           namespace.Shards,
@@ -192,33 +216,80 @@ func (b bootstrapProcess) Run(
 			},
 		})
 		secondRanges := b.newShardTimeRanges(
-			dataRanges.secondRangeWithPersistFalse.Range, namespace.Shards)
+			dataRanges.secondRange.Range, namespace.Shards)
 		namespacesRunSecond.Namespaces.Set(namespace.Metadata.ID(), Namespace{
 			Metadata:         namespace.Metadata,
 			Shards:           namespace.Shards,
 			DataAccumulator:  namespace.DataAccumulator,
 			Hooks:            namespace.Hooks,
-			DataTargetRange:  dataRanges.secondRangeWithPersistFalse,
-			IndexTargetRange: indexRanges.secondRangeWithPersistFalse,
+			DataTargetRange:  dataRanges.secondRange,
+			IndexTargetRange: indexRanges.secondRange,
 			DataRunOptions: NamespaceRunOptions{
 				ShardTimeRanges:       secondRanges.Copy(),
 				TargetShardTimeRanges: secondRanges.Copy(),
-				RunOptions:            dataRanges.secondRangeWithPersistFalse.RunOptions,
+				RunOptions:            dataRanges.secondRange.RunOptions,
 			},
 			IndexRunOptions: NamespaceRunOptions{
 				ShardTimeRanges:       secondRanges.Copy(),
 				TargetShardTimeRanges: secondRanges.Copy(),
-				RunOptions:            indexRanges.secondRangeWithPersistFalse.RunOptions,
+				RunOptions:            indexRanges.secondRange.RunOptions,
 			},
 		})
+		namespaceDetails = append(namespaceDetails, NamespaceDetails{
+			Namespace: namespace.Metadata,
+			Shards:    namespace.Shards,
+		})
+	}
+	cache, err := NewCache(NewCacheOptions().
+		SetFilesystemOptions(b.fsOpts).
+		SetNamespaceDetails(namespaceDetails).
+		SetInstrumentOptions(b.fsOpts.InstrumentOptions()))
+	if err != nil {
+		return NamespaceResults{}, err
 	}
 
-	bootstrapResult := NewNamespaceResults(namespacesRunFirst)
-	for _, namespaces := range []Namespaces{
-		namespacesRunFirst,
-		namespacesRunSecond,
-	} {
-		res, err := b.runPass(ctx, namespaces)
+	var (
+		bootstrapResult = NewNamespaceResults(namespacesRunFirst)
+		namespacesToRun = []Namespaces{namespacesRunFirst, namespacesRunSecond}
+		lastRunIndex    = len(namespacesToRun) - 1
+	)
+	for runIndex, namespaces := range namespacesToRun {
+		for _, entry := range namespaces.Namespaces.Iter() {
+			ns := entry.Value()
+
+			// First determine if any shards that we are bootstrapping are
+			// initializing and hence might need peer bootstrapping and if so
+			// make sure the time ranges reflect the time window that should
+			// be bootstrapped from peers (in case time has shifted considerably).
+			if !b.shardsInitializingAny(ns.Shards) {
+				// No shards initializing, don't need to run check to see if
+				// time has shifted.
+				continue
+			}
+
+			// If last run, check if ranges have advanced while bootstrapping previous ranges.
+			// If yes, return an error to force a retry.
+			if runIndex == lastRunIndex {
+				var (
+					now                = xtime.ToUnixNano(b.nowFn())
+					nsOptions          = ns.Metadata.Options()
+					upToDateDataRanges = b.targetRangesForData(now, nsOptions)
+				)
+				// Only checking data ranges. Since index blocks can only be a multiple of
+				// data block size, the ranges for index could advance only if data ranges
+				// have advanced, too (while opposite is not necessarily true)
+				if !upToDateDataRanges.secondRange.Range.Equal(ns.DataTargetRange.Range) {
+					upToDateIndexRanges := b.targetRangesForIndex(now, nsOptions)
+					fields := b.logFields(ns.Metadata, ns.Shards,
+						upToDateDataRanges.secondRange.Range,
+						upToDateIndexRanges.secondRange.Range)
+					b.log.Error("time ranges of snapshot-type blocks advanced", fields...)
+					return NamespaceResults{}, ErrFileSetSnapshotTypeRangeAdvanced
+				}
+			}
+		}
+
+		res, err := b.runPass(ctx, namespaces, cache)
 		if err != nil {
 			return NamespaceResults{}, err
 		}
@@ -229,9 +300,37 @@ func (b bootstrapProcess) Run(
 	return bootstrapResult, nil
 }
 
+func (b bootstrapProcess) shardsInitializingAny(
+	shards []uint32,
+) bool {
+	for _, value := range shards {
+		shardID := topology.ShardID(value)
+		hostShardStates, ok := b.initialTopologyState.ShardStates[shardID]
+		if !ok {
+			// This shard was not part of the topology when the bootstrapping
+			// process began.
+			continue
+		}
+
+		originID := topology.HostID(b.initialTopologyState.Origin.ID())
+		originHostShardState, ok := hostShardStates[originID]
+		if !ok {
+			// This shard was not part of the origin's shard.
+			continue
+		}
+
+		if originHostShardState.ShardState == shard.Initializing {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (b bootstrapProcess) runPass(
 	ctx context.Context,
 	namespaces Namespaces,
+	cache Cache,
 ) (NamespaceResults, error) {
 	ctx, span, sampled := ctx.StartSampledTraceSpan(tracepoint.BootstrapProcessRun)
 	defer span.Finish()
@@ -258,7 +357,7 @@ func (b bootstrapProcess) runPass(
 	}
 
 	begin := b.nowFn()
-	res, err := b.bootstrapper.Bootstrap(ctx, namespaces)
+	res, err := b.bootstrapper.Bootstrap(ctx, namespaces, cache)
 	took := b.nowFn().Sub(begin)
 	if err != nil {
 		b.log.Error("bootstrap process error",
@@ -295,16 +394,16 @@ func (b bootstrapProcess) logFields(
 		zap.String("bootstrapper", b.bootstrapper.String()),
 		zap.Stringer("namespace", namespace.ID()),
 		zap.Int("numShards", len(shards)),
-		zap.Time("dataFrom", dataTimeWindow.Start),
-		zap.Time("dataTo", dataTimeWindow.End),
+		zap.Time("dataFrom", dataTimeWindow.Start.ToTime()),
+		zap.Time("dataTo", dataTimeWindow.End.ToTime()),
 		zap.Duration("dataRange", dataTimeWindow.End.Sub(dataTimeWindow.Start)),
 	}
 	if namespace.Options().IndexOptions().Enabled() {
-		fields = append(fields, []zapcore.Field{
-			zap.Time("indexFrom", indexTimeWindow.Start),
-			zap.Time("indexTo", indexTimeWindow.End),
+		fields = append(fields,
+			zap.Time("indexFrom", indexTimeWindow.Start.ToTime()),
+			zap.Time("indexTo", indexTimeWindow.End.ToTime()),
 			zap.Duration("indexRange", indexTimeWindow.End.Sub(indexTimeWindow.Start)),
-		}...)
+		)
 	}
 	return fields
 }
@@ -343,29 +442,32 @@ func (b bootstrapProcess) logBootstrapResult(
 }
 
 func (b bootstrapProcess) targetRangesForData(
-	at time.Time,
-	ropts retention.Options,
+	at xtime.UnixNano,
+	nsOpts namespace.Options,
 ) targetRangesResult {
+	ropts := nsOpts.RetentionOptions()
 	return b.targetRanges(at, targetRangesOptions{
 		retentionPeriod:       ropts.RetentionPeriod(),
 		futureRetentionPeriod: ropts.FutureRetentionPeriod(),
 		blockSize:             ropts.BlockSize(),
 		bufferPast:            ropts.BufferPast(),
 		bufferFuture:          ropts.BufferFuture(),
+		snapshotEnabled:       nsOpts.SnapshotEnabled(),
 	})
 }
 
 func (b bootstrapProcess) targetRangesForIndex(
-	at time.Time,
-	ropts retention.Options,
-	idxopts namespace.IndexOptions,
+	at xtime.UnixNano,
+	nsOpts namespace.Options,
 ) targetRangesResult {
+	ropts := nsOpts.RetentionOptions()
 	return b.targetRanges(at, targetRangesOptions{
 		retentionPeriod:       ropts.RetentionPeriod(),
 		futureRetentionPeriod: ropts.FutureRetentionPeriod(),
-		blockSize:             idxopts.BlockSize(),
+		blockSize:             nsOpts.IndexOptions().BlockSize(),
 		bufferPast:            ropts.BufferPast(),
 		bufferFuture:          ropts.BufferFuture(),
+		snapshotEnabled:       nsOpts.SnapshotEnabled(),
 	})
 }
 
@@ -375,15 +477,16 @@ type targetRangesOptions struct {
 	blockSize             time.Duration
 	bufferPast            time.Duration
 	bufferFuture          time.Duration
+	snapshotEnabled       bool
 }
 
 type targetRangesResult struct {
-	firstRangeWithPersistTrue   TargetRange
-	secondRangeWithPersistFalse TargetRange
+	firstRangeWithPersistTrue TargetRange
+	secondRange               TargetRange
 }
 
 func (b bootstrapProcess) targetRanges(
-	at time.Time,
+	at xtime.UnixNano,
 	opts targetRangesOptions,
 ) targetRangesResult {
 	start := at.Add(-opts.retentionPeriod).
@@ -398,6 +501,12 @@ func (b bootstrapProcess) targetRanges(
 	cutover := at.Add(opts.bufferFuture).
 		Truncate(opts.blockSize).
 		Add(opts.blockSize)
+
+	secondRangeFilesetType := persist.FileSetSnapshotType
+	if !opts.snapshotEnabled {
+		// NB: If snapshots are disabled for a namespace, we want to use flush type.
+		secondRangeFilesetType = persist.FileSetFlushType
+	}
 
 	// NB(r): We want the large initial time range bootstrapped to
 	// bootstrap with persistence so we don't keep the full raw
@@ -414,7 +523,7 @@ func (b bootstrapProcess) targetRanges(
 				FileSetType: persist.FileSetFlushType,
 			}),
 		},
-		secondRangeWithPersistFalse: TargetRange{
+		secondRange: TargetRange{
 			Range: xtime.Range{Start: midPoint, End: cutover},
 			RunOptions: b.newRunOptions().SetPersistConfig(PersistConfig{
 				Enabled: true,
@@ -422,7 +531,7 @@ func (b bootstrapProcess) targetRanges(
 				// in memory, but we want to snapshot them as we receive them
 				// so that once bootstrapping completes we can still recover
 				// from just the commit log bootstrapper.
-				FileSetType: persist.FileSetSnapshotType,
+				FileSetType: secondRangeFilesetType,
 			}),
 		},
 	}

@@ -119,6 +119,20 @@ func TestOptionsValidate(t *testing.T) {
 	require.Error(t, o1.Validate())
 }
 
+func TestOptionsValidateWithExtendedOptions(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	extendedOpts := NewMockExtendedOptions(ctrl)
+	opts := NewOptions().SetExtendedOptions(extendedOpts)
+
+	extendedOpts.EXPECT().Validate().Return(nil)
+	require.NoError(t, opts.Validate())
+
+	extendedOpts.EXPECT().Validate().Return(fmt.Errorf("test error"))
+	require.Error(t, opts.Validate())
+}
+
 func TestOptionsValidateBlockSizeMustBeMultiple(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -179,4 +193,27 @@ func TestOptionsValidateNoIndexing(t *testing.T) {
 
 	rOpts.EXPECT().Validate().Return(nil)
 	require.NoError(t, o1.Validate())
+}
+
+func TestOptionsValidateStagingStatus(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	rOpts := retention.NewMockOptions(ctrl)
+	iOpts := NewMockIndexOptions(ctrl)
+	o1 := NewOptions().
+		SetRetentionOptions(rOpts).
+		SetIndexOptions(iOpts)
+
+	iOpts.EXPECT().Enabled().Return(true).AnyTimes()
+
+	rOpts.EXPECT().Validate().Return(nil).AnyTimes()
+	rOpts.EXPECT().RetentionPeriod().Return(time.Hour).AnyTimes()
+	rOpts.EXPECT().FutureRetentionPeriod().Return(time.Duration(0)).AnyTimes()
+	rOpts.EXPECT().BlockSize().Return(time.Hour).AnyTimes()
+	iOpts.EXPECT().BlockSize().Return(time.Hour).AnyTimes()
+	require.NoError(t, o1.Validate())
+
+	o1 = o1.SetStagingState(StagingState{status: StagingStatus(12)})
+	require.Error(t, o1.Validate())
 }

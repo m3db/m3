@@ -23,26 +23,33 @@ package client
 import (
 	"errors"
 	"fmt"
+	"io"
+	"math"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
 const (
-	// By default we use 6 buckets for the queue size histogram metrics
-	// to achieve a good balance between metric granularity and overhead.
-	defaultQueueSizeNumBuckets = 6
+	_queueMinWriteBufSize = 65536
+	_queueMaxWriteBufSize = 8 * _queueMinWriteBufSize
 )
 
 var (
 	errInstanceQueueClosed = errors.New("instance queue is closed")
 	errWriterQueueFull     = errors.New("writer queue is full")
+	errInvalidDropType     = errors.New("invalid queue drop type")
+
+	_queueConnWriteBufPool = sync.Pool{New: func() interface{} {
+		b := make([]byte, 0, _queueMinWriteBufSize)
+		return &b
+	}}
 )
 
 // DropType determines which metrics should be dropped when the queue is full.
@@ -73,6 +80,11 @@ func (t DropType) String() string {
 	return "unknown"
 }
 
+// MarshalYAML marshals a DropType.
+func (t *DropType) MarshalYAML() (interface{}, error) {
+	return t.String(), nil
+}
+
 // UnmarshalYAML unmarshals a DropType into a valid type from string.
 func (t *DropType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
@@ -101,29 +113,28 @@ type instanceQueue interface {
 	// Enqueue enqueues a data buffer.
 	Enqueue(buf protobuf.Buffer) error
 
+	// Size returns the number of items in the queue.
+	Size() int
+
 	// Close closes the queue, it blocks until the queue is drained.
 	Close() error
+
+	// Flush flushes the queue, it blocks until the queue is drained.
+	Flush()
 }
 
 type writeFn func([]byte) error
 
 type queue struct {
-	sync.RWMutex
-
-	log                *zap.Logger
-	metrics            queueMetrics
-	dropType           DropType
-	instance           placement.Instance
-	conn               *connection
-	bufCh              chan protobuf.Buffer
-	doneCh             chan struct{}
-	closed             bool
-	buf                []byte
-	maxBatchSize       int
-	batchFlushDeadline time.Duration
-	wg                 sync.WaitGroup
-
-	writeFn writeFn
+	metrics  queueMetrics
+	instance placement.Instance
+	conn     *connection
+	log      *zap.Logger
+	writeFn  writeFn
+	buf      qbuf
+	dropType DropType
+	closed   atomic.Bool
+	mtx      sync.Mutex
 }
 
 func newInstanceQueue(instance placement.Instance, opts Options) instanceQueue {
@@ -134,160 +145,158 @@ func newInstanceQueue(instance placement.Instance, opts Options) instanceQueue {
 		connOpts           = opts.ConnectionOptions().
 					SetInstrumentOptions(connInstrumentOpts).
 					SetRWOptions(opts.RWOptions())
-		conn          = newConnection(instance.Endpoint(), connOpts)
-		iOpts         = opts.InstrumentOptions()
-		queueSize     = opts.InstanceQueueSize()
-		maxBatchSize  = opts.MaxBatchSize()
-		writeInterval = opts.BatchFlushDeadline()
+		conn      = newConnection(instance.Endpoint(), connOpts)
+		iOpts     = opts.InstrumentOptions()
+		queueSize = opts.InstanceQueueSize()
 	)
+
+	// Round up queue size to power of 2.
+	// buf is a ring buffer of byte buffers, so it should definitely be many orders of magnitude
+	// below max uint32.
+	qsize := uint32(roundUpToPowerOfTwo(queueSize))
+
 	q := &queue{
-		dropType:           opts.QueueDropType(),
-		log:                iOpts.Logger(),
-		metrics:            newQueueMetrics(iOpts.MetricsScope(), queueSize),
-		instance:           instance,
-		conn:               conn,
-		bufCh:              make(chan protobuf.Buffer, queueSize),
-		doneCh:             make(chan struct{}),
-		maxBatchSize:       maxBatchSize,
-		batchFlushDeadline: writeInterval,
-		buf:                make([]byte, 0, maxBatchSize),
+		dropType: opts.QueueDropType(),
+		log:      iOpts.Logger(),
+		metrics:  newQueueMetrics(iOpts.MetricsScope()),
+		instance: instance,
+		conn:     conn,
+		buf: qbuf{
+			b: make([]protobuf.Buffer, int(qsize)),
+		},
 	}
 	q.writeFn = q.conn.Write
-
-	q.wg.Add(2)
-	go q.drain()
-	go q.reportQueueSize(iOpts.ReportInterval())
 
 	return q
 }
 
 func (q *queue) Enqueue(buf protobuf.Buffer) error {
-	q.RLock()
-	if q.closed {
-		q.RUnlock()
+	if q.closed.Load() {
 		q.metrics.enqueueClosedErrors.Inc(1)
 		return errInstanceQueueClosed
 	}
-	for {
-		select {
-		case q.bufCh <- buf:
-			q.RUnlock()
-			q.metrics.enqueueSuccesses.Inc(1)
-			return nil
 
-		default:
-			if q.dropType == DropCurrent {
-				q.RUnlock()
+	if len(buf.Bytes()) == 0 {
+		return nil
+	}
 
-				// Close the buffer so it's resources are freed.
-				buf.Close()
-				q.metrics.enqueueCurrentDropped.Inc(1)
-				return errWriterQueueFull
-			}
-		}
+	q.mtx.Lock()
+	defer q.mtx.Unlock()
 
-		select {
-		case buf := <-q.bufCh:
-			// Close the buffer so it's resources are freed.
+	if full := q.buf.full(); full {
+		switch q.dropType {
+		case DropCurrent:
+			// Close the current buffer so it's resources are freed.
 			buf.Close()
+			q.metrics.enqueueCurrentDropped.Inc(1)
+			return errWriterQueueFull
+		case DropOldest:
+			// Consume oldest buffer instead.
+			oldest := q.buf.shift()
+			oldest.Close()
 			q.metrics.enqueueOldestDropped.Inc(1)
 		default:
+			return errInvalidDropType
 		}
 	}
-}
 
-func (q *queue) Close() error {
-	q.Lock()
-	if q.closed {
-		q.Unlock()
-		return errInstanceQueueClosed
-	}
-	q.closed = true
-	close(q.doneCh)
-	close(q.bufCh)
-	q.Unlock()
-
-	q.wg.Wait()
+	q.buf.push(buf)
+	q.metrics.enqueueSuccesses.Inc(1)
 	return nil
 }
 
-func (q *queue) writeAndReset() {
-	if len(q.buf) == 0 {
-		return
+func (q *queue) Close() error {
+	if !q.closed.CAS(false, true) {
+		return errInstanceQueueClosed
 	}
-	if err := q.writeFn(q.buf); err != nil {
+
+	return nil
+}
+
+func (q *queue) Flush() {
+	var (
+		buf = _queueConnWriteBufPool.Get().(*[]byte)
+		n   int
+		err error
+	)
+
+	for err == nil {
+		// flush everything in batches, to make sure no single payload is too large,
+		// to prevent a) allocs and b) timeouts due to big buffer IO taking too long.
+		var processed int
+		processed, err = q.flush(buf)
+		n += processed
+	}
+
+	if err != nil && !errors.Is(err, io.EOF) {
 		q.log.Error("error writing data",
-			zap.Int("buffer_size", len(q.buf)),
+			zap.String("target_instance_id", q.instance.ID()),
 			zap.String("target_instance", q.instance.Endpoint()),
+			zap.Int("bytes_processed", n),
 			zap.Error(err),
 		)
+	}
+
+	// Check buffer capacity, not length, to make sure we're not pooling slices that are too large.
+	// Otherwise, it could result in multi-megabyte slices hanging around, in case we get a single massive write.
+	if cap(*buf) <= _queueMaxWriteBufSize {
+		*buf = (*buf)[:0]
+		_queueConnWriteBufPool.Put(buf)
+	}
+}
+
+func (q *queue) flush(tmpWriteBuf *[]byte) (int, error) {
+	var n int
+
+	q.mtx.Lock()
+
+	if q.buf.size() == 0 {
+		q.mtx.Unlock()
+		return n, io.EOF
+	}
+
+	*tmpWriteBuf = (*tmpWriteBuf)[:0]
+	for q.buf.size() > 0 {
+		protoBuffer := q.buf.peek()
+		bytes := protoBuffer.Bytes()
+
+		if n > 0 && len(bytes)+len(*tmpWriteBuf) >= _queueMaxWriteBufSize {
+			// only merge buffers that are smaller than _queueMaxWriteBufSize bytes
+			break
+		}
+		_ = q.buf.shift()
+
+		if len(bytes) == 0 {
+			continue
+		}
+
+		*tmpWriteBuf = append(*tmpWriteBuf, bytes...)
+		n += len(bytes)
+		protoBuffer.Close()
+	}
+
+	// mutex is not held while doing IO
+	q.mtx.Unlock()
+
+	if n == 0 {
+		return n, io.EOF
+	}
+
+	if err := q.writeFn(*tmpWriteBuf); err != nil {
 		q.metrics.connWriteErrors.Inc(1)
-	} else {
-		q.metrics.connWriteSuccesses.Inc(1)
+		return n, err
 	}
-	q.buf = q.buf[:0]
+
+	q.metrics.connWriteSuccesses.Inc(1)
+
+	return n, nil
 }
 
-func (q *queue) drain() {
-	defer q.wg.Done()
-	defer q.conn.Close()
-	timer := time.NewTimer(q.batchFlushDeadline)
-	lastDrain := time.Now()
-	write := func() {
-		q.writeAndReset()
-		lastDrain = time.Now()
-	}
-
-	for {
-		select {
-		case qitem := <-q.bufCh:
-			drained := false
-			msg := qitem.Bytes()
-			if len(q.buf)+len(msg) > q.maxBatchSize {
-				write()
-				drained = true
-			}
-			q.buf = append(q.buf, msg...)
-			qitem.Close()
-
-			if drained || (len(q.buf) < q.maxBatchSize &&
-				time.Since(lastDrain) < q.batchFlushDeadline) {
-				continue
-			}
-
-			write()
-		case ts := <-timer.C:
-			delta := ts.Sub(lastDrain)
-			if delta < q.batchFlushDeadline {
-				timer.Reset(q.batchFlushDeadline - delta)
-				continue
-			}
-			write()
-			timer.Reset(q.batchFlushDeadline)
-		case <-q.doneCh:
-			return
-		}
-	}
-}
-
-func (q *queue) reportQueueSize(reportInterval time.Duration) {
-	defer q.wg.Done()
-
-	ticker := time.NewTicker(reportInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			q.metrics.queueLen.RecordValue(float64(len(q.bufCh)))
-		case <-q.doneCh:
-			return
-		}
-	}
+func (q *queue) Size() int {
+	return int(q.buf.size())
 }
 
 type queueMetrics struct {
-	queueLen              tally.Histogram
 	enqueueSuccesses      tally.Counter
 	enqueueOldestDropped  tally.Counter
 	enqueueCurrentDropped tally.Counter
@@ -296,16 +305,10 @@ type queueMetrics struct {
 	connWriteErrors       tally.Counter
 }
 
-func newQueueMetrics(s tally.Scope, queueSize int) queueMetrics {
-	numBuckets := defaultQueueSizeNumBuckets
-	if queueSize < numBuckets {
-		numBuckets = queueSize
-	}
-	buckets := tally.MustMakeLinearValueBuckets(0, float64(queueSize/numBuckets), numBuckets)
+func newQueueMetrics(s tally.Scope) queueMetrics {
 	enqueueScope := s.Tagged(map[string]string{"action": "enqueue"})
 	connWriteScope := s.Tagged(map[string]string{"action": "conn-write"})
 	return queueMetrics{
-		queueLen:         s.Histogram("queue-length", buckets),
 		enqueueSuccesses: enqueueScope.Counter("successes"),
 		enqueueOldestDropped: enqueueScope.Tagged(map[string]string{"drop-type": "oldest"}).
 			Counter("dropped"),
@@ -316,4 +319,48 @@ func newQueueMetrics(s tally.Scope, queueSize int) queueMetrics {
 		connWriteSuccesses: connWriteScope.Counter("successes"),
 		connWriteErrors:    connWriteScope.Counter("errors"),
 	}
+}
+
+// qbuf is a specialized ring buffer for proto payloads
+type qbuf struct {
+	b []protobuf.Buffer
+	// buffer cursors
+	r uint32
+	w uint32
+}
+
+func (q *qbuf) size() uint32 {
+	return q.w - q.r
+}
+
+func (q *qbuf) full() bool {
+	return q.size() == uint32(cap(q.b))
+}
+
+func (q *qbuf) mask(idx uint32) uint32 {
+	return idx & (uint32(cap(q.b)) - 1)
+}
+
+func (q *qbuf) push(buf protobuf.Buffer) {
+	q.w++
+	idx := q.mask(q.w)
+	q.b[idx].Close()
+	q.b[idx] = buf
+}
+
+func (q *qbuf) shift() protobuf.Buffer {
+	q.r++
+	idx := q.mask(q.r)
+	val := q.b[idx]
+	q.b[idx] = protobuf.Buffer{}
+	return val
+}
+
+func (q *qbuf) peek() protobuf.Buffer {
+	idx := q.mask(q.r + 1)
+	return q.b[idx]
+}
+
+func roundUpToPowerOfTwo(val int) int {
+	return int(math.Pow(2, math.Ceil(math.Log2(float64(val)))))
 }

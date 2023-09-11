@@ -25,13 +25,21 @@ import (
 	"os"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
+
+	"google.golang.org/grpc"
 )
 
 // Options is the Options to create a config service client.
 type Options interface {
+	// RequestTimeout is the timeout for etcd requests
+	RequestTimeout() time.Duration
+	// SetRequestTimeout sets the RequestTimeout
+	SetRequestTimeout(t time.Duration) Options
+
 	Env() string
 	SetEnv(e string) Options
 
@@ -57,8 +65,29 @@ type Options interface {
 	RetryOptions() retry.Options
 	SetRetryOptions(retryOpts retry.Options) Options
 
+	// WatchChanCheckInterval will be used to periodically check if a watch chan
+	// is no longer being subscribed and should be closed
+	WatchChanCheckInterval() time.Duration
+	// SetWatchChanCheckInterval sets the WatchChanCheckInterval
+	SetWatchChanCheckInterval(t time.Duration) Options
+
+	// WatchChanResetInterval is the delay before resetting the etcd watch chan
+	WatchChanResetInterval() time.Duration
+	// SetWatchChanResetInterval sets the WatchChanResetInterval
+	SetWatchChanResetInterval(t time.Duration) Options
+
+	// WatchChanInitTimeout is the timeout for a watchChan initialization
+	WatchChanInitTimeout() time.Duration
+	// SetWatchChanInitTimeout sets the WatchChanInitTimeout
+	SetWatchChanInitTimeout(t time.Duration) Options
+
 	WatchWithRevision() int64
 	SetWatchWithRevision(rev int64) Options
+
+	// EnableFastGets returns whether to use clientv3.WithSerializable() option to speed up gets.
+	EnableFastGets() bool
+	// SetEnableFastGets sets clientv3.WithSerializable() to speed up gets, but can fetch stale data.
+	SetEnableFastGets(enabled bool) Options
 
 	SetNewDirectoryMode(fm os.FileMode) Options
 	NewDirectoryMode() os.FileMode
@@ -129,6 +158,26 @@ type Cluster interface {
 	TLSOptions() TLSOptions
 	SetTLSOptions(TLSOptions) Cluster
 
-	SetAutoSyncInterval(value time.Duration) Cluster
 	AutoSyncInterval() time.Duration
+
+	// SetAutoSyncInterval sets the etcd client to autosync cluster endpoints periodically. This defaults to
+	// 1 minute (defaultAutoSyncInterval). If negative or zero, it will disable autosync. This differs slightly
+	// from the underlying etcd configuration its setting, which only supports 0 for disabling. We do this because
+	// there's otherwise no good way to specify "disable" in our configs (which default to SetAutoSyncInterval(1m)).
+	SetAutoSyncInterval(value time.Duration) Cluster
+
+	DialTimeout() time.Duration
+	SetDialTimeout(value time.Duration) Cluster
+
+	// DialOptions are used by the etcd client to connect to etcd peers. They can be used to customize
+	// the low level networking behavior of the client (e.g. to forward connections over a proxy).
+	DialOptions() []grpc.DialOption
+	SetDialOptions(opts []grpc.DialOption) Cluster
+}
+
+// Client is an etcd-backed m3cluster client.
+type Client interface {
+	client.Client
+
+	Clients() []ZoneClient
 }

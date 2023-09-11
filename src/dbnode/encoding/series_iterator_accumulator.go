@@ -23,7 +23,6 @@ package encoding
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
@@ -33,41 +32,36 @@ import (
 var _ SeriesIteratorAccumulator = (*seriesIteratorAccumulator)(nil)
 
 type seriesIteratorAccumulator struct {
-	id              ident.ID
-	nsID            ident.ID
-	start           time.Time
-	end             time.Time
-	iters           iterators
-	tagIterator     ident.TagIterator
-	seriesIterators []SeriesIterator
-	err             error
-	firstNext       bool
-	closed          bool
-}
+	id    ident.ID
+	nsID  ident.ID
+	start xtime.UnixNano
+	end   xtime.UnixNano
 
-// SeriesAccumulatorOptions are options for a SeriesIteratorAccumulator.
-type SeriesAccumulatorOptions struct {
-	// RetainTags determines if tags should be preserved after the accumulator is
-	// exhausted. If set to true, the accumulator retains a copy of the tags.
-	RetainTags bool
+	iters                 iterators
+	seriesIterators       []SeriesIterator
+	firstAnnotationHolder annotationHolder
+
+	err       error
+	firstNext bool
+	closed    bool
 }
 
 // NewSeriesIteratorAccumulator creates a new series iterator.
-func NewSeriesIteratorAccumulator(
-	iter SeriesIterator,
-	opts SeriesAccumulatorOptions,
-) (SeriesIteratorAccumulator, error) {
+func NewSeriesIteratorAccumulator(iter SeriesIterator) (SeriesIteratorAccumulator, error) {
+	nsID := ""
+	if iter.Namespace() != nil {
+		nsID = iter.Namespace().String()
+	}
 	it := &seriesIteratorAccumulator{
-		// NB: clone id and nsID so that they will be accessbile after underlying
+		// NB: clone id and nsID so that they will be accessible after underlying
 		// iterators are closed.
 		id:              ident.StringID(iter.ID().String()),
-		nsID:            ident.StringID(iter.Namespace().String()),
+		nsID:            ident.StringID(nsID),
 		seriesIterators: make([]SeriesIterator, 0, 2),
+		firstNext:       true,
 	}
 
-	if opts.RetainTags {
-		it.tagIterator = iter.Tags().Duplicate()
-	}
+	it.iters.reset()
 
 	err := it.Add(iter)
 	if err != nil {
@@ -82,19 +76,23 @@ func (it *seriesIteratorAccumulator) Add(iter SeriesIterator) error {
 		return it.err
 	}
 
-	if newNs := iter.Namespace(); !newNs.Equal(it.nsID) {
-		return fmt.Errorf("cannot add iterator with namespace %s to accumulator %s",
-			newNs.String(), it.nsID.String())
+	if !iter.Next() {
+		err := iter.Err()
+		return err
 	}
 
-	if !iter.Next() || !it.iters.push(iter) {
-		iter.Close()
-		return iter.Err()
+	firstAnnotation := iter.FirstAnnotation()
+	if !it.iters.push(iter) {
+		err := iter.Err()
+		return err
 	}
 
 	iterStart := iter.Start()
 	if start := it.start; start.IsZero() || iterStart.Before(start) {
 		it.start = iterStart
+		if len(firstAnnotation) > 0 {
+			it.firstAnnotationHolder.set(firstAnnotation)
+		}
 	}
 
 	iterEnd := iter.End()
@@ -115,22 +113,22 @@ func (it *seriesIteratorAccumulator) Namespace() ident.ID {
 }
 
 func (it *seriesIteratorAccumulator) Tags() ident.TagIterator {
-	if iter := it.tagIterator; iter != nil {
-		return iter
-	}
-	if len(it.seriesIterators) == 0 {
-		return ident.EmptyTagIterator
-	}
 	// NB: the tags for each iterator must be the same, so it's valid to return
 	// from whichever iterator is available.
-	return it.seriesIterators[0].Tags()
+	for _, iter := range it.seriesIterators {
+		if tags := iter.Tags(); tags != nil {
+			return tags
+		}
+	}
+
+	return ident.EmptyTagIterator
 }
 
-func (it *seriesIteratorAccumulator) Start() time.Time {
+func (it *seriesIteratorAccumulator) Start() xtime.UnixNano {
 	return it.start
 }
 
-func (it *seriesIteratorAccumulator) End() time.Time {
+func (it *seriesIteratorAccumulator) End() xtime.UnixNano {
 	return it.end
 }
 
@@ -166,6 +164,10 @@ func (it *seriesIteratorAccumulator) Err() error {
 	return nil
 }
 
+func (it *seriesIteratorAccumulator) FirstAnnotation() ts.Annotation {
+	return it.firstAnnotationHolder.get()
+}
+
 func (it *seriesIteratorAccumulator) Close() {
 	if it.isClosed() {
 		return
@@ -179,11 +181,9 @@ func (it *seriesIteratorAccumulator) Close() {
 		it.nsID.Finalize()
 		it.nsID = nil
 	}
-	if it.tagIterator != nil {
-		it.tagIterator.Close()
-		it.tagIterator = nil
-	}
 	it.iters.reset()
+	it.firstAnnotationHolder.reset()
+	it.firstNext = true
 }
 
 func (it *seriesIteratorAccumulator) Replicas() ([]MultiReaderIterator, error) {
@@ -198,7 +198,10 @@ func (it *seriesIteratorAccumulator) Reset(SeriesIteratorOptions) {
 	if it.err == nil {
 		it.err = errors.New("cannot reset a series accumulator")
 	}
-	return
+}
+
+func (it *seriesIteratorAccumulator) IterateEqualTimestampStrategy() IterateEqualTimestampStrategy {
+	return it.iters.equalTimesStrategy
 }
 
 func (it *seriesIteratorAccumulator) SetIterateEqualTimestampStrategy(

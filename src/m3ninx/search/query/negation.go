@@ -21,7 +21,7 @@
 package query
 
 import (
-	"fmt"
+	"strings"
 
 	"github.com/m3db/m3/src/m3ninx/generated/proto/querypb"
 	"github.com/m3db/m3/src/m3ninx/search"
@@ -30,14 +30,17 @@ import (
 
 // NegationQuery finds document which do not match a given query.
 type NegationQuery struct {
+	str   string
 	query search.Query
 }
 
 // NewNegationQuery constructs a new NegationQuery for the given query.
-func NewNegationQuery(q search.Query) search.Query {
-	return &NegationQuery{
-		query: q,
+func NewNegationQuery(query search.Query) search.Query {
+	q := &NegationQuery{
+		query: query,
 	}
+	q.str = q.string()
+	return q
 }
 
 // Searcher returns a searcher over the provided readers.
@@ -75,5 +78,13 @@ func (q *NegationQuery) ToProto() *querypb.Query {
 }
 
 func (q *NegationQuery) String() string {
-	return fmt.Sprintf("negation(%s)", q.query)
+	return q.str
+}
+
+func (q *NegationQuery) string() string {
+	var str strings.Builder
+	str.WriteString("negation(")
+	str.WriteString(q.query.String())
+	str.WriteRune(')')
+	return str.String()
 }

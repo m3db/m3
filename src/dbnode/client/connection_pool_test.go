@@ -30,10 +30,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xclock "github.com/m3db/m3/src/x/clock"
-	xclose "github.com/m3db/m3/src/x/close"
-	"github.com/stretchr/testify/require"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+	"github.com/uber/tchannel-go"
 )
 
 const (
@@ -42,9 +42,36 @@ const (
 )
 
 var (
-	h           = topology.NewHost(testHostStr, testHostAddr)
-	channelNone = &nullChannel{}
+	h = topology.NewHost(testHostStr, testHostAddr)
 )
+
+type noopPooledChannel struct {
+	address    string
+	closeCount int32
+}
+
+func asNoopPooledChannel(c Channel) *noopPooledChannel {
+	cc, ok := c.(*noopPooledChannel)
+	if !ok {
+		panic("not a noopPooledChannel")
+	}
+	return cc
+}
+
+func (c *noopPooledChannel) CloseCount() int {
+	return int(atomic.LoadInt32(&c.closeCount))
+}
+
+func (c *noopPooledChannel) Close() {
+	atomic.AddInt32(&c.closeCount, 1)
+}
+
+func (c *noopPooledChannel) GetSubChannel(
+	serviceName string,
+	opts ...tchannel.SubChannelOption,
+) *tchannel.SubChannel {
+	return nil
+}
 
 func newConnectionPoolTestOptions() Options {
 	return newSessionTestOptions().
@@ -85,24 +112,24 @@ func TestConnectionPoolConnectsAndRetriesConnects(t *testing.T) {
 
 	fn := func(
 		ch string, addr string, opts Options,
-	) (xclose.SimpleCloser, rpc.TChanNode, error) {
+	) (Channel, rpc.TChanNode, error) {
 		attempt := int(atomic.AddInt32(&attempts, 1))
 		if attempt == 1 {
 			return nil, nil, fmt.Errorf("a connect error")
 		}
-		return channelNone, nil, nil
+		return &noopPooledChannel{}, nil, nil
 	}
 
 	opts = opts.SetNewConnectionFn(fn)
 	conns := newConnectionPool(h, opts).(*connPool)
-	conns.healthCheckNewConn = func(client rpc.TChanNode, opts Options) error {
+	conns.healthCheckNewConn = func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
 		if atomic.LoadInt32(&rounds) == 1 {
 			// If second round then fail health check
 			return fmt.Errorf("a health check error")
 		}
 		return nil
 	}
-	conns.healthCheck = func(client rpc.TChanNode, opts Options) error {
+	conns.healthCheck = func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
 		return nil
 	}
 	conns.sleepConnect = func(t time.Duration) {
@@ -151,7 +178,7 @@ func TestConnectionPoolConnectsAndRetriesConnects(t *testing.T) {
 	conns.Close()
 	doneWg.Done()
 
-	nextClient, err := conns.NextClient()
+	nextClient, _, err := conns.NextClient()
 	require.Nil(t, nextClient)
 	require.Equal(t, errConnectionPoolClosed, err)
 }
@@ -200,7 +227,7 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		}
 		pushFailClientOverride = func(failTargetClient rpc.TChanNode) {
 			var failOverride healthCheckFn
-			failOverride = func(client rpc.TChanNode, opts Options) error {
+			failOverride = func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
 				if client == failTargetClient {
 					atomic.AddInt32(&invokeFail, 1)
 					return fmt.Errorf("fail client")
@@ -237,24 +264,24 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 
 	fn := func(
 		ch string, addr string, opts Options,
-	) (xclose.SimpleCloser, rpc.TChanNode, error) {
+	) (Channel, rpc.TChanNode, error) {
 		attempt := atomic.AddInt32(&newConnAttempt, 1)
 		if attempt == 1 {
-			return channelNone, client1, nil
+			return &noopPooledChannel{}, client1, nil
 		} else if attempt == 2 {
-			return channelNone, client2, nil
+			return &noopPooledChannel{}, client2, nil
 		}
 		return nil, nil, fmt.Errorf("spawning only 2 connections")
 	}
 	opts = opts.SetNewConnectionFn(fn)
 
 	conns := newConnectionPool(h, opts).(*connPool)
-	conns.healthCheckNewConn = func(client rpc.TChanNode, opts Options) error {
+	conns.healthCheckNewConn = func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
 		return nil
 	}
-	conns.healthCheck = func(client rpc.TChanNode, opts Options) error {
+	conns.healthCheck = func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
 		if fn := popOverride(); fn != nil {
-			return fn(client, opts)
+			return fn(client, opts, checkBootstrapped)
 		}
 		return nil
 	}
@@ -307,7 +334,7 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		return conns.ConnectionCount() == 1
 	}, 5*time.Second)
 	for i := 0; i < 2; i++ {
-		nextClient, err := conns.NextClient()
+		nextClient, _, err := conns.NextClient()
 		require.NoError(t, err)
 		require.Equal(t, client2, nextClient)
 	}
@@ -324,17 +351,13 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		// and the connection actually being removed.
 		return conns.ConnectionCount() == 0
 	}, 5*time.Second)
-	nextClient, err := conns.NextClient()
+	nextClient, _, err := conns.NextClient()
 	require.Nil(t, nextClient)
 	require.Equal(t, errConnectionPoolHasNoConnections, err)
 
 	conns.Close()
 
-	nextClient, err = conns.NextClient()
+	nextClient, _, err = conns.NextClient()
 	require.Nil(t, nextClient)
 	require.Equal(t, errConnectionPoolClosed, err)
 }
-
-type nullChannel struct{}
-
-func (*nullChannel) Close() {}

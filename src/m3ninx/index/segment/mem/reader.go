@@ -70,6 +70,10 @@ func (r *reader) Terms(field []byte) (sgmt.TermsIterator, error) {
 	return r.segment.Terms(field)
 }
 
+func (r *reader) FieldsPostingsList() (sgmt.FieldsPostingsListIterator, error) {
+	return r.segment.FieldsPostingsList()
+}
+
 func (r *reader) MatchField(field []byte) (postings.List, error) {
 	// falling back to regexp .* as this segment implementation is only used in tests.
 	return r.MatchRegexp(field, index.DotStarCompiledRegex())
@@ -109,7 +113,7 @@ func (r *reader) MatchRegexp(field []byte, compiled index.CompiledRegex) (postin
 	return r.segment.matchRegexp(field, compileRE)
 }
 
-func (r *reader) MatchAll() (postings.MutableList, error) {
+func (r *reader) MatchAll() (postings.List, error) {
 	r.RLock()
 	defer r.RUnlock()
 	if r.closed {
@@ -124,28 +128,45 @@ func (r *reader) MatchAll() (postings.MutableList, error) {
 	return pl, nil
 }
 
-func (r *reader) Doc(id postings.ID) (doc.Document, error) {
+func (r *reader) Metadata(id postings.ID) (doc.Metadata, error) {
 	r.RLock()
 	defer r.RUnlock()
-	if r.closed {
-		return doc.Document{}, errSegmentReaderClosed
-	}
 
-	if id < r.limits.startInclusive || id >= r.limits.endExclusive {
-		return doc.Document{}, index.ErrDocNotFound
-	}
-
-	return r.segment.getDoc(id)
+	return r.getMetadataWithRLock(id)
 }
 
-func (r *reader) Docs(pl postings.List) (doc.Iterator, error) {
+func (r *reader) MetadataIterator(pl postings.List) (doc.MetadataIterator, error) {
 	r.RLock()
 	defer r.RUnlock()
 	if r.closed {
 		return nil, errSegmentReaderClosed
 	}
 	boundedIter := newBoundedPostingsIterator(pl.Iterator(), r.limits)
-	return r.getDocIterWithLock(boundedIter), nil
+	return r.getMetadataIterWithLock(boundedIter), nil
+}
+
+func (r *reader) Doc(id postings.ID) (doc.Document, error) {
+	r.RLock()
+	defer r.RUnlock()
+
+	m, err := r.getMetadataWithRLock(id)
+	if err != nil {
+		return doc.Document{}, err
+	}
+
+	return doc.NewDocumentFromMetadata(m), nil
+}
+
+func (r *reader) Docs(pl postings.List) (doc.Iterator, error) {
+	r.RLock()
+	defer r.RUnlock()
+
+	if r.closed {
+		return nil, errSegmentReaderClosed
+	}
+
+	boundedIter := newBoundedPostingsIterator(pl.Iterator(), r.limits)
+	return index.NewIterator(r, boundedIter), nil
 }
 
 func (r *reader) AllDocs() (index.IDDocIterator, error) {
@@ -156,11 +177,23 @@ func (r *reader) AllDocs() (index.IDDocIterator, error) {
 	}
 
 	pi := postings.NewRangeIterator(r.limits.startInclusive, r.limits.endExclusive)
-	return r.getDocIterWithLock(pi), nil
+	return r.getMetadataIterWithLock(pi), nil
 }
 
-func (r *reader) getDocIterWithLock(iter postings.Iterator) index.IDDocIterator {
+func (r *reader) getMetadataIterWithLock(iter postings.Iterator) index.IDDocIterator {
 	return index.NewIDDocIterator(r, iter)
+}
+
+func (r *reader) getMetadataWithRLock(id postings.ID) (doc.Metadata, error) {
+	if r.closed {
+		return doc.Metadata{}, errSegmentReaderClosed
+	}
+
+	if id < r.limits.startInclusive || id >= r.limits.endExclusive {
+		return doc.Metadata{}, index.ErrDocNotFound
+	}
+
+	return r.segment.getDoc(id)
 }
 
 func (r *reader) Close() error {

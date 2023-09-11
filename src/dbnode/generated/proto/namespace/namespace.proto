@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package namespace;
 
+import "google/protobuf/struct.proto";
 import "google/protobuf/wrappers.proto";
 import "github.com/m3db/m3/src/dbnode/generated/proto/namespace/schema.proto";
 
@@ -33,6 +34,61 @@ message NamespaceOptions {
     bool coldWritesEnabled                          = 10;
     NamespaceRuntimeOptions runtimeOptions          = 11;
     google.protobuf.BoolValue cacheBlocksOnRetrieve = 12;
+    AggregationOptions aggregationOptions           = 13;
+    StagingState stagingState                       = 14;
+
+    // Use larger field ID to ensure new fields are always added before extended options.
+    ExtendedOptions extendedOptions                 = 1000;
+}
+
+// AggregationOptions is a set of options for aggregating data
+// within the namespace.
+message AggregationOptions {
+    // aggregations is a repeated field to support the ability to send aggregated data
+    // to a namespace also receiving unaggregated data. In this case, the namespace will
+    // have one Aggregation with aggregated set to false and another with aggregated set to true.
+    repeated Aggregation aggregations = 1;
+}
+
+// Aggregation describes data points within the namespace.
+message Aggregation {
+    // aggregated is true if data points are aggregated, false otherwise.
+    bool aggregated = 1;
+
+    // attributes specifies how to aggregate data when aggregated is set to true.
+    // This field is ignored when aggregated is false and required when aggregated
+    // is true.
+    AggregatedAttributes attributes = 2;
+}
+
+// AggregatedAttributes describe how to aggregate data.
+message AggregatedAttributes {
+    // resolutionNanos is the time range to aggregate data across.
+    int64 resolutionNanos = 1;
+    DownsampleOptions downsampleOptions = 2;
+}
+
+// DownsampleOptions is a set of options related to downsampling data.
+message DownsampleOptions {
+    // all indicates whether to send data points to this namespace. If false,
+    // data points must be sent via rollup/recording rules. Defaults to true.
+    bool all = 1;
+}
+
+// StagingState is state related to the namespace's availability for
+// reads and writes.
+message StagingState {
+    StagingStatus status = 1;
+}
+
+// StagingStatus represents the current status of the namespace.
+enum StagingStatus {
+    // Namespace has an unknown staging status.
+    UNKNOWN      = 0;
+    // Namespace is being initialized and is not ready to receive traffic.
+    INITIALIZING = 1;
+    // Namespace is ready to receive traffic.
+    READY        = 2;
 }
 
 message Registry {
@@ -42,4 +98,9 @@ message Registry {
 message NamespaceRuntimeOptions {
     google.protobuf.DoubleValue writeIndexingPerCPUConcurrency = 1;
     google.protobuf.DoubleValue flushIndexingPerCPUConcurrency = 2;
+}
+
+message ExtendedOptions {
+    string type                    = 1;
+    google.protobuf.Struct options = 2;
 }

@@ -75,8 +75,8 @@ type consumerServiceWriter interface {
 	// RegisterFilter registers a filter for the consumer service.
 	RegisterFilter(fn producer.FilterFunc)
 
-	// UnregisterFilter unregisters the filter for the consumer service.
-	UnregisterFilter()
+	// UnregisterFilters unregisters the filters for the consumer service.
+	UnregisterFilters()
 }
 
 type consumerServiceWriterMetrics struct {
@@ -107,7 +107,7 @@ type consumerServiceWriterImpl struct {
 	logger       *zap.Logger
 
 	value           watch.Value
-	dataFilter      producer.FilterFunc
+	dataFilters     []producer.FilterFunc
 	router          ackRouter
 	consumerWriters map[string]consumerWriter
 	closed          bool
@@ -140,7 +140,7 @@ func newConsumerServiceWriter(
 		shardWriters:    initShardWriters(router, ct, numShards, opts),
 		opts:            opts,
 		logger:          opts.InstrumentOptions().Logger(),
-		dataFilter:      acceptAllFilter,
+		dataFilters:     []producer.FilterFunc{acceptAllFilter},
 		router:          router,
 		consumerWriters: make(map[string]consumerWriter),
 		closed:          false,
@@ -163,13 +163,10 @@ func initShardWriters(
 		m   = newMessageWriterMetrics(
 			opts.InstrumentOptions().MetricsScope(),
 			opts.InstrumentOptions().TimerOptions(),
+			opts.WithoutConsumerScope(),
 		)
-		mPool messagePool
+		mPool = newMessagePool()
 	)
-	if opts.MessagePoolOptions() != nil {
-		mPool = newMessagePool(opts.MessagePoolOptions())
-		mPool.Init()
-	}
 	for i := range sws {
 		switch ct {
 		case topic.Shared:
@@ -182,7 +179,7 @@ func initShardWriters(
 }
 
 func (w *consumerServiceWriterImpl) Write(rm *producer.RefCountedMessage) {
-	if rm.Accept(w.dataFilter) {
+	if rm.Accept(w.dataFilters) {
 		w.shardWriters[rm.Shard()].Write(rm)
 		w.m.filterAccepted.Inc(1)
 		return
@@ -331,13 +328,14 @@ func (w *consumerServiceWriterImpl) SetMessageTTLNanos(value int64) {
 
 func (w *consumerServiceWriterImpl) RegisterFilter(filter producer.FilterFunc) {
 	w.Lock()
-	w.dataFilter = filter
+	w.dataFilters = append(w.dataFilters, filter)
 	w.Unlock()
 }
 
-func (w *consumerServiceWriterImpl) UnregisterFilter() {
+func (w *consumerServiceWriterImpl) UnregisterFilters() {
 	w.Lock()
-	w.dataFilter = acceptAllFilter
+	w.dataFilters[0] = acceptAllFilter
+	w.dataFilters = w.dataFilters[:1]
 	w.Unlock()
 }
 

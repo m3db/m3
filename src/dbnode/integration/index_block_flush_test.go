@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/idx"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -92,7 +93,7 @@ func TestIndexBlockFlush(t *testing.T) {
 	testSetup.SetStorageOpts(testSetup.StorageOpts().SetInstrumentOptions(
 		instrument.NewOptions().SetMetricsScope(scope)))
 
-	t0 := time.Date(2018, time.May, 6, 13, 0, 0, 0, time.UTC)
+	t0 := xtime.ToUnixNano(time.Date(2018, time.May, 6, 13, 0, 0, 0, time.UTC))
 	assert.True(t, t0.Equal(t0.Truncate(indexBlockSize)))
 	t1 := t0.Add(20 * time.Minute)
 	t2 := t0.Add(2 * time.Hour)
@@ -133,7 +134,7 @@ func TestIndexBlockFlush(t *testing.T) {
 
 	// ensure all data is present
 	log.Info("querying period0 results")
-	period0Results, _, err := session.FetchTagged(
+	period0Results, _, err := session.FetchTagged(ContextWithDefaultTimeout(),
 		md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t1})
 	require.NoError(t, err)
 	writesPeriod0.MatchesSeriesIters(t, period0Results)
@@ -164,7 +165,7 @@ func TestIndexBlockFlush(t *testing.T) {
 
 	// ensure all data is still present
 	log.Info("querying period0 results after flush")
-	period0Results, _, err = session.FetchTagged(
+	period0Results, _, err = session.FetchTagged(ContextWithDefaultTimeout(),
 		md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t1})
 	require.NoError(t, err)
 	writesPeriod0.MatchesSeriesIters(t, period0Results)

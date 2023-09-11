@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/pool"
+	xnet "github.com/m3db/m3/src/x/net"
 	"github.com/m3db/m3/src/x/retry"
 )
 
@@ -43,13 +43,15 @@ const (
 
 	defaultNumConnections            = 4
 	defaultConnectionDialTimeout     = 5 * time.Second
-	defaultConnectionWriteTimeout    = time.Duration(0)
+	defaultConnectionWriteTimeout    = 5 * time.Second
 	defaultConnectionKeepAlivePeriod = 5 * time.Second
 	defaultConnectionResetDelay      = 2 * time.Second
 	defaultConnectionFlushInterval   = time.Second
 	// Using 65k which provides much better performance comparing
 	// to lower values like 1k ~ 8k.
 	defaultConnectionBufferSize = 2 << 15 // ~65kb
+
+	defaultWriterRetryInitialBackoff = time.Second * 5
 )
 
 // ConnectionOptions configs the connections.
@@ -59,6 +61,17 @@ type ConnectionOptions interface {
 
 	// SetNumConnections sets the number of connections.
 	SetNumConnections(value int) ConnectionOptions
+
+	// ContextDialer allows customizing the way a m3msg Writer connects to producer endpoints. By default, this is:
+	// (&net.ContextDialer{}).DialContext. This can be used to do a variety of things, such as forwarding a connection
+	// over a proxy.
+	// NOTE: if your xnet.ContextDialerFn returns anything other a *net.TCPConn, TCP options such as KeepAlivePeriod
+	// will *not* be applied automatically. It is your responsibility to make sure these get applied as needed in
+	// your custom xnet.ContextDialerFn.
+	ContextDialer() xnet.ContextDialerFn
+
+	// SetContextDialer see ContextDialer.
+	SetContextDialer(fn xnet.ContextDialerFn) ConnectionOptions
 
 	// DialTimeout returns the dial timeout.
 	DialTimeout() time.Duration
@@ -126,6 +139,7 @@ type connectionOptions struct {
 	writeBufferSize int
 	readBufferSize  int
 	iOpts           instrument.Options
+	dialer          xnet.ContextDialerFn
 }
 
 // NewConnectionOptions creates ConnectionOptions.
@@ -141,6 +155,7 @@ func NewConnectionOptions() ConnectionOptions {
 		writeBufferSize: defaultConnectionBufferSize,
 		readBufferSize:  defaultConnectionBufferSize,
 		iOpts:           instrument.NewOptions(),
+		dialer:          nil, // Will default to net.Dialer{}.DialContext
 	}
 }
 
@@ -161,6 +176,16 @@ func (opts *connectionOptions) DialTimeout() time.Duration {
 func (opts *connectionOptions) SetDialTimeout(value time.Duration) ConnectionOptions {
 	o := *opts
 	o.dialTimeout = value
+	return &o
+}
+
+func (opts *connectionOptions) ContextDialer() xnet.ContextDialerFn {
+	return opts.dialer
+}
+
+func (opts *connectionOptions) SetContextDialer(fn xnet.ContextDialerFn) ConnectionOptions {
+	o := *opts
+	o.dialer = fn
 	return &o
 }
 
@@ -282,17 +307,11 @@ type Options interface {
 	// SetPlacementWatchInitTimeout sets the timeout for placement watch initialization.
 	SetPlacementWatchInitTimeout(value time.Duration) Options
 
-	// MessagePoolOptions returns the options of pool for messages.
-	MessagePoolOptions() pool.ObjectPoolOptions
+	// MessageRetryNanosFn returns the MessageRetryNanosFn.
+	MessageRetryNanosFn() MessageRetryNanosFn
 
-	// SetMessagePoolOptions sets the options of pool for messages.
-	SetMessagePoolOptions(value pool.ObjectPoolOptions) Options
-
-	// MessageRetryOptions returns the retry options for message retry.
-	MessageRetryOptions() retry.Options
-
-	// MessageRetryOptions returns the retry options for message retry.
-	SetMessageRetryOptions(value retry.Options) Options
+	// SetMessageRetryNanosFn sets the MessageRetryNanosFn.
+	SetMessageRetryNanosFn(value MessageRetryNanosFn) Options
 
 	// MessageQueueNewWritesScanInterval returns the interval between scanning
 	// message queue for new writes.
@@ -340,10 +359,10 @@ type Options interface {
 	// SetEncoderOptions sets the encoder's options.
 	SetEncoderOptions(value proto.Options) Options
 
-	// EncoderOptions returns the decoder's options.
+	// DecoderOptions returns the decoder's options.
 	DecoderOptions() proto.Options
 
-	// SetEncoderOptions sets the decoder's options.
+	// SetDecoderOptions sets the decoder's options.
 	SetDecoderOptions(value proto.Options) Options
 
 	// ConnectionOptions returns the options for connections.
@@ -357,6 +376,19 @@ type Options interface {
 
 	// SetInstrumentOptions sets the instrument options.
 	SetInstrumentOptions(value instrument.Options) Options
+
+	// IgnoreCutoffCutover returns a flag indicating whether cutoff/cutover timestamps are ignored.
+	IgnoreCutoffCutover() bool
+
+	// SetIgnoreCutoffCutover sets a flag controlling whether cutoff/cutover timestamps are ignored.
+	SetIgnoreCutoffCutover(value bool) Options
+
+	// WithoutConsumerScope disables the consumer scope for metrics. For large m3msg deployments the consumer
+	// scope can add a lot of cardinality to the metrics.
+	WithoutConsumerScope() bool
+
+	// SetWithoutConsumerScope sets the value for WithoutConsumerScope.
+	SetWithoutConsumerScope(value bool) Options
 }
 
 type writerOptions struct {
@@ -366,8 +398,7 @@ type writerOptions struct {
 	services                          services.Services
 	placementOpts                     placement.Options
 	placementWatchInitTimeout         time.Duration
-	messagePoolOptions                pool.ObjectPoolOptions
-	messageRetryOpts                  retry.Options
+	messageRetryNanosFn               MessageRetryNanosFn
 	messageQueueNewWritesScanInterval time.Duration
 	messageQueueFullScanInterval      time.Duration
 	messageQueueScanBatchSize         int
@@ -378,15 +409,19 @@ type writerOptions struct {
 	decOpts                           proto.Options
 	cOpts                             ConnectionOptions
 	iOpts                             instrument.Options
+	ignoreCutoffCutover               bool
+	withoutConsumerScope              bool
 }
 
 // NewOptions creates Options.
 func NewOptions() Options {
+	messageRetryOpts := retry.NewOptions().
+		SetInitialBackoff(defaultWriterRetryInitialBackoff)
 	return &writerOptions{
 		topicWatchInitTimeout:             defaultTopicWatchInitTimeout,
 		placementOpts:                     placement.NewOptions(),
 		placementWatchInitTimeout:         defaultPlacementWatchInitTimeout,
-		messageRetryOpts:                  retry.NewOptions(),
+		messageRetryNanosFn:               NextRetryNanosFn(messageRetryOpts),
 		messageQueueNewWritesScanInterval: defaultMessageQueueNewWritesScanInterval,
 		messageQueueFullScanInterval:      defaultMessageQueueFullScanInterval,
 		messageQueueScanBatchSize:         defaultMessageQueueScanBatchSize,
@@ -460,23 +495,13 @@ func (opts *writerOptions) SetPlacementWatchInitTimeout(value time.Duration) Opt
 	return &o
 }
 
-func (opts *writerOptions) MessagePoolOptions() pool.ObjectPoolOptions {
-	return opts.messagePoolOptions
+func (opts *writerOptions) MessageRetryNanosFn() MessageRetryNanosFn {
+	return opts.messageRetryNanosFn
 }
 
-func (opts *writerOptions) SetMessagePoolOptions(value pool.ObjectPoolOptions) Options {
+func (opts *writerOptions) SetMessageRetryNanosFn(value MessageRetryNanosFn) Options {
 	o := *opts
-	o.messagePoolOptions = value
-	return &o
-}
-
-func (opts *writerOptions) MessageRetryOptions() retry.Options {
-	return opts.messageRetryOpts
-}
-
-func (opts *writerOptions) SetMessageRetryOptions(value retry.Options) Options {
-	o := *opts
-	o.messageRetryOpts = value
+	o.messageRetryNanosFn = value
 	return &o
 }
 
@@ -577,5 +602,25 @@ func (opts *writerOptions) InstrumentOptions() instrument.Options {
 func (opts *writerOptions) SetInstrumentOptions(value instrument.Options) Options {
 	o := *opts
 	o.iOpts = value
+	return &o
+}
+
+func (opts *writerOptions) IgnoreCutoffCutover() bool {
+	return opts.ignoreCutoffCutover
+}
+
+func (opts *writerOptions) SetIgnoreCutoffCutover(value bool) Options {
+	o := *opts
+	o.ignoreCutoffCutover = value
+	return &o
+}
+
+func (opts *writerOptions) WithoutConsumerScope() bool {
+	return opts.withoutConsumerScope
+}
+
+func (opts *writerOptions) SetWithoutConsumerScope(value bool) Options {
+	o := *opts
+	o.withoutConsumerScope = value
 	return &o
 }

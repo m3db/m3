@@ -21,8 +21,10 @@
 package sync
 
 import (
+	gocontext "context"
 	"time"
 
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/instrument"
 )
 
@@ -59,15 +61,42 @@ type PooledWorkerPool interface {
 	// size when the workload exceeds its capacity and shrink back down to its
 	// original size if/when the burst subsides.
 	Go(work Work)
+
+	// GoWithTimeout waits up to the given timeout for a worker to become
+	// available, returning true if a worker becomes available, or false
+	// otherwise.
+	GoWithTimeout(work Work, timeout time.Duration) bool
+
+	// GoWithContext waits until a worker is available or the provided ctx is
+	// canceled.
+	GoWithContext(ctx gocontext.Context, work Work) bool
+
+	// FastContextCheck returns a wrapper worker pool that only checks the context deadline every batchSize calls.
+	// This is useful for tight looping code that wants to amortize the cost of the ctx deadline check over batchSize
+	// iterations.
+	// This should only be used for code that can guarantee the wait time for a worker is low since if the ctx is not
+	// checked the calling goroutine blocks waiting for a worker.
+	FastContextCheck(batchSize int) PooledWorkerPool
 }
+
+// NewPooledWorkerOptions is a set of new instrument worker pool options.
+type NewPooledWorkerOptions struct {
+	InstrumentOptions instrument.Options
+}
+
+// NewPooledWorkerFn returns a pooled worker pool that Init must be called on.
+type NewPooledWorkerFn func(opts NewPooledWorkerOptions) (PooledWorkerPool, error)
 
 // WorkerPool provides a pool for goroutines.
 type WorkerPool interface {
 	// Init initializes the pool.
 	Init()
 
-	// Go waits until the next wbyorker becomes available and executes it.
+	// Go waits until the next worker becomes available and executes it.
 	Go(work Work)
+
+	// GoInstrument instruments Go with timing information.
+	GoInstrument(work Work) ScheduleResult
 
 	// GoIfAvailable performs the work inside a worker if one is available and
 	// returns true, or false otherwise.
@@ -75,8 +104,33 @@ type WorkerPool interface {
 
 	// GoWithTimeout waits up to the given timeout for a worker to become
 	// available, returning true if a worker becomes available, or false
-	// otherwise
+	// otherwise.
 	GoWithTimeout(work Work, timeout time.Duration) bool
+
+	// GoWithTimeoutInstrument instruments GoWithTimeout with timing information.
+	GoWithTimeoutInstrument(work Work, timeout time.Duration) ScheduleResult
+
+	// GoWithContext waits until a worker is available or the provided ctx is canceled.
+	GoWithContext(ctx context.Context, work Work) ScheduleResult
+
+	// FastContextCheck returns a wrapper worker pool that only checks the context deadline every batchSize calls.
+	// This is useful for tight looping code that wants to amortize the cost of the ctx deadline check over batchSize
+	// iterations.
+	// This should only be used for code that can guarantee the wait time for a worker is low since if the ctx is not
+	// checked the calling goroutine blocks waiting for a worker.
+	FastContextCheck(batchSize int) WorkerPool
+
+	// Size returns the size of the worker pool.
+	Size() int
+}
+
+// ScheduleResult is the result of scheduling a goroutine in the worker pool.
+type ScheduleResult struct {
+	// Available is true if the goroutine was scheduled in the worker pool. False if the request timed out before a
+	// worker became available.
+	Available bool
+	// WaitTime is how long the goroutine had to wait before receiving a worker from the pool or timing out.
+	WaitTime time.Duration
 }
 
 // PooledWorkerPoolOptions is the options for a PooledWorkerPool.

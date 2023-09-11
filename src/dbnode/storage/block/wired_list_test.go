@@ -24,13 +24,12 @@ import (
 	"bytes"
 	"fmt"
 	"testing"
-	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -74,7 +73,7 @@ func newTestUnwireableBlock(
 	}
 	segment.Head.IncRef()
 
-	bl := NewDatabaseBlock(time.Time{}, 0, segment, opts, namespace.Context{}).(*dbBlock)
+	bl := NewDatabaseBlock(0, 0, segment, opts, namespace.Context{}).(*dbBlock)
 	bl.Lock()
 	bl.seriesID = ident.StringID(name)
 	bl.wasRetrievedFromDisk = true

@@ -25,7 +25,6 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
-	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/x/ident"
 )
 
@@ -37,7 +36,7 @@ type namespaceDataAccumulator struct {
 	sync.RWMutex
 	closed       bool
 	namespace    databaseNamespace
-	needsRelease []lookup.OnReleaseReadWriteRef
+	needsRelease []bootstrap.SeriesRefResolver
 }
 
 // NewDatabaseNamespaceDataAccumulator creates a data accumulator for
@@ -55,16 +54,15 @@ func (a *namespaceDataAccumulator) CheckoutSeriesWithoutLock(
 	id ident.ID,
 	tags ident.TagIterator,
 ) (bootstrap.CheckoutSeriesResult, bool, error) {
-	ref, owned, err := a.namespace.SeriesReadWriteRef(shardID, id, tags)
+	resolver, owned, err := a.namespace.SeriesRefResolver(shardID, id, tags)
 	if err != nil {
 		return bootstrap.CheckoutSeriesResult{}, owned, err
 	}
 
-	a.needsRelease = append(a.needsRelease, ref.ReleaseReadWriteRef)
+	a.needsRelease = append(a.needsRelease, resolver)
 	return bootstrap.CheckoutSeriesResult{
-		Series:      ref.Series,
-		Shard:       ref.Shard,
-		UniqueIndex: ref.UniqueIndex,
+		Resolver: resolver,
+		Shard:    shardID,
 	}, true, nil
 }
 
@@ -87,12 +85,12 @@ func (a *namespaceDataAccumulator) Close() error {
 		return errAlreadyClosed
 	}
 
-	a.closed = true
-
 	// Release all refs.
 	for _, elem := range a.needsRelease {
-		elem.OnReleaseReadWriteRef()
+		elem.ReleaseRef()
 	}
+
+	a.closed = true
 
 	// Memset optimization for reset.
 	for i := range a.needsRelease {

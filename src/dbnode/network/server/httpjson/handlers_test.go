@@ -36,9 +36,9 @@ import (
 	xjson "github.com/m3db/m3/src/x/json"
 	xtest "github.com/m3db/m3/src/x/test"
 
-	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	apachethrift "github.com/uber/tchannel-go/thirdparty/github.com/apache/thrift/lib/go/thrift"
 	"golang.org/x/net/context"
 )
 
@@ -52,7 +52,7 @@ var (
 func newTestClient(ctrl *gomock.Controller) *client.MockClient {
 	client := client.NewMockClient(ctrl)
 	client.EXPECT().Options().Return(testClientOptions).AnyTimes()
-	client.EXPECT().DefaultSession().Return(nil, errTestClientSessionError).AnyTimes()
+	client.EXPECT().NewSessionWithOptions(gomock.Any()).Return(nil, errTestClientSessionError).AnyTimes()
 	return client
 }
 

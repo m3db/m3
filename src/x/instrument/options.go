@@ -35,13 +35,17 @@ const (
 	defaultReportingInterval = time.Second
 )
 
+var defaultProfiler = NewNoOpProfiler()
+
 type options struct {
-	zap            *zap.Logger
-	scope          tally.Scope
-	tracer         opentracing.Tracer
-	samplingRate   float64
-	timerOptions   TimerOptions
-	reportInterval time.Duration
+	zap             *zap.Logger
+	scope           tally.Scope
+	tracer          opentracing.Tracer
+	samplingRate    float64
+	timerOptions    TimerOptions
+	reportInterval  time.Duration
+	customBuildTags map[string]string
+	profiler        Profiler
 }
 
 // NewOptions creates new instrument options.
@@ -50,10 +54,12 @@ func NewOptions() Options {
 		zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()), os.Stdout, zap.InfoLevel)
 	zapLogger := zap.New(zapCore)
 	return &options{
-		zap:            zapLogger,
-		scope:          tally.NoopScope,
-		samplingRate:   defaultSamplingRate,
-		reportInterval: defaultReportingInterval,
+		zap:             zapLogger,
+		scope:           tally.NoopScope,
+		samplingRate:    defaultSamplingRate,
+		reportInterval:  defaultReportingInterval,
+		customBuildTags: map[string]string{},
+		profiler:        defaultProfiler,
 	}
 }
 
@@ -105,4 +111,25 @@ func (o *options) SetReportInterval(value time.Duration) Options {
 
 func (o *options) ReportInterval() time.Duration {
 	return o.reportInterval
+}
+
+func (o *options) SetCustomBuildTags(tags map[string]string) Options {
+	opts := *o
+	opts.customBuildTags = tags
+	return &opts
+}
+
+func (o *options) CustomBuildTags() map[string]string {
+	return o.customBuildTags
+}
+
+func (o *options) SetProfiler(value Profiler) Options {
+	opts := *o
+	opts.profiler = value
+
+	return &opts
+}
+
+func (o *options) Profiler() Profiler {
+	return o.profiler
 }

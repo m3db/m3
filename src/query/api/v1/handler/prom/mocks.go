@@ -29,7 +29,7 @@ import (
 
 	"github.com/go-kit/kit/log"
 	kitlogzap "github.com/go-kit/kit/log/zap"
-	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql"
 	promstorage "github.com/prometheus/prometheus/storage"
 	"go.uber.org/zap/zapcore"
@@ -44,26 +44,27 @@ type mockSeriesSet struct {
 	promstorage.SeriesSet
 }
 
-func (m *mockSeriesSet) Next() bool             { return false }
-func (m *mockSeriesSet) At() promstorage.Series { return nil }
-func (m *mockSeriesSet) Err() error             { return nil }
+func (m *mockSeriesSet) Next() bool                     { return false }
+func (m *mockSeriesSet) At() promstorage.Series         { return nil }
+func (m *mockSeriesSet) Err() error                     { return nil }
+func (m *mockSeriesSet) Warnings() promstorage.Warnings { return nil }
 
 func (q *mockQuerier) Select(
 	sortSeries bool,
 	hints *promstorage.SelectHints,
 	labelMatchers ...*labels.Matcher,
-) (promstorage.SeriesSet, promstorage.Warnings, error) {
+) promstorage.SeriesSet {
 	if q.mockOptions.selectFn != nil {
 		return q.mockOptions.selectFn(sortSeries, hints, labelMatchers...)
 	}
-	return &mockSeriesSet{mockOptions: q.mockOptions}, nil, nil
+	return &mockSeriesSet{mockOptions: q.mockOptions}
 }
 
-func (*mockQuerier) LabelValues(name string) ([]string, promstorage.Warnings, error) {
+func (*mockQuerier) LabelValues(string, ...*labels.Matcher) ([]string, promstorage.Warnings, error) {
 	return nil, nil, errors.New("not implemented")
 }
 
-func (*mockQuerier) LabelNames() ([]string, promstorage.Warnings, error) {
+func (*mockQuerier) LabelNames(...*labels.Matcher) ([]string, promstorage.Warnings, error) {
 	return nil, nil, errors.New("not implemented")
 }
 
@@ -76,7 +77,7 @@ type mockOptions struct {
 		sortSeries bool,
 		hints *promstorage.SelectHints,
 		labelMatchers ...*labels.Matcher,
-	) (promstorage.SeriesSet, promstorage.Warnings, error)
+	) promstorage.SeriesSet
 }
 
 type mockQueryable struct {
@@ -87,6 +88,10 @@ func (q *mockQueryable) Querier(_ context.Context, _, _ int64) (promstorage.Quer
 	return &mockQuerier{mockOptions: q.mockOptions}, nil
 }
 
+func durationMilliseconds(d time.Duration) int64 {
+	return int64(d / (time.Millisecond / time.Nanosecond))
+}
+
 func newMockPromQLEngine() *promql.Engine {
 	var (
 		instrumentOpts = instrument.NewOptions()
@@ -95,6 +100,9 @@ func newMockPromQLEngine() *promql.Engine {
 			Logger:     log.With(kitLogger, "component", "query engine"),
 			MaxSamples: 100,
 			Timeout:    1 * time.Minute,
+			NoStepSubqueryIntervalFn: func(rangeMillis int64) int64 {
+				return durationMilliseconds(1 * time.Minute)
+			},
 		}
 	)
 	return promql.NewEngine(opts)

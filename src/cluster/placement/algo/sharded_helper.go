@@ -51,10 +51,10 @@ type optimizeType int
 
 const (
 	// safe optimizes the load distribution without violating
-	// minimal shard movemoment.
+	// minimal shard movement.
 	safe optimizeType = iota
 	// unsafe optimizes the load distribution with the potential of violating
-	// minimal shard movement in order to reach best shard distribution
+	// minimal shard movement in order to reach best shard distribution.
 	unsafe
 )
 
@@ -491,8 +491,9 @@ func (ph *helper) returnInitializingShardsToSource(
 
 func (ph *helper) mostUnderLoadedInstance() (placement.Instance, bool) {
 	var (
-		res        placement.Instance
-		maxLoadGap int
+		res              placement.Instance
+		maxLoadGap       int
+		totalLoadSurplus int
 	)
 
 	for id, instance := range ph.instances {
@@ -501,11 +502,16 @@ func (ph *helper) mostUnderLoadedInstance() (placement.Instance, bool) {
 			maxLoadGap = loadGap
 			res = instance
 		}
+		if loadGap == maxLoadGap && res != nil && res.ID() > id {
+			res = instance
+		}
+		if loadGap < 0 {
+			totalLoadSurplus -= loadGap
+		}
 	}
-	if maxLoadGap > 0 {
+	if maxLoadGap > 0 && totalLoadSurplus != 0 {
 		return res, true
 	}
-
 	return nil, false
 }
 
@@ -653,12 +659,19 @@ func (h *instanceHeap) Less(i, j int) bool {
 	leftLoadOnJ := h.targetLoadForInstance(instanceJ.ID()) - loadOnInstance(instanceJ)
 	// If both instance has tokens to be filled, prefer the one from bigger isolation group
 	// since it tends to be more picky in accepting shards
-	if leftLoadOnI > 0 && leftLoadOnJ > 0 {
-		if instanceI.IsolationGroup() != instanceJ.IsolationGroup() {
-			return h.igToWeightMap[instanceI.IsolationGroup()] > h.igToWeightMap[instanceJ.IsolationGroup()]
+	if leftLoadOnI > 0 && leftLoadOnJ > 0 && instanceI.IsolationGroup() != instanceJ.IsolationGroup() {
+		var (
+			igWeightI = h.igToWeightMap[instanceI.IsolationGroup()]
+			igWeightJ = h.igToWeightMap[instanceJ.IsolationGroup()]
+		)
+		if igWeightI != igWeightJ {
+			return igWeightI > igWeightJ
 		}
 	}
 	// compare left capacity on both instances
+	if leftLoadOnI == leftLoadOnJ {
+		return instanceI.ID() < instanceJ.ID()
+	}
 	if h.capacityAscending {
 		return leftLoadOnI > leftLoadOnJ
 	}

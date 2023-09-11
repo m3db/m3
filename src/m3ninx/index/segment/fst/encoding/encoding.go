@@ -117,34 +117,57 @@ func (d *Decoder) Uint64() (uint64, error) {
 
 // Uvarint reads a variable-sized unsigned integer.
 func (d *Decoder) Uvarint() (uint64, error) {
-	x, n := binary.Uvarint(d.buf)
-	if n == 0 {
-		return 0, io.ErrShortBuffer
+	x, buf, err := ReadUvarint(d.buf)
+	if err != nil {
+		return 0, err
 	}
-	if n < 0 {
-		return 0, errUvarintOverflow
-	}
-	d.buf = d.buf[n:]
+	d.buf = buf
 	return x, nil
 }
 
 // Bytes reads a byte slice from the decoder.
 func (d *Decoder) Bytes() ([]byte, error) {
-	x, err := d.Uvarint()
+	b, buf, err := ReadBytes(d.buf)
 	if err != nil {
 		return nil, err
+	}
+	d.buf = buf
+	return b, nil
+}
+
+// ReadUvarint reads a variable-size unsigned integer from a byte slice
+// and returns a new slice positioned after the integer that was just read.
+func ReadUvarint(buf []byte) (uint64, []byte, error) {
+	x, n := binary.Uvarint(buf)
+	if n == 0 {
+		return 0, nil, io.ErrShortBuffer
+	}
+	if n < 0 {
+		return 0, nil, errUvarintOverflow
+	}
+	buf = buf[n:]
+	return x, buf, nil
+}
+
+// ReadBytes reads an unsigned integer from a byte slice and
+// returns that amount of bytes along with a new slice positioned after
+// the last byte just read.
+func ReadBytes(buf []byte) ([]byte, []byte, error) {
+	x, buf, err := ReadUvarint(buf)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	// Verify the length of the slice won't overflow an int.
 	if x > uint64(maxInt) {
-		return nil, errIntOverflow
+		return nil, nil, errIntOverflow
 	}
 
 	n := int(x)
-	if len(d.buf) < n {
-		return nil, io.ErrShortBuffer
+	if len(buf) < n {
+		return nil, nil, io.ErrShortBuffer
 	}
-	b := d.buf[:n]
-	d.buf = d.buf[n:]
-	return b, nil
+	b := buf[:n]
+	buf = buf[n:]
+	return b, buf, nil
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,12 +23,14 @@ package view
 import (
 	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/query/models"
 )
 
 // RollupTarget is a rollup target model.
 type RollupTarget struct {
 	Pipeline        pipeline.Pipeline      `json:"pipeline" validate:"required"`
 	StoragePolicies policy.StoragePolicies `json:"storagePolicies" validate:"required"`
+	ResendEnabled   bool                   `json:"resendEnabled"`
 }
 
 // Equal determines whether two rollup targets are equal.
@@ -39,7 +41,8 @@ func (t *RollupTarget) Equal(other *RollupTarget) bool {
 	if t == nil || other == nil {
 		return false
 	}
-	return t.Pipeline.Equal(other.Pipeline) && t.StoragePolicies.Equal(other.StoragePolicies)
+	return t.Pipeline.Equal(other.Pipeline) && t.StoragePolicies.Equal(other.StoragePolicies) &&
+		t.ResendEnabled == other.ResendEnabled
 }
 
 // RollupRule is rollup rule model.
@@ -52,6 +55,8 @@ type RollupRule struct {
 	Targets             []RollupTarget `json:"targets" validate:"required,dive,required"`
 	LastUpdatedBy       string         `json:"lastUpdatedBy"`
 	LastUpdatedAtMillis int64          `json:"lastUpdatedAtMillis"`
+	KeepOriginal        bool           `json:"keepOriginal"`
+	Tags                []models.Tag   `json:"tags"`
 }
 
 // Equal determines whether two rollup rules are equal.
@@ -62,9 +67,18 @@ func (r *RollupRule) Equal(other *RollupRule) bool {
 	if r == nil || other == nil {
 		return false
 	}
+	if len(r.Tags) != len(other.Tags) {
+		return false
+	}
+	for i := 0; i < len(r.Tags); i++ {
+		if !r.Tags[i].Equal(other.Tags[i]) {
+			return false
+		}
+	}
 	return r.ID == other.ID &&
 		r.Name == other.Name &&
 		r.Filter == other.Filter &&
+		r.KeepOriginal == other.KeepOriginal &&
 		rollupTargets(r.Targets).Equal(other.Targets)
 }
 

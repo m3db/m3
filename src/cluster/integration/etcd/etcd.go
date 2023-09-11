@@ -21,26 +21,24 @@
 package etcd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/url"
-	"os"
 	"strings"
-	"time"
 
 	"github.com/m3db/m3/src/cluster/client"
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cluster/services"
-	xclock "github.com/m3db/m3/src/x/clock"
-	"github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/integration/resources/docker/dockerexternal"
+	"github.com/m3db/m3/src/x/instrument"
 
-	"go.etcd.io/etcd/embed"
+	"github.com/ory/dockertest/v3"
 )
 
 type embeddedKV struct {
-	etcd *embed.Etcd
+	etcd *dockerexternal.EtcdNode
 	opts Options
 	dir  string
 }
@@ -51,11 +49,12 @@ func New(opts Options) (EmbeddedKV, error) {
 	if err != nil {
 		return nil, err
 	}
-	cfg := embed.NewConfig()
-	cfg.Dir = dir
 
-	setRandomPorts(cfg)
-	e, err := embed.StartEtcd(cfg)
+	pool, err := dockertest.NewPool("")
+	if err != nil {
+		return nil, fmt.Errorf("constructing dockertest.Pool for EmbeddedKV: %w", err)
+	}
+	e, err := dockerexternal.NewEtcd(pool, instrument.NewOptions())
 	if err != nil {
 		return nil, fmt.Errorf("unable to start etcd, err: %v", err)
 	}
@@ -66,56 +65,16 @@ func New(opts Options) (EmbeddedKV, error) {
 	}, nil
 }
 
-func setRandomPorts(cfg *embed.Config) {
-	randomPortURL, err := url.Parse("http://localhost:0")
-	if err != nil {
-		panic(err.Error())
-	}
-
-	cfg.LPUrls = []url.URL{*randomPortURL}
-	cfg.APUrls = []url.URL{*randomPortURL}
-	cfg.LCUrls = []url.URL{*randomPortURL}
-	cfg.ACUrls = []url.URL{*randomPortURL}
-
-	cfg.InitialCluster = cfg.InitialClusterFromName(cfg.Name)
-}
-
 func (e *embeddedKV) Close() error {
-	var multi errors.MultiError
-
-	// see if there's any errors
-	select {
-	case err := <-e.etcd.Err():
-		multi = multi.Add(err)
-	default:
-	}
-
-	// shutdown and release
-	e.etcd.Server.Stop()
-	e.etcd.Close()
-
-	multi = multi.Add(os.RemoveAll(e.dir))
-	return multi.FinalError()
+	return e.etcd.Close(context.TODO())
 }
 
 func (e *embeddedKV) Start() error {
 	timeout := e.opts.InitTimeout()
-	select {
-	case <-e.etcd.Server.ReadyNotify():
-		break
-	case <-time.After(timeout):
-		return fmt.Errorf("etcd server took too long to start")
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
-	// ensure v3 api endpoints are available, https://github.com/coreos/etcd/pull/7075
-	apiVersionEndpoint := fmt.Sprintf("http://%s/version", 	e.etcd.Clients[0].Addr().String())
-	fn := func() bool { return version3Available(apiVersionEndpoint) }
-	ok := xclock.WaitUntil(fn, timeout)
-	if !ok {
-		return fmt.Errorf("api version 3 not available")
-	}
-
-	return nil
+	return e.etcd.Setup(ctx)
 }
 
 type versionResponse struct {
@@ -143,11 +102,7 @@ func version3Available(endpoint string) bool {
 }
 
 func (e *embeddedKV) Endpoints() []string {
-	addresses := make([]string, 0, len(e.etcd.Clients))
-	for _, c := range e.etcd.Clients {
-		addresses = append(addresses, c.Addr().String())
-	}
-	return addresses
+	return []string{e.etcd.Address()}
 }
 
 func (e *embeddedKV) ConfigServiceClient(fns ...ClientOptFn) (client.Client, error) {
@@ -155,7 +110,9 @@ func (e *embeddedKV) ConfigServiceClient(fns ...ClientOptFn) (client.Client, err
 		SetInstrumentOptions(e.opts.InstrumentOptions()).
 		SetServicesOptions(services.NewOptions().SetInitTimeout(e.opts.InitTimeout())).
 		SetClusters([]etcdclient.Cluster{
-			etcdclient.NewCluster().SetZone(e.opts.Zone()).SetEndpoints(e.Endpoints()),
+			etcdclient.NewCluster().SetZone(e.opts.Zone()).
+				SetEndpoints(e.Endpoints()).
+				SetAutoSyncInterval(-1),
 		}).
 		SetService(e.opts.ServiceID()).
 		SetEnv(e.opts.Environment()).

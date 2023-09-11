@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
 	ttcluster "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/cluster"
 	ttnode "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node"
+	"github.com/m3db/m3/src/dbnode/server"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/topology"
@@ -41,14 +42,28 @@ import (
 	"go.uber.org/zap"
 )
 
-// newTestShardSet creates a default shard set
-func newTestShardSet(numShards int) (sharding.ShardSet, error) {
+// TestShardSetOptions is a set of test shard set options.
+type TestShardSetOptions struct {
+	ShardState shard.State
+}
+
+// newTestShardSet creates a default shard set.
+func newTestShardSet(
+	numShards int,
+	opts *TestShardSetOptions,
+) (sharding.ShardSet, error) {
+	if opts == nil {
+		opts = &TestShardSetOptions{
+			ShardState: shard.Available,
+		}
+	}
+
 	var ids []uint32
 	for i := uint32(0); i < uint32(numShards); i++ {
 		ids = append(ids, i)
 	}
 
-	shards := sharding.NewShards(ids, shard.Available)
+	shards := sharding.NewShards(ids, opts.ShardState)
 	return sharding.NewShardSet(shards, sharding.DefaultHashFn(numShards))
 }
 
@@ -95,6 +110,7 @@ func openAndServe(
 	db storage.Database,
 	client client.Client,
 	opts storage.Options,
+	serverStorageOpts server.StorageOptions,
 	doneCh <-chan struct{},
 ) error {
 	logger := opts.InstrumentOptions().Logger()
@@ -105,7 +121,14 @@ func openAndServe(
 	contextPool := opts.ContextPool()
 	ttopts := tchannelthrift.NewOptions()
 	service := ttnode.NewService(db, ttopts)
-	nodeOpts := ttnode.NewOptions(nil)
+	nodeOpts := ttnode.NewOptions(nil).
+		SetInstrumentOptions(opts.InstrumentOptions())
+	if fn := serverStorageOpts.TChanChannelFn; fn != nil {
+		nodeOpts = nodeOpts.SetTChanChannelFn(fn)
+	}
+	if fn := serverStorageOpts.TChanNodeServerFn; fn != nil {
+		nodeOpts = nodeOpts.SetTChanNodeServerFn(fn)
+	}
 	nativeNodeClose, err := ttnode.NewServer(service, tchannelNodeAddr, contextPool, nodeOpts).ListenAndServe()
 	if err != nil {
 		return fmt.Errorf("could not open tchannelthrift interface %s: %v", tchannelNodeAddr, err)

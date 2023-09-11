@@ -174,7 +174,7 @@ func standardRateFunc(
 
 		if !foundFirst {
 			firstVal = dp.Value
-			firstTS = xtime.ToUnixNano(dp.Timestamp)
+			firstTS = dp.Timestamp
 			firstIdx = i
 			foundFirst = true
 		}
@@ -184,7 +184,7 @@ func standardRateFunc(
 		}
 
 		lastValue = dp.Value
-		lastTS = xtime.ToUnixNano(dp.Timestamp)
+		lastTS = dp.Timestamp
 		lastIdx = i
 	}
 

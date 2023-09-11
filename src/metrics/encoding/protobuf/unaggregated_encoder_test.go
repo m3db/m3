@@ -253,7 +253,7 @@ var (
 	}
 	testPassthroughMetadata1 = policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour)
 	testPassthroughMetadata2 = policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour)
-	testCounter1Proto = metricpb.Counter{
+	testCounter1Proto        = metricpb.Counter{
 		Id:    []byte("testCounter1"),
 		Value: 123,
 	}
@@ -324,11 +324,11 @@ var (
 							AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Sum)[0]},
 							StoragePolicies: []policypb.StoragePolicy{
 								{
-									Resolution: &policypb.Resolution{
+									Resolution: policypb.Resolution{
 										WindowSize: time.Second.Nanoseconds(),
 										Precision:  time.Second.Nanoseconds(),
 									},
-									Retention: &policypb.Retention{
+									Retention: policypb.Retention{
 										Period: time.Hour.Nanoseconds(),
 									},
 								},
@@ -338,11 +338,11 @@ var (
 							AggregationId: aggregationpb.AggregationID{Id: 0},
 							StoragePolicies: []policypb.StoragePolicy{
 								{
-									Resolution: &policypb.Resolution{
+									Resolution: policypb.Resolution{
 										WindowSize: 10 * time.Second.Nanoseconds(),
 										Precision:  time.Second.Nanoseconds(),
 									},
-									Retention: &policypb.Retention{
+									Retention: policypb.Retention{
 										Period: time.Hour.Nanoseconds(),
 									},
 								},
@@ -351,7 +351,7 @@ var (
 								Ops: []pipelinepb.AppliedPipelineOp{
 									{
 										Type: pipelinepb.AppliedPipelineOp_ROLLUP,
-										Rollup: &pipelinepb.AppliedRollupOp{
+										Rollup: pipelinepb.AppliedRollupOp{
 											Id:            []byte("baz"),
 											AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Mean)[0]},
 										},
@@ -379,11 +379,11 @@ var (
 							AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Count)[0]},
 							StoragePolicies: []policypb.StoragePolicy{
 								{
-									Resolution: &policypb.Resolution{
+									Resolution: policypb.Resolution{
 										WindowSize: time.Second.Nanoseconds(),
 										Precision:  time.Second.Nanoseconds(),
 									},
-									Retention: &policypb.Retention{
+									Retention: policypb.Retention{
 										Period: time.Hour.Nanoseconds(),
 									},
 								},
@@ -393,20 +393,20 @@ var (
 							AggregationId: aggregationpb.AggregationID{Id: 0},
 							StoragePolicies: []policypb.StoragePolicy{
 								{
-									Resolution: &policypb.Resolution{
+									Resolution: policypb.Resolution{
 										WindowSize: time.Minute.Nanoseconds(),
 										Precision:  time.Minute.Nanoseconds(),
 									},
-									Retention: &policypb.Retention{
+									Retention: policypb.Retention{
 										Period: (6 * time.Hour).Nanoseconds(),
 									},
 								},
 								{
-									Resolution: &policypb.Resolution{
+									Resolution: policypb.Resolution{
 										WindowSize: time.Hour.Nanoseconds(),
 										Precision:  time.Hour.Nanoseconds(),
 									},
-									Retention: &policypb.Retention{
+									Retention: policypb.Retention{
 										Period: (30 * 24 * time.Hour).Nanoseconds(),
 									},
 								},
@@ -415,13 +415,13 @@ var (
 								Ops: []pipelinepb.AppliedPipelineOp{
 									{
 										Type: pipelinepb.AppliedPipelineOp_TRANSFORMATION,
-										Transformation: &pipelinepb.TransformationOp{
+										Transformation: pipelinepb.TransformationOp{
 											Type: transformationpb.TransformationType_ABSOLUTE,
 										},
 									},
 									{
 										Type: pipelinepb.AppliedPipelineOp_ROLLUP,
-										Rollup: &pipelinepb.AppliedRollupOp{
+										Rollup: pipelinepb.AppliedRollupOp{
 											Id:            []byte("foo"),
 											AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Last, aggregation.Sum)[0]},
 										},
@@ -443,13 +443,13 @@ var (
 								Ops: []pipelinepb.AppliedPipelineOp{
 									{
 										Type: pipelinepb.AppliedPipelineOp_TRANSFORMATION,
-										Transformation: &pipelinepb.TransformationOp{
+										Transformation: pipelinepb.TransformationOp{
 											Type: transformationpb.TransformationType_PERSECOND,
 										},
 									},
 									{
 										Type: pipelinepb.AppliedPipelineOp_ROLLUP,
-										Rollup: &pipelinepb.AppliedRollupOp{
+										Rollup: pipelinepb.AppliedRollupOp{
 											Id:            []byte("bar"),
 											AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.P99)[0]},
 										},
@@ -465,11 +465,11 @@ var (
 	testForwardMetadata1Proto = metricpb.ForwardMetadata{
 		AggregationId: aggregationpb.AggregationID{Id: 0},
 		StoragePolicy: policypb.StoragePolicy{
-			Resolution: &policypb.Resolution{
+			Resolution: policypb.Resolution{
 				WindowSize: time.Minute.Nanoseconds(),
 				Precision:  time.Minute.Nanoseconds(),
 			},
-			Retention: &policypb.Retention{
+			Retention: policypb.Retention{
 				Period: (12 * time.Hour).Nanoseconds(),
 			},
 		},
@@ -477,7 +477,7 @@ var (
 			Ops: []pipelinepb.AppliedPipelineOp{
 				{
 					Type: pipelinepb.AppliedPipelineOp_ROLLUP,
-					Rollup: &pipelinepb.AppliedRollupOp{
+					Rollup: pipelinepb.AppliedRollupOp{
 						Id:            []byte("foo"),
 						AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Count)[0]},
 					},
@@ -490,11 +490,11 @@ var (
 	testForwardMetadata2Proto = metricpb.ForwardMetadata{
 		AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Sum)[0]},
 		StoragePolicy: policypb.StoragePolicy{
-			Resolution: &policypb.Resolution{
+			Resolution: policypb.Resolution{
 				WindowSize: 10 * time.Second.Nanoseconds(),
 				Precision:  time.Second.Nanoseconds(),
 			},
-			Retention: &policypb.Retention{
+			Retention: policypb.Retention{
 				Period: (6 * time.Hour).Nanoseconds(),
 			},
 		},
@@ -502,13 +502,13 @@ var (
 			Ops: []pipelinepb.AppliedPipelineOp{
 				{
 					Type: pipelinepb.AppliedPipelineOp_TRANSFORMATION,
-					Transformation: &pipelinepb.TransformationOp{
+					Transformation: pipelinepb.TransformationOp{
 						Type: transformationpb.TransformationType_ABSOLUTE,
 					},
 				},
 				{
 					Type: pipelinepb.AppliedPipelineOp_ROLLUP,
-					Rollup: &pipelinepb.AppliedRollupOp{
+					Rollup: pipelinepb.AppliedRollupOp{
 						Id:            []byte("bar"),
 						AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Last, aggregation.Sum)[0]},
 					},
@@ -521,11 +521,11 @@ var (
 	testTimedMetadata1Proto = metricpb.TimedMetadata{
 		AggregationId: aggregationpb.AggregationID{Id: 0},
 		StoragePolicy: policypb.StoragePolicy{
-			Resolution: &policypb.Resolution{
+			Resolution: policypb.Resolution{
 				WindowSize: time.Minute.Nanoseconds(),
 				Precision:  time.Minute.Nanoseconds(),
 			},
-			Retention: &policypb.Retention{
+			Retention: policypb.Retention{
 				Period: (12 * time.Hour).Nanoseconds(),
 			},
 		},
@@ -533,30 +533,30 @@ var (
 	testTimedMetadata2Proto = metricpb.TimedMetadata{
 		AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Sum)[0]},
 		StoragePolicy: policypb.StoragePolicy{
-			Resolution: &policypb.Resolution{
+			Resolution: policypb.Resolution{
 				WindowSize: 10 * time.Second.Nanoseconds(),
 				Precision:  time.Second.Nanoseconds(),
 			},
-			Retention: &policypb.Retention{
+			Retention: policypb.Retention{
 				Period: (6 * time.Hour).Nanoseconds(),
 			},
 		},
 	}
 	testPassthroughMetadata1Proto = policypb.StoragePolicy{
-		Resolution: &policypb.Resolution{
+		Resolution: policypb.Resolution{
 			WindowSize: time.Minute.Nanoseconds(),
 			Precision:  time.Minute.Nanoseconds(),
 		},
-		Retention: &policypb.Retention{
+		Retention: policypb.Retention{
 			Period: (12 * time.Hour).Nanoseconds(),
 		},
 	}
 	testPassthroughMetadata2Proto = policypb.StoragePolicy{
-		Resolution: &policypb.Resolution{
+		Resolution: policypb.Resolution{
 			WindowSize: 10 * time.Second.Nanoseconds(),
 			Precision:  time.Second.Nanoseconds(),
 		},
-		Retention: &policypb.Retention{
+		Retention: policypb.Retention{
 			Period: (6 * time.Hour).Nanoseconds(),
 		},
 	}
@@ -673,11 +673,11 @@ func TestUnaggregatedEncoderEncodeBatchTimerWithMetadatas(t *testing.T) {
 	enc.(*unaggregatedEncoder).encodeMessageFn = func(pb metricpb.MetricWithMetadatas) error { pbRes = pb; return nil }
 	for i, input := range inputs {
 		require.NoError(t, enc.EncodeMessage(encoding.UnaggregatedMessageUnion{
-			Type: encoding.BatchTimerWithMetadatasType,
+			Type:                    encoding.BatchTimerWithMetadatasType,
 			BatchTimerWithMetadatas: input,
 		}))
 		expectedProto := metricpb.MetricWithMetadatas{
-			Type: metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS,
+			Type:                    metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS,
 			BatchTimerWithMetadatas: &expected[i],
 		}
 		expectedMsgSize := expectedProto.Size()
@@ -793,11 +793,11 @@ func TestUnaggregatedEncoderEncodeForwardedMetricWithMetadata(t *testing.T) {
 	enc.(*unaggregatedEncoder).encodeMessageFn = func(pb metricpb.MetricWithMetadatas) error { pbRes = pb; return nil }
 	for i, input := range inputs {
 		require.NoError(t, enc.EncodeMessage(encoding.UnaggregatedMessageUnion{
-			Type: encoding.ForwardedMetricWithMetadataType,
+			Type:                        encoding.ForwardedMetricWithMetadataType,
 			ForwardedMetricWithMetadata: input,
 		}))
 		expectedProto := metricpb.MetricWithMetadatas{
-			Type: metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA,
+			Type:                        metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA,
 			ForwardedMetricWithMetadata: &expected[i],
 		}
 		expectedMsgSize := expectedProto.Size()
@@ -853,11 +853,11 @@ func TestUnaggregatedEncoderEncodeTimedMetricWithMetadata(t *testing.T) {
 	enc.(*unaggregatedEncoder).encodeMessageFn = func(pb metricpb.MetricWithMetadatas) error { pbRes = pb; return nil }
 	for i, input := range inputs {
 		require.NoError(t, enc.EncodeMessage(encoding.UnaggregatedMessageUnion{
-			Type: encoding.TimedMetricWithMetadataType,
+			Type:                    encoding.TimedMetricWithMetadataType,
 			TimedMetricWithMetadata: input,
 		}))
 		expectedProto := metricpb.MetricWithMetadatas{
-			Type: metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATA,
+			Type:                    metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATA,
 			TimedMetricWithMetadata: &expected[i],
 		}
 		expectedMsgSize := expectedProto.Size()
@@ -1121,12 +1121,12 @@ func TestUnaggregatedEncoderStress(t *testing.T) {
 				}
 			case unaggregated.BatchTimerWithMetadatas:
 				msg = encoding.UnaggregatedMessageUnion{
-					Type: encoding.BatchTimerWithMetadatasType,
+					Type:                    encoding.BatchTimerWithMetadatasType,
 					BatchTimerWithMetadatas: input,
 				}
 				res := expected[i].(metricpb.BatchTimerWithMetadatas)
 				expectedProto = metricpb.MetricWithMetadatas{
-					Type: metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS,
+					Type:                    metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS,
 					BatchTimerWithMetadatas: &res,
 				}
 			case unaggregated.GaugeWithMetadatas:
@@ -1141,32 +1141,32 @@ func TestUnaggregatedEncoderStress(t *testing.T) {
 				}
 			case aggregated.ForwardedMetricWithMetadata:
 				msg = encoding.UnaggregatedMessageUnion{
-					Type: encoding.ForwardedMetricWithMetadataType,
+					Type:                        encoding.ForwardedMetricWithMetadataType,
 					ForwardedMetricWithMetadata: input,
 				}
 				res := expected[i].(metricpb.ForwardedMetricWithMetadata)
 				expectedProto = metricpb.MetricWithMetadatas{
-					Type: metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA,
+					Type:                        metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA,
 					ForwardedMetricWithMetadata: &res,
 				}
 			case aggregated.TimedMetricWithMetadata:
 				msg = encoding.UnaggregatedMessageUnion{
-					Type: encoding.TimedMetricWithMetadataType,
+					Type:                    encoding.TimedMetricWithMetadataType,
 					TimedMetricWithMetadata: input,
 				}
 				res := expected[i].(metricpb.TimedMetricWithMetadata)
 				expectedProto = metricpb.MetricWithMetadatas{
-					Type: metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATA,
+					Type:                    metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATA,
 					TimedMetricWithMetadata: &res,
 				}
 			case aggregated.PassthroughMetricWithMetadata:
 				msg = encoding.UnaggregatedMessageUnion{
-					Type: encoding.PassthroughMetricWithMetadataType,
+					Type:                          encoding.PassthroughMetricWithMetadataType,
 					PassthroughMetricWithMetadata: input,
 				}
 				res := expected[i].(metricpb.TimedMetricWithStoragePolicy)
 				expectedProto = metricpb.MetricWithMetadatas{
-					Type: metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_STORAGE_POLICY,
+					Type:                         metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_STORAGE_POLICY,
 					TimedMetricWithStoragePolicy: &res,
 				}
 			default:

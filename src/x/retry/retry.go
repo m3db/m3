@@ -21,7 +21,9 @@
 package retry
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"math"
 	"time"
 
@@ -110,6 +112,25 @@ func (r *retrier) Attempt(fn Fn) error {
 
 func (r *retrier) AttemptWhile(continueFn ContinueFn, fn Fn) error {
 	return r.attempt(continueFn, fn)
+}
+
+func (r *retrier) AttemptContext(ctx context.Context, fn Fn) error {
+	contextNotCancelled := func(attempt int) bool {
+		select {
+		case <-ctx.Done():
+			return false
+		default:
+			return true
+		}
+	}
+	err := r.attempt(contextNotCancelled, fn)
+	if err != nil {
+		if errors.Is(err, ErrWhileConditionFalse) {
+			return fmt.Errorf("context canceled while retrying: %w", ctx.Err())
+		}
+		return err
+	}
+	return nil
 }
 
 func (r *retrier) attempt(continueFn ContinueFn, fn Fn) error {

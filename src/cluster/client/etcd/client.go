@@ -21,11 +21,13 @@
 package etcd
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/big"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -39,8 +41,8 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
 
-	"go.etcd.io/etcd/clientv3"
 	"github.com/uber-go/tally"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
 )
 
@@ -51,16 +53,33 @@ const (
 	cacheFileSuffix    = ".json"
 	// TODO deprecate this once all keys are migrated to per service namespace
 	kvPrefix = "_kv"
+
+	// Set GRPC response limits to 32 MiB, should be sufficient for most use cases.
+	// The default 2 MiB limit usually comes as an unpleasant surprise - etcd itself will reject
+	// requests that are too large anyway, and there are many other ways to tank etcd,
+	// like creating too many watchers.
+	_grpcMaxSendRecvBufferSize = 32 * 1024 * 1024
 )
 
 var errInvalidNamespace = errors.New("invalid namespace")
+
+// make sure m3cluster and etcd client interfaces are implemented, and that
+// Client is a superset of cluster.Client.
+var _ client.Client = Client((*csclient)(nil))
 
 type newClientFn func(cluster Cluster) (*clientv3.Client, error)
 
 type cacheFileForZoneFn func(zone string) etcdkv.CacheFileFn
 
-// NewConfigServiceClient returns a ConfigServiceClient.
-func NewConfigServiceClient(opts Options) (client.Client, error) {
+// ZoneClient is a cached etcd client for a zone.
+type ZoneClient struct {
+	Client *clientv3.Client
+	Zone   string
+}
+
+// NewEtcdConfigServiceClient returns a new etcd-backed cluster client.
+//nolint:golint
+func NewEtcdConfigServiceClient(opts Options) (*csclient, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
@@ -81,6 +100,11 @@ func NewConfigServiceClient(opts Options) (client.Client, error) {
 		retrier: retry.NewRetrier(opts.RetryOptions()),
 		stores:  make(map[string]kv.TxnStore),
 	}, nil
+}
+
+// NewConfigServiceClient returns a ConfigServiceClient.
+func NewConfigServiceClient(opts Options) (client.Client, error) {
+	return NewEtcdConfigServiceClient(opts)
 }
 
 type csclient struct {
@@ -165,12 +189,18 @@ func (c *csclient) newkvOptions(
 	cacheFileFn cacheFileForZoneFn,
 ) etcdkv.Options {
 	kvOpts := etcdkv.NewOptions().
-		SetInstrumentsOptions(instrument.NewOptions().
+		SetInstrumentsOptions(c.opts.InstrumentOptions().
 			SetLogger(c.logger).
 			SetMetricsScope(c.kvScope)).
 		SetCacheFileFn(cacheFileFn(opts.Zone())).
 		SetWatchWithRevision(c.opts.WatchWithRevision()).
-		SetNewDirectoryMode(c.opts.NewDirectoryMode())
+		SetNewDirectoryMode(c.opts.NewDirectoryMode()).
+		SetEnableFastGets(c.opts.EnableFastGets()).
+		SetRetryOptions(c.opts.RetryOptions()).
+		SetRequestTimeout(c.opts.RequestTimeout()).
+		SetWatchChanInitTimeout(c.opts.WatchChanInitTimeout()).
+		SetWatchChanCheckInterval(c.opts.WatchChanCheckInterval()).
+		SetWatchChanResetInterval(c.opts.WatchChanResetInterval())
 
 	if ns := opts.Namespace(); ns != "" {
 		kvOpts = kvOpts.SetPrefix(kvOpts.ApplyPrefix(ns))
@@ -202,11 +232,7 @@ func (c *csclient) txnGen(
 	if ok {
 		return store, nil
 	}
-	if store, err = etcdkv.NewStore(
-		cli.KV,
-		cli.Watcher,
-		c.newkvOptions(opts, cacheFileFn),
-	); err != nil {
+	if store, err = etcdkv.NewStore(cli, c.newkvOptions(opts, cacheFileFn)); err != nil {
 		return nil, err
 	}
 
@@ -276,29 +302,74 @@ func (c *csclient) etcdClientGen(zone string) (*clientv3.Client, error) {
 	return cli, nil
 }
 
+// Clients returns all currently cached etcd clients.
+func (c *csclient) Clients() []ZoneClient {
+	c.Lock()
+	defer c.Unlock()
+
+	var (
+		zones   = make([]string, 0, len(c.clis))
+		clients = make([]ZoneClient, 0, len(c.clis))
+	)
+
+	for k := range c.clis {
+		zones = append(zones, k)
+	}
+
+	sort.Strings(zones)
+
+	for _, zone := range zones {
+		clients = append(clients, ZoneClient{Zone: zone, Client: c.clis[zone]})
+	}
+
+	return clients
+}
+
 func newClient(cluster Cluster) (*clientv3.Client, error) {
-	tls, err := cluster.TLSOptions().Config()
+	cfg, err := newConfigFromCluster(cryptoRandInt63n, cluster)
 	if err != nil {
 		return nil, err
 	}
+	return clientv3.New(cfg)
+}
+
+// rnd is used to set a jitter on the keep alive.
+func newConfigFromCluster(rnd randInt63N, cluster Cluster) (clientv3.Config, error) {
+	tls, err := cluster.TLSOptions().Config()
+	if err != nil {
+		return clientv3.Config{}, err
+	}
+
+	// Support disabling autosync if a user very explicitly requests it (via negative duration).
+	autoSyncInterval := cluster.AutoSyncInterval()
+	if autoSyncInterval < 0 {
+		autoSyncInterval = 0
+	}
 	cfg := clientv3.Config{
-		Endpoints:        cluster.Endpoints(),
-		TLS:              tls,
-		AutoSyncInterval: cluster.AutoSyncInterval(),
+		AutoSyncInterval:   autoSyncInterval,
+		DialTimeout:        cluster.DialTimeout(),
+		DialOptions:        cluster.DialOptions(),
+		Endpoints:          cluster.Endpoints(),
+		TLS:                tls,
+		MaxCallSendMsgSize: _grpcMaxSendRecvBufferSize,
+		MaxCallRecvMsgSize: _grpcMaxSendRecvBufferSize,
 	}
 
 	if opts := cluster.KeepAliveOptions(); opts.KeepAliveEnabled() {
 		keepAlivePeriod := opts.KeepAlivePeriod()
 		if maxJitter := opts.KeepAlivePeriodMaxJitter(); maxJitter > 0 {
-			rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
-			jitter := rnd.Int63n(int64(maxJitter))
+			jitter, err := rnd(int64(maxJitter))
+			if err != nil {
+				return clientv3.Config{}, err
+			}
 			keepAlivePeriod += time.Duration(jitter)
 		}
 		cfg.DialKeepAliveTime = keepAlivePeriod
 		cfg.DialKeepAliveTimeout = opts.KeepAliveTimeout()
+		cfg.PermitWithoutStream = true
 	}
 
-	return clientv3.New(cfg)
+	return cfg, nil
 }
 
 func (c *csclient) cacheFileFn(extraFields ...string) cacheFileForZoneFn {
@@ -377,4 +448,16 @@ func kvStoreCacheKey(zone string, namespaces ...string) string {
 		}
 	}
 	return strings.Join(parts, hierarchySeparator)
+}
+
+// We have a linter which dislikes math.Rand, as it's insecure in the general case. Our usage here is very unlikely
+// to have security implications, but it won't hurt to make the linter happy.
+type randInt63N func(n int64) (int64, error)
+
+func cryptoRandInt63n(n int64) (int64, error) {
+	r, err := rand.Int(rand.Reader, big.NewInt(n))
+	if err != nil {
+		return 0, err
+	}
+	return r.Int64(), nil
 }

@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/metrics/matcher/cache"
+	"github.com/m3db/m3/src/metrics/matcher/namespace"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/id/m3"
@@ -53,12 +54,13 @@ import (
 
 const (
 	stressTestNamespacesKey = "namespaces"
-	stressTestNamespaceTag  = "namespace"
 	stressTestRuleSetKeyFmt = "rulesets/%s"
 	stressTestNameTagKey    = "name"
 	stressTestNamespaceName = "stress"
 	stressTestRuleSetKey    = "rulesets/stress"
 )
+
+var stressTestNamespaceTag = []byte("namespace")
 
 func TestMatchWithRuleUpdatesStress(t *testing.T) {
 	if testing.Short() {
@@ -75,7 +77,7 @@ func TestMatchWithRuleUpdatesStress(t *testing.T) {
 	// Create matcher.
 	cache := stressTestCache()
 	iterPool := stressTestSortedTagIteratorPool()
-	opts := stressTestMatcherOptions(store, iterPool)
+	opts := stressTestMatcherOptions(store)
 	matcher, err := matcher.NewMatcher(cache, opts)
 	require.NoError(t, err)
 
@@ -117,6 +119,7 @@ func TestMatchWithRuleUpdatesStress(t *testing.T) {
 					},
 				},
 				nil,
+				false,
 			),
 		},
 		{
@@ -156,6 +159,7 @@ func TestMatchWithRuleUpdatesStress(t *testing.T) {
 						},
 					},
 				},
+				true,
 			),
 		},
 		{
@@ -204,6 +208,7 @@ func TestMatchWithRuleUpdatesStress(t *testing.T) {
 						},
 					},
 				},
+				true,
 			),
 		},
 	}
@@ -219,12 +224,22 @@ func TestMatchWithRuleUpdatesStress(t *testing.T) {
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
+			it := iterPool.Get()
+			matchOpts := rules.MatchOptions{
+				NameAndTagsFn: m3.NameAndTags,
+				SortedTagIteratorFn: func(tagPairs []byte) id.SortedTagIterator {
+					it.Reset(tagPairs)
+					return it
+				},
+			}
 
 			for i := 0; i < matchIter; i++ {
-				res := matcher.ForwardMatch(input.idFn(i), input.fromNanos, input.toNanos)
+				res, err := matcher.ForwardMatch(input.idFn(i), input.fromNanos, input.toNanos, matchOpts)
+				require.NoError(t, err)
 				results = append(results, res)
 				expected = append(expected, input.expected)
 			}
+			iterPool.Put(it)
 		}()
 
 		go func() {
@@ -270,12 +285,19 @@ func validateMatchResult(
 				forNewRollupIDs[i] = actual.ForNewRollupIDsAt(i, 0)
 			}
 		}
-		actual = rules.NewMatchResult(expected.Version(), actual.ExpireAtNanos(), forExistingID, forNewRollupIDs)
+		actual = rules.NewMatchResult(
+			expected.Version(),
+			actual.ExpireAtNanos(),
+			forExistingID,
+			forNewRollupIDs,
+			actual.KeepOriginal(),
+		)
 	}
 	testMatchResultCmpOpts := []cmp.Option{
 		cmp.AllowUnexported(rules.MatchResult{}),
 		cmpopts.EquateEmpty(),
 	}
+
 	require.True(t, cmp.Equal(expected, actual, testMatchResultCmpOpts...))
 }
 
@@ -292,10 +314,10 @@ func updateStore(
 func stressTestNamespaces() *rulepb.Namespaces {
 	return &rulepb.Namespaces{
 		Namespaces: []*rulepb.Namespace{
-			&rulepb.Namespace{
+			{
 				Name: stressTestNamespaceName,
 				Snapshots: []*rulepb.NamespaceSnapshot{
-					&rulepb.NamespaceSnapshot{
+					{
 						ForRulesetVersion: 1,
 						Tombstoned:        false,
 					},
@@ -307,21 +329,21 @@ func stressTestNamespaces() *rulepb.Namespaces {
 
 func stressTestMappingRulesConfig() []*rulepb.MappingRule {
 	return []*rulepb.MappingRule{
-		&rulepb.MappingRule{
+		{
 			Uuid: "mappingRule1",
 			Snapshots: []*rulepb.MappingRuleSnapshot{
-				&rulepb.MappingRuleSnapshot{
+				{
 					Name:         "mappingRule1.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 1000,
 					Filter:       "mtagName1:mtagValue1",
 					StoragePolicies: []*policypb.StoragePolicy{
-						&policypb.StoragePolicy{
-							Resolution: &policypb.Resolution{
+						{
+							Resolution: policypb.Resolution{
 								WindowSize: int64(10 * time.Second),
 								Precision:  int64(time.Second),
 							},
-							Retention: &policypb.Retention{
+							Retention: policypb.Retention{
 								Period: int64(24 * time.Hour),
 							},
 						},
@@ -334,16 +356,17 @@ func stressTestMappingRulesConfig() []*rulepb.MappingRule {
 
 func stressTestRollupRulesConfig() []*rulepb.RollupRule {
 	return []*rulepb.RollupRule{
-		&rulepb.RollupRule{
+		{
 			Uuid: "rollupRule1",
 			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
+				{
 					Name:         "rollupRule1.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 500,
 					Filter:       "rtagName1:rtagValue1",
+					KeepOriginal: true,
 					TargetsV2: []*rulepb.RollupTargetV2{
-						&rulepb.RollupTargetV2{
+						{
 							Pipeline: &pipelinepb.Pipeline{
 								Ops: []pipelinepb.PipelineOp{
 									{
@@ -356,12 +379,12 @@ func stressTestRollupRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
-									Resolution: &policypb.Resolution{
+								{
+									Resolution: policypb.Resolution{
 										WindowSize: int64(time.Minute),
 										Precision:  int64(time.Minute),
 									},
-									Retention: &policypb.Retention{
+									Retention: policypb.Retention{
 										Period: int64(48 * time.Hour),
 									},
 								},
@@ -398,19 +421,9 @@ func stressTestSortedTagIteratorPool() id.SortedTagIteratorPool {
 	return sortedTagIteratorPool
 }
 
-func stressTestMatcherOptions(
-	store kv.Store,
-	sortedTagIteratorPool id.SortedTagIteratorPool,
-) matcher.Options {
-	sortedTagIteratorFn := func(tagPairs []byte) id.SortedTagIterator {
-		it := sortedTagIteratorPool.Get()
-		it.Reset(tagPairs)
-		return it
-	}
+func stressTestMatcherOptions(store kv.Store) matcher.Options {
 	tagsFilterOpts := filters.TagsFilterOptions{
-		NameTagKey:          []byte(stressTestNameTagKey),
-		NameAndTagsFn:       m3.NameAndTags,
-		SortedTagIteratorFn: sortedTagIteratorFn,
+		NameTagKey: []byte(stressTestNameTagKey),
 	}
 	ruleSetOpts := rules.NewOptions().
 		SetTagsFilterOptions(tagsFilterOpts).
@@ -421,6 +434,6 @@ func stressTestMatcherOptions(
 		SetRuleSetKeyFn(func(namespace []byte) string {
 			return fmt.Sprintf(stressTestRuleSetKeyFmt, namespace)
 		}).
-		SetNamespaceTag([]byte(stressTestNamespaceTag)).
+		SetNamespaceResolver(namespace.NewResolver(stressTestNamespaceTag, nil)).
 		SetRuleSetOptions(ruleSetOpts)
 }

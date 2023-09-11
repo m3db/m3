@@ -25,7 +25,6 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/cluster/placement"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,13 +32,13 @@ import (
 func TestOperator(t *testing.T) {
 	type testDeps struct {
 		options placement.Options
-		op placement.Operator
+		op      placement.Operator
 	}
 	setup := func(t *testing.T) testDeps {
 		options := placement.NewOptions().SetAllowAllZones(true)
 		return testDeps{
 			options: options,
-			op: NewPlacementOperator(nil, options),
+			op:      NewPlacementOperator(nil, WithPlacementOptions(options)),
 		}
 	}
 
@@ -60,7 +59,7 @@ func TestOperator(t *testing.T) {
 
 	t.Run("end-to-end flow", func(t *testing.T) {
 		tdeps := setup(t)
-		op := NewPlacementOperator(nil, tdeps.options)
+		op := NewPlacementOperator(nil, WithPlacementOptions(tdeps.options))
 		store := newMockStorage()
 
 		pl, err := op.BuildInitialPlacement([]placement.Instance{newTestInstance()}, 10, 1)
@@ -74,6 +73,9 @@ func TestOperator(t *testing.T) {
 		_, err = op.MarkAllShardsAvailable()
 		require.NoError(t, err)
 
+		_, err = op.BalanceShards()
+		require.NoError(t, err)
+
 		_, err = store.SetIfNotExist(op.Placement())
 		require.NoError(t, err)
 
@@ -81,7 +83,7 @@ func TestOperator(t *testing.T) {
 		require.NoError(t, err)
 
 		// expect exactly one version increment, from store.SetIfNotExist
-		assert.Equal(t, initialVersion + 1, pl.Version())
+		assert.Equal(t, initialVersion+1, pl.Version())
 
 		// spot check the results
 		allAvailable := true
@@ -94,15 +96,15 @@ func TestOperator(t *testing.T) {
 	})
 }
 
-type dummyStoreTestDeps struct{
+type dummyStoreTestDeps struct {
 	store *dummyStore
-	pl placement.Placement
+	pl    placement.Placement
 }
 
 func dummyStoreSetup(t *testing.T) dummyStoreTestDeps {
 	return dummyStoreTestDeps{
 		store: newDummyStore(nil),
-		pl: placement.NewPlacement(),
+		pl:    placement.NewPlacement(),
 	}
 }
 

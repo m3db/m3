@@ -27,9 +27,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/x/clock"
-
 	"github.com/uber-go/tally"
+
+	"github.com/m3db/m3/src/x/clock"
 )
 
 var (
@@ -277,13 +277,9 @@ func (mgr *flushManager) findOrCreateBucketWithLock(l flushingMetricList) (*flus
 	// Forwarded metric list has a fixed flush offset to ensure forwarded metrics are flushed
 	// immediately after we have waited long enough, whereas a standard metric list has a flexible
 	// flush offset to more evenly spread out the load during flushing.
-	var (
-		flushInterval = l.FlushInterval()
-		flushOffset   time.Duration
-	)
-	if fl, ok := l.(fixedOffsetFlushingMetricList); ok {
-		flushOffset = fl.FlushOffset()
-	} else {
+	flushInterval := l.FlushInterval()
+	flushOffset, ok := l.FixedFlushOffset()
+	if !ok {
 		flushOffset = mgr.computeFlushIntervalOffset(flushInterval)
 	}
 	scope := mgr.scope.SubScope("bucket").Tagged(map[string]string{
@@ -373,11 +369,13 @@ func (mgr *flushManager) flushManagerWithLock() roleBasedFlushManager {
 // flushBucket contains all the registered flushing metric lists for a given flush interval.
 // NB(xichen): flushBucket is not thread-safe. It is protected by the lock in the flush manager.
 type flushBucket struct {
-	bucketID metricListID
-	interval time.Duration
-	offset   time.Duration
-	flushers []flushingMetricList
-	duration tally.Timer
+	bucketID         metricListID
+	interval         time.Duration
+	offset           time.Duration
+	flushers         []flushingMetricList
+	duration         tally.Timer
+	flushLag         tally.Histogram
+	followerFlushLag tally.Histogram
 }
 
 func newBucket(
@@ -385,11 +383,39 @@ func newBucket(
 	interval, offset time.Duration,
 	scope tally.Scope,
 ) *flushBucket {
+	histFn := func(name string) tally.Histogram {
+		return scope.Histogram(name, tally.DurationBuckets{
+			10 * time.Millisecond,
+			500 * time.Millisecond,
+			time.Second,
+			2 * time.Second,
+			5 * time.Second,
+			10 * time.Second,
+			15 * time.Second,
+			20 * time.Second,
+			25 * time.Second,
+			30 * time.Second,
+			35 * time.Second,
+			40 * time.Second,
+			45 * time.Second,
+			60 * time.Second,
+			90 * time.Second,
+			120 * time.Second,
+			150 * time.Second,
+			180 * time.Second,
+			210 * time.Second,
+			240 * time.Second,
+			300 * time.Second,
+		})
+	}
+
 	return &flushBucket{
-		bucketID: bucketID,
-		interval: interval,
-		offset:   offset,
-		duration: scope.Timer("duration"),
+		bucketID:         bucketID,
+		interval:         interval,
+		offset:           offset,
+		duration:         scope.Timer("duration"),
+		flushLag:         histFn("flush-lag"),
+		followerFlushLag: histFn("follower-flush-lag"),
 	}
 }
 

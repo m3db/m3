@@ -7,7 +7,6 @@ After=network.target
 Type=simple
 ExecStart=/usr/bin/m3dbnode -f /etc/m3db/m3dbnode.yaml
 Restart=on-failure
-RestartSec=10s
 SuccessExitStatus=0
 
 # May not be honored if higher than kernel limit (sysctl fs.file-max) or process

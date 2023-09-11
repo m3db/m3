@@ -96,7 +96,6 @@ func (q *querier) generateSeriesBlock(
 			value = rand.Float64()
 		}
 		dp := ts.Datapoint{
-			Timestamp:      stamp,
 			TimestampNanos: xtime.ToUnixNano(stamp),
 			Value:          value,
 		}
@@ -136,8 +135,8 @@ type seriesGen struct {
 	res  time.Duration
 }
 
-// FetchCompressed fetches timeseries data based on a query.
-func (q *querier) FetchCompressed(
+// FetchCompressedResult fetches timeseries data based on a query.
+func (q *querier) FetchCompressedResult(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
@@ -187,7 +186,7 @@ func (q *querier) FetchCompressed(
 			return consolidators.SeriesFetchResult{}, noop, err
 		}
 		iters, err = parser.BuildSeriesIterators(
-			randomSeries, query.Start, q.blockSize, q.iteratorOpts)
+			randomSeries, xtime.ToUnixNano(query.Start), q.blockSize, q.iteratorOpts)
 		if err != nil {
 			return consolidators.SeriesFetchResult{}, noop, err
 		}
@@ -198,7 +197,6 @@ func (q *querier) FetchCompressed(
 
 		cleanup := func() error {
 			iters.Close()
-			filteredIters.Close()
 			return nil
 		}
 

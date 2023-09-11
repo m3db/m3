@@ -35,7 +35,9 @@ import (
 	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
+	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
@@ -43,7 +45,8 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 
-	"github.com/golang/protobuf/jsonpb"
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -54,12 +57,15 @@ type metricsAppenderPool struct {
 	pool pool.ObjectPool
 }
 
-func newMetricsAppenderPool(opts pool.ObjectPoolOptions) *metricsAppenderPool {
+func newMetricsAppenderPool(
+	opts pool.ObjectPoolOptions,
+	tagLimits serialize.TagSerializationLimits,
+	nameTag []byte) *metricsAppenderPool {
 	p := &metricsAppenderPool{
 		pool: pool.NewObjectPool(opts),
 	}
 	p.pool.Init(func() interface{} {
-		return newMetricsAppender(p)
+		return newMetricsAppender(p, tagLimits, nameTag)
 	})
 	return p
 }
@@ -75,6 +81,13 @@ func (p *metricsAppenderPool) Put(v *metricsAppender) {
 	p.pool.Put(v)
 }
 
+type metricsAppenderMetrics struct {
+	processedCountNonRollup tally.Counter
+	processedCountRollup    tally.Counter
+	operationsCount         tally.Counter
+}
+
+// a metricsAppender is not thread safe
 type metricsAppender struct {
 	metricsAppenderOptions
 
@@ -91,6 +104,9 @@ type metricsAppender struct {
 	originalTags *tags
 	cachedTags   []*tags
 	inuseTags    []*tags
+	tagIter      serialize.MetricTagsIterator
+	tagIterFn    id.SortedTagIteratorFn
+	nameTagFn    id.NameAndTagsFn
 }
 
 // metricsAppenderOptions will have one of agg or clientRemote set.
@@ -101,18 +117,40 @@ type metricsAppenderOptions struct {
 	defaultStagedMetadatasProtos []metricpb.StagedMetadatas
 	matcher                      matcher.Matcher
 	tagEncoderPool               serialize.TagEncoderPool
-	metricTagsIteratorPool       serialize.MetricTagsIteratorPool
-	augmentM3Tags                bool
+	untimedRollups               bool
 
 	clockOpts    clock.Options
 	debugLogging bool
 	logger       *zap.Logger
+	metrics      metricsAppenderMetrics
 }
 
-func newMetricsAppender(pool *metricsAppenderPool) *metricsAppender {
+func newMetricsAppender(
+	pool *metricsAppenderPool,
+	tagLimits serialize.TagSerializationLimits,
+	nameTag []byte) *metricsAppender {
+	// N.B - a metrics appender is not thread safe, so it's fine to use an unchecked tag iterator. this significantly
+	// speeds up the matcher performance.
+	tagIter := serialize.NewUncheckedMetricTagsIterator(tagLimits)
 	return &metricsAppender{
 		pool:                 pool,
 		multiSamplesAppender: newMultiSamplesAppender(),
+		tagIter:              tagIter,
+		tagIterFn: func(tagPairs []byte) id.SortedTagIterator {
+			// Use the same tagIter for all matching computations. It is safe to reuse since a metric appender is
+			// single threaded and it's reset before each computation.
+			tagIter.Reset(tagPairs)
+			return tagIter
+		},
+		nameTagFn: func(id []byte) ([]byte, []byte, error) {
+			name, err := resolveEncodedTagsNameTag(id, nameTag)
+			if err != nil && !errors.Is(err, errNoMetricNameTag) {
+				return nil, nil, err
+			}
+			// ID is always the encoded tags for IDs in the downsampler
+			tags := id
+			return name, tags, nil
+		},
 	}
 }
 
@@ -149,19 +187,34 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	}
 	tags := a.originalTags
 
-	// Augment tags if necessary.
-	if a.augmentM3Tags {
-		// NB (@shreyas): Add the metric type tag. The tag has the prefix
-		// __m3_. All tags with that prefix are only used for the purpose of
-		// filter matchiand then stripped off before we actually send to the aggregator.
-		switch opts.MetricType {
-		case ts.MetricTypeCounter:
-			tags.append(metric.M3TypeTag, metric.M3CounterValue)
-		case ts.MetricTypeGauge:
-			tags.append(metric.M3TypeTag, metric.M3GaugeValue)
-		case ts.MetricTypeTimer:
-			tags.append(metric.M3TypeTag, metric.M3TimerValue)
-		}
+	// NB (@shreyas): Add the metric type tag. The tag has the prefix
+	// __m3_. All tags with that prefix are only used for the purpose of
+	// filter match and then stripped off before we actually send to the aggregator.
+	switch opts.SeriesAttributes.M3Type {
+	case ts.M3MetricTypeCounter:
+		tags.append(metric.M3TypeTag, metric.M3CounterValue)
+	case ts.M3MetricTypeGauge:
+		tags.append(metric.M3TypeTag, metric.M3GaugeValue)
+	case ts.M3MetricTypeTimer:
+		tags.append(metric.M3TypeTag, metric.M3TimerValue)
+	}
+	switch opts.SeriesAttributes.PromType {
+	case ts.PromMetricTypeUnknown:
+		tags.append(metric.M3PromTypeTag, metric.PromUnknownValue)
+	case ts.PromMetricTypeCounter:
+		tags.append(metric.M3PromTypeTag, metric.PromCounterValue)
+	case ts.PromMetricTypeGauge:
+		tags.append(metric.M3PromTypeTag, metric.PromGaugeValue)
+	case ts.PromMetricTypeHistogram:
+		tags.append(metric.M3PromTypeTag, metric.PromHistogramValue)
+	case ts.PromMetricTypeGaugeHistogram:
+		tags.append(metric.M3PromTypeTag, metric.PromGaugeHistogramValue)
+	case ts.PromMetricTypeSummary:
+		tags.append(metric.M3PromTypeTag, metric.PromSummaryValue)
+	case ts.PromMetricTypeInfo:
+		tags.append(metric.M3PromTypeTag, metric.PromInfoValue)
+	case ts.PromMetricTypeStateSet:
+		tags.append(metric.M3PromTypeTag, metric.PromStateSetValue)
 	}
 
 	// Sort tags
@@ -181,26 +234,33 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	a.multiSamplesAppender.reset()
 	unownedID := data.Bytes()
 	// Match policies and rollups and build samples appender
-	id := a.metricTagsIteratorPool.Get()
-	id.Reset(unownedID)
+	a.tagIter.Reset(unownedID)
 	now := time.Now()
 	nowNanos := now.UnixNano()
 	fromNanos := nowNanos
 	toNanos := nowNanos + 1
-	matchResult := a.matcher.ForwardMatch(id, fromNanos, toNanos)
-	id.Close()
-
-	// If we augmented metrics tags before running the forward match, then
-	// filter them out.
-	if a.augmentM3Tags {
-		tags.filterPrefix(metric.M3MetricsPrefix)
+	// N.B - it's safe the reuse the shared tag iterator because the matcher uses it immediately to resolve the optional
+	// namespace tag to determine the ruleset for the namespace. then the ruleset matcher reuses the tag iterator for
+	// every match computation.
+	matchResult, err := a.matcher.ForwardMatch(a.tagIter, fromNanos, toNanos, rules.MatchOptions{
+		NameAndTagsFn:       a.nameTagFn,
+		SortedTagIteratorFn: a.tagIterFn,
+	})
+	if err != nil {
+		return SamplesAppenderResult{}, err
 	}
 
-	var dropApplyResult metadata.ApplyOrRemoveDropPoliciesResult
-	if opts.Override {
-		// Reuse a slice to keep the current staged metadatas we will apply.
-		a.curr.Pipelines = a.curr.Pipelines[:0]
+	// Filter out augmented metrics tags we added for matching.
+	for _, filter := range defaultFilterOutTagPrefixes {
+		tags.filterPrefix(filter)
+	}
 
+	// Reuse a slice to keep the current staged metadatas we will apply.
+	a.curr.Pipelines = a.curr.Pipelines[:0]
+
+	// First, process any override explicitly provided as part of request
+	// (via request headers that specify target namespaces).
+	if opts.Override {
 		for _, rule := range opts.OverrideRules.MappingRules {
 			stagedMetadatas, err := rule.StagedMetadatas()
 			if err != nil {
@@ -215,45 +275,67 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 				append(a.curr.Pipelines, pipelines.Pipelines...)
 		}
 
-		if err := a.addSamplesAppenders(tags, a.curr, unownedID); err != nil {
+		if err := a.addSamplesAppenders(tags, a.curr); err != nil {
 			return SamplesAppenderResult{}, err
 		}
-	} else {
-		// Reuse a slice to keep the current staged metadatas we will apply.
-		a.curr.Pipelines = a.curr.Pipelines[:0]
 
-		// NB(r): First apply mapping rules to see which storage policies
-		// have been applied, any that have been applied as part of
-		// mapping rules that exact match a default storage policy will be
-		// skipped when applying default rules, so as to avoid storing
-		// the same metrics in the same namespace with the same metric
-		// name and tags (i.e. overwriting each other).
-		a.mappingRuleStoragePolicies = a.mappingRuleStoragePolicies[:0]
+		return SamplesAppenderResult{
+			SamplesAppender:     a.multiSamplesAppender,
+			IsDropPolicyApplied: false,
+			ShouldDropTimestamp: false,
+		}, nil
+	}
 
-		mappingRuleStagedMetadatas := matchResult.ForExistingIDAt(nowNanos)
-		if !mappingRuleStagedMetadatas.IsDefault() && len(mappingRuleStagedMetadatas) != 0 {
-			a.debugLogMatch("downsampler applying matched mapping rule",
-				debugLogMatchOptions{Meta: mappingRuleStagedMetadatas})
+	// Next, apply any mapping rules that match. We track which storage policies have been applied based on the
+	// mapping rules that match. Any storage policies that have been applied will be skipped when applying
+	// the auto-mapping rules to avoid redundant writes (i.e. overwriting each other).
+	var (
+		ruleStagedMetadatas = matchResult.ForExistingIDAt(nowNanos)
+		dropApplyResult     metadata.ApplyOrRemoveDropPoliciesResult
+		dropTimestamp       bool
+	)
+	a.mappingRuleStoragePolicies = a.mappingRuleStoragePolicies[:0]
+	if !ruleStagedMetadatas.IsDefault() && len(ruleStagedMetadatas) != 0 {
+		a.debugLogMatch("downsampler applying matched rule",
+			debugLogMatchOptions{Meta: ruleStagedMetadatas})
 
-			// Collect all the current active mapping rules
-			for _, stagedMetadata := range mappingRuleStagedMetadatas {
-				for _, pipe := range stagedMetadata.Pipelines {
+		// Collect storage policies for all the current active mapping rules.
+		// TODO: we should convert this to iterate over pointers
+		// nolint:gocritic
+		for _, stagedMetadata := range ruleStagedMetadatas {
+			for _, pipe := range stagedMetadata.Pipelines {
+				// Skip rollup rules unless configured otherwise.
+				// We only want to consider mapping rules here,
+				// as we still want to apply default mapping rules to
+				// metrics that are rolled up to ensure the underlying metric
+				// gets written to aggregated namespaces.
+				if pipe.IsMappingRule() {
 					for _, sp := range pipe.StoragePolicies {
 						a.mappingRuleStoragePolicies =
 							append(a.mappingRuleStoragePolicies, sp)
 					}
+				} else {
+					a.debugLogMatch(
+						"skipping rollup rule in populating active mapping rule policies",
+						debugLogMatchOptions{},
+					)
 				}
 			}
-
-			// Only sample if going to actually aggregate
-			pipelines := mappingRuleStagedMetadatas[len(mappingRuleStagedMetadatas)-1]
-			a.curr.Pipelines =
-				append(a.curr.Pipelines, pipelines.Pipelines...)
 		}
 
-		// Always aggregate any default staged metadatas (unless
-		// mapping rule has provided an override for a storage policy,
-		// if so then skip aggregating for that storage policy).
+		// Only sample if going to actually aggregate
+		pipelines := ruleStagedMetadatas[len(ruleStagedMetadatas)-1]
+		a.curr.Pipelines = append(a.curr.Pipelines, pipelines.Pipelines...)
+	}
+
+	// Next, we cover auto-mapping (otherwise referred to as default) rules.
+	// We always aggregate any default rules with a few exceptions:
+	// 1. A mapping rule has provided an override for a storage policy,
+	//    if so then skip aggregating for that storage policy.
+	//    This is what we calculated in the step above.
+	// 2. Any type of drop rule has been set. Drop rules should mean that the auto-mapping rules are ignored.
+	if !a.curr.Pipelines.IsDropPolicySet() {
+		// No drop rule has been set as part of rule matching.
 		for idx, stagedMetadatasProto := range a.defaultStagedMetadatasProtos {
 			// NB(r): Need to take copy of default staged metadatas as we
 			// sometimes mutate it.
@@ -332,42 +414,59 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 				debugLogMatchOptions{Meta: stagedMetadatas})
 
 			pipelines := stagedMetadatas[len(stagedMetadatas)-1]
-			a.curr.Pipelines =
-				append(a.curr.Pipelines, pipelines.Pipelines...)
-		}
-
-		// Apply drop policies results
-		a.curr.Pipelines, dropApplyResult = a.curr.Pipelines.ApplyOrRemoveDropPolicies()
-
-		if len(a.curr.Pipelines) > 0 && !a.curr.IsDropPolicyApplied() {
-			// Send to downsampler if we have something in the pipeline.
-			a.debugLogMatch("downsampler using built mapping staged metadatas",
-				debugLogMatchOptions{Meta: []metadata.StagedMetadata{a.curr}})
-
-			if err := a.addSamplesAppenders(tags, a.curr, unownedID); err != nil {
-				return SamplesAppenderResult{}, err
-			}
-		}
-
-		numRollups := matchResult.NumNewRollupIDs()
-		for i := 0; i < numRollups; i++ {
-			rollup := matchResult.ForNewRollupIDsAt(i, nowNanos)
-
-			a.debugLogMatch("downsampler applying matched rollup rule",
-				debugLogMatchOptions{Meta: rollup.Metadatas, RollupID: rollup.ID})
-			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
-				agg:             a.agg,
-				clientRemote:    a.clientRemote,
-				unownedID:       rollup.ID,
-				stagedMetadatas: rollup.Metadatas,
-			})
+			a.curr.Pipelines = append(a.curr.Pipelines, pipelines.Pipelines...)
 		}
 	}
 
+	// Apply the custom tags first so that they apply even if mapping
+	// rules drop the metric.
+	dropTimestamp = a.curr.Pipelines.ShouldDropTimestamp(
+		metadata.ShouldDropTimestampOptions{
+			UntimedRollups: a.untimedRollups,
+		})
+
+	// Apply drop policies results
+	a.curr.Pipelines, dropApplyResult = a.curr.Pipelines.ApplyOrRemoveDropPolicies()
+
+	// Now send the results of mapping / auto-mapping rules to the relevant downsampler.
+	// We explicitly skip sending if there's no work to be done: specifically
+	// if there's a drop policy or if the staged metadata is a no-op.
+	if len(a.curr.Pipelines) > 0 && !a.curr.IsDropPolicyApplied() && !a.curr.IsDefault() {
+		// Send to downsampler if we have something in the pipeline.
+		a.debugLogMatch("downsampler using built mapping staged metadatas",
+			debugLogMatchOptions{Meta: []metadata.StagedMetadata{a.curr}})
+
+		if err := a.addSamplesAppenders(tags, a.curr); err != nil {
+			return SamplesAppenderResult{}, err
+		}
+	}
+
+	// Finally, process and deliver staged metadata resulting from rollup rules.
+	numRollups := matchResult.NumNewRollupIDs()
+	for i := 0; i < numRollups; i++ {
+		rollup := matchResult.ForNewRollupIDsAt(i, nowNanos)
+
+		a.debugLogMatch("downsampler applying matched rollup rule",
+			debugLogMatchOptions{Meta: rollup.Metadatas, RollupID: rollup.ID})
+		a.multiSamplesAppender.addSamplesAppender(samplesAppender{
+			agg:             a.agg,
+			clientRemote:    a.clientRemote,
+			unownedID:       rollup.ID,
+			stagedMetadatas: rollup.Metadatas,
+
+			processedCountNonRollup: a.metrics.processedCountNonRollup,
+			processedCountRollup:    a.metrics.processedCountRollup,
+			operationsCount:         a.metrics.operationsCount,
+		})
+		if a.untimedRollups {
+			dropTimestamp = true
+		}
+	}
 	dropPolicyApplied := dropApplyResult != metadata.NoDropPolicyPresentResult
 	return SamplesAppenderResult{
 		SamplesAppender:     a.multiSamplesAppender,
 		IsDropPolicyApplied: dropPolicyApplied,
+		ShouldDropTimestamp: dropTimestamp,
 	}, nil
 }
 
@@ -458,34 +557,8 @@ func (a *metricsAppender) resetTags() {
 	a.originalTags = nil
 }
 
-func (a *metricsAppender) addSamplesAppenders(
-	originalTags *tags,
-	stagedMetadata metadata.StagedMetadata,
-	unownedID []byte,
-) error {
-	// Check if any of the pipelines have tags or a graphite prefix to set.
-	var tagsExist bool
-	for _, pipeline := range stagedMetadata.Pipelines {
-		if len(pipeline.Tags) > 0 || len(pipeline.GraphitePrefix) > 0 {
-			tagsExist = true
-			break
-		}
-	}
-
-	// If we do not need to do any tag augmentation then just return.
-	if !a.augmentM3Tags && !tagsExist {
-		a.multiSamplesAppender.addSamplesAppender(samplesAppender{
-			agg:             a.agg,
-			clientRemote:    a.clientRemote,
-			unownedID:       unownedID,
-			stagedMetadatas: []metadata.StagedMetadata{stagedMetadata},
-		})
-		return nil
-	}
-
-	var (
-		pipelines []metadata.PipelineMetadata
-	)
+func (a *metricsAppender) addSamplesAppenders(originalTags *tags, stagedMetadata metadata.StagedMetadata) error {
+	var pipelines []metadata.PipelineMetadata
 	for _, pipeline := range stagedMetadata.Pipelines {
 		// For pipeline which have tags to augment we generate and send
 		// separate IDs. Other pipelines return the same.
@@ -495,7 +568,7 @@ func (a *metricsAppender) addSamplesAppenders(
 			continue
 		}
 
-		tags := a.augmentTags(originalTags, pipeline.GraphitePrefix, pipeline.Tags, pipeline.AggregationID)
+		tags := a.processTags(originalTags, pipeline.GraphitePrefix, pipeline.Tags, pipeline.AggregationID)
 
 		sm := stagedMetadata
 		sm.Pipelines = []metadata.PipelineMetadata{pipeline}
@@ -539,10 +612,14 @@ func (a *metricsAppender) newSamplesAppender(
 		clientRemote:    a.clientRemote,
 		unownedID:       data.Bytes(),
 		stagedMetadatas: []metadata.StagedMetadata{sm},
+
+		processedCountNonRollup: a.metrics.processedCountNonRollup,
+		processedCountRollup:    a.metrics.processedCountRollup,
+		operationsCount:         a.metrics.operationsCount,
 	}, nil
 }
 
-func (a *metricsAppender) augmentTags(
+func (a *metricsAppender) processTags(
 	originalTags *tags,
 	graphitePrefix [][]byte,
 	t []models.Tag,
@@ -595,9 +672,20 @@ func (a *metricsAppender) augmentTags(
 			var (
 				count = tags.countPrefix(graphite.Prefix)
 				name  = graphite.TagName(count)
-				value = types[0].Bytes()
+				value = types[0].Name()
 			)
 			tags.append(name, value)
+		}
+		if bytes.Equal(tag.Name, metric.M3MetricsPromSummary) {
+			types, err := id.Types()
+			if err != nil || len(types) == 0 {
+				continue
+			}
+			value, ok := types[0].QuantileBytes()
+			if !ok {
+				continue
+			}
+			tags.append(metric.PromQuantileName, value)
 		}
 	}
 	return tags

@@ -18,10 +18,20 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package integration contains integration tests for aggregator.
 package integration
 
 import (
+	"fmt"
+	"os"
+	"strings"
 	"time"
+
+	aggclient "github.com/m3db/m3/src/aggregator/client"
+)
+
+const (
+	pipelineRollupID = "pipelineRollup"
 )
 
 type conditionFn func() bool
@@ -32,7 +42,19 @@ func waitUntil(fn conditionFn, timeout time.Duration) bool {
 		if fn() {
 			return true
 		}
-		time.Sleep(time.Second)
+		time.Sleep(10 * time.Millisecond)
 	}
 	return false
+}
+
+func getAggregatorClientTypeFromEnv() (aggclient.AggregatorClientType, error) {
+	clientType := strings.ToLower(os.Getenv("TEST_AGGREGATOR_CLIENT_TYPE"))
+	switch clientType {
+	case "", "m3msg":
+		return aggclient.M3MsgAggregatorClient, nil
+	case "tcp":
+		return aggclient.TCPAggregatorClient, nil
+	default:
+		return aggclient.AggregatorClientType(0), fmt.Errorf("unrecognized aggregator client type %v", clientType)
+	}
 }

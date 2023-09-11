@@ -31,8 +31,6 @@ func (t FetchedBlockType) Validate() error {
 		return nil
 	case TypeMultiBlock:
 		return ErrMultiBlockDisabled
-	case TypeDecodedBlock:
-		return ErrDecodedBlockDeprecated
 	default:
 		return fmt.Errorf(`invalid fetched block type "%v"`, t)
 	}

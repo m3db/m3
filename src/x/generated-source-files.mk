@@ -2,8 +2,6 @@ gopath_prefix            := $(GOPATH)/src
 m3x_package              := github.com/m3db/m3/src/x
 m3x_package_path         := $(gopath_prefix)/$(m3x_package)
 temp_suffix              := _temp
-gorename_package         := github.com/robskillington/gorename
-gorename_package_version := 52c7307cddd221bb98f0a3215216789f3c821b10
 
 # Tests that all currently generated types match their contents if they were regenerated
 .PHONY: test-genny-all
@@ -53,25 +51,6 @@ ifneq ($(rename_type_prefix),)
 	make hashmap-gen-rename rename_nogen_key="true"
 endif
 
-.PHONY: hashmap-gen-rename-helper
-hashmap-gen-rename-helper:
-	gorename -from '"$(target_package)$(temp_suffix)".Map' -to $(rename_type_prefix)Map
-	gorename -from '"$(target_package)$(temp_suffix)".MapHash' -to $(rename_type_prefix)MapHash
-	gorename -from '"$(target_package)$(temp_suffix)".HashFn' -to $(rename_type_prefix)MapHashFn
-	gorename -from '"$(target_package)$(temp_suffix)".EqualsFn' -to $(rename_type_prefix)MapEqualsFn
-	gorename -from '"$(target_package)$(temp_suffix)".CopyFn' -to $(rename_type_prefix)MapCopyFn
-	gorename -from '"$(target_package)$(temp_suffix)".FinalizeFn' -to $(rename_type_prefix)MapFinalizeFn
-	gorename -from '"$(target_package)$(temp_suffix)".MapEntry' -to $(rename_type_prefix)MapEntry
-	gorename -from '"$(target_package)$(temp_suffix)".SetUnsafeOptions' -to $(rename_type_prefix)MapSetUnsafeOptions
-	gorename -from '"$(target_package)$(temp_suffix)".mapAlloc' -to _$(rename_type_prefix)MapAlloc
-	gorename -from '"$(target_package)$(temp_suffix)".mapOptions' -to _$(rename_type_prefix)MapOptions
-	gorename -from '"$(target_package)$(temp_suffix)".mapKey' -to _$(rename_type_prefix)MapKey
-	gorename -from '"$(target_package)$(temp_suffix)".mapKeyOptions' -to _$(rename_type_prefix)MapKeyOptions
-	[ "$(rename_constructor)" = "" ] || \
-	gorename -from '"$(target_package)$(temp_suffix)".NewMap' -to '$(rename_constructor)'
-	[ "$(rename_constructor_options)" = "" ] || \
-	gorename -from '"$(target_package)$(temp_suffix)".MapOptions' -to '$(rename_constructor_options)'
-
 key_type_alias   ?= $(key_type)
 value_type_alias ?= $(value_type)
 .PHONY: hashmap-gen-rename
@@ -95,11 +74,55 @@ ifeq ($(rename_nogen_value),)
 	test "$(value_type_alias)" = "struct*" || echo 'type $(value_type_alias) interface{}' >> $(temp_outdir)/value.go
 endif
 	mv $(out_dir)/map_gen.go $(temp_outdir)/map_gen.go
-	make hashmap-gen-rename-helper
+
+	gofmt -w -r 'Map -> $(rename_type_prefix)Map' $(temp_outdir)/*_gen.go
+	sed -i'tmp' 's#^// Map# // $(rename_type_prefix)Map#g' $(temp_outdir)/*_gen.go
+
+	gofmt -w -r 'MapHash -> $(rename_type_prefix)MapHash' $(temp_outdir)/*_gen.go
+	sed -i'tmp' 's#^// MapHash# // $(rename_type_prefix)MapHash#g' $(temp_outdir)/*_gen.go
+
+	gofmt -w -r 'HashFn -> $(rename_type_prefix)MapHashFn' $(temp_outdir)/*_gen.go
+	sed -i'tmp' 's#^// HashFn# // $(rename_type_prefix)MapHashFn#g' $(temp_outdir)/*_gen.go
+
+	gofmt -w -r 'EqualsFn -> $(rename_type_prefix)MapEqualsFn' $(temp_outdir)/*_gen.go
+	sed -i'tmp' 's#^// EqualsFn# // $(rename_type_prefix)MapEqualsFn#g' $(temp_outdir)/*_gen.go
+
+	gofmt -w -r 'CopyFn -> $(rename_type_prefix)MapCopyFn' $(temp_outdir)/*_gen.go
+	sed -i'tmp' 's#^// CopyFn# // $(rename_type_prefix)MapCopyFn#g' $(temp_outdir)/*_gen.go
+
+	gofmt -w -r 'FinalizeFn -> $(rename_type_prefix)MapFinalizeFn' $(temp_outdir)/*_gen.go
+	sed -i'tmp' 's#^// FinalizeFn# // $(rename_type_prefix)MapFinalizeFn#g' $(temp_outdir)/*_gen.go
+
+	gofmt -w -r 'MapEntry -> $(rename_type_prefix)MapEntry' $(temp_outdir)/*_gen.go
+	sed -i'tmp' 's#^// MapEntry# // $(rename_type_prefix)MapEntry#g' $(temp_outdir)/*_gen.go
+
+	gofmt -w -r 'SetUnsafeOptions -> $(rename_type_prefix)MapSetUnsafeOptions' $(temp_outdir)/*_gen.go
+	sed -i'tmp' 's#^// SetUnsafeOptions# // $(rename_type_prefix)MapSetUnsafeOptions#g' $(temp_outdir)/*_gen.go
+
+	gofmt -w -r 'mapAlloc -> _$(rename_type_prefix)MapAlloc' $(temp_outdir)/*_gen.go
+	sed -i'tmp' 's#^// mapAlloc#// _$(rename_type_prefix)MapAlloc#g' $(temp_outdir)/*_gen.go
+
+	gofmt -w -r 'mapOptions -> _$(rename_type_prefix)MapOptions' $(temp_outdir)/*_gen.go
+	sed -i'tmp' 's#^// mapOptions#// _$(rename_type_prefix)MapOptions#g' $(temp_outdir)/*_gen.go
+
+	gofmt -w -r 'mapKey -> _$(rename_type_prefix)MapKey' $(temp_outdir)/*_gen.go
+	sed -i'tmp' 's#^// mapKey#// _$(rename_type_prefix)MapKey#g' $(temp_outdir)/*_gen.go
+
+	gofmt -w -r 'mapKeyOptions -> _$(rename_type_prefix)MapKeyOptions' $(temp_outdir)/*_gen.go
+	sed -i'tmp' 's#^// mapKeyOptions#// _$(rename_type_prefix)MapKeyOptions#g' $(temp_outdir)/*_gen.go
+
+	[ "$(rename_constructor)" = "" ] || \
+	gofmt -w -r 'NewMap -> $(rename_constructor)' $(temp_outdir)/*_gen.go && \
+	sed -i'tmp' 's#^// NewMap#// $(rename_constructor)#g' $(temp_outdir)/*_gen.go
+	[ "$(rename_constructor_options)" = "" ] || \
+	gofmt -w -r 'MapOptions -> $(rename_constructor_options)' $(temp_outdir)/*_gen.go && \
+	sed -i'tmp' 's#^// MapOptions#// $(rename_constructor_options)#g' $(temp_outdir)/*_gen.go
+
 	mv $(temp_outdir)/map_gen.go $(out_dir)/map_gen.go
 	! test -f $(temp_outdir)/new_map_gen.go || mv $(temp_outdir)/new_map_gen.go $(out_dir)/new_map_gen.go
 	rm -f $(temp_outdir)/key.go
 	rm -f $(temp_outdir)/value.go
+	rm -f $(temp_outdir)/*.gotmp
 	rmdir $(temp_outdir)
 
 # Generation rule for all generated lists
@@ -150,6 +173,7 @@ ifneq ($(rename_type_prefix),)
 	mv $(out_dir)/$(out_file) $(temp_outdir)/$(out_file)
 	make arraypool-gen-rename out_dir=$(out_dir)
 	mv $(temp_outdir)/$(out_file) $(out_dir)/$(out_file)
+	rm -f $(temp_outdir)/*.gotmp
 	rmdir $(temp_outdir)
 endif
 
@@ -163,13 +187,19 @@ ifneq ($(rename_gen_types),)
 	echo '' >> $(temp_outdir)/types.go
 	echo "type $(elem_type_alias) interface{}" >> $(temp_outdir)/types.go
 endif
-	gorename -from '"$(target_package)$(temp_suffix)".elemArrayPool' -to $(rename_type_prefix)ArrayPool
-	gorename -from '"$(target_package)$(temp_suffix)".elemArr' -to $(rename_type_prefix)Arr
-	gorename -from '"$(target_package)$(temp_suffix)".elemArrPool' -to $(rename_type_prefix)ArrPool
-	gorename -from '"$(target_package)$(temp_suffix)".elemArrayPoolOpts' -to $(rename_type_prefix)ArrayPoolOpts
-	gorename -from '"$(target_package)$(temp_suffix)".elemFinalizeFn' -to $(rename_type_prefix)FinalizeFn
-	gorename -from '"$(target_package)$(temp_suffix)".newElemArrayPool' -to $(rename_constructor)
-	gorename -from '"$(target_package)$(temp_suffix)".defaultElemFinalizerFn' -to default$(rename_type_middle)FinalizerFn
+	gofmt -w -r 'elemArrayPool -> $(rename_type_prefix)ArrayPool' $(temp_outdir)/*.go
+	gofmt -w -r 'elemArr -> $(rename_type_prefix)Arr' $(temp_outdir)/*.go
+	gofmt -w -r 'elemArrPool -> $(rename_type_prefix)ArrPool' $(temp_outdir)/*.go
+	gofmt -w -r 'elemArrayPoolOpts -> $(rename_type_prefix)ArrayPoolOpts' $(temp_outdir)/*.go
+	gofmt -w -r 'elemFinalizeFn -> $(rename_type_prefix)FinalizeFn' $(temp_outdir)/*.go
+	gofmt -w -r 'newElemArrayPool -> $(rename_constructor)' $(temp_outdir)/*.go
+	gofmt -w -r 'defaultElemFinalizerFn -> default$(rename_type_middle)FinalizerFn' $(temp_outdir)/*.go
+
+	# best effort comment rename
+	sed -i'tmp' 's#^// elemArr#// $(rename_type_prefix)Arr#g' $(temp_outdir)/*.go
+	sed -i'tmp' 's#^// elemFinalizeFn#// $(rename_type_prefix)FinalizeFn#g' $(temp_outdir)/*.go
+	sed -i'tmp' 's#^// newElemArrayPool#// $(rename_constructor)#g' $(temp_outdir)/*.go
+	sed -i'tmp' 's#^// defaultElemFinalizerFn#// default$(rename_type_middle)FinalizerFn#g' $(temp_outdir)/*.go
 ifneq ($(rename_gen_types),)
 	rm $(temp_outdir)/types.go
 endif
@@ -192,6 +222,7 @@ ifneq ($(rename_type_prefix),)
 	mv $(out_dir)/list_gen.go $(temp_outdir)/list_gen.go
 	make list-gen-rename out_dir=$(out_dir)
 	mv $(temp_outdir)/list_gen.go $(out_dir)/list_gen.go
+	rm -f $(temp_outdir)/*.gotmp
 	rmdir $(temp_outdir)
 endif
 
@@ -205,11 +236,17 @@ ifneq ($(rename_gen_types),)
 	echo '' >> $(temp_outdir)/types.go
 	echo "type $(elem_type_alias) interface{}" >> $(temp_outdir)/types.go
 endif
-	gorename -from '"$(target_package)$(temp_suffix)".Element' -to $(rename_type_prefix)Element
-	gorename -from '"$(target_package)$(temp_suffix)".List' -to $(rename_type_prefix)List
-	gorename -from '"$(target_package)$(temp_suffix)".ElementPool' -to $(rename_type_prefix)ElementPool
-	gorename -from '"$(target_package)$(temp_suffix)".newElementPool' -to new$(rename_type_middle)ElementPool
-	gorename -from '"$(target_package)$(temp_suffix)".newList' -to new$(rename_type_middle)List
+	gofmt -w -r 'Element -> $(rename_type_prefix)Element' $(temp_outdir)/*.go
+	gofmt -w -r 'List -> $(rename_type_prefix)List' $(temp_outdir)/*.go
+	gofmt -w -r 'ElementPool -> $(rename_type_prefix)ElementPool' $(temp_outdir)/*.go
+	gofmt -w -r 'newElementPool -> new$(rename_type_middle)ElementPool' $(temp_outdir)/*.go
+	gofmt -w -r 'newList -> new$(rename_type_middle)List' $(temp_outdir)/*.go
+	# best-effort comment fixup
+	sed -i'tmp' 's#^// Element#// $(rename_type_prefix)Element#g' $(temp_outdir)/*.go
+	sed -i'tmp' 's#^// List#// $(rename_type_prefix)List#g' $(temp_outdir)/*.go
+	sed -i'tmp' 's#^// ElementPool#// $(rename_type_prefix)ElementPool#g' $(temp_outdir)/*.go
+	sed -i'tmp' 's#^// newElementPool#// new$(rename_type_middle)ElementPool#g' $(temp_outdir)/*.go
+	sed -i'tmp' 's#^// newList#// new$(rename_type_middle)List#g' $(temp_outdir)/*.go
 ifneq ($(rename_gen_types),)
 	rm $(temp_outdir)/types.go
 endif

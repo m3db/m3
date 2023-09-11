@@ -23,6 +23,7 @@ package encoding
 import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -42,7 +43,7 @@ var (
 type options struct {
 	defaultTimeUnit         xtime.Unit
 	timeEncodingSchemes     TimeEncodingSchemes
-	markerEncodingScheme    MarkerEncodingScheme
+	markerEncodingScheme    *MarkerEncodingScheme
 	encoderPool             EncoderPool
 	readerIteratorPool      ReaderIteratorPool
 	bytesPool               pool.CheckedBytesPool
@@ -51,16 +52,18 @@ type options struct {
 	byteFieldDictLRUSize    int
 	iStreamReaderSizeM3TSZ  int
 	iStreamReaderSizeProto  int
+	metrics                 Metrics
 }
 
 func newOptions() Options {
 	return &options{
 		defaultTimeUnit:        defaultDefaultTimeUnit,
-		timeEncodingSchemes:    newTimeEncodingSchemes(defaultTimeEncodingSchemes),
+		timeEncodingSchemes:    NewTimeEncodingSchemes(defaultTimeEncodingSchemes),
 		markerEncodingScheme:   defaultMarkerEncodingScheme,
 		byteFieldDictLRUSize:   defaultByteFieldDictLRUSize,
 		iStreamReaderSizeM3TSZ: defaultIStreamReaderSizeM3TSZ,
 		iStreamReaderSizeProto: defaultIStreamReaderSizeProto,
+		metrics:                NewMetrics(instrument.NewOptions().MetricsScope()),
 	}
 }
 
@@ -81,7 +84,7 @@ func (o *options) DefaultTimeUnit() xtime.Unit {
 
 func (o *options) SetTimeEncodingSchemes(value map[xtime.Unit]TimeEncodingScheme) Options {
 	opts := *o
-	opts.timeEncodingSchemes = newTimeEncodingSchemes(value)
+	opts.timeEncodingSchemes = NewTimeEncodingSchemes(value)
 	return &opts
 }
 
@@ -89,13 +92,13 @@ func (o *options) TimeEncodingSchemes() TimeEncodingSchemes {
 	return o.timeEncodingSchemes
 }
 
-func (o *options) SetMarkerEncodingScheme(value MarkerEncodingScheme) Options {
+func (o *options) SetMarkerEncodingScheme(value *MarkerEncodingScheme) Options {
 	opts := *o
 	opts.markerEncodingScheme = value
 	return &opts
 }
 
-func (o *options) MarkerEncodingScheme() MarkerEncodingScheme {
+func (o *options) MarkerEncodingScheme() *MarkerEncodingScheme {
 	return o.markerEncodingScheme
 }
 
@@ -177,4 +180,14 @@ func (o *options) SetIStreamReaderSizeProto(value int) Options {
 
 func (o *options) IStreamReaderSizeProto() int {
 	return o.iStreamReaderSizeProto
+}
+
+func (o *options) SetMetrics(value Metrics) Options {
+	opts := *o
+	opts.metrics = value
+	return &opts
+}
+
+func (o *options) Metrics() Metrics {
+	return o.metrics
 }

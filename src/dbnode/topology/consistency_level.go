@@ -92,6 +92,11 @@ func ValidateConsistencyLevel(v ConsistencyLevel) error {
 	return errConsistencyLevelInvalid
 }
 
+// MarshalYAML marshals a ConsistencyLevel.
+func (l *ConsistencyLevel) MarshalYAML() (interface{}, error) {
+	return l.String(), nil
+}
+
 // UnmarshalYAML unmarshals an ConnectConsistencyLevel into a valid type from string.
 func (l *ConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
@@ -183,6 +188,11 @@ func ValidateConnectConsistencyLevel(v ConnectConsistencyLevel) error {
 	return errClusterConnectConsistencyLevelInvalid
 }
 
+// MarshalYAML marshals a ConnectConsistencyLevel.
+func (l *ConnectConsistencyLevel) MarshalYAML() (interface{}, error) {
+	return l.String(), nil
+}
+
 // UnmarshalYAML unmarshals an ConnectConsistencyLevel into a valid type from string.
 func (l *ConnectConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
@@ -192,16 +202,14 @@ func (l *ConnectConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) erro
 	if str == "" {
 		return errClusterConnectConsistencyLevelUnspecified
 	}
-	strs := make([]string, 0, len(validConnectConsistencyLevels))
 	for _, valid := range validConnectConsistencyLevels {
 		if str == valid.String() {
 			*l = valid
 			return nil
 		}
-		strs = append(strs, "'"+valid.String()+"'")
 	}
 	return fmt.Errorf("invalid ConnectConsistencyLevel '%s' valid types are: %s",
-		str, strings.Join(strs, ", "))
+		str, validConnectConsistencyLevels)
 }
 
 // ReadConsistencyLevel is the consistency level for reading from a cluster
@@ -222,6 +230,11 @@ const (
 	// ReadConsistencyLevelMajority corresponds to reading from the majority of nodes
 	ReadConsistencyLevelMajority
 
+	// ReadConsistencyLevelUnstrictAll corresponds to reading from all nodes
+	// but relaxing the constraint when it cannot be met, falling back to returning success when
+	// reading from at least a single node after attempting reading from all of nodes
+	ReadConsistencyLevelUnstrictAll
+
 	// ReadConsistencyLevelAll corresponds to reading from all of the nodes
 	ReadConsistencyLevelAll
 )
@@ -237,6 +250,8 @@ func (l ReadConsistencyLevel) String() string {
 		return unstrictMajority
 	case ReadConsistencyLevelMajority:
 		return majority
+	case ReadConsistencyLevelUnstrictAll:
+		return unstrictAll
 	case ReadConsistencyLevelAll:
 		return all
 	}
@@ -248,6 +263,7 @@ var validReadConsistencyLevels = []ReadConsistencyLevel{
 	ReadConsistencyLevelOne,
 	ReadConsistencyLevelUnstrictMajority,
 	ReadConsistencyLevelMajority,
+	ReadConsistencyLevelUnstrictAll,
 	ReadConsistencyLevelAll,
 }
 
@@ -264,6 +280,25 @@ func ValidReadConsistencyLevels() []ReadConsistencyLevel {
 	return result
 }
 
+// ParseReadConsistencyLevel parses a ReadConsistencyLevel
+// from a string.
+func ParseReadConsistencyLevel(
+	str string,
+) (ReadConsistencyLevel, error) {
+	var r ReadConsistencyLevel
+	if str == "" {
+		return r, errConsistencyLevelUnspecified
+	}
+	for _, valid := range ValidReadConsistencyLevels() {
+		if str == valid.String() {
+			r = valid
+			return r, nil
+		}
+	}
+	return r, fmt.Errorf("invalid ReadConsistencyLevel '%s' valid types are: %v",
+		str, ValidReadConsistencyLevels())
+}
+
 // ValidateReadConsistencyLevel returns nil when consistency level is valid,
 // otherwise it returns an error
 func ValidateReadConsistencyLevel(v ReadConsistencyLevel) error {
@@ -273,6 +308,11 @@ func ValidateReadConsistencyLevel(v ReadConsistencyLevel) error {
 		}
 	}
 	return errReadConsistencyLevelInvalid
+}
+
+// MarshalYAML marshals a ReadConsistencyLevel.
+func (l *ReadConsistencyLevel) MarshalYAML() (interface{}, error) {
+	return l.String(), nil
 }
 
 // UnmarshalYAML unmarshals an ConnectConsistencyLevel into a valid type from string.
@@ -302,6 +342,7 @@ const (
 	unknown          = "unknown"
 	any              = "any"
 	all              = "all"
+	unstrictAll      = "unstrict_all"
 	one              = "one"
 	none             = "none"
 	majority         = "majority"
@@ -348,7 +389,7 @@ func ReadConsistencyTermination(
 		return success > 0 || doneAll
 	case ReadConsistencyLevelMajority, ReadConsistencyLevelUnstrictMajority:
 		return success >= majority || doneAll
-	case ReadConsistencyLevelAll:
+	case ReadConsistencyLevelAll, ReadConsistencyLevelUnstrictAll:
 		return doneAll
 	}
 	panic(fmt.Errorf("unrecognized consistency level: %s", level.String()))
@@ -366,7 +407,7 @@ func ReadConsistencyAchieved(
 		return numSuccess == numPeers // Meets all
 	case ReadConsistencyLevelMajority:
 		return numSuccess >= majority // Meets majority
-	case ReadConsistencyLevelOne, ReadConsistencyLevelUnstrictMajority:
+	case ReadConsistencyLevelOne, ReadConsistencyLevelUnstrictMajority, ReadConsistencyLevelUnstrictAll:
 		return numSuccess > 0 // Meets one
 	case ReadConsistencyLevelNone:
 		return true // Always meets none
@@ -378,7 +419,7 @@ func ReadConsistencyAchieved(
 // satisfy the read consistency.
 func NumDesiredForReadConsistency(level ReadConsistencyLevel, numReplicas, majority int) int {
 	switch level {
-	case ReadConsistencyLevelAll:
+	case ReadConsistencyLevelAll, ReadConsistencyLevelUnstrictAll:
 		return numReplicas
 	case ReadConsistencyLevelMajority, ReadConsistencyLevelUnstrictMajority:
 		return majority

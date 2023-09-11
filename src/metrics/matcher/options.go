@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/mem"
+	"github.com/m3db/m3/src/metrics/matcher/namespace"
 	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
@@ -100,17 +101,11 @@ type Options interface {
 	// RuleSetKeyFn returns the function to generate ruleset keys.
 	RuleSetKeyFn() RuleSetKeyFn
 
-	// SetNamespaceTag sets the namespace tag.
-	SetNamespaceTag(value []byte) Options
+	// SetNamespaceResolver sets the NamespaceResolver.
+	SetNamespaceResolver(value namespace.Resolver) Options
 
-	// NamespaceTag returns the namespace tag.
-	NamespaceTag() []byte
-
-	// SetDefaultNamespace sets the default namespace for ids without a namespace.
-	SetDefaultNamespace(value []byte) Options
-
-	// DefaultNamespace returns the default namespace for ids without a namespace.
-	DefaultNamespace() []byte
+	// NamespaceResolver returns the namespace Resolver.
+	NamespaceResolver() namespace.Resolver
 
 	// SetMatchRangePast sets the limit on the earliest time eligible for rule matching.
 	SetMatchRangePast(value time.Duration) Options
@@ -135,22 +130,35 @@ type Options interface {
 
 	// OnRuleSetUpdatedFn returns the function to be called when a ruleset is updated.
 	OnRuleSetUpdatedFn() OnRuleSetUpdatedFn
+
+	// SetRequireNamespaceWatchOnInit sets the flag to ensure matcher is initialized with a loaded namespace watch.
+	SetRequireNamespaceWatchOnInit(value bool) Options
+
+	// RequireNamespaceWatchOnInit returns the flag to ensure matcher is initialized with a loaded namespace watch.
+	RequireNamespaceWatchOnInit() bool
+
+	// InterruptedCh returns the interrupted channel.
+	InterruptedCh() <-chan struct{}
+
+	// SetInterruptedCh sets the interrupted channel.
+	SetInterruptedCh(value <-chan struct{}) Options
 }
 
 type options struct {
-	clockOpts            clock.Options
-	instrumentOpts       instrument.Options
-	ruleSetOpts          rules.Options
-	initWatchTimeout     time.Duration
-	kvStore              kv.Store
-	namespacesKey        string
-	ruleSetKeyFn         RuleSetKeyFn
-	namespaceTag         []byte
-	defaultNamespace     []byte
-	matchRangePast       time.Duration
-	onNamespaceAddedFn   OnNamespaceAddedFn
-	onNamespaceRemovedFn OnNamespaceRemovedFn
-	onRuleSetUpdatedFn   OnRuleSetUpdatedFn
+	clockOpts                   clock.Options
+	instrumentOpts              instrument.Options
+	ruleSetOpts                 rules.Options
+	initWatchTimeout            time.Duration
+	kvStore                     kv.Store
+	namespacesKey               string
+	ruleSetKeyFn                RuleSetKeyFn
+	nsResolver                  namespace.Resolver
+	matchRangePast              time.Duration
+	onNamespaceAddedFn          OnNamespaceAddedFn
+	onNamespaceRemovedFn        OnNamespaceRemovedFn
+	onRuleSetUpdatedFn          OnRuleSetUpdatedFn
+	requireNamespaceWatchOnInit bool
+	interruptedCh               <-chan struct{}
 }
 
 // NewOptions creates a new set of options.
@@ -163,8 +171,7 @@ func NewOptions() Options {
 		kvStore:          mem.NewStore(),
 		namespacesKey:    defaultNamespacesKey,
 		ruleSetKeyFn:     defaultRuleSetKeyFn,
-		namespaceTag:     defaultNamespaceTag,
-		defaultNamespace: defaultDefaultNamespace,
+		nsResolver:       namespace.Default,
 		matchRangePast:   defaultMatchRangePast,
 	}
 }
@@ -239,24 +246,14 @@ func (o *options) RuleSetKeyFn() RuleSetKeyFn {
 	return o.ruleSetKeyFn
 }
 
-func (o *options) SetNamespaceTag(value []byte) Options {
+func (o *options) SetNamespaceResolver(value namespace.Resolver) Options {
 	opts := *o
-	opts.namespaceTag = value
+	opts.nsResolver = value
 	return &opts
 }
 
-func (o *options) NamespaceTag() []byte {
-	return o.namespaceTag
-}
-
-func (o *options) SetDefaultNamespace(value []byte) Options {
-	opts := *o
-	opts.defaultNamespace = value
-	return &opts
-}
-
-func (o *options) DefaultNamespace() []byte {
-	return o.defaultNamespace
+func (o *options) NamespaceResolver() namespace.Resolver {
+	return o.nsResolver
 }
 
 func (o *options) SetMatchRangePast(value time.Duration) Options {
@@ -297,6 +294,27 @@ func (o *options) SetOnRuleSetUpdatedFn(value OnRuleSetUpdatedFn) Options {
 
 func (o *options) OnRuleSetUpdatedFn() OnRuleSetUpdatedFn {
 	return o.onRuleSetUpdatedFn
+}
+
+// SetRequireNamespaceWatchOnInit sets the flag to ensure matcher is initialized with a loaded namespace watch.
+func (o *options) SetRequireNamespaceWatchOnInit(value bool) Options {
+	opts := *o
+	opts.requireNamespaceWatchOnInit = value
+	return &opts
+}
+
+// RequireNamespaceWatchOnInit returns the flag to ensure matcher is initialized with a loaded namespace watch.
+func (o *options) RequireNamespaceWatchOnInit() bool {
+	return o.requireNamespaceWatchOnInit
+}
+
+func (o *options) SetInterruptedCh(ch <-chan struct{}) Options {
+	o.interruptedCh = ch
+	return o
+}
+
+func (o *options) InterruptedCh() <-chan struct{} {
+	return o.interruptedCh
 }
 
 func defaultRuleSetKeyFn(namespace []byte) string {

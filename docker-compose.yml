@@ -1,21 +1,37 @@
-app:
-  image: golang:1.13-stretch
-  volumes:
-    - .:/go/src/github.com/m3db/m3
-    - /usr/bin/buildkite-agent:/usr/bin/buildkite-agent
-  environment:
-    - CI
-    - BUILDKITE
-    - BUILDKITE_AGENT_ACCESS_TOKEN
-    - BUILDKITE_JOB_ID
-    - BUILDKITE_BUILD_ID
-    - BUILDKITE_BUILD_NUMBER
-    - BUILDKITE_BRANCH
-    - BUILDKITE_BUILD_URL
-    - BUILDKITE_PROJECT_SLUG
-    - BUILDKITE_COMMIT
-    - BUILDKITE_PULL_REQUEST
-    - BUILDKITE_TAG
-    - CODECOV_TOKEN
-    - SPLIT_IDX
-    - TOTAL_SPLITS
+version: "3"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/go/src/github.com/m3db/m3
+      - /usr/bin/buildkite-agent:/usr/bin/buildkite-agent
+      # Support running docker within docker. That is, buildkite jobs themselves run in a container; that container
+      # needs to be able to spin up functioning docker containers.
+      - /var/run/docker.sock:/var/run/docker.sock
+    extra_hosts:
+      # Allow routing from the buildkite container to the host machine, as host.docker.internal. This allows us to do
+      # the following:
+      #  - Spin up an etcd container with ports published to the host machine
+      #  - Connect to the etcd container from the buildkite test process using host.docker.internal
+      # See
+      # https://medium.com/@TimvanBaarsen/how-to-connect-to-the-docker-host-from-inside-a-docker-container-112b4c71bc66
+      - "host.docker.internal:host-gateway"
+    environment:
+      - CI
+      - BUILDKITE
+      - BUILDKITE_AGENT_ACCESS_TOKEN
+      - BUILDKITE_JOB_ID
+      - BUILDKITE_BUILD_ID
+      - BUILDKITE_BUILD_NUMBER
+      - BUILDKITE_BRANCH
+      - BUILDKITE_BUILD_URL
+      - BUILDKITE_PROJECT_SLUG
+      - BUILDKITE_COMMIT
+      - BUILDKITE_PULL_REQUEST
+      - BUILDKITE_TAG
+      - CODECOV_TOKEN
+      - SPLIT_IDX
+      - TOTAL_SPLITS

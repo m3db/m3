@@ -50,6 +50,9 @@ var (
 	// errSeekChecksumMismatch returned when data checksum does not match the expected checksum
 	errSeekChecksumMismatch = errors.New("checksum does not match expected checksum")
 
+	// errSeekNotCompleted returned when no error but seek did not complete.
+	errSeekNotCompleted = errors.New("seek not completed")
+
 	// errClonesShouldNotBeOpened returned when Open() is called on a clone
 	errClonesShouldNotBeOpened = errors.New("clone should not be opened")
 )
@@ -84,7 +87,7 @@ type seeker struct {
 }
 
 // IndexEntry is an entry from the index file which can be passed to
-// SeekUsingIndexEntry to seek to the data for that entry
+// SeekUsingIndexEntry to seek to the data for that entry.
 type IndexEntry struct {
 	Size         uint32
 	DataChecksum uint32
@@ -146,7 +149,7 @@ func (s *seeker) ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter {
 func (s *seeker) Open(
 	namespace ident.ID,
 	shard uint32,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	volumeIndex int,
 	resources ReusableSeekerResources,
 ) error {
@@ -162,7 +165,7 @@ func (s *seeker) Open(
 	)
 
 	if volumeIndex == 0 {
-		isLegacy, err = isFirstVolumeLegacy(shardDir, blockStart, checkpointFileSuffix)
+		isLegacy, err = isFirstVolumeLegacy(shardDir, blockStart, CheckpointFileSuffix)
 		if err != nil {
 			return err
 		}
@@ -170,10 +173,10 @@ func (s *seeker) Open(
 
 	// Open necessary files
 	if err := openFiles(os.Open, map[string]**os.File{
-		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix, isLegacy):        &infoFd,
+		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, InfoFileSuffix, isLegacy):        &infoFd,
 		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix, isLegacy):       &s.indexFd,
 		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix, isLegacy):        &s.dataFd,
-		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix, isLegacy):      &digestFd,
+		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, DigestFileSuffix, isLegacy):      &digestFd,
 		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix, isLegacy): &bloomFilterFd,
 		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, summariesFileSuffix, isLegacy):   &summariesFd,
 	}); err != nil {
@@ -379,7 +382,7 @@ func (s *seeker) SeekByIndexEntry(
 //     2. Reset an offsetFileReader with the index fd and an offset (so that calls to Read() will
 //        begin at the offset provided by the offset lookup).
 //     3. Reset a decoder with fileDecoderStream (offsetFileReader wrapped in a bufio.Reader).
-//     4. Called DecodeIndexEntry in a tight loop (which will advance our position in the
+//     4. Call DecodeIndexEntry in a tight loop (which will advance our position in the
 //        offsetFileReader internally) until we've either found the entry we're looking for or gone so
 //        far we know it does not exist.
 func (s *seeker) SeekIndexEntry(
@@ -462,7 +465,7 @@ func (s *seeker) SeekIndexEntry(
 }
 
 func (s *seeker) Range() xtime.Range {
-	return xtime.Range{Start: s.start.ToTime(), End: s.start.ToTime().Add(s.blockSize)}
+	return xtime.Range{Start: s.start, End: s.start.Add(s.blockSize)}
 }
 
 func (s *seeker) Close() error {

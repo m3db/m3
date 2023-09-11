@@ -21,6 +21,7 @@
 package common
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -28,17 +29,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 var (
 	// ErrNegativeCount occurs when the request count is < 0.
-	ErrNegativeCount = errors.NewInvalidParamsError(errors.New("n must be positive"))
+	ErrNegativeCount = xerrors.NewInvalidParamsError(errors.New("n must be positive"))
 	// ErrEmptySeriesList occurs when a function requires a series as input
-	ErrEmptySeriesList = errors.NewInvalidParamsError(errors.New("empty series list"))
+	ErrEmptySeriesList = xerrors.NewInvalidParamsError(errors.New("empty series list"))
 	// ErrInvalidIntervalFormat occurs when invalid interval string encountered
-	ErrInvalidIntervalFormat = errors.NewInvalidParamsError(errors.New("invalid format"))
+	ErrInvalidIntervalFormat = xerrors.NewInvalidParamsError(errors.New("invalid format"))
 
 	reInterval *regexp.Regexp
 
@@ -48,6 +49,7 @@ var (
 		"seconds": time.Second,
 		"m":       time.Minute,
 		"min":     time.Minute,
+		"mins":    time.Minute,
 		"minute":  time.Minute,
 		"minutes": time.Minute,
 		"h":       time.Hour,
@@ -114,7 +116,7 @@ func Identity(ctx *Context, name string) (ts.SeriesList, error) {
 func Normalize(ctx *Context, input ts.SeriesList) (ts.SeriesList, time.Time, time.Time, int, error) {
 	numSeries := input.Len()
 	if numSeries == 0 {
-		return ts.NewSeriesList(), ctx.StartTime, ctx.EndTime, -1, errors.NewInvalidParamsError(ErrEmptySeriesList)
+		return ts.NewSeriesList(), ctx.StartTime, ctx.EndTime, -1, xerrors.NewInvalidParamsError(ErrEmptySeriesList)
 	}
 	if numSeries == 1 {
 		return input, input.Values[0].StartTime(), input.Values[0].EndTime(), input.Values[0].MillisPerStep(), nil
@@ -181,30 +183,38 @@ func Count(ctx *Context, seriesList ts.SeriesList, renamer SeriesListRenamer) (t
 }
 
 // ParseInterval parses an interval string and returns the corresponding duration.
-func ParseInterval(s string) (time.Duration, error) {
-	if m := reInterval.FindStringSubmatch(strings.TrimSpace(s)); len(m) != 0 {
-		amount, err := strconv.ParseInt(m[1], 10, 32)
-
-		if err != nil {
-			return 0, errors.NewInvalidParamsError(err)
-		}
-
-		interval := intervals[strings.ToLower(m[2])]
-		return interval * time.Duration(amount), nil
+func ParseInterval(fullInterval string) (time.Duration, error) {
+	allIntervals := reInterval.FindAllString(fullInterval, -1)
+	output := time.Duration(0)
+	if allIntervals == nil {
+		return 0, xerrors.NewInvalidParamsError(
+			fmt.Errorf("unrecognized interval string: %s", fullInterval))
 	}
 
-	return 0, ErrInvalidIntervalFormat
+	for _, interval := range allIntervals {
+		if m := reInterval.FindStringSubmatch(strings.TrimSpace(interval)); len(m) != 0 {
+			amount, err := strconv.ParseInt(m[1], 10, 32)
+			if err != nil {
+				return 0, xerrors.NewInvalidParamsError(err)
+			}
+
+			interval := intervals[strings.ToLower(m[2])]
+			output += (interval * time.Duration(amount))
+		}
+	}
+
+	return output, nil
 }
 
 // ConstantLine draws a horizontal line at a specified value
 func ConstantLine(ctx *Context, value float64) (*ts.Series, error) {
-	millisPerStep := int(ctx.EndTime.Sub(ctx.StartTime) / time.Millisecond)
+	millisPerStep := int(ctx.EndTime.Sub(ctx.StartTime) / (2 * time.Millisecond))
 	if millisPerStep <= 0 {
 		err := fmt.Errorf("invalid boundary params: startTime=%v, endTime=%v", ctx.StartTime, ctx.EndTime)
 		return nil, err
 	}
 	name := fmt.Sprintf(FloatingPointFormat, value)
-	newSeries := ts.NewSeries(ctx, name, ctx.StartTime, ts.NewConstantValues(ctx, value, 2, millisPerStep))
+	newSeries := ts.NewSeries(ctx, name, ctx.StartTime, ts.NewConstantValues(ctx, value, 3, millisPerStep))
 	return newSeries, nil
 }
 
@@ -225,21 +235,21 @@ func ConstantSeries(ctx *Context, value float64) (*ts.Series, error) {
 }
 
 // RemoveEmpty removes all series that have NaN data
-func RemoveEmpty(ctx *Context, input ts.SeriesList) (ts.SeriesList, error) {
+func RemoveEmpty(ctx *Context, input ts.SeriesList, xFilesFactor float64) (ts.SeriesList, error) {
 	output := make([]*ts.Series, 0, input.Len())
 	for _, series := range input.Values {
 		if series.AllNaN() {
 			continue
 		}
-		seriesHasData := false
+		nonNulls := 0
 		for i := 0; i < series.Len(); i++ {
 			v := series.ValueAt(i)
 			if !math.IsNaN(v) {
-				seriesHasData = true
-				break
+				nonNulls++
 			}
 		}
-		if seriesHasData {
+
+		if float64(nonNulls)/float64(series.Len()) >= xFilesFactor {
 			output = append(output, series)
 		}
 	}
@@ -281,6 +291,5 @@ func init() {
 		intervalNames = append(intervalNames, name)
 	}
 
-	reInterval = regexp.MustCompile(fmt.Sprintf("(?i)^([+-]?[0-9]+)(%s)$",
-		strings.Join(intervalNames, "|")))
+	reInterval = regexp.MustCompile("(?i)([+-]?[0-9]+)(s|min|h|d|w|mon|y)([A-Z]*)")
 }

@@ -25,23 +25,16 @@ import (
 	"errors"
 	"fmt"
 
+	coordmodel "github.com/m3db/m3/src/cmd/services/m3coordinator/model"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
-
-	"github.com/prometheus/common/model"
 )
 
 var (
-	defaultMetricNameTagName = []byte(model.MetricNameLabel)
-	rollupTagName            = []byte("__rollup__")
-	rollupTagValue           = []byte("true")
-	rollupTag                = ident.Tag{
-		Name:  ident.BytesID(rollupTagName),
-		Value: ident.BytesID(rollupTagValue),
-	}
-
+	rollupTagName      = []byte(coordmodel.RollupTagName)
+	rollupTagValue     = []byte(coordmodel.RollupTagValue)
 	errNoMetricNameTag = errors.New("no metric name tag found")
 )
 
@@ -65,19 +58,21 @@ func isRollupID(
 // method, it will return the rollup tag in the correct alphabetical order
 // when progressing through the existing tags.
 type rollupIDProvider struct {
-	index          int
-	newName        []byte
-	tagPairs       []id.TagPair
-	nameTagIndex   int
-	rollupTagIndex int
+	index        int
+	len          int
+	mergeTagsIdx int
+	newName      []byte
+	tagPairs     []id.TagPair
+	curr         id.TagPair
+	currIdx      int
 
-	tagEncoder             serialize.TagEncoder
-	pool                   *rollupIDProviderPool
-	nameTag                ident.ID
-	nameTagBytes           []byte
-	nameTagBeforeRollupTag bool
-	tagNameID              *ident.ReuseableBytesID
-	tagValueID             *ident.ReuseableBytesID
+	tagEncoder   serialize.TagEncoder
+	pool         *rollupIDProviderPool
+	nameTag      ident.ID
+	nameTagBytes []byte
+	tagNameID    *ident.ReusableBytesID
+	tagValueID   *ident.ReusableBytesID
+	mergeTags    []id.TagPair
 }
 
 func newRollupIDProvider(
@@ -87,14 +82,27 @@ func newRollupIDProvider(
 ) *rollupIDProvider {
 	nameTagBytes := nameTag.Bytes()
 	nameTagBeforeRollupTag := bytes.Compare(nameTagBytes, rollupTagName) < 0
+	mergeTags := []id.TagPair{
+		{
+			Name:  rollupTagName,
+			Value: rollupTagValue,
+		},
+		{
+			Name: nameTagBytes,
+			// Value is set in reset
+		},
+	}
+	if nameTagBeforeRollupTag {
+		mergeTags[0], mergeTags[1] = mergeTags[1], mergeTags[0]
+	}
 	return &rollupIDProvider{
-		tagEncoder:             tagEncoder,
-		pool:                   pool,
-		nameTag:                nameTag,
-		nameTagBytes:           nameTagBytes,
-		nameTagBeforeRollupTag: nameTagBeforeRollupTag,
-		tagNameID:              ident.NewReuseableBytesID(),
-		tagValueID:             ident.NewReuseableBytesID(),
+		tagEncoder:   tagEncoder,
+		pool:         pool,
+		nameTag:      nameTag,
+		nameTagBytes: nameTagBytes,
+		tagNameID:    ident.NewReusableBytesID(),
+		tagValueID:   ident.NewReusableBytesID(),
+		mergeTags:    mergeTags,
 	}
 }
 
@@ -122,27 +130,25 @@ func (p *rollupIDProvider) reset(
 	newName []byte,
 	tagPairs []id.TagPair,
 ) {
-	p.index = -1
 	p.newName = newName
 	p.tagPairs = tagPairs
-	p.nameTagIndex = -1
-	p.rollupTagIndex = -1
-	for idx, pair := range tagPairs {
-		if p.nameTagIndex == -1 && bytes.Compare(p.nameTagBytes, pair.Name) < 0 {
-			p.nameTagIndex = idx
-		}
-		if p.rollupTagIndex == -1 && bytes.Compare(rollupTagName, pair.Name) < 0 {
-			p.rollupTagIndex = idx
-		}
-	}
+	p.Rewind()
 
-	if p.nameTagIndex == p.rollupTagIndex {
-		if p.nameTagBeforeRollupTag {
-			p.rollupTagIndex++
-		} else {
-			p.nameTagIndex++
+	var dups int
+	// precompute the length of the "combined" slice for the Len() method.
+	// mergeTags is small so it's fine to do n^2 instead of a more complicated O(n) merge scan.
+	for j := range p.mergeTags {
+		// update the name tag as well.
+		if bytes.Equal(p.mergeTags[j].Name, p.nameTagBytes) {
+			p.mergeTags[j].Value = newName
+		}
+		for i := range p.tagPairs {
+			if bytes.Equal(p.tagPairs[i].Name, p.mergeTags[j].Name) {
+				dups++
+			}
 		}
 	}
+	p.len = len(p.tagPairs) + len(p.mergeTags) - dups
 }
 
 func (p *rollupIDProvider) finalize() {
@@ -151,42 +157,46 @@ func (p *rollupIDProvider) finalize() {
 	}
 }
 
+// Next takes the smallest element across both sets of tags, removing any duplicates between the lists.
 func (p *rollupIDProvider) Next() bool {
-	p.index++
-	return p.index < p.Len()
+	if p.index == len(p.tagPairs) && p.mergeTagsIdx == len(p.mergeTags) {
+		// at the end of both sets
+		return false
+	}
+	switch {
+	case p.index == len(p.tagPairs):
+		// only merged tags left
+		p.curr = p.mergeTags[p.mergeTagsIdx]
+		p.mergeTagsIdx++
+	case p.mergeTagsIdx == len(p.mergeTags):
+		// only provided tags left
+		p.curr = p.tagPairs[p.index]
+		p.index++
+	case bytes.Equal(p.tagPairs[p.index].Name, p.mergeTags[p.mergeTagsIdx].Name):
+		// a merge tag exists in the provided tag, advance both to prevent duplicates.
+		p.curr = p.tagPairs[p.index]
+		p.index++
+		p.mergeTagsIdx++
+	case bytes.Compare(p.tagPairs[p.index].Name, p.mergeTags[p.mergeTagsIdx].Name) < 0:
+		// the next provided tag is less
+		p.curr = p.tagPairs[p.index]
+		p.index++
+	default:
+		// the next merge tag is less
+		p.curr = p.mergeTags[p.mergeTagsIdx]
+		p.mergeTagsIdx++
+	}
+	p.currIdx++
+	return true
 }
 
 func (p *rollupIDProvider) CurrentIndex() int {
-	if p.index >= 0 {
-		return p.index
-	}
-	return 0
+	return p.currIdx
 }
 
 func (p *rollupIDProvider) Current() ident.Tag {
-	idx := p.index
-	if idx == p.nameTagIndex {
-		p.tagValueID.Reset(p.newName)
-		return ident.Tag{
-			Name:  p.nameTag,
-			Value: p.tagValueID,
-		}
-	}
-	if idx == p.rollupTagIndex {
-		return rollupTag
-	}
-
-	if p.index > p.nameTagIndex {
-		// Effective index is subtracted by 1
-		idx--
-	}
-	if p.index > p.rollupTagIndex {
-		// Effective index is subtracted by 1
-		idx--
-	}
-
-	p.tagNameID.Reset(p.tagPairs[idx].Name)
-	p.tagValueID.Reset(p.tagPairs[idx].Value)
+	p.tagNameID.Reset(p.curr.Name)
+	p.tagValueID.Reset(p.curr.Value)
 	return ident.Tag{
 		Name:  p.tagNameID,
 		Value: p.tagValueID,
@@ -200,11 +210,11 @@ func (p *rollupIDProvider) Err() error {
 func (p *rollupIDProvider) Close() {}
 
 func (p *rollupIDProvider) Len() int {
-	return len(p.tagPairs) + 2
+	return p.len
 }
 
 func (p *rollupIDProvider) Remaining() int {
-	return p.Len() - p.index - 1
+	return p.Len() - p.CurrentIndex() - 1
 }
 
 func (p *rollupIDProvider) Duplicate() ident.TagIterator {
@@ -214,7 +224,9 @@ func (p *rollupIDProvider) Duplicate() ident.TagIterator {
 }
 
 func (p *rollupIDProvider) Rewind() {
-	p.index = -1
+	p.index = 0
+	p.mergeTagsIdx = 0
+	p.currIdx = -1
 }
 
 type rollupIDProviderPool struct {
@@ -251,26 +263,17 @@ func (p *rollupIDProviderPool) Put(v *rollupIDProvider) {
 
 func resolveEncodedTagsNameTag(
 	id []byte,
-	iterPool serialize.MetricTagsIteratorPool,
 	nameTag []byte,
 ) ([]byte, error) {
-	// ID is always the encoded tags for downsampling IDs
-	iter := iterPool.Get()
-	iter.Reset(id)
-	defer iter.Close()
-
-	value, ok := iter.TagValue(nameTag)
+	value, ok, err := serialize.TagValueFromEncodedTagsFast(id, nameTag)
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
-		// No name was found in encoded tags
+		// No name was found in encoded tags.
 		return nil, errNoMetricNameTag
 	}
 
-	idx := bytes.Index(id, value)
-	if idx == -1 {
-		return nil, fmt.Errorf(
-			"resolved metric name tag value not found in ID: %v", value)
-	}
-
-	// Return original reference to avoid needing to return a copy
-	return id[idx : idx+len(value)], nil
+	// Return original reference to avoid needing to return a copy.
+	return value, nil
 }

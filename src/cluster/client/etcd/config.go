@@ -24,18 +24,35 @@ import (
 	"os"
 	"time"
 
+	"github.com/uber-go/tally"
+	"google.golang.org/grpc"
+
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/retry"
 )
 
 // ClusterConfig is the config for a zoned etcd cluster.
 type ClusterConfig struct {
-	Zone             string           `yaml:"zone"`
-	Endpoints        []string         `yaml:"endpoints"`
-	KeepAlive        *KeepAliveConfig `yaml:"keepAlive"`
-	TLS              *TLSConfig       `yaml:"tls"`
-	AutoSyncInterval time.Duration    `yaml:"autoSyncInterval"`
+	Zone      string           `yaml:"zone"`
+	Endpoints []string         `yaml:"endpoints"`
+	KeepAlive *KeepAliveConfig `yaml:"keepAlive"`
+	TLS       *TLSConfig       `yaml:"tls"`
+	// AutoSyncInterval configures the etcd client's AutoSyncInterval
+	// (go.etcd.io/etcd/client/v3@v3.6.0-alpha.0/config.go:32).
+	// By default, it is 1m.
+	//
+	// Advanced:
+	//
+	// One important difference from the etcd config: we have autosync *on* by default (unlike etcd), meaning that
+	// the zero value here doesn't indicate autosync off.
+	// Instead, users should pass in a negative value to indicate "disable autosync"
+	// Only do this if you truly have a good reason for it! Most production use cases want autosync on.
+	AutoSyncInterval time.Duration `yaml:"autoSyncInterval"`
+	DialTimeout      time.Duration `yaml:"dialTimeout"`
+
+	DialOptions []grpc.DialOption `yaml:"-"` // nonserializable
 }
 
 // NewCluster creates a new Cluster.
@@ -44,12 +61,26 @@ func (c ClusterConfig) NewCluster() Cluster {
 	if c.KeepAlive != nil {
 		keepAliveOpts = c.KeepAlive.NewOptions()
 	}
-	return NewCluster().
+
+	cluster := NewCluster().
 		SetZone(c.Zone).
 		SetEndpoints(c.Endpoints).
+		SetDialOptions(c.DialOptions).
 		SetKeepAliveOptions(keepAliveOpts).
-		SetTLSOptions(c.TLS.newOptions()).
-		SetAutoSyncInterval(c.AutoSyncInterval)
+		SetTLSOptions(c.TLS.newOptions())
+
+	// Autosync should *always* be on, unless the user very explicitly requests it to be off. They can do this via a
+	// negative value (in which case we can assume they know what they're doing).
+	// Therefore, only update if it's nonzero, on the assumption that zero is just the empty value.
+	if c.AutoSyncInterval != 0 {
+		cluster = cluster.SetAutoSyncInterval(c.AutoSyncInterval)
+	}
+
+	if c.DialTimeout > 0 {
+		cluster = cluster.SetDialTimeout(c.DialTimeout)
+	}
+
+	return cluster
 }
 
 // TLSConfig is the config for TLS.
@@ -98,6 +129,15 @@ type Configuration struct {
 	SDConfig          services.Configuration `yaml:"m3sd"`
 	WatchWithRevision int64                  `yaml:"watchWithRevision"`
 	NewDirectoryMode  *os.FileMode           `yaml:"newDirectoryMode"`
+
+	Retry                  retry.Configuration `yaml:"retry"`
+	RequestTimeout         time.Duration       `yaml:"requestTimeout"`
+	WatchChanInitTimeout   time.Duration       `yaml:"watchChanInitTimeout"`
+	WatchChanCheckInterval time.Duration       `yaml:"watchChanCheckInterval"`
+	WatchChanResetInterval time.Duration       `yaml:"watchChanResetInterval"`
+	// EnableFastGets trades consistency for latency and throughput using clientv3.WithSerializable()
+	// on etcd ops.
+	EnableFastGets bool `yaml:"enableFastGets"`
 }
 
 // NewClient creates a new config service client.
@@ -114,7 +154,25 @@ func (cfg Configuration) NewOptions() Options {
 		SetCacheDir(cfg.CacheDir).
 		SetClusters(cfg.etcdClusters()).
 		SetServicesOptions(cfg.SDConfig.NewOptions()).
-		SetWatchWithRevision(cfg.WatchWithRevision)
+		SetWatchWithRevision(cfg.WatchWithRevision).
+		SetEnableFastGets(cfg.EnableFastGets).
+		SetRetryOptions(cfg.Retry.NewOptions(tally.NoopScope))
+
+	if cfg.RequestTimeout > 0 {
+		opts = opts.SetRequestTimeout(cfg.RequestTimeout)
+	}
+
+	if cfg.WatchChanInitTimeout > 0 {
+		opts = opts.SetWatchChanInitTimeout(cfg.WatchChanInitTimeout)
+	}
+
+	if cfg.WatchChanCheckInterval > 0 {
+		opts = opts.SetWatchChanCheckInterval(cfg.WatchChanCheckInterval)
+	}
+
+	if cfg.WatchChanResetInterval > 0 {
+		opts = opts.SetWatchChanResetInterval(cfg.WatchChanResetInterval)
+	}
 
 	if v := cfg.NewDirectoryMode; v != nil {
 		opts = opts.SetNewDirectoryMode(*v)

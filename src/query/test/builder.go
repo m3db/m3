@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/prometheus/common/model"
 )
@@ -54,24 +55,25 @@ func NewBlockFromValues(
 // block using the provided values and metadata.
 func NewUnconsolidatedBlockFromDatapointsWithMeta(
 	bounds models.Bounds,
-	meta []block.SeriesMeta,
+	seriesMetas []block.SeriesMeta,
+	resultMeta block.ResultMetadata,
 	seriesValues [][]float64,
 	enableBatched bool,
 ) block.Block {
 	seriesList := make(ts.SeriesList, len(seriesValues))
 	for i, values := range seriesValues {
 		dps := seriesValuesToDatapoints(values, bounds)
-		seriesList[i] = ts.NewSeries(meta[i].Name, dps, meta[i].Tags)
+		seriesList[i] = ts.NewSeries(seriesMetas[i].Name, dps, seriesMetas[i].Tags)
 	}
 
 	result := &storage.FetchResult{
 		SeriesList: seriesList,
-		Metadata:   block.NewResultMetadata(),
+		Metadata:   resultMeta,
 	}
 
 	return newMultiSeriesBlock(result, &storage.FetchQuery{
-		Start:    bounds.Start,
-		End:      bounds.End(),
+		Start:    bounds.Start.ToTime(),
+		End:      bounds.End().ToTime(),
 		Interval: bounds.StepSize,
 	}, time.Minute, enableBatched)
 }
@@ -196,7 +198,7 @@ func GenerateValuesAndBounds(
 
 	var bounds models.Bounds
 	if b == nil {
-		now := time.Now()
+		now := xtime.Now()
 		bounds = models.Bounds{
 			Start:    now,
 			Duration: time.Minute * 5,

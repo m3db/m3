@@ -21,11 +21,10 @@
 package pools
 
 import (
-	"io"
-
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/ident"
@@ -42,10 +41,8 @@ const (
 	defaultReplicas                    = 3
 	defaultSeriesIteratorPoolSize      = 2 << 12 // ~8k
 	defaultCheckedBytesWrapperPoolSize = 2 << 12 // ~8k
-	defaultBucketCapacity              = 256
 	defaultPoolableConcurrentQueries   = 64
 	defaultPoolableSeriesPerQuery      = 4096
-	defaultSeriesReplicaReaderPoolSize = defaultPoolableConcurrentQueries * defaultPoolableSeriesPerQuery * defaultReplicas
 )
 
 var (
@@ -97,7 +94,6 @@ func BuildWorkerPools(
 type sessionPools struct {
 	multiReaderIteratorArray encoding.MultiReaderIteratorArrayPool
 	multiReaderIterator      encoding.MultiReaderIteratorPool
-	seriesIterators          encoding.MutableSeriesIteratorsPool
 	seriesIterator           encoding.SeriesIteratorPool
 	checkedBytesWrapper      xpool.CheckedBytesWrapperPool
 	id                       ident.Pool
@@ -111,10 +107,6 @@ func (s sessionPools) MultiReaderIteratorArray() encoding.MultiReaderIteratorArr
 
 func (s sessionPools) MultiReaderIterator() encoding.MultiReaderIteratorPool {
 	return s.multiReaderIterator
-}
-
-func (s sessionPools) MutableSeriesIterators() encoding.MutableSeriesIteratorsPool {
-	return s.seriesIterators
 }
 
 func (s sessionPools) SeriesIterator() encoding.SeriesIteratorPool {
@@ -191,6 +183,7 @@ func (o BuildIteratorPoolsOptions) SeriesIDBytesPoolBucketsOrDefault() []pool.Bu
 // BuildIteratorPools build iterator pools if they are unavailable from
 // m3db (e.g. if running standalone query)
 func BuildIteratorPools(
+	encodingOpts encoding.Options,
 	opts BuildIteratorPoolsOptions,
 ) encoding.IteratorPools {
 	// TODO: add instrumentation options to these pools
@@ -209,25 +202,21 @@ func BuildIteratorPools(
 
 	readerIteratorPool := encoding.NewReaderIteratorPool(readerIteratorPoolPoolOpts)
 
-	encodingOpts := encoding.NewOptions().
+	encodingOpts = encodingOpts.
 		SetReaderIteratorPool(readerIteratorPool)
 
-	readerIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
-	})
+	readerIteratorPool.Init(m3tsz.DefaultReaderIteratorAllocFn(encodingOpts))
 
 	pools.multiReaderIterator = encoding.NewMultiReaderIteratorPool(defaultPerSeriesPoolOpts)
-	pools.multiReaderIterator.Init(func(r io.Reader, s namespace.SchemaDescr) encoding.ReaderIterator {
-		iter := readerIteratorPool.Get()
-		iter.Reset(r, s)
-		return iter
-	})
+	pools.multiReaderIterator.Init(
+		func(r xio.Reader64, s namespace.SchemaDescr) encoding.ReaderIterator {
+			iter := readerIteratorPool.Get()
+			iter.Reset(r, s)
+			return iter
+		})
 
 	pools.seriesIterator = encoding.NewSeriesIteratorPool(defaultPerSeriesPoolOpts)
 	pools.seriesIterator.Init()
-
-	pools.seriesIterators = encoding.NewMutableSeriesIteratorsPool(defaultPerSeriesIteratorsBuckets)
-	pools.seriesIterators.Init()
 
 	wrapperPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(opts.CheckedBytesWrapperPoolSizeOrDefault())

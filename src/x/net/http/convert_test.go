@@ -34,12 +34,13 @@ func TestDurationToNanosBytes(t *testing.T) {
 		shouldErr bool
 	}
 	testCases := map[string]ret{
-		`{"field":"value"}`:                                                                ret{`{"field":"value"}`, false},
-		`{"fieldDuration":"1s"}`:                                                           ret{`{"fieldNanos":1000000000}`, false},
-		`{"fieldDuration":1234}`:                                                           ret{`{"fieldNanos":1234}`, false},
-		`{"field":"value","fieldDuration":"1s"}`:                                           ret{`{"field":"value","fieldNanos":1000000000}`, false},
-		`{"realDuration":"50ns","nanoDuration":100,"normalNanos":200}`:                     ret{`{"nanoNanos":100,"normalNanos":200,"realNanos":50}`, false},
+		`{"field":"value"}`:                                            ret{`{"field":"value"}`, false},
+		`{"fieldDuration":"1s"}`:                                       ret{`{"fieldNanos":1000000000}`, false},
+		`{"fieldDuration":1234}`:                                       ret{`{"fieldNanos":1234}`, false},
+		`{"field":"value","fieldDuration":"1s"}`:                       ret{`{"field":"value","fieldNanos":1000000000}`, false},
+		`{"realDuration":"50ns","nanoDuration":100,"normalNanos":200}`: ret{`{"nanoNanos":100,"normalNanos":200,"realNanos":50}`, false},
 		`{"field":"value","moreFields":{"innerDuration":"2ms","innerField":"innerValue"}}`: ret{`{"field":"value","moreFields":{"innerField":"innerValue","innerNanos":2000000}}`, false},
+		`{"field":[{"attrs":{"fieldDuration":"0s"}}]}`:                                     ret{`{"field":[{"attrs":{"fieldNanos":0}}]}`, false},
 		`not json`:                                       ret{"", true},
 		`{"fieldDuration":[]}`:                           ret{"", true},
 		`{"fieldDuration":{}}`:                           ret{"", true},
@@ -68,18 +69,19 @@ func TestNanoToDurationBytes(t *testing.T) {
 		shouldErr bool
 	}
 	testCases := map[string]ret{
-		`{"field":"value"}`:                                                               ret{map[string]interface{}{"field": "value"}, false},
-		`{"fieldNanos":1000000000}`:                                                       ret{map[string]interface{}{"fieldDuration": "1s"}, false},
-		`{"fieldNanos":0}`:                                                                ret{map[string]interface{}{"fieldDuration": "0s"}, false},
-		`{"field":"value","fieldNanos":1000000000}`:                                       ret{map[string]interface{}{"field": "value", "fieldDuration": "1s"}, false},
-		`{"realNanos":50,"nanoNanos":100,"normalDuration":"200ns"}`:                       ret{map[string]interface{}{"nanoDuration": "100ns", "normalDuration": "200ns", "realDuration": "50ns"}, false},
+		`{"field":"value"}`:                                         ret{map[string]interface{}{"field": "value"}, false},
+		`{"fieldNanos":1000000000}`:                                 ret{map[string]interface{}{"fieldDuration": "1s"}, false},
+		`{"fieldNanos":0}`:                                          ret{map[string]interface{}{"fieldDuration": "0s"}, false},
+		`{"field":"value","fieldNanos":1000000000}`:                 ret{map[string]interface{}{"field": "value", "fieldDuration": "1s"}, false},
+		`{"realNanos":50,"nanoNanos":100,"normalDuration":"200ns"}`: ret{map[string]interface{}{"nanoDuration": "100ns", "normalDuration": "200ns", "realDuration": "50ns"}, false},
 		`{"field":"value","moreFields":{"innerNanos":2000000,"innerField":"innerValue"}}`: ret{map[string]interface{}{"field": "value", "moreFields": map[string]interface{}{"innerField": "innerValue", "innerDuration": "2ms"}}, false},
-		`not json`:                                 ret{nil, true},
-		`{"fieldNanos":[]}`:                        ret{nil, true},
-		`{"fieldNanos":{}}`:                        ret{nil, true},
-		`{"fieldNanos":"badNanos"}`:                ret{nil, true},
-		`{"fieldNanos":100.5}`:                     ret{nil, true},
-		`{"moreFields":{"innerNanos":"badNanos"}}`: ret{nil, true},
+		`{"field":[{"attrs":{"fieldNanos":0}}]}`:                                          ret{map[string]interface{}{"field": []interface{}{map[string]interface{}{"attrs": map[string]interface{}{"fieldDuration": "0s"}}}}, false},
+		`not json`:                                                                        ret{nil, true},
+		`{"fieldNanos":[]}`:                                                               ret{nil, true},
+		`{"fieldNanos":{}}`:                                                               ret{nil, true},
+		`{"fieldNanos":"badNanos"}`:                                                       ret{nil, true},
+		`{"fieldNanos":100.5}`:                                                            ret{nil, true},
+		`{"moreFields":{"innerNanos":"badNanos"}}`:                                        ret{nil, true},
 	}
 
 	for k, v := range testCases {

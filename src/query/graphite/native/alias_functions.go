@@ -21,6 +21,8 @@
 package native
 
 import (
+	"strings"
+
 	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/ts"
 )
@@ -33,14 +35,38 @@ func alias(ctx *common.Context, series singlePathSpec, a string) (ts.SeriesList,
 
 // aliasByMetric takes a seriesList and applies an alias derived from the base
 // metric name.
-func aliasByMetric(ctx *common.Context, series singlePathSpec) (ts.SeriesList, error) {
-	return common.AliasByMetric(ctx, ts.SeriesList(series))
+func aliasByMetric(ctx *common.Context, seriesList singlePathSpec) (ts.SeriesList, error) {
+	return aliasByNode(ctx, seriesList, -1)
 }
 
 // aliasByNode renames a time series result according to a subset of the nodes
 // in its hierarchy.
 func aliasByNode(ctx *common.Context, seriesList singlePathSpec, nodes ...int) (ts.SeriesList, error) {
-	return common.AliasByNode(ctx, ts.SeriesList(seriesList), nodes...)
+	renamed := make([]*ts.Series, 0, ts.SeriesList(seriesList).Len())
+	for _, series := range seriesList.Values {
+		name, err := getFirstPathExpression(series.Name())
+		if err != nil {
+			return ts.SeriesList{}, err
+		}
+
+		nameParts := strings.Split(name, ".")
+		newNameParts := make([]string, 0, len(nodes))
+		for _, node := range nodes {
+			// NB(jayp): graphite supports negative indexing, so we need to also!
+			if node < 0 {
+				node += len(nameParts)
+			}
+			if node < 0 || node >= len(nameParts) {
+				continue
+			}
+			newNameParts = append(newNameParts, nameParts[node])
+		}
+		newName := strings.Join(newNameParts, ".")
+		newSeries := series.RenamedTo(newName)
+		renamed = append(renamed, newSeries)
+	}
+	seriesList.Values = renamed
+	return ts.SeriesList(seriesList), nil
 }
 
 // aliasSub runs series names through a regex search/replace.

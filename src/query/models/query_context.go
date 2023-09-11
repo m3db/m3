@@ -24,19 +24,15 @@ import (
 	"context"
 
 	"github.com/m3db/m3/src/metrics/policy"
-	"github.com/m3db/m3/src/query/cost"
 
 	"github.com/uber-go/tally"
 )
 
 // QueryContext provides all external state needed to execute and track a query.
-// It acts as a hook back into the execution engine for things like
-// cost accounting.
 type QueryContext struct {
-	Ctx      context.Context
-	Scope    tally.Scope
-	Enforcer cost.ChainedEnforcer
-	Options  QueryContextOptions
+	Ctx     context.Context
+	Scope   tally.Scope
+	Options QueryContextOptions
 }
 
 // QueryContextOptions contains optional configuration for the query context.
@@ -46,8 +42,17 @@ type QueryContextOptions struct {
 	LimitMaxTimeseries int
 	// LimitMaxDocs limits the number of docs returned by each storage node.
 	LimitMaxDocs int
+	// LimitMaxReturnedSeries limits the number of series returned in total to the client.
+	LimitMaxReturnedSeries int
+	// LimitMaxReturnedDatapoints limits the number of datapoints returned in total to the client.
+	LimitMaxReturnedDatapoints int
+	// LimitMaxReturnedSeriesMetadata limits the number of series metadata returned in total to the client.
+	LimitMaxReturnedSeriesMetadata int
 	// RequireExhaustive results in an error if the query exceeds the series limit.
 	RequireExhaustive bool
+	// Instantaneous indicates an instant query.
+	Instantaneous bool
+	// RestrictFetchType restricts the query fetches.
 	RestrictFetchType *RestrictFetchTypeQueryContextOptions
 }
 
@@ -58,26 +63,23 @@ type RestrictFetchTypeQueryContextOptions struct {
 	StoragePolicy policy.StoragePolicy
 }
 
-// NewQueryContext constructs a QueryContext using the given Enforcer to
-// enforce per query limits.
+// NewQueryContext constructs a QueryContext from the provided native context.
 func NewQueryContext(
 	ctx context.Context,
 	scope tally.Scope,
-	enforcer cost.ChainedEnforcer,
 	options QueryContextOptions,
 ) *QueryContext {
 	return &QueryContext{
-		Ctx:      ctx,
-		Scope:    scope,
-		Enforcer: enforcer,
-		Options:  options,
+		Ctx:     ctx,
+		Scope:   scope,
+		Options: options,
 	}
 }
 
 // NoopQueryContext returns a query context with no active components.
 func NoopQueryContext() *QueryContext {
 	return NewQueryContext(context.Background(), tally.NoopScope,
-		cost.NoopChainedEnforcer(), QueryContextOptions{})
+		QueryContextOptions{})
 }
 
 // WithContext creates a shallow copy of this QueryContext using the new context.

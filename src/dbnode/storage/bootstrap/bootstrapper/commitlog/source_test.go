@@ -28,9 +28,11 @@ import (
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
 	tu "github.com/m3db/m3/src/dbnode/topology/testutil"
+	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
@@ -47,12 +49,15 @@ func TestAvailableData(t *testing.T) {
 		nsMetadata                 = testNsMetadata(t)
 		blockSize                  = 2 * time.Hour
 		numShards                  = uint32(4)
-		blockStart                 = time.Now().Truncate(blockSize)
+		blockStart                 = xtime.Now().Truncate(blockSize)
 		shardTimeRangesToBootstrap = result.NewShardTimeRanges()
 		bootstrapRanges            = xtime.NewRanges(xtime.Range{
 			Start: blockStart,
 			End:   blockStart.Add(blockSize),
 		})
+		cacheOptions = bootstrap.NewCacheOptions().
+				SetFilesystemOptions(fs.NewOptions()).
+				SetInstrumentOptions(instrument.NewOptions())
 	)
 
 	for i := 0; i < int(numShards); i++ {
@@ -121,10 +126,23 @@ func TestAvailableData(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.title, func(t *testing.T) {
+			var shards []uint32
+			for shard := range tc.shardsTimeRangesToBootstrap.Iter() {
+				shards = append(shards, shard)
+			}
+			cache, sErr := bootstrap.NewCache(cacheOptions.
+				SetNamespaceDetails([]bootstrap.NamespaceDetails{
+					{
+						Namespace: nsMetadata,
+						Shards:    shards,
+					},
+				}))
+			require.NoError(t, sErr)
+
 			var (
 				src          = newCommitLogSource(testDefaultOpts, fs.Inspection{})
 				runOpts      = testDefaultRunOpts.SetInitialTopologyState(tc.topoState)
-				dataRes, err = src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
+				dataRes, err = src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap, cache, runOpts)
 			)
 
 			if tc.expectedErr != nil {
@@ -134,7 +152,7 @@ func TestAvailableData(t *testing.T) {
 				require.Equal(t, tc.expectedAvailableShardsTimeRanges, dataRes)
 			}
 
-			indexRes, err := src.AvailableIndex(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
+			indexRes, err := src.AvailableIndex(nsMetadata, tc.shardsTimeRangesToBootstrap, cache, runOpts)
 			if tc.expectedErr != nil {
 				require.Equal(t, err, tc.expectedErr)
 			} else {

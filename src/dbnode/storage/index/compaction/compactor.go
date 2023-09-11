@@ -37,7 +37,10 @@ import (
 )
 
 var (
-	errCompactorBuilderEmpty = errors.New("builder has no documents")
+	// ErrCompactorBuilderEmpty is returned when the compaction
+	// would result in an empty segment.
+	ErrCompactorBuilderEmpty = errors.New("builder has no documents")
+	errCompactorBuilderNil   = errors.New("builder is nil")
 	errCompactorClosed       = errors.New("compactor is closed")
 )
 
@@ -47,7 +50,7 @@ type Compactor struct {
 
 	opts         CompactorOptions
 	writer       fst.Writer
-	docsPool     doc.DocumentArrayPool
+	metadataPool doc.MetadataArrayPool
 	docsMaxBatch int
 	fstOpts      fst.Options
 	builder      segment.SegmentsBuilder
@@ -71,7 +74,7 @@ type CompactorOptions struct {
 // NewCompactor returns a new compactor which reuses buffers
 // to avoid allocating intermediate buffers when compacting.
 func NewCompactor(
-	docsPool doc.DocumentArrayPool,
+	metadataPool doc.MetadataArrayPool,
 	docsMaxBatch int,
 	builderOpts builder.Options,
 	fstOpts fst.Options,
@@ -88,12 +91,18 @@ func NewCompactor(
 	return &Compactor{
 		opts:         opts,
 		writer:       writer,
-		docsPool:     docsPool,
+		metadataPool: metadataPool,
 		docsMaxBatch: docsMaxBatch,
 		builder:      builder.NewBuilderFromSegments(builderOpts),
 		fstOpts:      fstOpts,
 		buff:         bytes.NewBuffer(nil),
 	}, nil
+}
+
+// CompactResult is the result of a call to compact.
+type CompactResult struct {
+	Compacted        fst.Segment
+	SegmentMetadatas []segment.SegmentsBuilderSegmentMetadata
 }
 
 // Compact will take a set of segments and compact them into an immutable
@@ -105,21 +114,36 @@ func NewCompactor(
 // time.
 func (c *Compactor) Compact(
 	segs []segment.Segment,
+	filter segment.DocumentsFilter,
 	reporterOptions mmap.ReporterOptions,
-) (segment.Segment, error) {
+) (CompactResult, error) {
 	c.Lock()
 	defer c.Unlock()
 
 	if c.closed {
-		return nil, errCompactorClosed
+		return CompactResult{}, errCompactorClosed
 	}
 
 	c.builder.Reset()
+	c.builder.SetFilter(filter)
 	if err := c.builder.AddSegments(segs); err != nil {
-		return nil, err
+		return CompactResult{}, err
 	}
 
-	return c.compactFromBuilderWithLock(c.builder, reporterOptions)
+	metas, err := c.builder.SegmentMetadatas()
+	if err != nil {
+		return CompactResult{}, err
+	}
+
+	compacted, err := c.compactFromBuilderWithLock(c.builder, reporterOptions)
+	if err != nil {
+		return CompactResult{}, err
+	}
+
+	return CompactResult{
+		Compacted:        compacted,
+		SegmentMetadatas: metas,
+	}, nil
 }
 
 // CompactUsingBuilder compacts segments together using a provided segment builder.
@@ -127,7 +151,7 @@ func (c *Compactor) CompactUsingBuilder(
 	builder segment.DocumentsBuilder,
 	segs []segment.Segment,
 	reporterOptions mmap.ReporterOptions,
-) (segment.Segment, error) {
+) (fst.Segment, error) {
 	// NB(r): Ensure only single compaction happens at a time since the buffers are
 	// reused between runs.
 	c.Lock()
@@ -138,7 +162,7 @@ func (c *Compactor) CompactUsingBuilder(
 	}
 
 	if builder == nil {
-		return nil, errCompactorBuilderEmpty
+		return nil, errCompactorBuilderNil
 	}
 
 	if len(segs) == 0 {
@@ -147,9 +171,9 @@ func (c *Compactor) CompactUsingBuilder(
 	}
 
 	// Need to combine segments first
-	batch := c.docsPool.Get()
+	batch := c.metadataPool.Get()
 	defer func() {
-		c.docsPool.Put(batch)
+		c.metadataPool.Put(batch)
 	}()
 
 	// flushBatch is declared to reuse the same code from the
@@ -179,7 +203,7 @@ func (c *Compactor) CompactUsingBuilder(
 		}
 
 		// Reset docs batch for reuse
-		var empty doc.Document
+		var empty doc.Metadata
 		for i := range batch {
 			batch[i] = empty
 		}
@@ -231,7 +255,7 @@ func (c *Compactor) CompactUsingBuilder(
 func (c *Compactor) compactFromBuilderWithLock(
 	builder segment.Builder,
 	reporterOptions mmap.ReporterOptions,
-) (segment.Segment, error) {
+) (fst.Segment, error) {
 	defer func() {
 		// Release resources regardless of result,
 		// otherwise old compacted segments are held onto
@@ -243,7 +267,7 @@ func (c *Compactor) compactFromBuilderWithLock(
 	// runs, we need to copy the docs slice
 	allDocs := builder.Docs()
 	if len(allDocs) == 0 {
-		return nil, errCompactorBuilderEmpty
+		return nil, ErrCompactorBuilderEmpty
 	}
 
 	err := c.writer.Reset(builder)
@@ -273,7 +297,7 @@ func (c *Compactor) compactFromBuilderWithLock(
 		// If retaining references to the original docs, simply take ownership
 		// of the documents and then reference them directly from the FST segment
 		// rather than encoding them and mmap'ing the encoded documents.
-		allDocsCopy := make([]doc.Document, len(allDocs))
+		allDocsCopy := make([]doc.Metadata, len(allDocs))
 		copy(allDocsCopy, allDocs)
 		fstData.DocsReader = docs.NewSliceReader(allDocsCopy)
 	} else {
@@ -374,7 +398,7 @@ func (c *Compactor) Close() error {
 	c.closed = true
 
 	c.writer = nil
-	c.docsPool = nil
+	c.metadataPool = nil
 	c.fstOpts = nil
 	c.builder = nil
 	c.buff = nil

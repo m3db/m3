@@ -49,3 +49,21 @@ message NamespaceSchemaResetRequest {
 
 message NamespaceSchemaResetResponse {
 }
+
+// NamespaceReadyRequest is the request for transitioning a namespace
+// to the ready state. Calls to this endpoint are idempotent and can
+// be safely retried on error.
+message NamespaceReadyRequest {
+  // Name is the namespace name.
+  string name = 1;
+  // Force forces the StagingStatus of the namespace to be moved to the ready state.
+  // If the namespace is still not ready in DB nodes, then the coordinator will receive
+  // errors upon attempted reads or writes until the namespaces is actually ready.
+  bool force  = 2;
+}
+
+// NamespaceReadyResponse is the response from a request for transitioning
+// a namespace to the ready state.
+message NamespaceReadyResponse {
+  bool ready = 1;
+}

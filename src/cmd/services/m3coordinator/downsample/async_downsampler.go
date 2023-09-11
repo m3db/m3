@@ -24,6 +24,8 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+
+	"github.com/m3db/m3/src/metrics/rules/view"
 )
 
 const (
@@ -62,16 +64,16 @@ func NewAsyncDownsampler(
 	}
 
 	go func() {
+		asyncDownsampler.Lock()
+		defer asyncDownsampler.Unlock()
+
 		if asyncDownsampler.done != nil {
 			defer func() {
 				asyncDownsampler.done <- struct{}{}
 			}()
 		}
-
 		downsampler, err := fn()
 
-		asyncDownsampler.Lock()
-		defer asyncDownsampler.Unlock()
 		if err != nil {
 			asyncDownsampler.err = fmt.Errorf(errNewDownsamplerFailFmt, err)
 			return
@@ -84,6 +86,12 @@ func NewAsyncDownsampler(
 	return asyncDownsampler
 }
 
+func (d *asyncDownsampler) LatestRollupRules(namespace []byte, timeNanos int64) ([]view.RollupRule, error) {
+	d.RLock()
+	defer d.RUnlock()
+	return d.downsampler.LatestRollupRules(namespace, timeNanos)
+}
+
 func (d *asyncDownsampler) NewMetricsAppender() (MetricsAppender, error) {
 	d.RLock()
 	defer d.RUnlock()
@@ -91,4 +99,13 @@ func (d *asyncDownsampler) NewMetricsAppender() (MetricsAppender, error) {
 		return nil, d.err
 	}
 	return d.downsampler.NewMetricsAppender()
+}
+
+func (d *asyncDownsampler) Enabled() bool {
+	d.RLock()
+	defer d.RUnlock()
+	if d.err != nil {
+		return false
+	}
+	return d.downsampler.Enabled()
 }

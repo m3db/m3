@@ -21,10 +21,15 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"time"
 
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
@@ -33,8 +38,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	m3sync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 type newSessionFn func(Options) (clientSession, error)
@@ -45,6 +48,7 @@ type replicatedSession struct {
 	session              clientSession
 	asyncSessions        []clientSession
 	newSessionFn         newSessionFn
+	identifierPool       ident.Pool
 	workerPool           m3sync.PooledWorkerPool
 	replicationSemaphore chan struct{}
 	scope                tally.Scope
@@ -81,13 +85,16 @@ func withNewSessionFn(fn newSessionFn) replicatedSessionOption {
 	}
 }
 
-func newReplicatedSession(opts Options, asyncOpts []Options, options ...replicatedSessionOption) (clientSession, error) {
+func newReplicatedSession(
+	opts Options, asyncOpts []Options, options ...replicatedSessionOption,
+) (clientSession, error) {
 	workerPool := opts.AsyncWriteWorkerPool()
 
 	scope := opts.InstrumentOptions().MetricsScope()
 
 	session := replicatedSession{
 		newSessionFn:         newSession,
+		identifierPool:       opts.IdentifierPool(),
 		workerPool:           workerPool,
 		replicationSemaphore: make(chan struct{}, opts.AsyncWriteMaxConcurrency()),
 		scope:                scope,
@@ -110,8 +117,6 @@ func newReplicatedSession(opts Options, asyncOpts []Options, options ...replicat
 
 	return &session, nil
 }
-
-type writeFunc func(Session) error
 
 func (s *replicatedSession) setSession(opts Options) error {
 	if opts.TopologyInitializer() == nil {
@@ -145,7 +150,7 @@ func (s *replicatedSession) setAsyncSessions(opts []Options) error {
 type replicatedParams struct {
 	namespace  ident.ID
 	id         ident.ID
-	t          time.Time
+	t          xtime.UnixNano
 	value      float64
 	unit       xtime.Unit
 	annotation []byte
@@ -158,14 +163,30 @@ type replicatedParams struct {
 func (s replicatedSession) replicate(params replicatedParams) error {
 	for _, asyncSession := range s.asyncSessions {
 		asyncSession := asyncSession // capture var
+
+		var (
+			clonedID   = s.identifierPool.Clone(params.id)
+			clonedNS   = s.identifierPool.Clone(params.namespace)
+			clonedTags ident.TagIterator
+		)
+		if params.useTags {
+			clonedTags = params.tags.Duplicate()
+		}
+
 		select {
 		case s.replicationSemaphore <- struct{}{}:
 			s.workerPool.Go(func() {
 				var err error
 				if params.useTags {
-					err = asyncSession.WriteTagged(params.namespace, params.id, params.tags, params.t, params.value, params.unit, params.annotation)
+					err = asyncSession.WriteTagged(
+						clonedNS, clonedID, clonedTags, params.t,
+						params.value, params.unit, params.annotation,
+					)
 				} else {
-					err = asyncSession.Write(params.namespace, params.id, params.t, params.value, params.unit, params.annotation)
+					err = asyncSession.Write(
+						clonedNS, clonedID, params.t,
+						params.value, params.unit, params.annotation,
+					)
 				}
 				if err != nil {
 					s.metrics.replicateError.Inc(1)
@@ -185,13 +206,31 @@ func (s replicatedSession) replicate(params replicatedParams) error {
 	}
 
 	if params.useTags {
-		return s.session.WriteTagged(params.namespace, params.id, params.tags, params.t, params.value, params.unit, params.annotation)
+		return s.session.WriteTagged(
+			params.namespace, params.id, params.tags, params.t,
+			params.value, params.unit, params.annotation,
+		)
 	}
-	return s.session.Write(params.namespace, params.id, params.t, params.value, params.unit, params.annotation)
+
+	return s.session.Write(
+		params.namespace, params.id, params.t,
+		params.value, params.unit, params.annotation,
+	)
+}
+
+func (s *replicatedSession) ReadClusterAvailability() (bool, error) {
+	return s.session.ReadClusterAvailability()
+}
+
+func (s *replicatedSession) WriteClusterAvailability() (bool, error) {
+	return s.session.WriteClusterAvailability()
 }
 
 // Write value to the database for an ID.
-func (s replicatedSession) Write(namespace, id ident.ID, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
+func (s replicatedSession) Write(
+	namespace, id ident.ID, t xtime.UnixNano, value float64,
+	unit xtime.Unit, annotation []byte,
+) error {
 	return s.replicate(replicatedParams{
 		namespace:  namespace,
 		id:         id,
@@ -203,7 +242,10 @@ func (s replicatedSession) Write(namespace, id ident.ID, t time.Time, value floa
 }
 
 // WriteTagged value to the database for an ID and given tags.
-func (s replicatedSession) WriteTagged(namespace, id ident.ID, tags ident.TagIterator, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
+func (s replicatedSession) WriteTagged(
+	namespace, id ident.ID, tags ident.TagIterator, t xtime.UnixNano,
+	value float64, unit xtime.Unit, annotation []byte,
+) error {
 	return s.replicate(replicatedParams{
 		namespace:  namespace,
 		id:         id,
@@ -217,30 +259,47 @@ func (s replicatedSession) WriteTagged(namespace, id ident.ID, tags ident.TagIte
 }
 
 // Fetch values from the database for an ID.
-func (s replicatedSession) Fetch(namespace, id ident.ID, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error) {
+func (s replicatedSession) Fetch(
+	namespace, id ident.ID, startInclusive, endExclusive xtime.UnixNano,
+) (encoding.SeriesIterator, error) {
 	return s.session.Fetch(namespace, id, startInclusive, endExclusive)
 }
 
 // FetchIDs values from the database for a set of IDs.
-func (s replicatedSession) FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error) {
+func (s replicatedSession) FetchIDs(
+	namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive xtime.UnixNano,
+) (encoding.SeriesIterators, error) {
 	return s.session.FetchIDs(namespace, ids, startInclusive, endExclusive)
 }
 
 // Aggregate aggregates values from the database for the given set of constraints.
 func (s replicatedSession) Aggregate(
-	ns ident.ID, q index.Query, opts index.AggregationOptions,
+	ctx context.Context,
+	ns ident.ID,
+	q index.Query,
+	opts index.AggregationOptions,
 ) (AggregatedTagsIterator, FetchResponseMetadata, error) {
-	return s.session.Aggregate(ns, q, opts)
+	return s.session.Aggregate(ctx, ns, q, opts)
 }
 
 // FetchTagged resolves the provided query to known IDs, and fetches the data for them.
-func (s replicatedSession) FetchTagged(namespace ident.ID, q index.Query, opts index.QueryOptions) (encoding.SeriesIterators, FetchResponseMetadata, error) {
-	return s.session.FetchTagged(namespace, q, opts)
+func (s replicatedSession) FetchTagged(
+	ctx context.Context,
+	namespace ident.ID,
+	q index.Query,
+	opts index.QueryOptions,
+) (encoding.SeriesIterators, FetchResponseMetadata, error) {
+	return s.session.FetchTagged(ctx, namespace, q, opts)
 }
 
 // FetchTaggedIDs resolves the provided query to known IDs.
-func (s replicatedSession) FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (TaggedIDsIterator, FetchResponseMetadata, error) {
-	return s.session.FetchTaggedIDs(namespace, q, opts)
+func (s replicatedSession) FetchTaggedIDs(
+	ctx context.Context,
+	namespace ident.ID,
+	q index.Query,
+	opts index.QueryOptions,
+) (TaggedIDsIterator, FetchResponseMetadata, error) {
+	return s.session.FetchTaggedIDs(ctx, namespace, q, opts)
 }
 
 // ShardID returns the given shard for an ID for callers
@@ -294,7 +353,7 @@ func (s replicatedSession) Truncate(namespace ident.ID) (int64, error) {
 func (s replicatedSession) FetchBootstrapBlocksFromPeers(
 	namespace namespace.Metadata,
 	shard uint32,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	opts result.Options,
 ) (result.ShardResult, error) {
 	return s.session.FetchBootstrapBlocksFromPeers(namespace, shard, start, end, opts)
@@ -305,7 +364,7 @@ func (s replicatedSession) FetchBootstrapBlocksFromPeers(
 func (s replicatedSession) FetchBootstrapBlocksMetadataFromPeers(
 	namespace ident.ID,
 	shard uint32,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	result result.Options,
 ) (PeerBlockMetadataIter, error) {
 	return s.session.FetchBootstrapBlocksMetadataFromPeers(namespace, shard, start, end, result)
@@ -316,7 +375,7 @@ func (s replicatedSession) FetchBootstrapBlocksMetadataFromPeers(
 func (s replicatedSession) FetchBlocksMetadataFromPeers(
 	namespace ident.ID,
 	shard uint32,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	consistencyLevel topology.ReadConsistencyLevel,
 	result result.Options,
 ) (PeerBlockMetadataIter, error) {
@@ -333,6 +392,21 @@ func (s replicatedSession) FetchBlocksFromPeers(
 	opts result.Options,
 ) (PeerBlocksIter, error) {
 	return s.session.FetchBlocksFromPeers(namespace, shard, consistencyLevel, metadatas, opts)
+}
+
+func (s *replicatedSession) BorrowConnections(
+	shardID uint32,
+	fn WithBorrowConnectionFn,
+	opts BorrowConnectionOptions,
+) (BorrowConnectionsResult, error) {
+	return s.session.BorrowConnections(shardID, fn, opts)
+}
+
+func (s *replicatedSession) DedicatedConnection(
+	shardID uint32,
+	opts DedicatedConnectionOptions,
+) (rpc.TChanNode, Channel, error) {
+	return s.session.DedicatedConnection(shardID, opts)
 }
 
 // Open the client session.

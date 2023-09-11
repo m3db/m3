@@ -21,7 +21,6 @@
 package storage
 
 import (
-	"bytes"
 	"container/list"
 	"errors"
 	"fmt"
@@ -30,9 +29,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
-	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/generated/proto/pagetoken"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -40,23 +36,24 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
-	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/checked"
-	xclose "github.com/m3db/m3/src/x/close"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	xresource "github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/gogo/protobuf/proto"
@@ -71,24 +68,21 @@ const (
 )
 
 var (
-	errShardEntryNotFound                  = errors.New("shard entry not found")
-	errShardNotOpen                        = errors.New("shard is not open")
-	errShardAlreadyTicking                 = errors.New("shard is already ticking")
-	errShardClosingTickTerminated          = errors.New("shard is closing, terminating tick")
-	errShardInvalidPageToken               = errors.New("shard could not unmarshal page token")
-	errNewShardEntryTagsTypeInvalid        = errors.New("new shard entry options error: tags type invalid")
-	errNewShardEntryTagsIterNotAtIndexZero = errors.New("new shard entry options error: tags iter not at index zero")
-	errShardIsNotBootstrapped              = errors.New("shard is not bootstrapped")
-	errShardAlreadyBootstrapped            = errors.New("shard is already bootstrapped")
-	errFlushStateIsNotInitialized          = errors.New("shard flush state is not initialized")
-	errFlushStateAlreadyInitialized        = errors.New("shard flush state is already initialized")
-	errTriedToLoadNilSeries                = errors.New("tried to load nil series into shard")
+	errShardEntryNotFound         = errors.New("shard entry not found")
+	errShardNotOpen               = errors.New("shard is not open")
+	errShardAlreadyTicking        = errors.New("shard is already ticking")
+	errShardClosingTickTerminated = errors.New("shard is closing, terminating tick")
+	errShardInvalidPageToken      = errors.New("shard could not unmarshal page token")
+	errShardIsNotBootstrapped     = errors.New("shard is not bootstrapped")
+	errShardAlreadyBootstrapped   = errors.New("shard is already bootstrapped")
+	errFlushStateIsNotInitialized = errors.New("shard flush state is not initialized")
+	errTriedToLoadNilSeries       = errors.New("tried to load nil series into shard")
 
 	// ErrDatabaseLoadLimitHit is the error returned when the database load limit
 	// is hit or exceeded.
 	ErrDatabaseLoadLimitHit = errors.New("error loading series, database load limit hit")
 
-	emptyDoc = doc.Document{}
+	emptyDoc = doc.Metadata{}
 )
 
 type filesetsFn func(
@@ -101,7 +95,7 @@ type filesetPathsBeforeFn func(
 	filePathPrefix string,
 	namespace ident.ID,
 	shardID uint32,
-	t time.Time,
+	t xtime.UnixNano,
 ) ([]string, error)
 
 type tickPolicy int
@@ -117,42 +111,6 @@ const (
 	dbShardStateOpen dbShardState = iota
 	dbShardStateClosing
 )
-
-type tagsArgType uint
-
-const (
-	// nolint: varcheck, unused
-	tagsInvalidArg tagsArgType = iota
-	tagsIterArg
-	tagsArg
-)
-
-// tagsArgOptions is a union type that allows
-// callers to pass either an ident.TagIterator or
-// ident.Tags based on what access they have to
-type tagsArgOptions struct {
-	arg      tagsArgType
-	tagsIter ident.TagIterator
-	tags     ident.Tags
-}
-
-func newTagsIterArg(
-	tagsIter ident.TagIterator,
-) tagsArgOptions {
-	return tagsArgOptions{
-		arg:      tagsIterArg,
-		tagsIter: tagsIter,
-	}
-}
-
-func newTagsArg(
-	tags ident.Tags,
-) tagsArgOptions {
-	return tagsArgOptions{
-		arg:  tagsArg,
-		tags: tags,
-	}
-}
 
 type dbShard struct {
 	sync.RWMutex
@@ -178,18 +136,23 @@ type dbShard struct {
 	filesetPathsBeforeFn     filesetPathsBeforeFn
 	deleteFilesFn            deleteFilesFn
 	snapshotFilesFn          snapshotFilesFn
+	newReaderFn              fs.NewReaderFn
 	sleepFn                  func(time.Duration)
 	identifierPool           ident.Pool
 	contextPool              context.Pool
 	flushState               shardFlushState
 	tickWg                   *sync.WaitGroup
-	runtimeOptsListenClosers []xclose.SimpleCloser
+	runtimeOptsListenClosers []xresource.SimpleCloser
 	currRuntimeOptions       dbShardRuntimeOptions
 	logger                   *zap.Logger
 	metrics                  dbShardMetrics
+	tileAggregator           TileAggregator
 	ticking                  bool
 	shard                    uint32
 	coldWritesEnabled        bool
+	indexEnabled             bool
+
+	entryMetrics *EntryMetrics
 }
 
 // NB(r): dbShardRuntimeOptions does not contain its own
@@ -213,15 +176,15 @@ type dbShardMetrics struct {
 	insertAsyncWriteInternalErrors      tally.Counter
 	insertAsyncWriteInvalidParamsErrors tally.Counter
 	insertAsyncIndexErrors              tally.Counter
-	largeTilesWriteErrors               tally.Counter
 	snapshotTotalLatency                tally.Timer
-	snapshotCheckNeedsSnapshotLatency   tally.Timer
 	snapshotPrepareLatency              tally.Timer
 	snapshotMergeByBucketLatency        tally.Timer
 	snapshotMergeAcrossBucketsLatency   tally.Timer
 	snapshotChecksumLatency             tally.Timer
 	snapshotPersistLatency              tally.Timer
 	snapshotCloseLatency                tally.Timer
+
+	purgeUnexpectedRefCount tally.Counter
 }
 
 func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
@@ -251,24 +214,20 @@ func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
 			"error_type":    "reverse-index",
 			"suberror_type": "write-batch-error",
 		}).Counter(insertErrorName),
-		largeTilesWriteErrors: scope.Tagged(map[string]string{
-			"error_type":    "large-tiles",
-			"suberror_type": "write-error",
-		}).Counter(insertErrorName),
 		snapshotTotalLatency:              snapshotScope.Timer("total-latency"),
-		snapshotCheckNeedsSnapshotLatency: snapshotScope.Timer("check-needs-snapshot-latency"),
 		snapshotPrepareLatency:            snapshotScope.Timer("prepare-latency"),
 		snapshotMergeByBucketLatency:      snapshotScope.Timer("merge-by-bucket-latency"),
 		snapshotMergeAcrossBucketsLatency: snapshotScope.Timer("merge-across-buckets-latency"),
 		snapshotChecksumLatency:           snapshotScope.Timer("checksum-latency"),
 		snapshotPersistLatency:            snapshotScope.Timer("persist-latency"),
 		snapshotCloseLatency:              snapshotScope.Timer("close-latency"),
+		purgeUnexpectedRefCount:           scope.Counter("purge-unexpected-ref-count"),
 	}
 }
 
-type dbShardEntryWorkFn func(entry *lookup.Entry) bool
+type dbShardEntryWorkFn func(entry *Entry) bool
 
-type dbShardEntryBatchWorkFn func(entries []*lookup.Entry) bool
+type dbShardEntryBatchWorkFn func(entries []*Entry) bool
 
 type shardListElement *list.Element
 
@@ -276,16 +235,11 @@ type shardFlushState struct {
 	sync.RWMutex
 	statesByTime map[xtime.UnixNano]fileOpState
 	initialized  bool
-
-	// NB(bodu): Cache state on whether we snapshotted last or not to avoid
-	// going to disk to see if filesets are empty.
-	emptySnapshotOnDiskByTime map[xtime.UnixNano]bool
 }
 
 func newShardFlushState() shardFlushState {
 	return shardFlushState{
-		statesByTime:              make(map[xtime.UnixNano]fileOpState),
-		emptySnapshotOnDiskByTime: make(map[xtime.UnixNano]bool),
+		statesByTime: make(map[xtime.UnixNano]fileOpState),
 	}
 }
 
@@ -323,16 +277,20 @@ func newDatabaseShard(
 		deleteFilesFn:        fs.DeleteFiles,
 		snapshotFilesFn:      fs.SnapshotFiles,
 		sleepFn:              time.Sleep,
+		newReaderFn:          fs.NewReader,
 		identifierPool:       opts.IdentifierPool(),
 		contextPool:          opts.ContextPool(),
 		flushState:           newShardFlushState(),
 		tickWg:               &sync.WaitGroup{},
 		coldWritesEnabled:    namespaceMetadata.Options().ColdWritesEnabled(),
+		indexEnabled:         namespaceMetadata.Options().IndexOptions().Enabled(),
 		logger:               opts.InstrumentOptions().Logger(),
 		metrics:              newDatabaseShardMetrics(shard, scope),
+		tileAggregator:       opts.TileAggregator(),
+		entryMetrics:         NewEntryMetrics(scope.SubScope("entries")),
 	}
 	s.insertQueue = newDatabaseShardInsertQueue(s.insertSeriesBatch,
-		s.nowFn, scope, opts.InstrumentOptions().Logger())
+		s.nowFn, opts.CoreFn(), scope, opts.InstrumentOptions().Logger())
 
 	registerRuntimeOptionsListener := func(listener runtime.OptionsListener) {
 		elem := opts.RuntimeOptionsManager().RegisterListener(listener)
@@ -392,24 +350,39 @@ func (s *dbShard) NumSeries() int64 {
 func (s *dbShard) Stream(
 	ctx context.Context,
 	id ident.ID,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	onRetrieve block.OnRetrieveBlock,
 	nsCtx namespace.Context,
 ) (xio.BlockReader, error) {
-	return s.DatabaseBlockRetriever.Stream(ctx, s.shard, id, blockStart, onRetrieve, nsCtx)
+	return s.DatabaseBlockRetriever.Stream(ctx, s.shard, id,
+		blockStart, onRetrieve, nsCtx)
 }
 
 // IsBlockRetrievable implements series.QueryableBlockRetriever
-func (s *dbShard) IsBlockRetrievable(blockStart time.Time) (bool, error) {
+func (s *dbShard) IsBlockRetrievable(blockStart xtime.UnixNano) (bool, error) {
 	return s.hasWarmFlushed(blockStart)
 }
 
-func (s *dbShard) hasWarmFlushed(blockStart time.Time) (bool, error) {
+func (s *dbShard) hasWarmFlushed(blockStart xtime.UnixNano) (bool, error) {
 	flushState, err := s.FlushState(blockStart)
 	if err != nil {
 		return false, err
 	}
-	return statusIsRetrievable(flushState.WarmStatus), nil
+	return s.warmStatusIsRetrievable(flushState.WarmStatus), nil
+}
+
+func (s *dbShard) warmStatusIsRetrievable(status warmStatus) bool {
+	if !statusIsRetrievable(status.DataFlushed) {
+		return false
+	}
+
+	// If the index is disabled, then we only are tracking data flushing.
+	// Otherwise, warm status requires both data and index flushed.
+	if !s.indexEnabled {
+		return true
+	}
+
+	return statusIsRetrievable(status.IndexFlushed)
 }
 
 func statusIsRetrievable(status fileOpStatus) bool {
@@ -424,7 +397,7 @@ func statusIsRetrievable(status fileOpStatus) bool {
 }
 
 // RetrievableBlockColdVersion implements series.QueryableBlockRetriever
-func (s *dbShard) RetrievableBlockColdVersion(blockStart time.Time) (int, error) {
+func (s *dbShard) RetrievableBlockColdVersion(blockStart xtime.UnixNano) (int, error) {
 	flushState, err := s.FlushState(blockStart)
 	if err != nil {
 		return -1, err
@@ -458,7 +431,7 @@ func (s *dbShard) blockStatesSnapshotWithRLock() series.ShardBlockStateSnapshot 
 	snapshot := make(map[xtime.UnixNano]series.BlockState, len(s.flushState.statesByTime))
 	for time, state := range s.flushState.statesByTime {
 		snapshot[time] = series.BlockState{
-			WarmRetrievable: statusIsRetrievable(state.WarmStatus),
+			WarmRetrievable: s.warmStatusIsRetrievable(state.WarmStatus),
 			// Use ColdVersionRetrievable instead of ColdVersionFlushed since the snapshot
 			// will be used to make eviction decisions and we don't want to evict data before
 			// it is retrievable.
@@ -474,12 +447,12 @@ func (s *dbShard) blockStatesSnapshotWithRLock() series.ShardBlockStateSnapshot 
 func (s *dbShard) OnRetrieveBlock(
 	id ident.ID,
 	tags ident.TagIterator,
-	startTime time.Time,
+	startTime xtime.UnixNano,
 	segment ts.Segment,
 	nsCtx namespace.Context,
 ) {
 	s.RLock()
-	entry, _, err := s.lookupEntryWithLock(id)
+	entry, err := s.lookupEntryWithLock(id)
 	if entry != nil {
 		entry.IncrementReaderWriterCount()
 		defer entry.DecrementReaderWriterCount()
@@ -495,14 +468,14 @@ func (s *dbShard) OnRetrieveBlock(
 		return
 	}
 
-	entry, err = s.newShardEntry(id, newTagsIterArg(tags))
+	entry, err = s.newShardEntry(id, convert.NewTagsIterMetadataResolver(tags))
 	if err != nil {
 		// should never happen
 		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(),
 			func(logger *zap.Logger) {
 				logger.Error("unable to create shardEntry from retrieved block data",
 					zap.Stringer("id", id),
-					zap.Time("startTime", startTime),
+					zap.Time("startTime", startTime.ToTime()),
 					zap.Error(err))
 			})
 		return
@@ -531,9 +504,9 @@ func (s *dbShard) OnRetrieveBlock(
 	})
 }
 
-func (s *dbShard) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
+func (s *dbShard) OnEvictedFromWiredList(id ident.ID, blockStart xtime.UnixNano) {
 	s.RLock()
-	entry, _, err := s.lookupEntryWithLock(id)
+	entry, err := s.lookupEntryWithLock(id)
 	s.RUnlock()
 
 	if err != nil && err != errShardEntryNotFound {
@@ -557,8 +530,8 @@ func (s *dbShard) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 	entry.Series.OnEvictedFromWiredList(id, blockStart)
 }
 
-func (s *dbShard) forEachShardEntry(entryFn dbShardEntryWorkFn) error {
-	return s.forEachShardEntryBatch(func(currEntries []*lookup.Entry) bool {
+func (s *dbShard) forEachShardEntry(entryFn dbShardEntryWorkFn) {
+	s.forEachShardEntryBatch(func(currEntries []*Entry) bool {
 		for _, entry := range currEntries {
 			if continueForEach := entryFn(entry); !continueForEach {
 				return false
@@ -572,11 +545,11 @@ func iterateBatchSize(elemsLen int) int {
 	if elemsLen < shardIterateBatchMinSize {
 		return shardIterateBatchMinSize
 	}
-	t := math.Ceil(float64(shardIterateBatchPercent) * float64(elemsLen))
+	t := math.Ceil(shardIterateBatchPercent * float64(elemsLen))
 	return int(math.Max(shardIterateBatchMinSize, t))
 }
 
-func (s *dbShard) forEachShardEntryBatch(entriesBatchFn dbShardEntryBatchWorkFn) error {
+func (s *dbShard) forEachShardEntryBatch(entriesBatchFn dbShardEntryBatchWorkFn) {
 	// NB(r): consider using a lockless list for ticking.
 	s.RLock()
 	elemsLen := s.list.Len()
@@ -587,11 +560,11 @@ func (s *dbShard) forEachShardEntryBatch(entriesBatchFn dbShardEntryBatchWorkFn)
 		if e == nil {
 			return
 		}
-		e.Value.(*lookup.Entry).DecrementReaderWriterCount()
+		e.Value.(*Entry).DecrementReaderWriterCount()
 	}
 
 	var (
-		currEntries = make([]*lookup.Entry, 0, batchSize)
+		currEntries = make([]*Entry, 0, batchSize)
 		first       = true
 		nextElem    *list.Element
 	)
@@ -611,7 +584,7 @@ func (s *dbShard) forEachShardEntryBatch(entriesBatchFn dbShardEntryBatchWorkFn)
 		elem := nextElem
 		for ticked := 0; ticked < batchSize && elem != nil; ticked++ {
 			nextElem = elem.Next()
-			entry := elem.Value.(*lookup.Entry)
+			entry := elem.Value.(*Entry)
 			entry.IncrementReaderWriterCount()
 			currEntries = append(currEntries, entry)
 			elem = nextElem
@@ -620,7 +593,7 @@ func (s *dbShard) forEachShardEntryBatch(entriesBatchFn dbShardEntryBatchWorkFn)
 		// NB(prateek): inc a reference to the next element while we have a lock,
 		// to guarantee the element pointer cannot be changed from under us.
 		if nextElem != nil {
-			nextElem.Value.(*lookup.Entry).IncrementReaderWriterCount()
+			nextElem.Value.(*Entry).IncrementReaderWriterCount()
 		}
 		s.RUnlock()
 
@@ -632,11 +605,9 @@ func (s *dbShard) forEachShardEntryBatch(entriesBatchFn dbShardEntryBatchWorkFn)
 		currEntries = currEntries[:0]
 		if !continueExecution {
 			decRefElem(nextElem)
-			return nil
+			return
 		}
 	}
-
-	return nil
 }
 
 func (s *dbShard) IsBootstrapped() bool {
@@ -684,6 +655,10 @@ func (s *dbShard) Close() error {
 	return err
 }
 
+func (s *dbShard) Closed() bool {
+	return s.isClosing()
+}
+
 func (s *dbShard) isClosing() bool {
 	s.RLock()
 	closing := s.isClosingWithLock()
@@ -695,7 +670,7 @@ func (s *dbShard) isClosingWithLock() bool {
 	return s.state == dbShardStateClosing
 }
 
-func (s *dbShard) Tick(c context.Cancellable, startTime time.Time, nsCtx namespace.Context) (tickResult, error) {
+func (s *dbShard) Tick(c context.Cancellable, startTime xtime.UnixNano, nsCtx namespace.Context) (tickResult, error) {
 	s.removeAnyFlushStatesTooEarly(startTime)
 	return s.tickAndExpire(c, tickPolicyRegular, nsCtx)
 }
@@ -740,7 +715,7 @@ func (s *dbShard) tickAndExpire(
 		terminatedTickingDueToClosing bool
 		i                             int
 		slept                         time.Duration
-		expired                       []*lookup.Entry
+		expired                       []*Entry
 	)
 	s.RLock()
 	tickSleepBatch := s.currRuntimeOptions.tickSleepSeriesBatchSize
@@ -751,7 +726,7 @@ func (s *dbShard) tickAndExpire(
 	// future read lock attempts.
 	blockStates := s.blockStatesSnapshotWithRLock()
 	s.RUnlock()
-	s.forEachShardEntryBatch(func(currEntries []*lookup.Entry) bool {
+	s.forEachShardEntryBatch(func(currEntries []*Entry) bool {
 		// re-using `expired` to amortize allocs, still need to reset it
 		// to be safe for re-use.
 		for i := range expired {
@@ -835,10 +810,17 @@ func (s *dbShard) tickAndExpire(
 // Currently, this function is only called by the lambda inside `tickAndExpire`'s `forEachShardEntryBatch`
 // call. This satisfies the contract of all entries it operating upon being guaranteed to have a
 // readerWriterEntryCount of at least 1, by virtue of the implementation of `forEachShardEntryBatch`.
-func (s *dbShard) purgeExpiredSeries(expiredEntries []*lookup.Entry) {
+func (s *dbShard) purgeExpiredSeries(expiredEntries []*Entry) {
 	// Remove all expired series from lookup and list.
 	s.Lock()
 	for _, entry := range expiredEntries {
+		// Only purge series after they've been GCed from the index, so that these happen and in order
+		// and there is no raciness around GCing something from the index when the series has already
+		// been removed from memory.
+		if s.indexEnabled && !entry.IndexGarbageCollected.Load() {
+			continue
+		}
+
 		series := entry.Series
 		id := series.ID()
 		elem, exists := s.lookup.Get(id)
@@ -849,9 +831,14 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*lookup.Entry) {
 		count := entry.ReaderWriterCount()
 		// The contract requires all entries to have count >= 1.
 		if count < 1 {
-			s.logger.Error("purgeExpiredSeries encountered invalid series read/write count",
-				zap.String("series", series.ID().String()),
-				zap.Int32("readerWriterCount", count))
+			s.metrics.purgeUnexpectedRefCount.Inc(1)
+			instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l *zap.Logger) {
+				l.Error("purgeExpiredSeries encountered invalid series read/write count",
+					zap.Stringer("namespace", s.namespace.ID()),
+					zap.Uint32("shard", s.ID()),
+					zap.Stringer("series", series.ID()),
+					zap.Int32("readerWriterCount", count))
+			})
 			continue
 		}
 		// If this series is currently being written to or read from, we don't
@@ -864,6 +851,7 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*lookup.Entry) {
 		if !series.IsEmpty() {
 			continue
 		}
+
 		// NB(xichen): if we get here, we are guaranteed that there can be
 		// no more reads/writes to this series while the lock is held, so it's
 		// safe to remove it.
@@ -877,35 +865,35 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*lookup.Entry) {
 func (s *dbShard) WriteTagged(
 	ctx context.Context,
 	id ident.ID,
-	tags ident.TagIterator,
-	timestamp time.Time,
+	tagResolver convert.TagMetadataResolver,
+	timestamp xtime.UnixNano,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
 	wOpts series.WriteOptions,
 ) (SeriesWrite, error) {
-	return s.writeAndIndex(ctx, id, tags, timestamp,
+	return s.writeAndIndex(ctx, id, tagResolver, timestamp,
 		value, unit, annotation, wOpts, true)
 }
 
 func (s *dbShard) Write(
 	ctx context.Context,
 	id ident.ID,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
 	wOpts series.WriteOptions,
 ) (SeriesWrite, error) {
-	return s.writeAndIndex(ctx, id, ident.EmptyTagIterator, timestamp,
+	return s.writeAndIndex(ctx, id, convert.EmptyTagMetadataResolver, timestamp,
 		value, unit, annotation, wOpts, false)
 }
 
 func (s *dbShard) writeAndIndex(
 	ctx context.Context,
 	id ident.ID,
-	tags ident.TagIterator,
-	timestamp time.Time,
+	tagResolver convert.TagMetadataResolver,
+	timestamp xtime.UnixNano,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
@@ -913,7 +901,7 @@ func (s *dbShard) writeAndIndex(
 	shouldReverseIndex bool,
 ) (SeriesWrite, error) {
 	// Prepare write
-	entry, opts, err := s.tryRetrieveWritableSeries(id)
+	entry, opts, err := s.TryRetrieveSeriesAndIncrementReaderWriterCount(id)
 	if err != nil {
 		return SeriesWrite{}, err
 	}
@@ -921,9 +909,9 @@ func (s *dbShard) writeAndIndex(
 	writable := entry != nil
 
 	// If no entry and we are not writing new series asynchronously.
-	if !writable && !opts.writeNewSeriesAsync {
+	if !writable && !opts.WriteNewSeriesAsync {
 		// Avoid double lookup by enqueueing insert immediately.
-		result, err := s.insertSeriesAsyncBatched(id, tags, dbShardInsertAsyncOptions{
+		result, err := s.insertSeriesAsyncBatched(id, tagResolver, dbShardInsertAsyncOptions{
 			hasPendingIndexing: shouldReverseIndex,
 			pendingIndex: dbShardPendingIndex{
 				timestamp:  timestamp,
@@ -938,7 +926,7 @@ func (s *dbShard) writeAndIndex(
 		result.wg.Wait()
 
 		// Retrieve the inserted entry
-		entry, err = s.writableSeries(id, tags)
+		entry, err = s.writableSeries(id, tagResolver)
 		if err != nil {
 			return SeriesWrite{}, err
 		}
@@ -973,7 +961,7 @@ func (s *dbShard) writeAndIndex(
 		commitLogSeriesUniqueIndex = entry.Index
 		if err == nil && shouldReverseIndex {
 			if entry.NeedsIndexUpdate(s.reverseIndex.BlockStartForWriteTime(timestamp)) {
-				if !opts.writeNewSeriesAsync {
+				if !opts.WriteNewSeriesAsync {
 					return SeriesWrite{}, fmt.Errorf("to index async need write new series to be enabled")
 				}
 				needsIndex = true
@@ -997,7 +985,7 @@ func (s *dbShard) writeAndIndex(
 			annotationClone.AppendAll(annotation)
 		}
 
-		result, err := s.insertSeriesAsyncBatched(id, tags, dbShardInsertAsyncOptions{
+		result, err := s.insertSeriesAsyncBatched(id, tagResolver, dbShardInsertAsyncOptions{
 			hasPendingWrite: true,
 			pendingWrite: dbShardPendingWrite{
 				timestamp:  timestamp,
@@ -1012,7 +1000,7 @@ func (s *dbShard) writeAndIndex(
 		}
 
 		if shouldReverseIndex {
-			if !opts.writeNewSeriesAsync {
+			if !opts.WriteNewSeriesAsync {
 				return SeriesWrite{}, fmt.Errorf("to index async need write new series to be enabled")
 			}
 			needsIndex = true
@@ -1042,71 +1030,62 @@ func (s *dbShard) writeAndIndex(
 	}, nil
 }
 
-func (s *dbShard) SeriesReadWriteRef(
+func (s *dbShard) SeriesRefResolver(
 	id ident.ID,
 	tags ident.TagIterator,
-	opts ShardSeriesReadWriteRefOptions,
-) (SeriesReadWriteRef, error) {
+) (bootstrap.SeriesRefResolver, error) {
 	// Try retrieve existing series.
-	entry, _, err := s.tryRetrieveWritableSeries(id)
+	entry, err := s.retrieveWritableSeriesAndIncrementReaderWriterCount(id)
 	if err != nil {
-		return SeriesReadWriteRef{}, err
+		return nil, err
 	}
 
 	if entry != nil {
 		// The read/write ref is already incremented.
-		return SeriesReadWriteRef{
-			Series:              entry.Series,
-			Shard:               s.shard,
-			UniqueIndex:         entry.Index,
-			ReleaseReadWriteRef: entry,
-		}, nil
+		return entry, nil
 	}
 
-	// NB(r): Insert synchronously so caller has access to the series
-	// immediately, otherwise calls to LoadBlock(..) etc on the series itself
-	// may have no effect if a collision with the same series
-	// being put in the insert queue may cause a block to be loaded to a
-	// series which gets discarded.
-	// TODO(r): Probably can't insert series sync otherwise we stall a ton
-	// of writes... need a better solution for bootstrapping.
-	// This is what can cause writes to degrade during bootstrap if
-	// write lock is super contended.
-	// Having said that, now that writes are kept in a separate "bootstrap"
-	// buffer in the series itself to normal writes then merged at end of
-	// bootstrap it somewhat mitigates some lock contention since the shard
-	// lock is still contended but at least series writes due to commit log
-	// bootstrapping do not interrupt normal writes waiting for ability
-	// to write to an individual series.
-	at := s.nowFn()
-	entry, err = s.insertSeriesSync(id, newTagsIterArg(tags), insertSyncOptions{
-		insertType:      insertSyncIncReaderWriterCount,
-		hasPendingIndex: opts.ReverseIndex,
-		pendingIndex: dbShardPendingIndex{
-			timestamp:  at,
-			enqueuedAt: at,
+	entry, err = s.newShardEntry(id, convert.NewTagsIterMetadataResolver(tags))
+	if err != nil {
+		return nil, err
+	}
+
+	// Increment ref count to avoid expiration of the new entry just after adding it to the queue.
+	// It is possible that this entry does not end up as the one in the shard. Therefore, the resolver
+	// for this specific entry is responsible for closing, and there should always be one resolver
+	// responsible for the one that DOES end up in the shard.
+	entry.IncrementReaderWriterCount()
+
+	wg, err := s.insertQueue.Insert(dbShardInsert{
+		entry: entry,
+		opts: dbShardInsertAsyncOptions{
+			// skipRateLimit for true since this method is used by bootstrapping
+			// and should not be rate limited.
+			skipRateLimit: true,
+			// do not release entry ref during async write, because entry ref will be released when
+			// ReleaseRef() is called on bootstrap.SeriesRefResolver.
+			releaseEntryRef: false,
 		},
 	})
 	if err != nil {
-		return SeriesReadWriteRef{}, err
+		return nil, err
 	}
 
-	return SeriesReadWriteRef{
-		Series:              entry.Series,
-		Shard:               s.shard,
-		UniqueIndex:         entry.Index,
-		ReleaseReadWriteRef: entry,
-	}, nil
+	// Series will wait for the result to be batched together and inserted.
+	return NewSeriesResolver(
+		wg,
+		entry,
+		s.retrieveWritableSeriesAndIncrementReaderWriterCount), nil
 }
 
 func (s *dbShard) ReadEncoded(
 	ctx context.Context,
 	id ident.ID,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	nsCtx namespace.Context,
-) ([][]xio.BlockReader, error) {
+) (series.BlockReaderIter, error) {
 	s.RLock()
-	entry, _, err := s.lookupEntryWithLock(id)
+	entry, err := s.lookupEntryWithLock(id)
 	if entry != nil {
 		// NB(r): Ensure readers have consistent view of this series, do
 		// not expire the series while being read from.
@@ -1137,22 +1116,22 @@ func (s *dbShard) ReadEncoded(
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.
-func (s *dbShard) lookupEntryWithLock(id ident.ID) (*lookup.Entry, *list.Element, error) {
+func (s *dbShard) lookupEntryWithLock(id ident.ID) (*Entry, error) {
 	if s.state != dbShardStateOpen {
 		// NB(r): Return an invalid params error here so any upstream
 		// callers will not retry this operation
-		return nil, nil, xerrors.NewInvalidParamsError(errShardNotOpen)
+		return nil, xerrors.NewInvalidParamsError(errShardNotOpen)
 	}
 	elem, exists := s.lookup.Get(id)
 	if !exists {
-		return nil, nil, errShardEntryNotFound
+		return nil, errShardEntryNotFound
 	}
-	return elem.Value.(*lookup.Entry), elem, nil
+	return elem.Value.(*Entry), nil
 }
 
-func (s *dbShard) writableSeries(id ident.ID, tags ident.TagIterator) (*lookup.Entry, error) {
+func (s *dbShard) writableSeries(id ident.ID, tagResolver convert.TagMetadataResolver) (*Entry, error) {
 	for {
-		entry, _, err := s.tryRetrieveWritableSeries(id)
+		entry, err := s.retrieveWritableSeriesAndIncrementReaderWriterCount(id)
 		if entry != nil {
 			return entry, nil
 		}
@@ -1161,7 +1140,7 @@ func (s *dbShard) writableSeries(id ident.ID, tags ident.TagIterator) (*lookup.E
 		}
 
 		// Not inserted, attempt a batched insert
-		result, err := s.insertSeriesAsyncBatched(id, tags, dbShardInsertAsyncOptions{})
+		result, err := s.insertSeriesAsyncBatched(id, tagResolver, dbShardInsertAsyncOptions{})
 		if err != nil {
 			return nil, err
 		}
@@ -1171,20 +1150,25 @@ func (s *dbShard) writableSeries(id ident.ID, tags ident.TagIterator) (*lookup.E
 	}
 }
 
-type writableSeriesOptions struct {
-	writeNewSeriesAsync bool
+// WritableSeriesOptions defines writable series options.
+type WritableSeriesOptions struct {
+	// WriteNewSeriesAsync specifies if the series should be async written.
+	WriteNewSeriesAsync bool
 }
 
-func (s *dbShard) tryRetrieveWritableSeries(id ident.ID) (
-	*lookup.Entry,
-	writableSeriesOptions,
+// TryRetrieveSeriesAndIncrementReaderWriterCount attempts to retrieve a writable series.
+// This increments the reader/writer count and so should be decremented when the series
+// is no longer held.
+func (s *dbShard) TryRetrieveSeriesAndIncrementReaderWriterCount(id ident.ID) (
+	*Entry,
+	WritableSeriesOptions,
 	error,
 ) {
 	s.RLock()
-	opts := writableSeriesOptions{
-		writeNewSeriesAsync: s.currRuntimeOptions.writeNewSeriesAsync,
+	opts := WritableSeriesOptions{
+		WriteNewSeriesAsync: s.currRuntimeOptions.writeNewSeriesAsync,
 	}
-	if entry, _, err := s.lookupEntryWithLock(id); err == nil {
+	if entry, err := s.lookupEntryWithLock(id); err == nil {
 		entry.IncrementReaderWriterCount()
 		s.RUnlock()
 		return entry, opts, nil
@@ -1196,10 +1180,15 @@ func (s *dbShard) tryRetrieveWritableSeries(id ident.ID) (
 	return nil, opts, nil
 }
 
+func (s *dbShard) retrieveWritableSeriesAndIncrementReaderWriterCount(id ident.ID) (*Entry, error) {
+	entry, _, err := s.TryRetrieveSeriesAndIncrementReaderWriterCount(id)
+	return entry, err
+}
+
 func (s *dbShard) newShardEntry(
 	id ident.ID,
-	tagsArgOpts tagsArgOptions,
-) (*lookup.Entry, error) {
+	tagResolver convert.TagMetadataResolver,
+) (*Entry, error) {
 	// NB(r): As documented in storage/series.DatabaseSeries the series IDs
 	// and metadata are garbage collected, hence we cast the ID to a BytesID
 	// that can't be finalized.
@@ -1212,31 +1201,13 @@ func (s *dbShard) newShardEntry(
 	// Hence this stays on the storage/series.DatabaseSeries for when it needs
 	// to be re-indexed.
 	var (
-		seriesMetadata doc.Document
+		seriesMetadata doc.Metadata
 		err            error
 	)
-	switch tagsArgOpts.arg {
-	case tagsIterArg:
-		// NB(r): Rewind so we record the tag iterator from the beginning.
-		tagsIter := tagsArgOpts.tagsIter.Duplicate()
 
-		// Pass nil for the identifier pool because the pool will force us to use an array
-		// with a large capacity to store the tags. Since these tags are long-lived, it's
-		// better to allocate an array of the exact size to save memory.
-		seriesMetadata, err = convert.FromSeriesIDAndTagIter(id, tagsIter)
-		tagsIter.Close()
-		if err != nil {
-			return nil, err
-		}
-
-	case tagsArg:
-		seriesMetadata, err = convert.FromSeriesIDAndTags(id, tagsArgOpts.tags)
-		if err != nil {
-			return nil, err
-		}
-
-	default:
-		return nil, errNewShardEntryTagsTypeInvalid
+	seriesMetadata, err = tagResolver.Resolve(id)
+	if err != nil {
+		return nil, err
 	}
 
 	// Use the same bytes as the series metadata for the ID.
@@ -1253,7 +1224,14 @@ func (s *dbShard) newShardEntry(
 		OnEvictedFromWiredList: s,
 		Options:                s.seriesOpts,
 	})
-	return lookup.NewEntry(newSeries, uniqueIndex), nil
+	return NewEntry(NewEntryOptions{
+		Shard:        s,
+		Series:       newSeries,
+		Index:        uniqueIndex,
+		IndexWriter:  s.reverseIndex,
+		NowFn:        s.nowFn,
+		EntryMetrics: s.entryMetrics,
+	}), nil
 }
 
 type insertAsyncResult struct {
@@ -1262,15 +1240,15 @@ type insertAsyncResult struct {
 	// entry is not guaranteed to be the final entry
 	// inserted into the shard map in case there is already
 	// an existing entry waiting in the insert queue
-	entry *lookup.Entry
+	entry *Entry
 }
 
 func (s *dbShard) pendingIndexInsert(
-	entry *lookup.Entry,
-	timestamp time.Time,
+	entry *Entry,
+	timestamp xtime.UnixNano,
 ) writes.PendingIndexInsert {
 	// inc a ref on the entry to ensure it's valid until the queue acts upon it.
-	entry.OnIndexPrepare()
+	entry.OnIndexPrepare(s.reverseIndex.BlockStartForWriteTime(timestamp))
 	return writes.PendingIndexInsert{
 		Entry: index.WriteBatchEntry{
 			Timestamp:     timestamp,
@@ -1282,13 +1260,13 @@ func (s *dbShard) pendingIndexInsert(
 }
 
 func (s *dbShard) insertSeriesForIndexingAsyncBatched(
-	entry *lookup.Entry,
-	timestamp time.Time,
+	entry *Entry,
+	timestamp xtime.UnixNano,
 	async bool,
 ) error {
 	indexBlockStart := s.reverseIndex.BlockStartForWriteTime(timestamp)
 	// inc a ref on the entry to ensure it's valid until the queue acts upon it.
-	entry.OnIndexPrepare()
+	entry.OnIndexPrepare(indexBlockStart)
 	wg, err := s.insertQueue.Insert(dbShardInsert{
 		entry: entry,
 		opts: dbShardInsertAsyncOptions{
@@ -1302,10 +1280,9 @@ func (s *dbShard) insertSeriesForIndexingAsyncBatched(
 			},
 			// indicate we already have inc'd the entry's ref count, so we can correctly
 			// handle the ref counting semantics in `insertSeriesBatch`.
-			entryRefCountIncremented: true,
+			releaseEntryRef: true,
 		},
 	})
-
 	// i.e. unable to enqueue into shard insert queue
 	if err != nil {
 		entry.OnIndexFinalize(indexBlockStart) // release any reference's we've held for indexing
@@ -1329,10 +1306,10 @@ func (s *dbShard) insertSeriesForIndexingAsyncBatched(
 
 func (s *dbShard) insertSeriesAsyncBatched(
 	id ident.ID,
-	tags ident.TagIterator,
+	tagResolver convert.TagMetadataResolver,
 	opts dbShardInsertAsyncOptions,
 ) (insertAsyncResult, error) {
-	entry, err := s.newShardEntry(id, newTagsIterArg(tags))
+	entry, err := s.newShardEntry(id, tagResolver)
 	if err != nil {
 		return insertAsyncResult{}, err
 	}
@@ -1365,12 +1342,12 @@ type insertSyncOptions struct {
 
 func (s *dbShard) insertSeriesSync(
 	id ident.ID,
-	tagsArgOpts tagsArgOptions,
+	tagResolver convert.TagMetadataResolver,
 	opts insertSyncOptions,
-) (*lookup.Entry, error) {
+) (*Entry, error) {
 	// NB(r): Create new shard entry outside of write lock to reduce
 	// time using write lock.
-	newEntry, err := s.newShardEntry(id, tagsArgOpts)
+	newEntry, err := s.newShardEntry(id, tagResolver)
 	if err != nil {
 		// should never happen
 		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(),
@@ -1390,7 +1367,7 @@ func (s *dbShard) insertSeriesSync(
 		}
 	}()
 
-	existingEntry, _, err := s.lookupEntryWithLock(id)
+	existingEntry, err := s.lookupEntryWithLock(id)
 	if err != nil && err != errShardEntryNotFound {
 		// Shard not taking inserts likely.
 		return nil, err
@@ -1432,7 +1409,7 @@ func (s *dbShard) insertSeriesSync(
 	return newEntry, nil
 }
 
-func (s *dbShard) insertNewShardEntryWithLock(entry *lookup.Entry) {
+func (s *dbShard) insertNewShardEntryWithLock(entry *Entry) {
 	// Set the lookup value, we use the copied ID and since it is GC'd
 	// we explicitly set it with options to not copy the key and not to
 	// finalize it.
@@ -1442,6 +1419,7 @@ func (s *dbShard) insertNewShardEntryWithLock(entry *lookup.Entry) {
 		NoCopyKey:     true,
 		NoFinalizeKey: true,
 	})
+	entry.SetInsertTime(s.nowFn())
 }
 
 func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
@@ -1467,7 +1445,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 		// we don't need to inc the entry ref count if we already have a ref on the entry. check if
 		// that's the case.
-		if inserts[i].opts.entryRefCountIncremented {
+		if inserts[i].opts.releaseEntryRef {
 			// don't need to inc a ref on the entry, we were given as writable entry as input.
 			continue
 		}
@@ -1475,7 +1453,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		// i.e. we don't have a ref on provided entry, so we check if between the operation being
 		// enqueue in the shard insert queue, and this function executing, an entry was created
 		// for the same ID.
-		entry, _, err := s.lookupEntryWithLock(inserts[i].entry.Series.ID())
+		entry, err := s.lookupEntryWithLock(inserts[i].entry.Series.ID())
 		if entry != nil {
 			// Already exists so update the entry we're pointed at for this insert.
 			inserts[i].entry = entry
@@ -1486,7 +1464,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			// visible before we release the lookup write lock.
 			inserts[i].entry.IncrementReaderWriterCount()
 			// also indicate that we have a ref count on this entry for this operation.
-			inserts[i].opts.entryRefCountIncremented = true
+			inserts[i].opts.releaseEntryRef = true
 		}
 
 		if err == nil {
@@ -1525,7 +1503,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 	for i := range inserts {
 		var (
 			entry           = inserts[i].entry
-			releaseEntryRef = inserts[i].opts.entryRefCountIncremented
+			releaseEntryRef = inserts[i].opts.releaseEntryRef
 			err             error
 		)
 
@@ -1562,8 +1540,8 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		if inserts[i].opts.hasPendingIndexing {
 			pendingIndex := inserts[i].opts.pendingIndex
 			// increment the ref on the entry, as the original one was transferred to the
-			// this method (insertSeriesBatch) via `entryRefCountIncremented` mechanism.
-			entry.OnIndexPrepare()
+			// this method (insertSeriesBatch) via `releaseEntryRef` mechanism.
+			entry.OnIndexPrepare(s.reverseIndex.BlockStartForWriteTime(pendingIndex.timestamp))
 
 			writeBatchEntry := index.WriteBatchEntry{
 				Timestamp:     pendingIndex.timestamp,
@@ -1581,7 +1559,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 		// Entries in the shard insert queue are either of:
 		// - new entries
-		// - existing entries that we've taken a ref on (marked as entryRefCountIncremented)
+		// - existing entries that we've taken a ref on (marked as releaseEntryRef)
 		if releaseEntryRef {
 			entry.DecrementReaderWriterCount()
 		}
@@ -1605,11 +1583,11 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 func (s *dbShard) FetchBlocks(
 	ctx context.Context,
 	id ident.ID,
-	starts []time.Time,
+	starts []xtime.UnixNano,
 	nsCtx namespace.Context,
 ) ([]block.FetchBlockResult, error) {
 	s.RLock()
-	entry, _, err := s.lookupEntryWithLock(id)
+	entry, err := s.lookupEntryWithLock(id)
 	if entry != nil {
 		// NB(r): Ensure readers have consistent view of this series, do
 		// not expire the series while being read from.
@@ -1645,12 +1623,12 @@ func (s *dbShard) FetchBlocks(
 func (s *dbShard) FetchBlocksForColdFlush(
 	ctx context.Context,
 	seriesID ident.ID,
-	start time.Time,
+	start xtime.UnixNano,
 	version int,
 	nsCtx namespace.Context,
 ) (block.FetchBlockResult, error) {
 	s.RLock()
-	entry, _, err := s.lookupEntryWithLock(seriesID)
+	entry, err := s.lookupEntryWithLock(seriesID)
 	s.RUnlock()
 	if entry == nil || err != nil {
 		return block.FetchBlockResult{}, err
@@ -1661,7 +1639,7 @@ func (s *dbShard) FetchBlocksForColdFlush(
 
 func (s *dbShard) fetchActiveBlocksMetadata(
 	ctx context.Context,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	limit int64,
 	indexCursor int64,
 	opts series.FetchBlocksMetadataOptions,
@@ -1673,7 +1651,7 @@ func (s *dbShard) fetchActiveBlocksMetadata(
 	)
 
 	var loopErr error
-	s.forEachShardEntry(func(entry *lookup.Entry) bool {
+	s.forEachShardEntry(func(entry *Entry) bool {
 		// Break out of the iteration loop once we've accumulated enough entries.
 		if int64(len(res.Results())) >= limit {
 			next := int64(entry.Index)
@@ -1717,7 +1695,7 @@ func (s *dbShard) fetchActiveBlocksMetadata(
 
 func (s *dbShard) FetchBlocksMetadataV2(
 	ctx context.Context,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	limit int64,
 	encodedPageToken PageToken,
 	opts block.FetchBlocksMetadataOptions,
@@ -1805,17 +1783,18 @@ func (s *dbShard) FetchBlocksMetadataV2(
 		blockSize = ropts.BlockSize()
 		// Subtract one blocksize because all fetch requests are exclusive on the end side.
 		blockStart      = end.Truncate(blockSize).Add(-1 * blockSize)
-		tokenBlockStart time.Time
+		now             = xtime.ToUnixNano(s.nowFn())
+		tokenBlockStart xtime.UnixNano
 		numResults      int64
 	)
 	if flushedPhase.CurrBlockStartUnixNanos > 0 {
-		tokenBlockStart = time.Unix(0, flushedPhase.CurrBlockStartUnixNanos)
+		tokenBlockStart = xtime.UnixNano(flushedPhase.CurrBlockStartUnixNanos)
 		blockStart = tokenBlockStart
 	}
 
 	// Work backwards while in requested range and not before retention.
 	for !blockStart.Before(start) &&
-		!blockStart.Before(retention.FlushTimeStart(ropts, s.nowFn())) {
+		!blockStart.Before(retention.FlushTimeStart(ropts, now)) {
 		exists, err := s.namespaceReaderMgr.filesetExistsAt(s.shard, blockStart)
 		if err != nil {
 			return nil, nil, err
@@ -1838,7 +1817,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 
 			// Do not need to check if we move onto the next block that it matches
 			// the token's block start on next iteration.
-			tokenBlockStart = time.Time{}
+			tokenBlockStart = 0
 
 			pos.metadataIdx = int(flushedPhase.CurrBlockEntryIdx)
 			pos.volume = int(flushedPhase.Volume)
@@ -1909,7 +1888,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 			// We hit the limit, return results with page token.
 			token = &pagetoken.PageToken{
 				FlushedSeriesPhase: &pagetoken.PageToken_FlushedSeriesPhase{
-					CurrBlockStartUnixNanos: blockStart.UnixNano(),
+					CurrBlockStartUnixNanos: int64(blockStart),
 					CurrBlockEntryIdx:       endPos,
 					Volume:                  volume,
 				},
@@ -1918,7 +1897,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 			if err != nil {
 				return nil, nil, err
 			}
-			return result, PageToken(data), nil
+			return result, data, nil
 		}
 
 		// Otherwise we move on to the previous block.
@@ -1980,10 +1959,11 @@ func (s *dbShard) UpdateFlushStates() {
 		}
 
 		info := result.Info
-		at := xtime.FromNanoseconds(info.BlockStart)
+		at := xtime.UnixNano(info.BlockStart)
 		currState := s.flushStateNoBootstrapCheck(at)
-		if currState.WarmStatus != fileOpSuccess {
-			s.markWarmFlushStateSuccess(at)
+
+		if currState.WarmStatus.DataFlushed != fileOpSuccess {
+			s.markWarmDataFlushStateSuccess(at)
 		}
 
 		// Cold version needs to get bootstrapped so that the 1:1 relationship
@@ -1996,6 +1976,27 @@ func (s *dbShard) UpdateFlushStates() {
 		if currState.ColdVersionRetrievable < info.VolumeIndex {
 			s.setFlushStateColdVersionRetrievable(at, info.VolumeIndex)
 			s.setFlushStateColdVersionFlushed(at, info.VolumeIndex)
+		}
+	}
+
+	// Populate index flush state only if enabled.
+	if !s.indexEnabled {
+		return
+	}
+
+	blockSize := s.namespace.Options().RetentionOptions().BlockSize()
+	indexBlockSize := s.namespace.Options().IndexOptions().BlockSize()
+
+	indexFlushedBlockStarts := s.reverseIndex.WarmFlushBlockStarts()
+	for _, blockStart := range indexFlushedBlockStarts {
+		// Index block size is wider than data block size, so we want to set all data blockStarts
+		// within the range of a given index blockStart
+		blockEnd := blockStart.Add(indexBlockSize)
+		for at := blockStart; at < blockEnd; at = at.Add(blockSize) {
+			currState := s.flushStateNoBootstrapCheck(at)
+			if currState.WarmStatus.IndexFlushed != fileOpSuccess {
+				s.markWarmIndexFlushStateSuccess(at)
+			}
 		}
 	}
 }
@@ -2038,7 +2039,7 @@ func (s *dbShard) Bootstrap(
 	}
 
 	// Move any bootstrap buffers into position for reading.
-	s.forEachShardEntry(func(entry *lookup.Entry) bool {
+	s.forEachShardEntry(func(entry *Entry) bool {
 		if err := entry.Series.Bootstrap(nsCtx); err != nil {
 			multiErr = multiErr.Add(err)
 		}
@@ -2114,14 +2115,14 @@ func (s *dbShard) loadBlock(
 	)
 
 	// First lookup if series already exists.
-	entry, shardOpts, err := s.tryRetrieveWritableSeries(id)
+	entry, shardOpts, err := s.TryRetrieveSeriesAndIncrementReaderWriterCount(id)
 	if err != nil && err != errShardEntryNotFound {
 		return result, err
 	}
 	if entry == nil {
 		// Synchronously insert to avoid waiting for the insert queue which could potentially
 		// delay the insert.
-		entry, err = s.insertSeriesSync(id, newTagsArg(tags),
+		entry, err = s.insertSeriesSync(id, convert.NewTagsMetadataResolver(tags),
 			insertSyncOptions{
 				// NB(r): Because insertSyncIncReaderWriterCount is used here we
 				// don't need to explicitly increment the reader/writer count and it
@@ -2170,7 +2171,7 @@ func (s *dbShard) loadBlock(
 	if s.reverseIndex != nil &&
 		entry.NeedsIndexUpdate(s.reverseIndex.BlockStartForWriteTime(timestamp)) {
 		err = s.insertSeriesForIndexingAsyncBatched(entry, timestamp,
-			shardOpts.writeNewSeriesAsync)
+			shardOpts.WriteNewSeriesAsync)
 		if err != nil {
 			return result, err
 		}
@@ -2200,7 +2201,7 @@ func (s *dbShard) cacheShardIndices() error {
 }
 
 func (s *dbShard) WarmFlush(
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	flushPreparer persist.FlushPreparer,
 	nsCtx namespace.Context,
 ) error {
@@ -2228,14 +2229,14 @@ func (s *dbShard) WarmFlush(
 	}
 	prepared, err := flushPreparer.PrepareData(prepareOpts)
 	if err != nil {
-		return s.markWarmFlushStateSuccessOrError(blockStart, err)
+		return err
 	}
 
 	var multiErr xerrors.MultiError
 	flushCtx := s.contextPool.Get() // From pool so finalizers are from pool.
 
 	flushResult := dbShardFlushResult{}
-	s.forEachShardEntry(func(entry *lookup.Entry) bool {
+	s.forEachShardEntry(func(entry *Entry) bool {
 		curr := entry.Series
 		// Use a temporary context here so the stream readers can be returned to
 		// the pool after we finish fetching flushing the series.
@@ -2262,14 +2263,14 @@ func (s *dbShard) WarmFlush(
 		multiErr = multiErr.Add(err)
 	}
 
-	return s.markWarmFlushStateSuccessOrError(blockStart, multiErr.FinalError())
+	return s.markWarmDataFlushStateSuccessOrError(blockStart, multiErr.FinalError())
 }
 
 func (s *dbShard) ColdFlush(
 	flushPreparer persist.FlushPreparer,
-	resources coldFlushReuseableResources,
+	resources coldFlushReusableResources,
 	nsCtx namespace.Context,
-	onFlush persist.OnFlushSeries,
+	onFlushSeries persist.OnFlushSeries,
 ) (ShardColdFlush, error) {
 	// We don't flush data when the shard is still bootstrapping.
 	s.RLock()
@@ -2301,7 +2302,7 @@ func (s *dbShard) ColdFlush(
 	)
 	// First, loop through all series to capture data on which blocks have dirty
 	// series and add them to the resources for further processing.
-	s.forEachShardEntry(func(entry *lookup.Entry) bool {
+	s.forEachShardEntry(func(entry *Entry) bool {
 		curr := entry.Series
 		seriesMetadata := curr.Metadata()
 		blockStarts := curr.ColdFlushBlockStarts(blockStatesSnapshot)
@@ -2309,7 +2310,7 @@ func (s *dbShard) ColdFlush(
 			// Cold flushes can only happen on blockStarts that have been
 			// warm flushed, because warm flush logic does not currently
 			// perform any merging logic.
-			hasWarmFlushed, err := s.hasWarmFlushed(t.ToTime())
+			hasWarmFlushed, err := s.hasWarmFlushed(t)
 			if err != nil {
 				loopErrLock.Lock()
 				loopErr = err
@@ -2359,8 +2360,7 @@ func (s *dbShard) ColdFlush(
 	// Loop through each block that we know has ColdWrites. Since each block
 	// has its own fileset, if we encounter an error while trying to persist
 	// a block, we continue to try persisting other blocks.
-	for blockStart := range dirtySeriesToWrite {
-		startTime := blockStart.ToTime()
+	for startTime := range dirtySeriesToWrite {
 		coldVersion, err := s.RetrievableBlockColdVersion(startTime)
 		if err != nil {
 			multiErr = multiErr.Add(err)
@@ -2375,7 +2375,8 @@ func (s *dbShard) ColdFlush(
 		}
 
 		nextVersion := coldVersion + 1
-		close, err := merger.Merge(fsID, mergeWithMem, nextVersion, flushPreparer, nsCtx, onFlush)
+		close, err := merger.Merge(fsID, mergeWithMem, nextVersion, flushPreparer, nsCtx,
+			onFlushSeries)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 			continue
@@ -2389,48 +2390,52 @@ func (s *dbShard) ColdFlush(
 	return flush, multiErr.FinalError()
 }
 
+func (s *dbShard) FilterBlocksNeedSnapshot(blockStarts []xtime.UnixNano) []xtime.UnixNano {
+	if !s.IsBootstrapped() {
+		return nil
+	}
+
+	needs := map[xtime.UnixNano]struct{}{}
+	s.forEachShardEntry(func(entry *Entry) bool {
+		entry.Series.MarkNonEmptyBlocks(needs)
+		if len(needs) < len(blockStarts) {
+			return true
+		}
+		// Note: entries.Series might have non empty blocks that are not contained in blockStarts.
+		// This prevents usage of len(needs) < len(blockStarts) as early exit criteria.
+		for _, bl := range blockStarts {
+			if _, ok := needs[bl]; !ok {
+				return true
+			}
+		}
+		return false
+	})
+
+	// Note: doing this to keep original ordering. Not sure if that matters though.
+	filtered := make([]xtime.UnixNano, 0, len(needs))
+	for _, bl := range blockStarts {
+		if _, ok := needs[bl]; ok {
+			filtered = append(filtered, bl)
+		}
+	}
+	return filtered
+}
+
 func (s *dbShard) Snapshot(
-	blockStart time.Time,
-	snapshotTime time.Time,
+	blockStart xtime.UnixNano,
+	snapshotTime xtime.UnixNano,
 	snapshotPreparer persist.SnapshotPreparer,
 	nsCtx namespace.Context,
 ) (ShardSnapshotResult, error) {
 	// We don't snapshot data when the shard is still bootstrapping
-	s.RLock()
-	if s.bootstrapState != Bootstrapped {
-		s.RUnlock()
+	if !s.IsBootstrapped() {
 		return ShardSnapshotResult{}, errShardNotBootstrappedToSnapshot
 	}
-
-	s.RUnlock()
 
 	// Record per-shard snapshot latency, not many shards so safe
 	// to use a timer.
 	totalTimer := s.metrics.snapshotTotalLatency.Start()
 	defer totalTimer.Stop()
-
-	var needsSnapshot bool
-	checkNeedsSnapshotTimer := s.metrics.snapshotCheckNeedsSnapshotLatency.Start()
-	s.forEachShardEntry(func(entry *lookup.Entry) bool {
-		if !entry.Series.IsBufferEmptyAtBlockStart(blockStart) {
-			needsSnapshot = true
-			return false
-		}
-		return true
-	})
-	checkNeedsSnapshotTimer.Stop()
-
-	// Only terminate early when we would be over-writing an empty snapshot fileset on disk.
-	// TODO(bodu): We could bootstrap empty snapshot state in the bs path to avoid doing extra
-	// snapshotting work after a bootstrap since this cached state gets cleared.
-	s.flushState.RLock()
-	// NB(bodu): This always defaults to false if the record does not exist.
-	emptySnapshotOnDisk := s.flushState.emptySnapshotOnDiskByTime[xtime.ToUnixNano(blockStart)]
-	s.flushState.RUnlock()
-
-	if !needsSnapshot && emptySnapshotOnDisk {
-		return ShardSnapshotResult{}, nil
-	}
 
 	prepareOpts := persist.DataPrepareOptions{
 		NamespaceMetadata: s.namespace,
@@ -2459,7 +2464,7 @@ func (s *dbShard) Snapshot(
 		stats       series.SnapshotResultStats
 		multiErr    xerrors.MultiError
 	)
-	s.forEachShardEntry(func(entry *lookup.Entry) bool {
+	s.forEachShardEntry(func(entry *Entry) bool {
 		series := entry.Series
 		// Use a temporary context here so the stream readers can be returned to
 		// pool after we finish fetching flushing the series
@@ -2499,25 +2504,12 @@ func (s *dbShard) Snapshot(
 		return ShardSnapshotResult{}, err
 	}
 
-	// Only update cached snapshot state if we successfully flushed data to disk.
-	s.flushState.Lock()
-	if needsSnapshot {
-		s.flushState.emptySnapshotOnDiskByTime[xtime.ToUnixNano(blockStart)] = false
-	} else {
-		// NB(bodu): If we flushed an empty snapshot to disk, it means that the previous
-		// snapshot on disk was not empty (or we just bootstrapped and cached state was lost).
-		// The snapshot we just flushed may or may not have data, although whatever data we flushed
-		// would be recoverable from the rotate commit log as well.
-		s.flushState.emptySnapshotOnDiskByTime[xtime.ToUnixNano(blockStart)] = true
-	}
-	s.flushState.Unlock()
-
 	return ShardSnapshotResult{
 		SeriesPersist: persist,
 	}, nil
 }
 
-func (s *dbShard) FlushState(blockStart time.Time) (fileOpState, error) {
+func (s *dbShard) FlushState(blockStart xtime.UnixNano) (fileOpState, error) {
 	s.flushState.RLock()
 	initialized := s.flushState.initialized
 	state := s.flushStateWithRLock(blockStart)
@@ -2530,85 +2522,107 @@ func (s *dbShard) FlushState(blockStart time.Time) (fileOpState, error) {
 	return state, nil
 }
 
-func (s *dbShard) flushStateNoBootstrapCheck(blockStart time.Time) fileOpState {
+func (s *dbShard) flushStateNoBootstrapCheck(blockStart xtime.UnixNano) fileOpState {
 	s.flushState.RLock()
 	check := s.flushStateWithRLock(blockStart)
 	s.flushState.RUnlock()
 	return check
 }
 
-func (s *dbShard) flushStateWithRLock(blockStart time.Time) fileOpState {
-	state, ok := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
+func (s *dbShard) flushStateWithRLock(blockStart xtime.UnixNano) fileOpState {
+	state, ok := s.flushState.statesByTime[blockStart]
 	if !ok {
-		return fileOpState{WarmStatus: fileOpNotStarted}
+		return fileOpState{WarmStatus: warmStatus{
+			DataFlushed:  fileOpNotStarted,
+			IndexFlushed: fileOpNotStarted,
+		}}
 	}
 	return state
 }
 
-func (s *dbShard) markWarmFlushStateSuccessOrError(blockStart time.Time, err error) error {
+func (s *dbShard) markWarmDataFlushStateSuccessOrError(blockStart xtime.UnixNano, err error) error {
 	// Track flush state for block state
 	if err == nil {
-		s.markWarmFlushStateSuccess(blockStart)
+		s.markWarmDataFlushStateSuccess(blockStart)
 	} else {
-		s.markWarmFlushStateFail(blockStart)
+		s.markWarmDataFlushStateFail(blockStart)
 	}
 	return err
 }
 
-func (s *dbShard) markWarmFlushStateSuccess(blockStart time.Time) {
+func (s *dbShard) markWarmDataFlushStateSuccess(blockStart xtime.UnixNano) {
 	s.flushState.Lock()
-	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] =
-		fileOpState{
-			WarmStatus: fileOpSuccess,
-		}
+	state := s.flushState.statesByTime[blockStart]
+	state.WarmStatus.DataFlushed = fileOpSuccess
+	s.flushState.statesByTime[blockStart] = state
 	s.flushState.Unlock()
 }
 
-func (s *dbShard) markWarmFlushStateFail(blockStart time.Time) {
+func (s *dbShard) markWarmDataFlushStateFail(blockStart xtime.UnixNano) {
 	s.flushState.Lock()
-	state := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
-	state.WarmStatus = fileOpFailed
+	state := s.flushState.statesByTime[blockStart]
+	state.WarmStatus.DataFlushed = fileOpFailed
 	state.NumFailures++
-	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = state
+	s.flushState.statesByTime[blockStart] = state
 	s.flushState.Unlock()
 }
 
-func (s *dbShard) incrementFlushStateFailures(blockStart time.Time) {
+// MarkWarmIndexFlushStateSuccessOrError marks the blockStart as
+// success or fail based on the provided err.
+func (s *dbShard) MarkWarmIndexFlushStateSuccessOrError(blockStart xtime.UnixNano, err error) {
+	// Track flush state for block state
+	if err == nil {
+		s.markWarmIndexFlushStateSuccess(blockStart)
+	} else {
+		s.markWarmIndexFlushStateFail(blockStart)
+	}
+}
+
+func (s *dbShard) markWarmIndexFlushStateSuccess(blockStart xtime.UnixNano) {
 	s.flushState.Lock()
-	state := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
+	state := s.flushState.statesByTime[blockStart]
+	state.WarmStatus.IndexFlushed = fileOpSuccess
+	s.flushState.statesByTime[blockStart] = state
+	s.flushState.Unlock()
+}
+
+func (s *dbShard) markWarmIndexFlushStateFail(blockStart xtime.UnixNano) {
+	s.flushState.Lock()
+	state := s.flushState.statesByTime[blockStart]
+	state.WarmStatus.IndexFlushed = fileOpFailed
 	state.NumFailures++
-	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = state
+	s.flushState.statesByTime[blockStart] = state
 	s.flushState.Unlock()
 }
 
-func (s *dbShard) setFlushStateColdVersionRetrievable(blockStart time.Time, version int) {
+func (s *dbShard) setFlushStateColdVersionRetrievable(blockStart xtime.UnixNano, version int) {
 	s.flushState.Lock()
-	state := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
+	state := s.flushState.statesByTime[blockStart]
 	state.ColdVersionRetrievable = version
-	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = state
+	s.flushState.statesByTime[blockStart] = state
 	s.flushState.Unlock()
 }
 
-func (s *dbShard) setFlushStateColdVersionFlushed(blockStart time.Time, version int) {
+func (s *dbShard) setFlushStateColdVersionFlushed(blockStart xtime.UnixNano, version int) {
 	s.flushState.Lock()
-	state := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
+	state := s.flushState.statesByTime[blockStart]
 	state.ColdVersionFlushed = version
-	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = state
+	s.flushState.statesByTime[blockStart] = state
 	s.flushState.Unlock()
 }
 
-func (s *dbShard) removeAnyFlushStatesTooEarly(startTime time.Time) {
+func (s *dbShard) removeAnyFlushStatesTooEarly(startTime xtime.UnixNano) {
 	s.flushState.Lock()
 	earliestFlush := retention.FlushTimeStart(s.namespace.Options().RetentionOptions(), startTime)
 	for t := range s.flushState.statesByTime {
-		if t.ToTime().Before(earliestFlush) {
+		if t.Before(earliestFlush) {
 			delete(s.flushState.statesByTime, t)
 		}
 	}
 	s.flushState.Unlock()
 }
 
-func (s *dbShard) CleanupExpiredFileSets(earliestToRetain time.Time) error {
+func (s *dbShard) CleanupExpiredFileSets(earliestToRetain xtime.UnixNano) error {
 	filePathPrefix := s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	expired, err := s.filesetPathsBeforeFn(filePathPrefix, s.namespace.ID(), s.ID(), earliestToRetain)
 	if err != nil {
@@ -2639,7 +2653,7 @@ func (s *dbShard) CleanupCompactedFileSets() error {
 	toDelete := fs.FileSetFilesSlice(make([]fs.FileSetFile, 0, len(filesets)))
 	for _, datafile := range filesets {
 		fileID := datafile.ID
-		blockState := blockStatesSnapshot.Snapshot[xtime.ToUnixNano(fileID.BlockStart)]
+		blockState := blockStatesSnapshot.Snapshot[fileID.BlockStart]
 		if fileID.VolumeIndex < blockState.ColdVersion {
 			toDelete = append(toDelete, datafile)
 		}
@@ -2660,74 +2674,39 @@ func (s *dbShard) Repair(
 
 func (s *dbShard) AggregateTiles(
 	ctx context.Context,
-	reader fs.DataFileSetReader,
-	sourceNsID ident.ID,
-	sourceBlockStart time.Time,
-	sourceShard databaseShard,
+	sourceNs, targetNs Namespace,
+	shardID uint32,
+	onFlushSeries persist.OnFlushSeries,
 	opts AggregateTilesOptions,
-	wOpts series.WriteOptions,
 ) (int64, error) {
-	latestSourceVolume, err := sourceShard.latestVolume(sourceBlockStart)
+	var multiErr xerrors.MultiError
+
+	processedTileCount, nextVolume, err := s.tileAggregator.AggregateTiles(
+		ctx, sourceNs, targetNs, shardID, onFlushSeries, opts)
 	if err != nil {
+		// NB: cannot return on the error here, must finish writing.
+		multiErr = multiErr.Add(err)
+	} else {
+		// Notify all block leasers that a new volume for the namespace/shard/blockstart
+		// has been created. This will block until all leasers have relinquished their
+		// leases.
+		// NB: markWarmFlushStateSuccess=true because there are no flushes happening in this
+		// flow, and we need to set WarmStatus to fileOpSuccess explicitly in order to make
+		// the new blocks readable.
+		if err = s.finishWriting(opts.Start, nextVolume, true); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+
+	if err := multiErr.FinalError(); err != nil {
 		return 0, err
-	}
-
-	openOpts := fs.DataReaderOpenOptions{
-		Identifier: fs.FileSetFileIdentifier{
-			Namespace:   sourceNsID,
-			Shard:       sourceShard.ID(),
-			BlockStart:  sourceBlockStart,
-			VolumeIndex: latestSourceVolume,
-		},
-		FileSetType: persist.FileSetFlushType,
-		//TODO add after streaming supported - OrderByIndex: true
-	}
-	if err := reader.Open(openOpts); err != nil {
-		return 0, err
-	}
-	defer reader.Close()
-
-	encodingOpts := encoding.NewOptions().SetBytesPool(s.opts.BytesPool())
-	bytesReader := bytes.NewReader(nil)
-	dataPointIter := m3tsz.NewReaderIterator(bytesReader, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
-	var lastWriteError error
-	var processedBlockCount int64
-
-	for {
-		id, tags, data, _, err := reader.Read()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return processedBlockCount, err
-		}
-
-		data.IncRef()
-		bytesReader.Reset(data.Bytes())
-		dataPointIter.Reset(bytesReader, nil)
-
-		for dataPointIter.Next() {
-			dp, unit, annot := dataPointIter.Current()
-			_, err = s.writeAndIndex(ctx, id, tags, dp.Timestamp, dp.Value, unit, annot, wOpts, true)
-			if err != nil {
-				s.metrics.largeTilesWriteErrors.Inc(1)
-				lastWriteError = err
-			}
-		}
-
-		dataPointIter.Close()
-
-		data.DecRef()
-		data.Finalize()
-
-		processedBlockCount++
 	}
 
 	s.logger.Debug("finished aggregating tiles",
 		zap.Uint32("shard", s.ID()),
-		zap.Int64("processedBlocks", processedBlockCount))
+		zap.Int64("processedTiles", processedTileCount))
 
-	return processedBlockCount, lastWriteError
+	return processedTileCount, nil
 }
 
 func (s *dbShard) BootstrapState() BootstrapState {
@@ -2737,11 +2716,11 @@ func (s *dbShard) BootstrapState() BootstrapState {
 	return bs
 }
 
-func (s *dbShard) DocRef(id ident.ID) (doc.Document, bool, error) {
+func (s *dbShard) DocRef(id ident.ID) (doc.Metadata, bool, error) {
 	s.RLock()
 	defer s.RUnlock()
 
-	entry, _, err := s.lookupEntryWithLock(id)
+	entry, err := s.lookupEntryWithLock(id)
 	if err == nil {
 		return entry.Series.Metadata(), true, nil
 	}
@@ -2751,8 +2730,37 @@ func (s *dbShard) DocRef(id ident.ID) (doc.Document, bool, error) {
 	return emptyDoc, false, err
 }
 
-func (s *dbShard) latestVolume(blockStart time.Time) (int, error) {
+func (s *dbShard) LatestVolume(blockStart xtime.UnixNano) (int, error) {
 	return s.namespaceReaderMgr.latestVolume(s.shard, blockStart)
+}
+
+func (s *dbShard) OpenStreamingReader(blockStart xtime.UnixNano) (fs.DataFileSetReader, error) {
+	latestVolume, err := s.LatestVolume(blockStart)
+	if err != nil {
+		return nil, err
+	}
+
+	reader, err := s.newReaderFn(s.opts.BytesPool(), s.opts.CommitLogOptions().FilesystemOptions())
+	if err != nil {
+		return nil, err
+	}
+
+	openOpts := fs.DataReaderOpenOptions{
+		Identifier: fs.FileSetFileIdentifier{
+			Namespace:   s.namespace.ID(),
+			Shard:       s.ID(),
+			BlockStart:  blockStart,
+			VolumeIndex: latestVolume,
+		},
+		FileSetType:      persist.FileSetFlushType,
+		StreamingEnabled: true,
+	}
+
+	if err := reader.Open(openOpts); err != nil {
+		return nil, err
+	}
+
+	return reader, nil
 }
 
 func (s *dbShard) logFlushResult(r dbShardFlushResult) {
@@ -2762,8 +2770,60 @@ func (s *dbShard) logFlushResult(r dbShardFlushResult) {
 	)
 }
 
+func (s *dbShard) finishWriting(
+	blockStart xtime.UnixNano,
+	nextVersion int,
+	markWarmFlushStateSuccess bool,
+) error {
+	if markWarmFlushStateSuccess {
+		s.markWarmDataFlushStateSuccess(blockStart)
+		s.markWarmIndexFlushStateSuccess(blockStart)
+	}
+
+	// After writing the full block successfully update the ColdVersionFlushed number. This will
+	// allow the SeekerManager to open a lease on the latest version of the fileset files because
+	// the BlockLeaseVerifier will check the ColdVersionFlushed value, but the buffer only looks at
+	// ColdVersionRetrievable so a concurrent tick will not yet cause the blocks in memory to be
+	// evicted (which is the desired behavior because we haven't updated the open leases yet which
+	// means the newly written data is not available for querying via the SeekerManager yet.)
+	s.setFlushStateColdVersionFlushed(blockStart, nextVersion)
+
+	// Notify all block leasers that a new volume for the namespace/shard/blockstart
+	// has been created. This will block until all leasers have relinquished their
+	// leases.
+	_, err := s.opts.BlockLeaseManager().UpdateOpenLeases(block.LeaseDescriptor{
+		Namespace:  s.namespace.ID(),
+		Shard:      s.ID(),
+		BlockStart: blockStart,
+	}, block.LeaseState{Volume: nextVersion})
+	// After writing the full block successfully **and** propagating the new lease to the
+	// BlockLeaseManager, update the ColdVersionRetrievable in the flush state. Once this function
+	// completes concurrent ticks will be able to evict the data from memory that was just flushed
+	// (which is now safe to do since the SeekerManager has been notified of the presence of new
+	// files).
+	//
+	// NB(rartoul): Ideally the ColdVersionRetrievable would only be updated if the call to UpdateOpenLeases
+	// succeeded, but that would allow the ColdVersionRetrievable and ColdVersionFlushed numbers to drift
+	// which would increase the complexity of the code to address a situation that is probably not
+	// recoverable (failure to UpdateOpenLeases is an invariant violated error).
+	s.setFlushStateColdVersionRetrievable(blockStart, nextVersion)
+	if err != nil {
+		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l *zap.Logger) {
+			l.With(
+				zap.String("namespace", s.namespace.ID().String()),
+				zap.Uint32("shard", s.ID()),
+				zap.Time("blockStart", blockStart.ToTime()),
+				zap.Int("nextVersion", nextVersion),
+				zap.Error(err),
+			).Error("failed to update open leases after updating flush state cold version")
+		})
+		return err
+	}
+	return nil
+}
+
 type shardColdFlushDone struct {
-	startTime   time.Time
+	startTime   xtime.UnixNano
 	nextVersion int
 	close       persist.DataCloser
 }
@@ -2783,44 +2843,10 @@ func (s shardColdFlush) Done() error {
 			multiErr = multiErr.Add(err)
 			continue
 		}
-		// After writing the full block successfully update the ColdVersionFlushed number. This will
-		// allow the SeekerManager to open a lease on the latest version of the fileset files because
-		// the BlockLeaseVerifier will check the ColdVersionFlushed value, but the buffer only looks at
-		// ColdVersionRetrievable so a concurrent tick will not yet cause the blocks in memory to be
-		// evicted (which is the desired behavior because we haven't updated the open leases yet which
-		// means the newly written data is not available for querying via the SeekerManager yet.)
-		s.shard.setFlushStateColdVersionFlushed(startTime, nextVersion)
 
-		// Notify all block leasers that a new volume for the namespace/shard/blockstart
-		// has been created. This will block until all leasers have relinquished their
-		// leases.
-		_, err := s.shard.opts.BlockLeaseManager().UpdateOpenLeases(block.LeaseDescriptor{
-			Namespace:  s.shard.namespace.ID(),
-			Shard:      s.shard.ID(),
-			BlockStart: startTime,
-		}, block.LeaseState{Volume: nextVersion})
-		// After writing the full block successfully **and** propagating the new lease to the
-		// BlockLeaseManager, update the ColdVersionRetrievable in the flush state. Once this function
-		// completes concurrent ticks will be able to evict the data from memory that was just flushed
-		// (which is now safe to do since the SeekerManager has been notified of the presence of new
-		// files).
-		//
-		// NB(rartoul): Ideally the ColdVersionRetrievable would only be updated if the call to UpdateOpenLeases
-		// succeeded, but that would allow the ColdVersionRetrievable and ColdVersionFlushed numbers to drift
-		// which would increase the complexity of the code to address a situation that is probably not
-		// recoverable (failure to UpdateOpenLeases is an invariant violated error).
-		s.shard.setFlushStateColdVersionRetrievable(startTime, nextVersion)
+		err := s.shard.finishWriting(startTime, nextVersion, false)
 		if err != nil {
-			instrument.EmitAndLogInvariantViolation(s.shard.opts.InstrumentOptions(), func(l *zap.Logger) {
-				l.With(
-					zap.String("namespace", s.shard.namespace.ID().String()),
-					zap.Uint32("shard", s.shard.ID()),
-					zap.Time("blockStart", startTime),
-					zap.Int("nextVersion", nextVersion),
-				).Error("failed to update open leases after updating flush state cold version")
-			})
 			multiErr = multiErr.Add(err)
-			continue
 		}
 	}
 	return multiErr.FinalError()

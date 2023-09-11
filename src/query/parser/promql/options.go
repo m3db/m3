@@ -21,9 +21,13 @@
 package promql
 
 import (
+	"time"
+
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
-	"github.com/prometheus/prometheus/pkg/labels"
+	xclock "github.com/m3db/m3/src/x/clock"
+
+	"github.com/prometheus/prometheus/model/labels"
 	pql "github.com/prometheus/prometheus/promql/parser"
 )
 
@@ -53,28 +57,44 @@ func defaultMetricSelectorFn(query string) ([]*labels.Matcher, error) {
 	return pql.ParseMetricSelector(query)
 }
 
+func defaultNowFn() time.Time {
+	return time.Now()
+}
+
 // ParseOptions are options for the Prometheus parser.
 type ParseOptions interface {
 	// ParseFn gets the parse function.
 	ParseFn() ParseFn
 	// SetParseFn sets the parse function.
-	SetParseFn(f ParseFn) ParseOptions
+	SetParseFn(ParseFn) ParseOptions
 
 	// MetricSelectorFn gets the metric selector function.
 	MetricSelectorFn() MetricSelectorFn
 	// SetMetricSelectorFn sets the metric selector function.
-	SetMetricSelectorFn(f MetricSelectorFn) ParseOptions
+	SetMetricSelectorFn(MetricSelectorFn) ParseOptions
 
 	// FunctionParseExpr gets the parsing function.
 	FunctionParseExpr() ParseFunctionExpr
 	// SetFunctionParseExpr sets the parsing function.
-	SetFunctionParseExpr(f ParseFunctionExpr) ParseOptions
+	SetFunctionParseExpr(ParseFunctionExpr) ParseOptions
+
+	// NowFn gets the now function.
+	NowFn() xclock.NowFn
+	// SetNowFn sets the now function.
+	SetNowFn(xclock.NowFn) ParseOptions
+
+	// RequireStartEndTime returns whether requests require a start and end time.
+	RequireStartEndTime() bool
+	// SetRequireStartEndTime sets whether requests require a start and end time.
+	SetRequireStartEndTime(bool) ParseOptions
 }
 
 type parseOptions struct {
-	parseFn     ParseFn
-	selectorFn  MetricSelectorFn
-	fnParseExpr ParseFunctionExpr
+	parseFn             ParseFn
+	selectorFn          MetricSelectorFn
+	fnParseExpr         ParseFunctionExpr
+	nowFn               xclock.NowFn
+	requireStartEndTime bool
 }
 
 // NewParseOptions creates a new parse options.
@@ -83,6 +103,7 @@ func NewParseOptions() ParseOptions {
 		parseFn:     defaultParseFn,
 		selectorFn:  defaultMetricSelectorFn,
 		fnParseExpr: NewFunctionExpr,
+		nowFn:       defaultNowFn,
 	}
 }
 
@@ -113,5 +134,25 @@ func (o *parseOptions) FunctionParseExpr() ParseFunctionExpr {
 func (o *parseOptions) SetFunctionParseExpr(f ParseFunctionExpr) ParseOptions {
 	opts := *o
 	opts.fnParseExpr = f
+	return &opts
+}
+
+func (o *parseOptions) NowFn() xclock.NowFn {
+	return o.nowFn
+}
+
+func (o *parseOptions) SetNowFn(f xclock.NowFn) ParseOptions {
+	opts := *o
+	opts.nowFn = f
+	return &opts
+}
+
+func (o *parseOptions) RequireStartEndTime() bool {
+	return o.requireStartEndTime
+}
+
+func (o *parseOptions) SetRequireStartEndTime(r bool) ParseOptions {
+	opts := *o
+	opts.requireStartEndTime = r
 	return &opts
 }

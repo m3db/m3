@@ -30,19 +30,22 @@ func TestDefaultTagOptions(t *testing.T) {
 	opts := NewTagOptions()
 	assert.NoError(t, opts.Validate())
 	assert.Equal(t, defaultMetricName, opts.MetricName())
-	assert.Equal(t, TypeLegacy, opts.IDSchemeType())
+	assert.Equal(t, TypeQuoted, opts.IDSchemeType())
+	assert.Equal(t, defaultMaxTagLiteralLength, opts.MaxTagLiteralLength())
 }
 
 func TestValidTagOptions(t *testing.T) {
 	opts := NewTagOptions().
 		SetIDSchemeType(TypePrependMeta).
 		SetMetricName([]byte("name")).
-		SetBucketName([]byte("bucket"))
+		SetBucketName([]byte("bucket")).
+		SetMaxTagLiteralLength(42)
 
 	assert.NoError(t, opts.Validate())
 	assert.Equal(t, []byte("name"), opts.MetricName())
 	assert.Equal(t, []byte("bucket"), opts.BucketName())
 	assert.Equal(t, TypePrependMeta, opts.IDSchemeType())
+	assert.Equal(t, uint16(42), opts.MaxTagLiteralLength())
 }
 
 func TestBadNameTagOptions(t *testing.T) {
@@ -69,10 +72,16 @@ func TestBadBucketTagOptions(t *testing.T) {
 
 func TestBadSchemeTagOptions(t *testing.T) {
 	msg := "invalid config id schema type 'unknown': should be one of" +
-		" [legacy quoted prepend_meta graphite]"
+		" [quoted prepend_meta graphite]"
 	opts := NewTagOptions().
 		SetIDSchemeType(IDSchemeType(6))
 	assert.EqualError(t, opts.Validate(), msg)
+}
+
+func TestBadMaxLiteralLength(t *testing.T) {
+	opts := NewTagOptions().
+		SetMaxTagLiteralLength(0)
+	assert.EqualError(t, opts.Validate(), errNonPositiveLiteralLength.Error())
 }
 
 func TestOptionsEquals(t *testing.T) {
@@ -91,5 +100,8 @@ func TestOptionsEquals(t *testing.T) {
 
 	opts = opts.SetMetricName(n)
 	opts = opts.SetIDSchemeType(IDSchemeType(10))
+	assert.False(t, opts.Equals(other))
+
+	opts = NewTagOptions().SetMaxTagLiteralLength(42)
 	assert.False(t, opts.Equals(other))
 }

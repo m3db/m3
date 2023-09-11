@@ -37,24 +37,26 @@ import (
 type AggregatorClientType int
 
 const (
-	// LegacyAggregatorClient is the legacy aggregator client type and uses it's own
-	// TCP negotation, load balancing and data transmission protocol.
+	// LegacyAggregatorClient is an alias for TCPAggregatorClient
 	LegacyAggregatorClient AggregatorClientType = iota
 	// M3MsgAggregatorClient is the M3Msg aggregator client type that uses M3Msg to
 	// handle publishing to a M3Msg topic the aggregator consumes from.
 	M3MsgAggregatorClient
+	// TCPAggregatorClient is the TCP aggregator client type and uses it's own
+	// TCP negotiation, load balancing and data transmission protocol.
+	TCPAggregatorClient
 
 	defaultAggregatorClient = LegacyAggregatorClient
 
-	defaultFlushSize = 1440
+	defaultFlushWorkerCount = 64
 
 	// defaultMaxTimerBatchSize is the default maximum timer batch size.
 	// By default there is no limit on the timer batch size.
 	defaultMaxTimerBatchSize = 0
 
-	// defaultInstanceQueueSize determines how many metrics can be buffered
+	// defaultInstanceQueueSize determines how many protobuf payloads can be buffered
 	// before it must wait for an existing batch to be flushed to an instance.
-	defaultInstanceQueueSize = 2 << 15 // ~65k
+	defaultInstanceQueueSize = 128
 
 	// By default traffic is cut over to shards 10 minutes before the designated
 	// cutover time in case there are issues with the instances owning the shards.
@@ -70,20 +72,18 @@ const (
 
 	// By default set maximum batch size to 8mb.
 	defaultMaxBatchSize = 2 << 22
-
-	// By default write at least every 100ms.
-	defaultBatchFlushDeadline = 100 * time.Millisecond
 )
 
 var (
 	validAggregatorClientTypes = []AggregatorClientType{
 		LegacyAggregatorClient,
 		M3MsgAggregatorClient,
+		TCPAggregatorClient,
 	}
 
-	errLegacyClientNoWatcherOptions = errors.New("legacy client: no watcher options set")
-	errM3MsgClientNoOptions         = errors.New("m3msg aggregator client: no m3msg options set")
-	errNoRWOpts                     = errors.New("no rw opts set for aggregator")
+	errTCPClientNoWatcherOptions = errors.New("legacy client: no watcher options set")
+	errM3MsgClientNoOptions      = errors.New("m3msg aggregator client: no m3msg options set")
+	errNoRWOpts                  = errors.New("no rw opts set for aggregator")
 )
 
 func (t AggregatorClientType) String() string {
@@ -92,8 +92,15 @@ func (t AggregatorClientType) String() string {
 		return "legacy"
 	case M3MsgAggregatorClient:
 		return "m3msg"
+	case TCPAggregatorClient:
+		return "tcp"
 	}
 	return "unknown"
+}
+
+// MarshalYAML returns the YAML representation of the AggregatorClientType.
+func (t AggregatorClientType) MarshalYAML() (interface{}, error) {
+	return t.String(), nil
 }
 
 // UnmarshalYAML unmarshals a AggregatorClientType into a valid type from string.
@@ -157,11 +164,11 @@ type Options interface {
 	// ShardFn returns the sharding function.
 	ShardFn() sharding.ShardFn
 
-	// SetStagedPlacementWatcherOptions sets the staged placement watcher options.
-	SetStagedPlacementWatcherOptions(value placement.StagedPlacementWatcherOptions) Options
+	// SetWatcherOptions sets the placement watcher options.
+	SetWatcherOptions(value placement.WatcherOptions) Options
 
-	// StagedPlacementWatcherOptions returns the staged placement watcher options.
-	StagedPlacementWatcherOptions() placement.StagedPlacementWatcherOptions
+	// WatcherOptions returns the placement watcher options.
+	WatcherOptions() placement.WatcherOptions
 
 	// SetShardCutoverWarmupDuration sets the warm up duration for traffic cut over to a shard.
 	SetShardCutoverWarmupDuration(value time.Duration) Options
@@ -181,11 +188,17 @@ type Options interface {
 	// ConnectionOptions returns the connection options.
 	ConnectionOptions() ConnectionOptions
 
-	// SetFlushSize sets the buffer size to trigger a flush.
-	SetFlushSize(value int) Options
+	// SetFlushWorkerCount sets the max number of workers used for flushing.
+	SetFlushWorkerCount(value int) Options
 
-	// FlushSize returns the buffer size to trigger a flush.
-	FlushSize() int
+	// FlushWorkerCount returns the max number of workers used for flushing.
+	FlushWorkerCount() int
+
+	// SetForceFlushEvery sets the duration between forced flushes.
+	SetForceFlushEvery(value time.Duration) Options
+
+	// ForceFlushEvery returns the duration, if any, between forced flushes.
+	ForceFlushEvery() time.Duration
 
 	// SetMaxTimerBatchSize sets the maximum timer batch size.
 	SetMaxTimerBatchSize(value int) Options
@@ -213,12 +226,6 @@ type Options interface {
 	// MaxBatchSize returns the maximum buffer size that triggers a queue drain.
 	MaxBatchSize() int
 
-	// SetBatchFlushDeadline sets the deadline that triggers a write of queued buffers.
-	SetBatchFlushDeadline(value time.Duration) Options
-
-	// BatchFlushDeadline returns the deadline that triggers a write of queued buffers.
-	BatchFlushDeadline() time.Duration
-
 	// SetRWOptions sets RW options.
 	SetRWOptions(value xio.Options) Options
 
@@ -227,23 +234,23 @@ type Options interface {
 }
 
 type options struct {
-	aggregatorClientType       AggregatorClientType
+	watcherOpts                placement.WatcherOptions
 	clockOpts                  clock.Options
 	instrumentOpts             instrument.Options
 	encoderOpts                protobuf.UnaggregatedOptions
-	shardFn                    sharding.ShardFn
-	shardCutoverWarmupDuration time.Duration
-	shardCutoffLingerDuration  time.Duration
-	watcherOpts                placement.StagedPlacementWatcherOptions
+	m3msgOptions               M3MsgOptions
 	connOpts                   ConnectionOptions
-	flushSize                  int
+	rwOpts                     xio.Options
+	shardFn                    sharding.ShardFn
+	shardCutoffLingerDuration  time.Duration
+	shardCutoverWarmupDuration time.Duration
+	forceFlushEvery            time.Duration
 	maxTimerBatchSize          int
 	instanceQueueSize          int
 	dropType                   DropType
 	maxBatchSize               int
-	batchFlushDeadline         time.Duration
-	m3msgOptions               M3MsgOptions
-	rwOpts                     xio.Options
+	flushWorkerCount           int
+	aggregatorClientType       AggregatorClientType
 }
 
 // NewOptions creates a new set of client options.
@@ -255,14 +262,13 @@ func NewOptions() Options {
 		shardFn:                    sharding.DefaultHash.MustShardFn(),
 		shardCutoverWarmupDuration: defaultShardCutoverWarmupDuration,
 		shardCutoffLingerDuration:  defaultShardCutoffLingerDuration,
-		watcherOpts:                placement.NewStagedPlacementWatcherOptions(),
+		watcherOpts:                placement.NewWatcherOptions(),
 		connOpts:                   NewConnectionOptions(),
-		flushSize:                  defaultFlushSize,
+		flushWorkerCount:           defaultFlushWorkerCount,
 		maxTimerBatchSize:          defaultMaxTimerBatchSize,
 		instanceQueueSize:          defaultInstanceQueueSize,
 		dropType:                   defaultDropType,
 		maxBatchSize:               defaultMaxBatchSize,
-		batchFlushDeadline:         defaultBatchFlushDeadline,
 		rwOpts:                     xio.NewOptions(),
 	}
 }
@@ -279,8 +285,10 @@ func (o *options) Validate() error {
 		}
 		return opts.Validate()
 	case LegacyAggregatorClient:
+		fallthrough // intentional, LegacyAggregatorClient is an alias
+	case TCPAggregatorClient:
 		if o.watcherOpts == nil {
-			return errLegacyClientNoWatcherOptions
+			return errTCPClientNoWatcherOptions
 		}
 		return nil
 	default:
@@ -368,13 +376,13 @@ func (o *options) ShardCutoffLingerDuration() time.Duration {
 	return o.shardCutoffLingerDuration
 }
 
-func (o *options) SetStagedPlacementWatcherOptions(value placement.StagedPlacementWatcherOptions) Options {
+func (o *options) SetWatcherOptions(value placement.WatcherOptions) Options {
 	opts := *o
 	opts.watcherOpts = value
 	return &opts
 }
 
-func (o *options) StagedPlacementWatcherOptions() placement.StagedPlacementWatcherOptions {
+func (o *options) WatcherOptions() placement.WatcherOptions {
 	return o.watcherOpts
 }
 
@@ -388,14 +396,24 @@ func (o *options) ConnectionOptions() ConnectionOptions {
 	return o.connOpts
 }
 
-func (o *options) SetFlushSize(value int) Options {
+func (o *options) SetFlushWorkerCount(value int) Options {
 	opts := *o
-	opts.flushSize = value
+	opts.flushWorkerCount = value
 	return &opts
 }
 
-func (o *options) FlushSize() int {
-	return o.flushSize
+func (o *options) FlushWorkerCount() int {
+	return o.flushWorkerCount
+}
+
+func (o *options) SetForceFlushEvery(value time.Duration) Options {
+	opts := *o
+	opts.forceFlushEvery = value
+	return &opts
+}
+
+func (o *options) ForceFlushEvery() time.Duration {
+	return o.forceFlushEvery
 }
 
 func (o *options) SetMaxTimerBatchSize(value int) Options {
@@ -440,19 +458,6 @@ func (o *options) SetMaxBatchSize(value int) Options {
 
 func (o *options) MaxBatchSize() int {
 	return o.maxBatchSize
-}
-
-func (o *options) SetBatchFlushDeadline(value time.Duration) Options {
-	opts := *o
-	if value < 0 {
-		value = defaultBatchFlushDeadline
-	}
-	opts.batchFlushDeadline = value
-	return &opts
-}
-
-func (o *options) BatchFlushDeadline() time.Duration {
-	return o.batchFlushDeadline
 }
 
 func (o *options) SetRWOptions(value xio.Options) Options {

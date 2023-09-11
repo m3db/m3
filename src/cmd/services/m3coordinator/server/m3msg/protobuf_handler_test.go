@@ -22,7 +22,6 @@ package m3msg
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"sync"
 	"testing"
@@ -67,7 +66,7 @@ func TestM3MsgServerWithProtobufHandler(t *testing.T) {
 
 	s := server.NewServer(
 		"a",
-		consumer.NewMessageHandler(newProtobufProcessor(hOpts), opts),
+		consumer.NewMessageHandler(consumer.SingletonMessageProcessor(newProtobufProcessor(hOpts)), opts),
 		server.NewOptions(),
 	)
 	s.Serve(l)
@@ -85,7 +84,7 @@ func TestM3MsgServerWithProtobufHandler(t *testing.T) {
 	}
 
 	encoder := protobuf.NewAggregatedEncoder(nil)
-	require.NoError(t, encoder.Encode(m1, 2000))
+	require.NoError(t, encoder.Encode(m1))
 	enc := proto.NewEncoder(opts.EncoderOptions())
 	require.NoError(t, enc.Encode(&msgpb.Message{
 		Value: encoder.Buffer().Bytes(),
@@ -107,7 +106,7 @@ func TestM3MsgServerWithProtobufHandler(t *testing.T) {
 		},
 		StoragePolicy: precisionStoragePolicy,
 	}
-	require.NoError(t, encoder.Encode(m2, 3000))
+	require.NoError(t, encoder.Encode(m2))
 	enc = proto.NewEncoder(opts.EncoderOptions())
 	require.NoError(t, enc.Encode(&msgpb.Message{
 		Value: encoder.Buffer().Bytes(),
@@ -117,19 +116,17 @@ func TestM3MsgServerWithProtobufHandler(t *testing.T) {
 	require.NoError(t, dec.Decode(&a))
 	require.Equal(t, 2, w.ingested())
 
-	payload, ok := w.m[key(string(m1.ID), 2000)]
+	payload, ok := w.m[string(m1.ID)] //nolint:govet
 	require.True(t, ok)
 	require.Equal(t, string(m1.ID), payload.id)
 	require.Equal(t, m1.TimeNanos, payload.metricNanos)
-	require.Equal(t, 2000, int(payload.encodeNanos))
 	require.Equal(t, m1.Value, payload.value)
 	require.Equal(t, m1.StoragePolicy, payload.sp)
 
-	payload, ok = w.m[key(string(m2.ID), 3000)]
+	payload, ok = w.m[string(m2.ID)]
 	require.True(t, ok)
 	require.Equal(t, string(m2.ID), payload.id)
 	require.Equal(t, m2.TimeNanos, payload.metricNanos)
-	require.Equal(t, 3000, int(payload.encodeNanos))
 	require.Equal(t, m2.Value, payload.value)
 	require.Equal(t, m2.StoragePolicy, payload.sp)
 }
@@ -150,7 +147,7 @@ func TestM3MsgServerWithProtobufHandler_Blackhole(t *testing.T) {
 
 	s := server.NewServer(
 		"a",
-		consumer.NewMessageHandler(newProtobufProcessor(hOpts), opts),
+		consumer.NewMessageHandler(consumer.SingletonMessageProcessor(newProtobufProcessor(hOpts)), opts),
 		server.NewOptions(),
 	)
 	s.Serve(l)
@@ -168,7 +165,7 @@ func TestM3MsgServerWithProtobufHandler_Blackhole(t *testing.T) {
 	}
 
 	encoder := protobuf.NewAggregatedEncoder(nil)
-	require.NoError(t, encoder.Encode(m1, 2000))
+	require.NoError(t, encoder.Encode(m1))
 	enc := proto.NewEncoder(opts.EncoderOptions())
 	require.NoError(t, enc.Encode(&msgpb.Message{
 		Value: encoder.Buffer().Bytes(),
@@ -191,7 +188,7 @@ func TestM3MsgServerWithProtobufHandler_Blackhole(t *testing.T) {
 		},
 		StoragePolicy: policy.MustParseStoragePolicy("5m:180d"),
 	}
-	require.NoError(t, encoder.Encode(m2, 3000))
+	require.NoError(t, encoder.Encode(m2))
 	enc = proto.NewEncoder(opts.EncoderOptions())
 	require.NoError(t, enc.Encode(&msgpb.Message{
 		Value: encoder.Buffer().Bytes(),
@@ -212,7 +209,7 @@ func TestM3MsgServerWithProtobufHandler_Blackhole(t *testing.T) {
 		},
 		StoragePolicy: baseStoragePolicy,
 	}
-	require.NoError(t, encoder.Encode(m3, 3000))
+	require.NoError(t, encoder.Encode(m3))
 	enc = proto.NewEncoder(opts.EncoderOptions())
 	require.NoError(t, enc.Encode(&msgpb.Message{
 		Value: encoder.Buffer().Bytes(),
@@ -235,6 +232,7 @@ func (m *mockWriter) write(
 	name []byte,
 	metricNanos, encodeNanos int64,
 	value float64,
+	annotation []byte,
 	sp policy.StoragePolicy,
 	callbackable Callbackable,
 ) {
@@ -247,7 +245,7 @@ func (m *mockWriter) write(
 		value:       value,
 		sp:          sp,
 	}
-	m.m[key(payload.id, encodeNanos)] = payload
+	m.m[payload.id] = payload
 	m.Unlock()
 	callbackable.Callback(OnSuccess)
 }
@@ -257,10 +255,6 @@ func (m *mockWriter) ingested() int {
 	defer m.Unlock()
 
 	return m.n
-}
-
-func key(id string, encodeTime int64) string {
-	return fmt.Sprintf("%s%d", id, encodeTime)
 }
 
 type payload struct {

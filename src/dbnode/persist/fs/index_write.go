@@ -24,6 +24,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io/fs"
 	"io/ioutil"
 	"os"
 	"time"
@@ -33,6 +34,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	xos "github.com/m3db/m3/src/x/os"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	protobuftypes "github.com/gogo/protobuf/types"
 )
@@ -62,9 +65,9 @@ type indexWriter struct {
 
 	err             error
 	blockSize       time.Duration
-	start           time.Time
+	start           xtime.UnixNano
 	fileSetType     persist.FileSetType
-	snapshotTime    time.Time
+	snapshotTime    xtime.UnixNano
 	volumeIndex     int
 	indexVolumeType idxpersist.IndexVolumeType
 	shards          map[uint32]struct{}
@@ -136,20 +139,28 @@ func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
 	if err := os.MkdirAll(w.namespaceDir, w.newDirectoryMode); err != nil {
 		return err
 	}
-	w.infoFilePath = filesetPathFromTimeAndIndex(w.namespaceDir, blockStart, w.volumeIndex, infoFileSuffix)
-	w.digestFilePath = filesetPathFromTimeAndIndex(w.namespaceDir, blockStart, w.volumeIndex, digestFileSuffix)
-	w.checkpointFilePath = filesetPathFromTimeAndIndex(w.namespaceDir, blockStart, w.volumeIndex, checkpointFileSuffix)
+	w.infoFilePath = FilesetPathFromTimeAndIndex(w.namespaceDir, blockStart, w.volumeIndex, InfoFileSuffix)
+	w.digestFilePath = FilesetPathFromTimeAndIndex(w.namespaceDir, blockStart, w.volumeIndex, DigestFileSuffix)
+	w.checkpointFilePath = FilesetPathFromTimeAndIndex(w.namespaceDir, blockStart, w.volumeIndex, CheckpointFileSuffix)
 
 	exists, err := CompleteCheckpointFileExists(w.checkpointFilePath)
 	if err != nil {
 		return err
 	}
 	if exists {
-		return fmt.Errorf("checkpoint already exists for volume: %s",
+		return xerrors.Wrapf(fs.ErrExist,
+			"checkpoint already exists for volume: %s",
 			w.checkpointFilePath)
 	}
 
-	return nil
+	// NB: Write out an incomplete index info file when we start writing a volume,
+	// this is later used in the cleanup of corrupted/incomplete index filesets.
+	infoFileData, err := w.infoFileData()
+	if err != nil {
+		return err
+	}
+
+	return w.writeInfoFile(infoFileData)
 }
 
 func (w *indexWriter) WriteSegmentFileSet(
@@ -239,11 +250,11 @@ func (w *indexWriter) infoFileData() ([]byte, error) {
 	}
 	info := &index.IndexVolumeInfo{
 		MajorVersion: indexFileSetMajorVersion,
-		BlockStart:   w.start.UnixNano(),
+		BlockStart:   int64(w.start),
 		BlockSize:    int64(w.blockSize),
 		FileType:     int64(w.fileSetType),
 		Shards:       shards,
-		SnapshotTime: w.snapshotTime.UnixNano(),
+		SnapshotTime: int64(w.snapshotTime),
 		IndexVolumeType: &protobuftypes.StringValue{
 			Value: string(w.indexVolumeType),
 		},
@@ -297,8 +308,8 @@ func (w *indexWriter) Close() error {
 	if err != nil {
 		return err
 	}
-	err = ioutil.WriteFile(w.infoFilePath, infoFileData, w.newFileMode)
-	if err != nil {
+
+	if err := w.writeInfoFile(infoFileData); err != nil {
 		return err
 	}
 
@@ -316,4 +327,11 @@ func (w *indexWriter) Close() error {
 	digestBuffer := digest.NewBuffer()
 	digestBuffer.WriteDigest(digest.Checksum(digestsFileData))
 	return ioutil.WriteFile(w.checkpointFilePath, digestBuffer, w.newFileMode)
+}
+
+func (w *indexWriter) writeInfoFile(infoFileData []byte) error {
+	// NB: corrupted index fileset cleanup logic depends on info files being written ahead of
+	// all the other files. To avoid cases where writes could be observed in a different order,
+	// info files are being fsync'ed immediately after being written.
+	return xos.WriteFileSync(w.infoFilePath, infoFileData, w.newFileMode)
 }

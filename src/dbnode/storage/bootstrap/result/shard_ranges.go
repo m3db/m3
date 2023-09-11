@@ -30,7 +30,7 @@ import (
 )
 
 // NewShardTimeRangesFromRange returns a new ShardTimeRanges with provided shards and time range.
-func NewShardTimeRangesFromRange(start, end time.Time, shards ...uint32) ShardTimeRanges {
+func NewShardTimeRangesFromRange(start, end xtime.UnixNano, shards ...uint32) ShardTimeRanges {
 	timeRange := xtime.NewRanges(xtime.Range{Start: start, End: end})
 	ranges := make(shardTimeRanges, len(shards))
 	for _, s := range shards {
@@ -118,15 +118,37 @@ func (r shardTimeRanges) Equal(other ShardTimeRanges) bool {
 
 // IsSuperset returns whether the current shard time ranges is a superset of the
 // other shard time ranges.
+//
+// The following are superset conditions.
+// - Always superset if other shard time ranges are empty. (Even empty vs empty).
+// - Shards must be a superset of shards in other.
+// - Time ranges must be a superset of time ranges in other.
+//
+// The following are superset failure conditions:
+// - Partially overlapping shards.
+// - Non overlapping shards.
+// - Partially overlapping time ranges.
+// - Non overlapping time ranges.
 func (r shardTimeRanges) IsSuperset(other ShardTimeRanges) bool {
-	if len(r) < other.Len() {
-		return false
+	// If other shard time ranges is empty then the curr shard time ranges
+	// is considered a superset.
+	if other.Len() == 0 {
+		return true
 	}
-	for shard, ranges := range r {
-		otherRanges := other.GetOrAdd(shard)
-		if ranges.Len() < otherRanges.Len() {
+
+	// Check if other ranges has any shards we do not have.
+	for shard := range other.Iter() {
+		if _, ok := r.Get(shard); !ok {
 			return false
 		}
+	}
+
+	for shard, ranges := range r {
+		otherRanges, ok := other.Get(shard)
+		if !ok {
+			continue
+		}
+
 		it := ranges.Iter()
 		otherIt := otherRanges.Iter()
 
@@ -184,6 +206,17 @@ func (r shardTimeRanges) AddRanges(other ShardTimeRanges) {
 	}
 }
 
+// FilterShards returns the shard time ranges after omitting shard not in the list.
+func (r shardTimeRanges) FilterShards(shards []uint32) ShardTimeRanges {
+	filtered := NewShardTimeRanges()
+	for _, s := range shards {
+		if ranges, ok := r.Get(s); ok {
+			filtered.Set(s, ranges)
+		}
+	}
+	return filtered
+}
+
 // ToUnfulfilledDataResult will return a result that is comprised of wholly
 // unfufilled time ranges from the set of shard time ranges.
 func (r shardTimeRanges) ToUnfulfilledDataResult() DataBootstrapResult {
@@ -223,8 +256,8 @@ func (r shardTimeRanges) Subtract(other ShardTimeRanges) {
 
 // MinMax will return the very minimum time as a start and the
 // maximum time as an end in the ranges.
-func (r shardTimeRanges) MinMax() (time.Time, time.Time) {
-	min, max := time.Time{}, time.Time{}
+func (r shardTimeRanges) MinMax() (xtime.UnixNano, xtime.UnixNano) {
+	min, max := xtime.UnixNano(0), xtime.UnixNano(0)
 	for _, ranges := range r {
 		if ranges.IsEmpty() {
 			continue
@@ -244,7 +277,7 @@ func (r shardTimeRanges) MinMax() (time.Time, time.Time) {
 }
 
 // MinMaxRange returns the min and max times, and the duration for this range.
-func (r shardTimeRanges) MinMaxRange() (time.Time, time.Time, time.Duration) {
+func (r shardTimeRanges) MinMaxRange() (xtime.UnixNano, xtime.UnixNano, time.Duration) {
 	min, max := r.MinMax()
 	return min, max, max.Sub(min)
 }

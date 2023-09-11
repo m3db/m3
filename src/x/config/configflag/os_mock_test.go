@@ -25,10 +25,10 @@
 package configflag
 
 import (
-	io "io"
-	reflect "reflect"
+	"io"
+	"reflect"
 
-	gomock "github.com/golang/mock/gomock"
+	"github.com/golang/mock/gomock"
 )
 
 // MockosIface is a mock of osIface interface

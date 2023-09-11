@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/x/instrument"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -91,6 +90,21 @@ func TestValueWatchSuccess(t *testing.T) {
 
 	rv.Unwatch()
 	require.Equal(t, valueNotWatching, rv.status)
+}
+
+func TestValueWatchInterrupt(t *testing.T) {
+	interruptedCh := make(chan struct{})
+	close(interruptedCh)
+
+	opts := testValueOptions().
+		SetInterruptedCh(interruptedCh).
+		SetNewUpdatableFn(testUpdatableFn(NewWatchable()))
+
+	val := NewValue(opts).(*value)
+	err := val.Watch()
+
+	require.Error(t, err)
+	require.Equal(t, err.Error(), "interrupted")
 }
 
 func TestValueUnwatchNotWatching(t *testing.T) {

@@ -21,9 +21,14 @@
 package metadata
 
 import (
+	"bytes"
+	"fmt"
+	"strings"
+
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/generated/proto/policypb"
+	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/models"
@@ -71,23 +76,27 @@ var (
 
 // PipelineMetadata contains pipeline metadata.
 type PipelineMetadata struct {
-	// List of aggregation types.
-	AggregationID aggregation.ID `json:"aggregation"`
-
 	// List of storage policies.
-	StoragePolicies policy.StoragePolicies `json:"storagePolicies"`
-
+	StoragePolicies policy.StoragePolicies `json:"storagePolicies,omitempty"`
 	// Pipeline operations.
-	Pipeline applied.Pipeline `json:"-"` // NB: not needed for JSON marshaling for now.
-
+	Pipeline applied.Pipeline `json:"-"`
+	// Tags.
+	Tags []models.Tag `json:"tags,omitempty"`
+	// GraphitePrefix is the list of graphite prefixes to apply.
+	GraphitePrefix [][]byte `json:"graphitePrefix,omitempty"`
+	// List of aggregation types.
+	AggregationID aggregation.ID `json:"aggregation,omitempty"`
 	// Drop policy.
 	DropPolicy policy.DropPolicy `json:"dropPolicy,omitempty"`
+	// ResendEnabled is true if the Pipeline supports resending aggregate values after the initial flush.
+	ResendEnabled bool `json:"resendEnabled,omitempty"`
+}
 
-	// Tags.
-	Tags []models.Tag `json:"tags"`
-
-	// GraphitePrefix is the list of graphite prefixes to apply.
-	GraphitePrefix [][]byte `json:"graphitePrefix"`
+func (m PipelineMetadata) String() string {
+	var b bytes.Buffer
+	b.WriteString(fmt.Sprintf("ResendEnabled: %v, StoragePolicies: %v, Pipeline: %v",
+		m.ResendEnabled, m.StoragePolicies, m.Pipeline))
+	return b.String()
 }
 
 // Equal returns true if two pipeline metadata are considered equal.
@@ -95,15 +104,28 @@ func (m PipelineMetadata) Equal(other PipelineMetadata) bool {
 	return m.AggregationID.Equal(other.AggregationID) &&
 		m.StoragePolicies.Equal(other.StoragePolicies) &&
 		m.Pipeline.Equal(other.Pipeline) &&
-		m.DropPolicy == other.DropPolicy
+		m.DropPolicy == other.DropPolicy &&
+		m.ResendEnabled == other.ResendEnabled
 }
 
 // IsDefault returns whether this is the default standard pipeline metadata.
 func (m PipelineMetadata) IsDefault() bool {
-	return m.AggregationID.IsDefault() &&
-		m.StoragePolicies.IsDefault() &&
+	return m.AggregationID == aggregation.DefaultID &&
+		len(m.StoragePolicies) == 0 &&
 		m.Pipeline.IsEmpty() &&
-		m.DropPolicy.IsDefault()
+		m.DropPolicy == policy.DefaultDropPolicy &&
+		!m.ResendEnabled
+}
+
+// IsMappingRule returns whether this is a mapping rule.
+// nolint:gocritic
+func (m PipelineMetadata) IsMappingRule() bool {
+	return m.Pipeline.IsMappingRule()
+}
+
+// IsAnyRollupRules returns whether any of the rules have rollups.
+func (m PipelineMetadata) IsAnyRollupRules() bool {
+	return !m.Pipeline.IsMappingRule()
 }
 
 // IsDropPolicyApplied returns whether this is the default standard pipeline
@@ -112,7 +134,12 @@ func (m PipelineMetadata) IsDropPolicyApplied() bool {
 	return m.AggregationID.IsDefault() &&
 		m.StoragePolicies.IsDefault() &&
 		m.Pipeline.IsEmpty() &&
-		!m.DropPolicy.IsDefault()
+		m.IsDropPolicySet()
+}
+
+// IsDropPolicySet returns whether a drop policy is set.
+func (m PipelineMetadata) IsDropPolicySet() bool {
+	return !m.DropPolicy.IsDefault()
 }
 
 // Clone clones the pipeline metadata.
@@ -121,14 +148,13 @@ func (m PipelineMetadata) Clone() PipelineMetadata {
 		AggregationID:   m.AggregationID,
 		StoragePolicies: m.StoragePolicies.Clone(),
 		Pipeline:        m.Pipeline.Clone(),
+		ResendEnabled:   m.ResendEnabled,
 	}
 }
 
 // ToProto converts the pipeline metadata to a protobuf message in place.
 func (m PipelineMetadata) ToProto(pb *metricpb.PipelineMetadata) error {
-	if err := m.AggregationID.ToProto(&pb.AggregationId); err != nil {
-		return err
-	}
+	m.AggregationID.ToProto(&pb.AggregationId)
 	if err := m.Pipeline.ToProto(&pb.Pipeline); err != nil {
 		return err
 	}
@@ -144,14 +170,13 @@ func (m PipelineMetadata) ToProto(pb *metricpb.PipelineMetadata) error {
 		}
 	}
 	pb.DropPolicy = policypb.DropPolicy(m.DropPolicy)
+	pb.ResendEnabled = m.ResendEnabled
 	return nil
 }
 
 // FromProto converts the protobuf message to a pipeline metadata in place.
 func (m *PipelineMetadata) FromProto(pb metricpb.PipelineMetadata) error {
-	if err := m.AggregationID.FromProto(pb.AggregationId); err != nil {
-		return err
-	}
+	m.AggregationID.FromProto(pb.AggregationId)
 	if err := m.Pipeline.FromProto(pb.Pipeline); err != nil {
 		return err
 	}
@@ -167,6 +192,7 @@ func (m *PipelineMetadata) FromProto(pb metricpb.PipelineMetadata) error {
 		}
 	}
 	m.DropPolicy = policy.DropPolicy(pb.DropPolicy)
+	m.ResendEnabled = pb.ResendEnabled
 	return nil
 }
 
@@ -186,6 +212,20 @@ func (metadatas PipelineMetadatas) Equal(other PipelineMetadatas) bool {
 	return true
 }
 
+// Len returns the number of pipelines in the metadata.
+func (metadatas PipelineMetadatas) Len() int { return len(metadatas) }
+
+// Swap swaps the elements with indexes i and j.
+func (metadatas PipelineMetadatas) Swap(i, j int) {
+	metadatas[i], metadatas[j] = metadatas[j], metadatas[i]
+}
+
+// Less returns whether the element with
+// index i should sort before the element with index j.
+func (metadatas PipelineMetadatas) Less(i, j int) bool {
+	return strings.Compare(metadatas[i].String(), metadatas[j].String()) == -1
+}
+
 // Clone clones the list of pipeline metadatas.
 func (metadatas PipelineMetadatas) Clone() PipelineMetadatas {
 	cloned := make(PipelineMetadatas, 0, len(metadatas))
@@ -193,6 +233,17 @@ func (metadatas PipelineMetadatas) Clone() PipelineMetadatas {
 		cloned = append(cloned, metadatas[i].Clone())
 	}
 	return cloned
+}
+
+// IsDropPolicySet returns whether any drop policies are set (but
+// does not discriminate if they have been applied or not).
+func (metadatas PipelineMetadatas) IsDropPolicySet() bool {
+	for i := range metadatas {
+		if metadatas[i].IsDropPolicySet() {
+			return true
+		}
+	}
+	return false
 }
 
 // ApplyOrRemoveDropPoliciesResult is the result of applying or removing
@@ -237,13 +288,18 @@ func (metadatas PipelineMetadatas) ApplyOrRemoveDropPolicies() (
 		return metadatas, NoDropPolicyPresentResult
 	}
 
+	result := metadatas
+
+	// Drop is effective as no other non drop pipelines, result is a drop
 	if nonDropPipelines == 0 {
-		// Drop is effective as no other non drop pipelines, result is a drop
-		return DropPipelineMetadatas, AppliedEffectiveDropPolicyResult
+		// nb: Do not directly return DropPipelineMetadatas, as the client could potentially save that reference
+		// and modify global state.
+		result = result[:0]
+		result = append(result, DropPipelineMetadata)
+		return result, AppliedEffectiveDropPolicyResult
 	}
 
 	// Remove all non-default drop policies as they must not be effective
-	result := metadatas
 	for i := len(result) - 1; i >= 0; i-- {
 		if !result[i].DropPolicy.IsDefault() {
 			// Remove by moving to tail and decrementing length so we can do in
@@ -259,9 +315,34 @@ func (metadatas PipelineMetadatas) ApplyOrRemoveDropPolicies() (
 	return result, RemovedIneffectiveDropPoliciesResult
 }
 
+// ShouldDropTimestampOptions are options for the should drop timestamp method.
+type ShouldDropTimestampOptions struct {
+	UntimedRollups bool
+}
+
+// ShouldDropTimestamp applies custom M3 tags.
+func (metadatas PipelineMetadatas) ShouldDropTimestamp(opts ShouldDropTimestampOptions) bool {
+	// Go over metadatas and and look for drop timestamp tag.
+	for i := range metadatas {
+		if opts.UntimedRollups {
+			if metadatas[i].IsAnyRollupRules() {
+				return true
+			}
+		}
+		for j := range metadatas[i].Tags {
+			// If any metadata has the drop timestamp tag, then return that we
+			// should send untimed metrics to the aggregator.
+			if bytes.Equal(metadatas[i].Tags[j].Name, metric.M3MetricsDropTimestamp) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // Metadata represents the metadata associated with a metric.
 type Metadata struct {
-	Pipelines PipelineMetadatas `json:"pipelines"`
+	Pipelines PipelineMetadatas `json:"pipelines,omitempty"`
 }
 
 // IsDefault returns whether this is the default metadata.
@@ -273,6 +354,17 @@ func (m Metadata) IsDefault() bool {
 // but with the drop policy applied.
 func (m Metadata) IsDropPolicyApplied() bool {
 	return len(m.Pipelines) == 1 && m.Pipelines[0].IsDropPolicyApplied()
+}
+
+// IsDropPolicySet returns whether any drop policies are set (but
+// does not discriminate if they have been applied or not).
+func (m Metadata) IsDropPolicySet() bool {
+	for i := range m.Pipelines {
+		if m.Pipelines[i].IsDropPolicySet() {
+			return true
+		}
+	}
+	return false
 }
 
 // Equal returns true if two metadatas are considered equal.
@@ -314,27 +406,23 @@ func (m *Metadata) FromProto(pb metricpb.Metadata) error {
 
 // ForwardMetadata represents the metadata information associated with forwarded metrics.
 type ForwardMetadata struct {
-	// List of aggregation types.
-	AggregationID aggregation.ID
-
-	// Storage policy.
-	StoragePolicy policy.StoragePolicy
-
 	// Pipeline of operations that may be applied to the metric.
 	Pipeline applied.Pipeline
-
-	// Metric source id that refers to the unique id of the source producing this metric.
-	SourceID uint32
-
+	// Storage policy.
+	StoragePolicy policy.StoragePolicy
+	// List of aggregation types.
+	AggregationID aggregation.ID
 	// Number of times this metric has been forwarded.
 	NumForwardedTimes int
+	// Metric source id that refers to the unique id of the source producing this metric.
+	SourceID uint32
+	// ResendEnabled is true if the Pipeline supports resending aggregate values after the initial flush.
+	ResendEnabled bool
 }
 
 // ToProto converts the forward metadata to a protobuf message in place.
 func (m ForwardMetadata) ToProto(pb *metricpb.ForwardMetadata) error {
-	if err := m.AggregationID.ToProto(&pb.AggregationId); err != nil {
-		return err
-	}
+	m.AggregationID.ToProto(&pb.AggregationId)
 	if err := m.StoragePolicy.ToProto(&pb.StoragePolicy); err != nil {
 		return err
 	}
@@ -343,14 +431,13 @@ func (m ForwardMetadata) ToProto(pb *metricpb.ForwardMetadata) error {
 	}
 	pb.SourceId = m.SourceID
 	pb.NumForwardedTimes = int32(m.NumForwardedTimes)
+	pb.ResendEnabled = m.ResendEnabled
 	return nil
 }
 
 // FromProto converts the protobuf message to a forward metadata in place.
 func (m *ForwardMetadata) FromProto(pb metricpb.ForwardMetadata) error {
-	if err := m.AggregationID.FromProto(pb.AggregationId); err != nil {
-		return err
-	}
+	m.AggregationID.FromProto(pb.AggregationId)
 	if err := m.StoragePolicy.FromProto(pb.StoragePolicy); err != nil {
 		return err
 	}
@@ -359,18 +446,19 @@ func (m *ForwardMetadata) FromProto(pb metricpb.ForwardMetadata) error {
 	}
 	m.SourceID = pb.SourceId
 	m.NumForwardedTimes = int(pb.NumForwardedTimes)
+	m.ResendEnabled = pb.ResendEnabled
 	return nil
 }
 
 // StagedMetadata represents metadata with a staged cutover time.
 type StagedMetadata struct {
-	Metadata `json:"metadata"`
+	Metadata `json:"metadata,omitempty"`
 
 	// Cutover is when the metadata is applicable.
-	CutoverNanos int64 `json:"cutoverNanos"`
+	CutoverNanos int64 `json:"cutoverNanos,omitempty"`
 
 	// Tombstoned determines whether the associated metric has been tombstoned.
-	Tombstoned bool `json:"tombstoned"`
+	Tombstoned bool `json:"tombstoned,omitempty"`
 }
 
 // Equal returns true if two staged metadatas are considered equal.
@@ -389,6 +477,11 @@ func (sm StagedMetadata) IsDefault() bool {
 // but with the drop policy applied.
 func (sm StagedMetadata) IsDropPolicyApplied() bool {
 	return !sm.Tombstoned && sm.Metadata.IsDropPolicyApplied()
+}
+
+// IsDropPolicySet returns whether a drop policy is set.
+func (sm StagedMetadata) IsDropPolicySet() bool {
+	return sm.Pipelines.IsDropPolicySet()
 }
 
 // ToProto converts the staged metadata to a protobuf message in place.
@@ -411,6 +504,14 @@ func (sm *StagedMetadata) FromProto(pb metricpb.StagedMetadata) error {
 	return nil
 }
 
+func (sm StagedMetadata) String() string {
+	var b bytes.Buffer
+	for _, p := range sm.Pipelines {
+		b.WriteString(p.String())
+	}
+	return b.String()
+}
+
 // StagedMetadatas contains a list of staged metadatas.
 type StagedMetadatas []StagedMetadata
 
@@ -429,13 +530,24 @@ func (sms StagedMetadatas) Equal(other StagedMetadatas) bool {
 
 // IsDefault determines whether the list of staged metadata is a default list.
 func (sms StagedMetadatas) IsDefault() bool {
-	return len(sms) == 1 && sms[0].IsDefault()
+	// very ugly but need to help out the go compiler here, as function calls have a high inlining cost
+	return len(sms) == 1 && len(sms[0].Pipelines) == 1 &&
+		sms[0].CutoverNanos == 0 && !sms[0].Tombstoned &&
+		sms[0].Pipelines[0].AggregationID == aggregation.DefaultID &&
+		len(sms[0].Pipelines[0].StoragePolicies) == 0 &&
+		sms[0].Pipelines[0].Pipeline.IsEmpty() &&
+		sms[0].Pipelines[0].DropPolicy == policy.DefaultDropPolicy
 }
 
 // IsDropPolicyApplied returns whether the list of staged metadata is the
 // default list but with the drop policy applied.
 func (sms StagedMetadatas) IsDropPolicyApplied() bool {
 	return len(sms) == 1 && sms[0].IsDropPolicyApplied()
+}
+
+// IsDropPolicySet returns if the active staged metadata has a drop policy set.
+func (sms StagedMetadatas) IsDropPolicySet() bool {
+	return len(sms) > 0 && sms[len(sms)-1].IsDropPolicySet()
 }
 
 // ToProto converts the staged metadatas to a protobuf message in place.
@@ -455,7 +567,81 @@ func (sms StagedMetadatas) ToProto(pb *metricpb.StagedMetadatas) error {
 }
 
 // FromProto converts the protobuf message to a staged metadatas in place.
+// This is an optimized method that merges some nested steps.
 func (sms *StagedMetadatas) FromProto(pb metricpb.StagedMetadatas) error {
+	numMetadatas := len(pb.Metadatas)
+	if cap(*sms) >= numMetadatas {
+		*sms = (*sms)[:numMetadatas]
+	} else {
+		*sms = make([]StagedMetadata, numMetadatas)
+	}
+
+	for i := 0; i < numMetadatas; i++ {
+		metadata := &(*sms)[i]
+		metadataPb := &pb.Metadatas[i]
+		numPipelines := len(metadataPb.Metadata.Pipelines)
+
+		metadata.CutoverNanos = metadataPb.CutoverNanos
+		metadata.Tombstoned = metadataPb.Tombstoned
+
+		if cap(metadata.Pipelines) >= numPipelines {
+			metadata.Pipelines = metadata.Pipelines[:numPipelines]
+		} else {
+			metadata.Pipelines = make(PipelineMetadatas, numPipelines)
+		}
+
+		for j := 0; j < numPipelines; j++ {
+			var (
+				pipelinePb         = &metadataPb.Metadata.Pipelines[j]
+				pipeline           = &metadata.Pipelines[j]
+				numStoragePolicies = len(pipelinePb.StoragePolicies)
+				numOps             = len(pipelinePb.Pipeline.Ops)
+				err                error
+			)
+
+			pipeline.AggregationID[0] = pipelinePb.AggregationId.Id
+			pipeline.DropPolicy = policy.DropPolicy(pipelinePb.DropPolicy)
+			pipeline.ResendEnabled = pipelinePb.ResendEnabled
+
+			if len(pipeline.Tags) > 0 {
+				pipeline.Tags = pipeline.Tags[:0]
+			}
+			if len(pipeline.GraphitePrefix) > 0 {
+				pipeline.GraphitePrefix = pipeline.GraphitePrefix[:0]
+			}
+
+			if cap(pipeline.StoragePolicies) >= numStoragePolicies {
+				pipeline.StoragePolicies = pipeline.StoragePolicies[:numStoragePolicies]
+			} else {
+				pipeline.StoragePolicies = make([]policy.StoragePolicy, numStoragePolicies)
+			}
+
+			if cap(pipeline.Pipeline.Operations) >= numOps {
+				pipeline.Pipeline.Operations = pipeline.Pipeline.Operations[:numOps]
+			} else {
+				pipeline.Pipeline.Operations = make([]applied.OpUnion, numOps)
+			}
+
+			if len(pipelinePb.Pipeline.Ops) > 0 {
+				err = applied.OperationsFromProto(pipelinePb.Pipeline.Ops, pipeline.Pipeline.Operations)
+				if err != nil {
+					return err
+				}
+			}
+			if len(pipelinePb.StoragePolicies) > 0 {
+				err = policy.StoragePoliciesFromProto(pipelinePb.StoragePolicies, pipeline.StoragePolicies)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// fromProto is a non-optimized in place protobuf conversion method, used as a reference for tests.
+func (sms *StagedMetadatas) fromProto(pb metricpb.StagedMetadatas) error {
 	numMetadatas := len(pb.Metadatas)
 	if cap(*sms) >= numMetadatas {
 		*sms = (*sms)[:numMetadatas]
@@ -472,8 +658,8 @@ func (sms *StagedMetadatas) FromProto(pb metricpb.StagedMetadatas) error {
 
 // VersionedStagedMetadatas is a versioned staged metadatas.
 type VersionedStagedMetadatas struct {
-	Version         int             `json:"version"`
 	StagedMetadatas StagedMetadatas `json:"stagedMetadatas"`
+	Version         int             `json:"version"`
 }
 
 // TimedMetadata represents the metadata information associated with timed metrics.
@@ -487,9 +673,7 @@ type TimedMetadata struct {
 
 // ToProto converts the timed metadata to a protobuf message in place.
 func (m TimedMetadata) ToProto(pb *metricpb.TimedMetadata) error {
-	if err := m.AggregationID.ToProto(&pb.AggregationId); err != nil {
-		return err
-	}
+	m.AggregationID.ToProto(&pb.AggregationId)
 	if err := m.StoragePolicy.ToProto(&pb.StoragePolicy); err != nil {
 		return err
 	}
@@ -498,9 +682,7 @@ func (m TimedMetadata) ToProto(pb *metricpb.TimedMetadata) error {
 
 // FromProto converts the protobuf message to a timed metadata in place.
 func (m *TimedMetadata) FromProto(pb metricpb.TimedMetadata) error {
-	if err := m.AggregationID.FromProto(pb.AggregationId); err != nil {
-		return err
-	}
+	m.AggregationID.FromProto(pb.AggregationId)
 	if err := m.StoragePolicy.FromProto(pb.StoragePolicy); err != nil {
 		return err
 	}

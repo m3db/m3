@@ -1,29 +1,5 @@
-listenAddress:
-  value: "0.0.0.0:7201"
-
-logging:
-  level: info
-
-metrics:
-  scope:
-    prefix: "coordinator"
-  prometheus:
-    handlerPath: /metrics
-    listenAddress: 0.0.0.0:7203 # until https://github.com/m3db/m3/issues/682 is resolved
-  sanitization: prometheus
-  samplingRate: 1.0
-  extended: none
-
 clusters:
-  - namespaces:
-      - namespace: agg
-        type: aggregated
-        retention: 10h
-        resolution: 5s
-      - namespace: unagg
-        type: unaggregated
-        retention: 10m
-    client:
+  - client:
       config:
         service:
           env: default_env
@@ -34,12 +10,13 @@ clusters:
             - zone: embedded
               endpoints:
                 - dbnode01:2379
-      writeConsistencyLevel: majority
-      readConsistencyLevel: unstrict_majority
 
 carbon:
+  findResultsIncludeBothExpandableAndLeaf: true
   ingester:
     listenAddress: "0.0.0.0:7204"
+    rewrite:
+      cleanup: true
     rules:
       - pattern: .*min.aggregate.*
         aggregation:
@@ -57,6 +34,7 @@ carbon:
         policies:
           - resolution: 5s
             retention: 10h
-
-tagOptions:
-  idScheme: quoted
+  limitsFind:
+    perQuery:
+      maxFetchedDocs: 100
+      requireExhaustive: false

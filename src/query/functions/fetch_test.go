@@ -27,7 +27,6 @@ import (
 
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
@@ -37,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
 	"github.com/m3db/m3/src/query/test/transformtest"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -47,7 +47,7 @@ import (
 func TestFetch(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 	b := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	mockStorage := mock.NewMockStorage()
 	mockStorage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
 	source := (&FetchOp{}).Node(c, mockStorage,
@@ -87,8 +87,8 @@ func TestOffsetFetch(t *testing.T) {
 	start := now.Add(time.Hour * -1)
 	opts := transformtest.Options(t, transform.OptionsParams{
 		TimeSpec: transform.TimeSpec{
-			Start: start,
-			End:   now,
+			Start: xtime.ToUnixNano(start),
+			End:   xtime.ToUnixNano(now),
 			Now:   now,
 		},
 	})
@@ -116,7 +116,7 @@ func TestOffsetFetch(t *testing.T) {
 
 	store.EXPECT().FetchBlocks(gomock.Any(), qMatcher, optsMatcher)
 
-	c, _ := executor.NewControllerWithSink(parser.NodeID(1))
+	c, _ := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	node := op.Node(c, store, opts)
 
 	err := node.Execute(models.NoopQueryContext())
@@ -126,14 +126,14 @@ func TestOffsetFetch(t *testing.T) {
 func TestFetchWithRestrictFetch(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 	b := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	mockStorage := mock.NewMockStorage()
 	mockStorage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
 	source := (&FetchOp{}).Node(c, mockStorage,
 		transformtest.Options(t, transform.OptionsParams{}))
 
 	ctx := models.NewQueryContext(context.Background(),
-		tally.NoopScope, cost.NoopChainedEnforcer(),
+		tally.NoopScope,
 		models.QueryContextOptions{
 			RestrictFetchType: &models.RestrictFetchTypeQueryContextOptions{
 				MetricsType:   uint(storagemetadata.AggregatedMetricsType),

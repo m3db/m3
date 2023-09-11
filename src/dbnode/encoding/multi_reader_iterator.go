@@ -54,7 +54,8 @@ func NewMultiReaderIterator(
 	pool MultiReaderIteratorPool,
 ) MultiReaderIterator {
 	it := &multiReaderIterator{pool: pool, iteratorAlloc: iteratorAlloc}
-	it.Reset(nil, time.Time{}, 0, nil)
+	it.iters.closeIters = true
+	it.Reset(nil, 0, 0, nil)
 	return it
 }
 
@@ -161,7 +162,12 @@ func (it *multiReaderIterator) Readers() xio.ReaderSliceOfSlicesIterator {
 	return it.slicesIter
 }
 
-func (it *multiReaderIterator) Reset(blocks []xio.SegmentReader, start time.Time, blockSize time.Duration, descr namespace.SchemaDescr) {
+func (it *multiReaderIterator) Reset(
+	blocks []xio.SegmentReader,
+	start xtime.UnixNano,
+	blockSize time.Duration,
+	descr namespace.SchemaDescr,
+) {
 	it.singleSlicesIter.readers = blocks
 	it.singleSlicesIter.firstNext = true
 	it.singleSlicesIter.closed = false
@@ -204,7 +210,7 @@ type singleSlicesOfSlicesIterator struct {
 	readers   []xio.SegmentReader
 	firstNext bool
 	closed    bool
-	start     time.Time
+	start     xtime.UnixNano
 	blockSize time.Duration
 }
 
@@ -216,7 +222,7 @@ func (it *singleSlicesOfSlicesIterator) Next() bool {
 	return true
 }
 
-func (it *singleSlicesOfSlicesIterator) CurrentReaders() (int, time.Time, time.Duration) {
+func (it *singleSlicesOfSlicesIterator) CurrentReaders() (int, xtime.UnixNano, time.Duration) {
 	return len(it.readers), it.start, it.blockSize
 }
 
@@ -247,6 +253,13 @@ func (it *singleSlicesOfSlicesIterator) Size() (int, error) {
 	return size, nil
 }
 
-func (it *singleSlicesOfSlicesIterator) Rewind() {
-	it.firstNext = true
+func (it *singleSlicesOfSlicesIterator) RewindToIndex(idx int) {
+	it.firstNext = idx <= 0
+}
+
+func (it *singleSlicesOfSlicesIterator) Index() int {
+	if it.firstNext {
+		return 0
+	}
+	return 1
 }

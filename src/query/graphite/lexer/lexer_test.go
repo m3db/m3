@@ -52,6 +52,7 @@ func TestLexer(t *testing.T) {
 		{"stats.foo.counts.bar.baz.status_code.?XX",
 			[]Token{{Pattern, "stats.foo.counts.bar.baz.status_code.?XX"}}, nil},
 		{"456.03", []Token{{Number, "456.03"}}, nil},
+		{"foo:bar~baz", []Token{{Identifier, "foo:bar~baz"}}, nil},
 		{"foo:bar", []Token{
 			{Identifier, "foo:bar"}}, nil},
 		{"foo:bar  baz:q*x", []Token{
@@ -64,13 +65,13 @@ func TestLexer(t *testing.T) {
 		// no need to escape single quotes within double quoted string
 		{"\"Whatever 'man'\"", []Token{{String, "Whatever 'man'"}}, nil},
 		// escape double quotes within double quoted string
-		{"\"Whatever \\\"man\\\"\"", []Token{{String, "Whatever \"man\""}}, nil},
+		{`"Whatever \"man\""`, []Token{{String, "Whatever \"man\""}}, nil},
 		{"'Whatever man'", []Token{{String, "Whatever man"}}, nil}, // single quoted string
 		// no need to escape double quote within single quoted strings (start boundary), but may
 		// do it if so desired (end boundary)
-		{"'Whatever \"man\\\"'", []Token{{String, "Whatever \"man\""}}, nil},
+		{`'Whatever "man\"'`, []Token{{String, "Whatever \"man\\\""}}, nil},
 		{" call09(a.{b,c,d}.node[0-2].qux.*, a{e,g}, 4546.abc, 45ahj, " +
-			"\"Hello there \\\"Good \\\\ Sir\\\" \", +20, 39540.459,-349845,.393) ",
+			`"Hello there \"Good \ Sir\" ", +20, 39540.459,-349845,.393) `,
 			[]Token{
 				{Identifier, "call09"},
 				{LParenthesis, "("},
@@ -122,7 +123,7 @@ func TestLexer(t *testing.T) {
 	}
 
 	for _, test := range lexerTestInput {
-		lex, tokens := NewLexer(test.input, test.reservedIdents)
+		lex, tokens := NewLexer(test.input, test.reservedIdents, Options{})
 		go lex.Run()
 
 		i := 0
@@ -156,7 +157,7 @@ func TestLexerErrors(t *testing.T) {
 	}
 
 	for _, badLine := range badLines {
-		l, tokens := NewLexer(badLine[0], nil)
+		l, tokens := NewLexer(badLine[0], nil, Options{})
 		go l.Run()
 
 		expected := &Token{Error, badLine[1]}

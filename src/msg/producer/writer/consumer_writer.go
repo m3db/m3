@@ -21,6 +21,7 @@
 package writer
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -212,7 +213,7 @@ func (w *consumerWriterImpl) Write(connIndex int, b []byte) error {
 	_, err := writeConn.w.Write(b)
 	writeConn.writeLock.Unlock()
 
-	// Hold onto the write state lock until done, since flushing and
+	// Hold onto the write state lock until done, since
 	// closing connections are done by acquiring the write state lock.
 	w.writeState.RUnlock()
 
@@ -254,13 +255,17 @@ func (w *consumerWriterImpl) flushUntilClose() {
 	for {
 		select {
 		case <-flushTicker.C:
-			w.writeState.Lock()
+			w.writeState.RLock()
 			for _, conn := range w.writeState.conns {
+				conn.writeLock.Lock()
 				if err := conn.w.Flush(); err != nil {
 					w.notifyReset(err)
 				}
+				conn.writeLock.Unlock()
 			}
-			w.writeState.Unlock()
+			// Hold onto the write state lock until done, since
+			// closing connections are done by acquiring the write state lock.
+			w.writeState.RUnlock()
 		case <-w.doneCh:
 			return
 		}
@@ -297,8 +302,8 @@ func (w *consumerWriterImpl) resetConnectionUntilClose() {
 }
 
 func (w *consumerWriterImpl) resetTooSoon() bool {
-	w.writeState.Lock()
-	defer w.writeState.Unlock()
+	w.writeState.RLock()
+	defer w.writeState.RUnlock()
 	return w.nowFn().UnixNano() < w.writeState.lastResetNanos+int64(w.connOpts.ResetDelay())
 }
 
@@ -393,8 +398,8 @@ func (w *consumerWriterImpl) notifyReset(err error) {
 }
 
 func (w *consumerWriterImpl) isClosed() bool {
-	w.writeState.Lock()
-	defer w.writeState.Unlock()
+	w.writeState.RLock()
+	defer w.writeState.RUnlock()
 	return w.writeState.closed
 }
 
@@ -444,23 +449,53 @@ func (w *consumerWriterImpl) reset(opts resetOptions) {
 }
 
 func (w *consumerWriterImpl) connectNoRetry(addr string) (io.ReadWriteCloser, error) {
-	conn, err := net.DialTimeout("tcp", addr, w.connOpts.DialTimeout())
+	// Upcast readWriterWithTimeout to the interface; this allows us to mock out the connectNoRetry function in tests.
+	return w.connectNoRetryWithTimeout(addr)
+}
+
+func (w *consumerWriterImpl) connectNoRetryWithTimeout(addr string) (readWriterWithTimeout, error) {
+	// N.B.: this is roughly equivalent to what net.DialTimeout does; shouldn't introduce performance regressions.
+	ctx, cancel := context.WithTimeout(context.Background(), w.connOpts.DialTimeout())
+	defer cancel()
+
+	conn, err := w.dialContext(ctx, addr)
 	if err != nil {
 		w.m.connectError.Inc(1)
-		return nil, err
+		return readWriterWithTimeout{}, err
 	}
-	tcpConn := conn.(*net.TCPConn)
+	tcpConn, ok := conn.(keepAlivable)
+	if !ok {
+		// If using a custom dialer which doesn't return *net.TCPConn, users are responsible for TCP keep alive options
+		// themselves.
+		return newReadWriterWithTimeout(conn, w.connOpts.WriteTimeout(), w.nowFn), nil
+	}
 	if err = tcpConn.SetKeepAlive(true); err != nil {
 		w.m.setKeepAliveError.Inc(1)
 	}
 	keepAlivePeriod := w.connOpts.KeepAlivePeriod()
 	if keepAlivePeriod <= 0 {
-		return conn, nil
+		return newReadWriterWithTimeout(conn, w.connOpts.WriteTimeout(), w.nowFn), nil
 	}
 	if err = tcpConn.SetKeepAlivePeriod(keepAlivePeriod); err != nil {
 		w.m.setKeepAlivePeriodError.Inc(1)
 	}
 	return newReadWriterWithTimeout(conn, w.connOpts.WriteTimeout(), w.nowFn), nil
+}
+
+// Make sure net.TCPConn implements this; otherwise bad things will happen.
+var _ keepAlivable = (*net.TCPConn)(nil)
+
+type keepAlivable interface {
+	SetKeepAlive(shouldKeepAlive bool) error
+	SetKeepAlivePeriod(d time.Duration) error
+}
+
+func (w *consumerWriterImpl) dialContext(ctx context.Context, addr string) (net.Conn, error) {
+	if dialer := w.connOpts.ContextDialer(); dialer != nil {
+		return dialer(ctx, "tcp", addr)
+	}
+	var dialer net.Dialer
+	return dialer.DialContext(ctx, "tcp", addr)
 }
 
 type connectOptions struct {

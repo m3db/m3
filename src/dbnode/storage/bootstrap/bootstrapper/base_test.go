@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -38,7 +39,7 @@ import (
 
 var (
 	testNamespaceID    = ident.StringID("testNamespace")
-	testTargetStart    = time.Now()
+	testTargetStart    = xtime.Now()
 	testShard          = uint32(0)
 	testDefaultRunOpts = bootstrap.NewRunOptions().
 				SetPersistConfig(bootstrap.PersistConfig{Enabled: false})
@@ -80,6 +81,7 @@ func testResult(
 	withIndex bool,
 	shard uint32,
 	unfulfilledRange xtime.Ranges,
+	indexResult result.IndexBootstrapResult,
 ) bootstrap.NamespaceResults {
 	unfulfilled := result.NewShardTimeRanges()
 	unfulfilled.Set(shard, unfulfilledRange)
@@ -89,7 +91,6 @@ func testResult(
 	dataResult := result.NewDataBootstrapResult()
 	dataResult.SetUnfulfilled(unfulfilled.Copy())
 
-	indexResult := result.NewIndexBootstrapResult()
 	if withIndex {
 		indexResult.SetUnfulfilled(unfulfilled.Copy())
 	}
@@ -134,29 +135,32 @@ func testBaseBootstrapperEmptyRange(t *testing.T, withIndex bool) {
 
 	rngs := result.NewShardTimeRanges()
 	unfulfilled := xtime.NewRanges()
-	nsResults := testResult(testNs, withIndex, testShard, unfulfilled)
-	nextResult := testResult(testNs, withIndex, testShard, xtime.NewRanges())
+	nsResults := testResult(testNs, withIndex, testShard, unfulfilled, result.NewIndexBootstrapResult())
+	nextResult := testResult(testNs, withIndex, testShard, xtime.NewRanges(), result.NewIndexBootstrapResult())
 	shardRangeMatcher := bootstrap.ShardTimeRangesMatcher{Ranges: rngs}
-	src.EXPECT().AvailableData(testNs, shardRangeMatcher, testDefaultRunOpts).
-		Return(rngs, nil)
-	if withIndex {
-		src.EXPECT().AvailableIndex(testNs, shardRangeMatcher, testDefaultRunOpts).
-			Return(rngs, nil)
-	}
 
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, rngs, testNs)
 	defer tester.Finish()
 
+	cache := tester.Cache
+	src.EXPECT().AvailableData(testNs, shardRangeMatcher, cache, testDefaultRunOpts).
+		Return(rngs, nil)
+	if withIndex {
+		src.EXPECT().AvailableIndex(testNs, shardRangeMatcher, cache, testDefaultRunOpts).
+			Return(rngs, nil)
+	}
+
 	matcher := bootstrap.NamespaceMatcher{Namespaces: tester.Namespaces}
 	src.EXPECT().
-		Read(gomock.Any(), matcher).
+		Read(gomock.Any(), matcher, cache).
 		DoAndReturn(func(
 			ctx context.Context,
 			namespaces bootstrap.Namespaces,
+			cache bootstrap.Cache,
 		) (bootstrap.NamespaceResults, error) {
 			return nsResults, nil
 		})
-	next.EXPECT().Bootstrap(gomock.Any(), matcher).Return(nextResult, nil)
+	next.EXPECT().Bootstrap(gomock.Any(), matcher, cache).Return(nextResult, nil)
 
 	// Test non-nil empty range
 	tester.TestBootstrapWith(base)
@@ -182,31 +186,34 @@ func testBaseBootstrapperCurrentNoUnfulfilled(t *testing.T, withIndex bool) {
 	testNs := testNsMetadata(t, withIndex)
 
 	unfulfilled := xtime.NewRanges()
-	nsResults := testResult(testNs, withIndex, testShard, unfulfilled)
-	nextResult := testResult(testNs, withIndex, testShard, xtime.NewRanges())
+	nsResults := testResult(testNs, withIndex, testShard, unfulfilled, result.NewIndexBootstrapResult())
+	nextResult := testResult(testNs, withIndex, testShard, xtime.NewRanges(), result.NewIndexBootstrapResult())
 
 	targetRanges := testShardTimeRanges()
-	src.EXPECT().AvailableData(testNs, targetRanges, testDefaultRunOpts).
-		Return(targetRanges, nil)
-	if withIndex {
-		src.EXPECT().AvailableIndex(testNs, targetRanges, testDefaultRunOpts).
-			Return(targetRanges, nil)
-	}
 
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, targetRanges,
 		testNs)
 	defer tester.Finish()
 
+	cache := tester.Cache
+	src.EXPECT().AvailableData(testNs, targetRanges, cache, testDefaultRunOpts).
+		Return(targetRanges, nil)
+	if withIndex {
+		src.EXPECT().AvailableIndex(testNs, targetRanges, cache, testDefaultRunOpts).
+			Return(targetRanges, nil)
+	}
+
 	matcher := bootstrap.NamespaceMatcher{Namespaces: tester.Namespaces}
 	src.EXPECT().
-		Read(gomock.Any(), matcher).
+		Read(gomock.Any(), matcher, cache).
 		DoAndReturn(func(
 			ctx context.Context,
 			namespaces bootstrap.Namespaces,
+			cache bootstrap.Cache,
 		) (bootstrap.NamespaceResults, error) {
 			return nsResults, nil
 		})
-	next.EXPECT().Bootstrap(gomock.Any(), matcher).Return(nextResult, nil)
+	next.EXPECT().Bootstrap(gomock.Any(), matcher, cache).Return(nextResult, nil)
 
 	tester.TestBootstrapWith(base)
 	assert.Equal(t, nsResults, tester.Results)
@@ -235,28 +242,29 @@ func testBaseBootstrapperCurrentSomeUnfulfilled(t *testing.T, withIndex bool) {
 		End:   testTargetStart.Add(time.Hour * 2),
 	})
 
-	src.EXPECT().AvailableData(testNs, targetRanges, testDefaultRunOpts).
-		Return(targetRanges, nil)
-	if withIndex {
-		src.EXPECT().AvailableIndex(testNs, targetRanges, testDefaultRunOpts).
-			Return(targetRanges, nil)
-	}
-
-	currResult := testResult(testNs, withIndex, testShard, currUnfulfilled)
-	nextResult := testResult(testNs, withIndex, testShard, xtime.NewRanges())
+	currResult := testResult(testNs, withIndex, testShard, currUnfulfilled, result.NewIndexBootstrapResult())
+	nextResult := testResult(testNs, withIndex, testShard, xtime.NewRanges(), result.NewIndexBootstrapResult())
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, targetRanges,
 		testNs)
 	defer tester.Finish()
 
+	cache := tester.Cache
+	src.EXPECT().AvailableData(testNs, targetRanges, cache, testDefaultRunOpts).
+		Return(targetRanges, nil)
+	if withIndex {
+		src.EXPECT().AvailableIndex(testNs, targetRanges, cache, testDefaultRunOpts).
+			Return(targetRanges, nil)
+	}
+
 	matcher := bootstrap.NamespaceMatcher{Namespaces: tester.Namespaces}
-	src.EXPECT().Read(gomock.Any(), matcher).Return(currResult, nil)
-	next.EXPECT().Bootstrap(gomock.Any(), matcher).Return(nextResult, nil)
+	src.EXPECT().Read(gomock.Any(), matcher, cache).Return(currResult, nil)
+	next.EXPECT().Bootstrap(gomock.Any(), matcher, cache).Return(nextResult, nil)
 
 	tester.TestBootstrapWith(base)
 	tester.TestUnfulfilledForNamespaceIsEmpty(testNs)
 }
 
-func testBasebootstrapperNext(
+func testBaseBootstrapperNext(
 	t *testing.T,
 	nextUnfulfilled xtime.Ranges,
 	withIndex bool,
@@ -267,24 +275,25 @@ func testBasebootstrapperNext(
 	testNs := testNsMetadata(t, withIndex)
 	targetRanges := testShardTimeRanges()
 
-	src.EXPECT().
-		AvailableData(testNs, targetRanges, testDefaultRunOpts).
-		Return(result.NewShardTimeRanges(), nil)
-	if withIndex {
-		src.EXPECT().
-			AvailableIndex(testNs, targetRanges, testDefaultRunOpts).
-			Return(result.NewShardTimeRanges(), nil)
-	}
-
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, targetRanges,
 		testNs)
 	defer tester.Finish()
 
+	cache := tester.Cache
+	src.EXPECT().
+		AvailableData(testNs, targetRanges, cache, testDefaultRunOpts).
+		Return(result.NewShardTimeRanges(), nil)
+	if withIndex {
+		src.EXPECT().
+			AvailableIndex(testNs, targetRanges, cache, testDefaultRunOpts).
+			Return(result.NewShardTimeRanges(), nil)
+	}
+
 	emptyResult := testEmptyResult(testNs)
-	nextResult := testResult(testNs, withIndex, testShard, nextUnfulfilled)
+	nextResult := testResult(testNs, withIndex, testShard, nextUnfulfilled, result.NewIndexBootstrapResult())
 	matcher := bootstrap.NamespaceMatcher{Namespaces: tester.Namespaces}
-	src.EXPECT().Read(gomock.Any(), matcher).Return(emptyResult, nil)
-	next.EXPECT().Bootstrap(gomock.Any(), matcher).Return(nextResult, nil)
+	src.EXPECT().Read(gomock.Any(), matcher, cache).Return(emptyResult, nil)
+	next.EXPECT().Bootstrap(gomock.Any(), matcher, cache).Return(nextResult, nil)
 
 	tester.TestBootstrapWith(base)
 
@@ -301,13 +310,13 @@ func testBasebootstrapperNext(
 }
 
 func TestBaseBootstrapperNextNoUnfulfilled(t *testing.T) {
-	nextUnfulfilled := testTargetRanges()
-	testBasebootstrapperNext(t, nextUnfulfilled, false)
+	nextUnfulfilled := xtime.NewRanges()
+	testBaseBootstrapperNext(t, nextUnfulfilled, false)
 }
 
 func TestBaseBootstrapperNextNoUnfulfilledWithIndex(t *testing.T) {
-	nextUnfulfilled := testTargetRanges()
-	testBasebootstrapperNext(t, nextUnfulfilled, true)
+	nextUnfulfilled := xtime.NewRanges()
+	testBaseBootstrapperNext(t, nextUnfulfilled, true)
 }
 
 func TestBaseBootstrapperNextSomeUnfulfilled(t *testing.T) {
@@ -316,7 +325,7 @@ func TestBaseBootstrapperNextSomeUnfulfilled(t *testing.T) {
 		End:   testTargetStart.Add(time.Hour),
 	})
 
-	testBasebootstrapperNext(t, nextUnfulfilled, false)
+	testBaseBootstrapperNext(t, nextUnfulfilled, false)
 }
 
 func TestBaseBootstrapperNextSomeUnfulfilledWithIndex(t *testing.T) {
@@ -325,5 +334,46 @@ func TestBaseBootstrapperNextSomeUnfulfilledWithIndex(t *testing.T) {
 		End:   testTargetStart.Add(time.Hour),
 	})
 
-	testBasebootstrapperNext(t, nextUnfulfilled, true)
+	testBaseBootstrapperNext(t, nextUnfulfilled, true)
+}
+
+func TestBaseBootstrapperNextAddIndexResults(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	src, next, base := testBaseBootstrapper(t, ctrl)
+	testNs := testNsMetadata(t, true)
+	targetRanges := testShardTimeRanges()
+
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, targetRanges, testNs)
+	defer tester.Finish()
+
+	cache := tester.Cache
+	src.EXPECT().
+		AvailableData(testNs, targetRanges, cache, testDefaultRunOpts).
+		Return(result.NewShardTimeRanges(), nil)
+	src.EXPECT().
+		AvailableIndex(testNs, targetRanges, cache, testDefaultRunOpts).
+		Return(result.NewShardTimeRanges(), nil)
+
+	var (
+		blockStart = xtime.UnixNano(1)
+
+		nextBlock       = result.NewIndexBlock(nil, result.NewShardTimeRanges())
+		nextBlocks      = result.NewIndexBlockByVolumeType(blockStart)
+		nextIndexResult = result.NewIndexBootstrapResult()
+	)
+
+	nextBlocks.SetBlock(persist.DefaultIndexVolumeType, nextBlock)
+	nextIndexResult.IndexResults().Add(nextBlocks)
+
+	emptyResult := testEmptyResult(testNs)
+	nextResult := testResult(testNs, true, testShard, xtime.NewRanges(), nextIndexResult)
+
+	matcher := bootstrap.NamespaceMatcher{Namespaces: tester.Namespaces}
+	src.EXPECT().Read(gomock.Any(), matcher, cache).Return(emptyResult, nil)
+	next.EXPECT().Bootstrap(gomock.Any(), matcher, cache).Return(nextResult, nil)
+
+	tester.TestBootstrapWith(base)
+
+	tester.TestIndexResultForNamespace(testNs, nextIndexResult)
 }

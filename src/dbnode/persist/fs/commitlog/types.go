@@ -23,11 +23,11 @@ package commitlog
 import (
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -37,6 +37,9 @@ import (
 
 // Strategy describes the commit log writing strategy
 type Strategy int
+
+// FailureStrategy describes the commit log failure strategy
+type FailureStrategy int
 
 const (
 	// StrategyWriteWait describes the strategy that waits
@@ -48,6 +51,22 @@ const (
 	// for the buffered commit log chunk that contains a write to flush
 	// before acknowledging a write
 	StrategyWriteBehind
+)
+
+const (
+	// FailureStrategyPanic describes the failure strategy that causes
+	// the commit log to panic on I/O errors. This provides the only correct
+	// behavior for M3DB nodes.
+	FailureStrategyPanic FailureStrategy = iota
+
+	// FailureStrategyCallback describes the failure strategy that calls the configured
+	// FailureCallback. The return value of that callback determines whether to panic
+	// or ignore the passed error.
+	FailureStrategyCallback
+
+	// FailureStrategyIgnore describes the failure strategy that causes the
+	// commit log to swallow I/O errors.
+	FailureStrategyIgnore
 )
 
 // CommitLog provides a synchronized commit log
@@ -87,9 +106,10 @@ type CommitLog interface {
 
 // LogEntry is a commit log entry being read.
 type LogEntry struct {
-	Series     ts.Series
-	Datapoint  ts.Datapoint
-	Unit       xtime.Unit
+	Series    ts.Series
+	Datapoint ts.Datapoint
+	Unit      xtime.Unit
+	// Annotation gets invalidates on every read.
 	Annotation ts.Annotation
 	Metadata   LogEntryMetadata
 }
@@ -215,6 +235,18 @@ type Options interface {
 
 	// IdentifierPool returns the IdentifierPool to use for pooling identifiers.
 	IdentifierPool() ident.Pool
+
+	// SetFailureStrategy sets the strategy.
+	SetFailureStrategy(value FailureStrategy) Options
+
+	// FailureStrategy returns the strategy.
+	FailureStrategy() FailureStrategy
+
+	// SetFailureCallback sets the strategy.
+	SetFailureCallback(value FailureCallback) Options
+
+	// FailureCallback returns the strategy.
+	FailureCallback() FailureCallback
 }
 
 // FileFilterInfo contains information about a commitog file that can be used to

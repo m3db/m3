@@ -182,7 +182,8 @@ func (tr *ranges) findFirstNotBefore(r Range) *list.Element {
 	if tr.sortedRanges == nil {
 		return nil
 	}
-	for e := tr.sortedRanges.Front(); e != nil; e = e.Next() {
+	e := tr.sortedRanges.Front()
+	for ; e != nil; e = e.Next() {
 		if !e.Value.(Range).Before(r) {
 			return e
 		}

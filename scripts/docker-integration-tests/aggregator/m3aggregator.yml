@@ -17,15 +17,11 @@ m3msg:
   server:
     listenAddress: 0.0.0.0:6000
     retry:
-      maxBackoff: 10s
+      maxBackoff: 1s
       jitter: true
   consumer:
     messagePool:
-      size: 16384
-      watermark:
-        low: 0.2
-        high: 0.5
-
+      size: dynamic
 http:
   listenAddress: 0.0.0.0:6001
   readTimeout: 60s
@@ -39,6 +35,8 @@ kvClient:
     cacheDir: /var/lib/m3kv
     etcdClusters:
       - zone: embedded
+        autoSyncInterval: 10m
+        dialTimeout: 1m
         endpoints:
           - dbnode01:2379
 
@@ -68,7 +66,7 @@ aggregator:
     timerTransformFnType: suffix
     gaugeTransformFnType: empty
     aggregationTypesPool:
-      size: 1024
+      size: 32
     quantilesPool:
       buckets:
         - count: 256
@@ -105,10 +103,7 @@ aggregator:
             namespaces:
               placement: /placement
           messagePool:
-            size: 16384
-            watermark:
-              low: 0.2
-              high: 0.5
+            size: dynamic
   placementManager:
     kvConfig:
       namespace: /placement
@@ -116,11 +111,12 @@ aggregator:
       zone: embedded
     placementWatcher:
       key: m3aggregator
-      initWatchTimeout: 10s
+      initWatchTimeout: 1s
   hashType: murmur32
   bufferDurationBeforeShardCutover: 10m
   bufferDurationAfterShardCutoff: 10m
   bufferDurationForFutureTimedMetric: 10m # Allow test to write into future.
+  bufferDurationForPastTimedMetric: 10s # Don't wait too long for timed metrics to flush.
   resignTimeout: 1m
   flushTimesManager:
     kvConfig:
@@ -129,8 +125,8 @@ aggregator:
     flushTimesKeyFmt: shardset/%d/flush
     flushTimesPersistRetrier:
       initialBackoff: 100ms
-      backoffFactor: 2.0
-      maxBackoff: 2s
+      backoffFactor: 1.0
+      maxBackoff: 500ms
       maxRetries: 3
   electionManager:
     election:
@@ -145,39 +141,27 @@ aggregator:
     campaignRetrier:
       initialBackoff: 100ms
       backoffFactor: 2.0
-      maxBackoff: 2s
+      maxBackoff: 1s
       forever: true
       jitter: true
     changeRetrier:
       initialBackoff: 100ms
       backoffFactor: 2.0
-      maxBackoff: 5s
+      maxBackoff: 1s
       forever: true
       jitter: true
     resignRetrier:
       initialBackoff: 100ms
       backoffFactor: 2.0
-      maxBackoff: 5s
+      maxBackoff: 1s
       forever: true
       jitter: true
     campaignStateCheckInterval: 1s
     shardCutoffCheckOffset: 30s
   flushManager:
-    checkEvery: 1s
-    jitterEnabled: true
-    maxJitters:
-      - flushInterval: 5s
-        maxJitterPercent: 1.0
-      - flushInterval: 10s
-        maxJitterPercent: 0.5
-      - flushInterval: 1m
-        maxJitterPercent: 0.5
-      - flushInterval: 10m
-        maxJitterPercent: 0.5
-      - flushInterval: 1h
-        maxJitterPercent: 0.25
-    numWorkersPerCPU: 0.5
-    flushTimesPersistEvery: 10s
+    checkEvery: 500ms
+    jitterEnabled: false
+    numWorkersPerCPU: 0.1
     maxBufferSize: 5m
     forcedFlushWindowSize: 10s
   flush:
@@ -192,14 +176,11 @@ aggregator:
                 zone: embedded
                 environment: override_test_env
               messagePool:
-                size: 16384
-                watermark:
-                  low: 0.2
-                  high: 0.5
+                size: dynamic
   passthrough:
     enabled: true
   forwarding:
-    maxConstDelay: 1m # Need to add some buffer window, since timed metrics by default are delayed by 1min.
+    maxConstDelay: 65s # Need to add some buffer window, since timed metrics by default are delayed by 1min.
   entryTTL: 1h
   entryCheckInterval: 10m
   maxTimerBatchSizePerWrite: 140

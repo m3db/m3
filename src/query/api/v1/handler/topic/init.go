@@ -24,10 +24,10 @@ import (
 	"net/http"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/msg/topic"
-	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
@@ -38,7 +38,7 @@ import (
 
 const (
 	// InitURL is the url for the topic init handler (with the POST method).
-	InitURL = handler.RoutePrefixV1 + "/topic/init"
+	InitURL = route.Prefix + "/topic/init"
 
 	// InitHTTPMethod is the HTTP method used with this resource.
 	InitHTTPMethod = http.MethodPost
@@ -70,7 +70,7 @@ func (h *InitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rErr := parseRequest(r, &req)
 	if rErr != nil {
 		logger.Error("unable to parse request", zap.Error(rErr))
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.WriteError(w, rErr)
 		return
 	}
 
@@ -79,7 +79,7 @@ func (h *InitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	service, err := h.serviceFn(h.client, svcOpts)
 	if err != nil {
 		logger.Error("unable to get service", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
@@ -89,14 +89,14 @@ func (h *InitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	t, err = service.CheckAndSet(t, 0)
 	if err != nil {
 		logger.Error("unable to init topic", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 
 	topicProto, err := topic.ToProto(t)
 	if err != nil {
 		logger.Error("unable to get topic protobuf", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 		return
 	}
 

@@ -34,30 +34,52 @@ import (
 )
 
 var (
-	errNamespaceIDNotSet = errors.New("namespace ID not set")
-	errSessionNotSet     = errors.New("session not set")
-	errRetentionNotSet   = errors.New("retention not set")
-	errResolutionNotSet  = errors.New("resolution not set")
+	errNamespaceIDNotSet   = errors.New("namespace ID not set")
+	errSessionNotSet       = errors.New("session not set")
+	errRetentionNotSet     = errors.New("retention not set")
+	errResolutionNotSet    = errors.New("resolution not set")
+	errNegativeDataLatency = errors.New("negative dataLatency")
 
-	defaultClusterNamespaceDownsampleOptions = ClusterNamespaceDownsampleOptions{
+	// DefaultClusterNamespaceDownsampleOptions is a default options.
+	// NB(antanas): this was made public to access it in promremote storage.
+	// Ideally downsampling could be decoupled from m3 storage.
+	DefaultClusterNamespaceDownsampleOptions = ClusterNamespaceDownsampleOptions{
 		All: true,
 	}
+)
+
+// ClusterConfigType is an enum representing the configuration used
+// to create a Clusters interface
+type ClusterConfigType int
+
+const (
+	// ClusterConfigTypeStatic is for static configuration.
+	ClusterConfigTypeStatic = iota
+	// ClusterConfigTypeDynamic is for dynamic configuration.
+	ClusterConfigTypeDynamic
 )
 
 // Clusters is a flattened collection of local storage clusters and namespaces.
 type Clusters interface {
 	io.Closer
 
-	// ClusterNamespaces returns all known cluster namespaces.
+	// ClusterNamespaces returns all known and ready cluster namespaces.
 	ClusterNamespaces() ClusterNamespaces
 
+	// NonReadyClusterNamespaces returns all cluster namespaces not in the ready state.
+	NonReadyClusterNamespaces() ClusterNamespaces
+
 	// UnaggregatedClusterNamespace returns the valid unaggregated
-	// cluster namespace.
-	UnaggregatedClusterNamespace() ClusterNamespace
+	// cluster namespace. If the namespace is not yet initialized, returns false.
+	UnaggregatedClusterNamespace() (ClusterNamespace, bool)
 
 	// AggregatedClusterNamespace returns an aggregated cluster namespace
 	// at a specific retention and resolution.
 	AggregatedClusterNamespace(attrs RetentionResolution) (ClusterNamespace, bool)
+
+	// ConfigType returns the type of configuration used to create this Clusters
+	// object.
+	ConfigType() ClusterConfigType
 }
 
 // RetentionResolution is a tuple of retention and resolution that describes
@@ -78,13 +100,36 @@ type ClusterNamespace interface {
 type ClusterNamespaceOptions struct {
 	// Note: Don't allow direct access, as we want to provide defaults
 	// and/or error if call to access a field is not relevant/correct.
-	attributes storagemetadata.Attributes
-	downsample *ClusterNamespaceDownsampleOptions
+	attributes  storagemetadata.Attributes
+	downsample  *ClusterNamespaceDownsampleOptions
+	dataLatency time.Duration
+	readOnly    bool
+}
+
+// NewClusterNamespaceOptions creates new cluster namespace options.
+func NewClusterNamespaceOptions(
+	attributes storagemetadata.Attributes,
+	downsample *ClusterNamespaceDownsampleOptions,
+) ClusterNamespaceOptions {
+	return ClusterNamespaceOptions{
+		attributes: attributes,
+		downsample: downsample,
+	}
 }
 
 // Attributes returns the storage attributes of the cluster namespace.
 func (o ClusterNamespaceOptions) Attributes() storagemetadata.Attributes {
 	return o.attributes
+}
+
+// DataLatency returns the duration after which the data is available in this cluster namespace.
+func (o ClusterNamespaceOptions) DataLatency() time.Duration {
+	return o.dataLatency
+}
+
+// ReadOnly returns the value of ReadOnly option for a cluster namespace.
+func (o ClusterNamespaceOptions) ReadOnly() bool {
+	return o.readOnly
 }
 
 // DownsampleOptions returns the downsample options for a cluster namespace,
@@ -97,7 +142,7 @@ func (o ClusterNamespaceOptions) DownsampleOptions() (
 		return ClusterNamespaceDownsampleOptions{}, errNotAggregatedClusterNamespace
 	}
 	if o.downsample == nil {
-		return defaultClusterNamespaceDownsampleOptions, nil
+		return DefaultClusterNamespaceDownsampleOptions, nil
 	}
 	return *o.downsample, nil
 }
@@ -110,26 +155,6 @@ type ClusterNamespaceDownsampleOptions struct {
 
 // ClusterNamespaces is a slice of ClusterNamespace instances.
 type ClusterNamespaces []ClusterNamespace
-
-// ClusterNamespacesByResolutionAsc is a slice of ClusterNamespace instances is
-// sortable by resolution.
-type ClusterNamespacesByResolutionAsc []ClusterNamespace
-
-func (a ClusterNamespacesByResolutionAsc) Len() int      { return len(a) }
-func (a ClusterNamespacesByResolutionAsc) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a ClusterNamespacesByResolutionAsc) Less(i, j int) bool {
-	return a[i].Options().Attributes().Resolution < a[j].Options().Attributes().Resolution
-}
-
-// ClusterNamespacesByRetentionAsc is a slice of ClusterNamespace instances is
-// sortable by retention.
-type ClusterNamespacesByRetentionAsc []ClusterNamespace
-
-func (a ClusterNamespacesByRetentionAsc) Len() int      { return len(a) }
-func (a ClusterNamespacesByRetentionAsc) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a ClusterNamespacesByRetentionAsc) Less(i, j int) bool {
-	return a[i].Options().Attributes().Retention < a[j].Options().Attributes().Retention
-}
 
 // NumAggregatedClusterNamespaces returns the number of aggregated
 // cluster namespaces.
@@ -174,6 +199,8 @@ type AggregatedClusterNamespaceDefinition struct {
 	Retention   time.Duration
 	Resolution  time.Duration
 	Downsample  *ClusterNamespaceDownsampleOptions
+	DataLatency time.Duration
+	ReadOnly    bool
 }
 
 // Validate validates the cluster namespace definition.
@@ -189,6 +216,9 @@ func (def AggregatedClusterNamespaceDefinition) Validate() error {
 	}
 	if def.Resolution <= 0 {
 		return errResolutionNotSet
+	}
+	if def.DataLatency < 0 {
+		return errNegativeDataLatency
 	}
 	return nil
 }
@@ -250,8 +280,13 @@ func (c *clusters) ClusterNamespaces() ClusterNamespaces {
 	return c.namespaces
 }
 
-func (c *clusters) UnaggregatedClusterNamespace() ClusterNamespace {
-	return c.unaggregatedNamespace
+func (c *clusters) NonReadyClusterNamespaces() ClusterNamespaces {
+	// statically configured cluster namespaces are always considered ready.
+	return nil
+}
+
+func (c *clusters) UnaggregatedClusterNamespace() (ClusterNamespace, bool) {
+	return c.unaggregatedNamespace, true
 }
 
 func (c *clusters) AggregatedClusterNamespace(
@@ -259,6 +294,10 @@ func (c *clusters) AggregatedClusterNamespace(
 ) (ClusterNamespace, bool) {
 	namespace, ok := c.aggregatedNamespaces[attrs]
 	return namespace, ok
+}
+
+func (c *clusters) ConfigType() ClusterConfigType {
+	return ClusterConfigTypeStatic
 }
 
 func (c *clusters) Close() error {
@@ -344,7 +383,9 @@ func newAggregatedClusterNamespace(
 				Retention:   def.Retention,
 				Resolution:  def.Resolution,
 			},
-			downsample: def.Downsample,
+			downsample:  def.Downsample,
+			dataLatency: def.DataLatency,
+			readOnly:    def.ReadOnly,
 		},
 		session: def.Session,
 	}, nil

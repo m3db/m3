@@ -1,22 +1,5 @@
 # m3query configuration for local development setup. Mostly the same as m3query-local-etcd.yml, but using fewer
 # resources (threads primarily).
-
-listenAddress:
-  value: "0.0.0.0:7201"
-
-logging:
-  level: info
-
-metrics:
-  scope:
-    prefix: "coordinator"
-  prometheus:
-    handlerPath: /metrics
-    listenAddress: 0.0.0.0:7203 # until https://github.com/m3db/m3/issues/682 is resolved
-  sanitization: prometheus
-  samplingRate: 1.0
-  extended: none
-
 clusters:
   - namespaces:
       - namespace: default
@@ -33,23 +16,6 @@ clusters:
             - zone: embedded
               endpoints:
                 - 127.0.0.1:2379
-      writeConsistencyLevel: majority
-      readConsistencyLevel: unstrict_majority
-      writeTimeout: 10s
-      fetchTimeout: 15s
-      connectTimeout: 20s
-      writeRetry:
-        initialBackoff: 500ms
-        backoffFactor: 3
-        maxRetries: 2
-        jitter: true
-      fetchRetry:
-        initialBackoff: 500ms
-        backoffFactor: 2
-        maxRetries: 3
-        jitter: true
-      backgroundHealthCheckFailLimit: 4
-      backgroundHealthCheckFailThrottleFactor: 0.5
 
 readWorkerPoolPolicy:
   grow: false
@@ -58,12 +24,3 @@ readWorkerPoolPolicy:
 writeWorkerPoolPolicy:
   grow: false
   size: 10
-
-tagOptions:
-  idScheme: quoted
-
-# Uncomment this to enable local jaeger tracing. See https://www.jaegertracing.io/docs/1.9/getting-started/
-# for quick local setup (which this config will send data to).
-
-# tracing:
-#  backend: jaeger

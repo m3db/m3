@@ -10,6 +10,8 @@ services:
     networks:
       - backend
     image: "m3dbnode_integration:${REVISION}"
+    volumes:
+      - "./m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
   coordinator01:
     expose:
       - "7201"

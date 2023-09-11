@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/cluster/shard"
 	tterrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/x/checked"
 	xerrors "github.com/m3db/m3/src/x/errors"
 
 	"github.com/golang/mock/gomock"
@@ -123,6 +124,17 @@ func TestShardNotAvailable(t *testing.T) {
 	writeTestTeardown(wState, &writeWg)
 }
 
+func TestShardLeavingWithShardsLeavingCountTowardsConsistency(t *testing.T) {
+	var writeWg sync.WaitGroup
+
+	wState, s, host := writeTestSetup(t, &writeWg)
+	wState.shardsLeavingCountTowardsConsistency = true
+	setShardStates(t, s, host, shard.Leaving)
+	wState.completionFn(host, nil)
+	assert.Equal(t, int32(1), wState.success)
+	writeTestTeardown(wState, &writeWg)
+}
+
 // utils
 
 func getWriteState(s *session, w writeStub) *writeState {
@@ -136,6 +148,13 @@ func getWriteState(s *session, w writeStub) *writeState {
 	wState.op = o
 	wState.nsID = w.ns
 	wState.tsID = w.id
+	var clonedAnnotation checked.Bytes
+	if len(w.annotation) > 0 {
+		clonedAnnotation = s.pools.checkedBytes.Get(len(w.annotation))
+		clonedAnnotation.IncRef()
+		clonedAnnotation.AppendAll(w.annotation)
+	}
+	wState.annotation = clonedAnnotation
 	return wState
 }
 

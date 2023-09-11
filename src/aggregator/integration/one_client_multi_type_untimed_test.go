@@ -1,4 +1,4 @@
-// +build integration
+//go:build integration
 
 // Copyright (c) 2016 Uber Technologies, Inc.
 //
@@ -23,25 +23,21 @@
 package integration
 
 import (
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/cluster/placement"
-	"github.com/m3db/m3/src/x/clock"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestOneClientMultiTypeUntimedMetricsWithPoliciesList(t *testing.T) {
-	metadataFn := func(int) metadataUnion {
-		return metadataUnion{
-			mType:        policiesListType,
-			policiesList: testPoliciesList,
-		}
-	}
-	testOneClientMultiType(t, metadataFn)
-}
+const (
+	// waitForDataToFlush is the amount of time we will wait in these tests between finishing writing data to
+	// the aggregator, and attempting to assert that data went through.
+	// The aggregator generally, and these tests specifically are quite sensitive to time.
+	// The tests probably need a bit of a rethink to wait on (or poll for) an actual condition instead of sleeping.
+	waitForDataToFlush = 10 * time.Second
+)
 
 func TestOneClientMultiTypeUntimedMetricsWithStagedMetadatas(t *testing.T) {
 	metadataFn := func(int) metadataUnion {
@@ -58,24 +54,11 @@ func testOneClientMultiType(t *testing.T, metadataFn metadataFn) {
 		t.SkipNow()
 	}
 
-	serverOpts := newTestServerOptions()
+	serverOpts := newTestServerOptions(t)
 
 	// Clock setup.
-	var lock sync.RWMutex
-	now := time.Now().Truncate(time.Hour)
-	getNowFn := func() time.Time {
-		lock.RLock()
-		t := now
-		lock.RUnlock()
-		return t
-	}
-	setNowFn := func(t time.Time) {
-		lock.Lock()
-		now = t
-		lock.Unlock()
-	}
-	clockOpts := clock.NewOptions().SetNowFn(getNowFn)
-	serverOpts = serverOpts.SetClockOptions(clockOpts)
+	clock := newTestClock(time.Now().Truncate(time.Hour))
+	serverOpts = serverOpts.SetClockOptions(clock.Options())
 
 	// Placement setup.
 	numShards := 1024
@@ -88,8 +71,9 @@ func testOneClientMultiType(t *testing.T, metadataFn metadataFn) {
 	instance := cfg.newPlacementInstance()
 	placement := newPlacement(numShards, []placement.Instance{instance})
 	placementKey := serverOpts.PlacementKVKey()
-	placementStore := serverOpts.KVStore()
-	require.NoError(t, setPlacement(placementKey, placementStore, placement))
+	setPlacement(t, placementKey, serverOpts.ClusterClient(), placement)
+
+	serverOpts = setupTopic(t, serverOpts, placement)
 
 	// Create server.
 	testServer := newTestServerSetup(t, serverOpts)
@@ -105,13 +89,12 @@ func testOneClientMultiType(t *testing.T, metadataFn metadataFn) {
 	var (
 		idPrefix = "foo"
 		numIDs   = 100
-		start    = getNowFn()
+		start    = clock.Now()
 		stop     = start.Add(4 * time.Second)
 		interval = 2 * time.Second
 	)
-	client := testServer.newClient()
+	client := testServer.newClient(t)
 	require.NoError(t, client.connect())
-	defer client.close()
 
 	ids := generateTestIDs(idPrefix, numIDs)
 	dataset := mustGenerateTestDataset(t, datasetGenOpts{
@@ -125,13 +108,9 @@ func testOneClientMultiType(t *testing.T, metadataFn metadataFn) {
 		metadataFn:   metadataFn,
 	})
 	for _, data := range dataset {
-		setNowFn(data.timestamp)
+		clock.SetNow(data.timestamp)
 		for _, mm := range data.metricWithMetadatas {
-			if mm.metadata.mType == policiesListType {
-				require.NoError(t, client.writeUntimedMetricWithPoliciesList(mm.metric.untimed, mm.metadata.policiesList))
-			} else {
-				require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
-			}
+			require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
 		}
 		require.NoError(t, client.flush())
 
@@ -141,9 +120,11 @@ func testOneClientMultiType(t *testing.T, metadataFn metadataFn) {
 
 	// Move time forward and wait for ticking to happen. The sleep time
 	// must be the longer than the lowest resolution across all policies.
-	finalTime := stop.Add(time.Second)
-	setNowFn(finalTime)
-	time.Sleep(4 * time.Second)
+	finalTime := stop.Add(6 * time.Second)
+	clock.SetNow(finalTime)
+	time.Sleep(waitForDataToFlush)
+
+	require.NoError(t, client.close())
 
 	// Stop the server.
 	require.NoError(t, testServer.stopServer())

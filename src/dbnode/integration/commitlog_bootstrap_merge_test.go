@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
-	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -96,19 +95,16 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 	log.Info("generated data")
 
 	log.Info("writing filesets")
-	t0Nano := xtime.ToUnixNano(t0)
-	t1Nano := xtime.ToUnixNano(t1)
 	fsSeriesMaps := generate.SeriesBlocksByStart{
-		t0Nano: seriesMaps[t0Nano],
-		t1Nano: seriesMaps[t1Nano],
+		t0: seriesMaps[t0],
+		t1: seriesMaps[t1],
 	}
-	require.NoError(t, writeTestDataToDisk(ns1, setup, fsSeriesMaps, 0))
+	require.NoError(t, writeTestDataToDiskWithIndex(ns1, setup, fsSeriesMaps))
 
 	log.Info("writing commit logs")
-	t2Nano := xtime.ToUnixNano(t2)
 	commitlogSeriesMaps := generate.SeriesBlocksByStart{
-		t1Nano: seriesMaps[t1Nano],
-		t2Nano: seriesMaps[t2Nano],
+		t1: seriesMaps[t1],
+		t2: seriesMaps[t2],
 	}
 	writeCommitLogData(t, setup, commitLogOpts, commitlogSeriesMaps, ns1, false)
 

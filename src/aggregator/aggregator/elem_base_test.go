@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/transformation"
+	"github.com/m3db/m3/src/x/clock"
 
 	"github.com/stretchr/testify/require"
 )
@@ -44,8 +45,8 @@ func mustNewOp(t require.TestingT, ttype transformation.Type) transformation.Op 
 }
 
 func TestElemBaseID(t *testing.T) {
-	e := &elemBase{}
-	e.resetSetData(testCounterID, testStoragePolicy, maggregation.DefaultTypes, true, applied.DefaultPipeline, 0, NoPrefixNoSuffix)
+	e := newTestElemBase()
+	require.NoError(t, e.resetSetData(testCounterElemData, false))
 	require.Equal(t, testCounterID, e.ID())
 }
 
@@ -86,8 +87,11 @@ func TestElemBaseResetSetData(t *testing.T) {
 			},
 		}),
 	}
-	e := &elemBase{}
-	e.resetSetData(testCounterID, testStoragePolicy, testAggregationTypesExpensive, false, testPipeline, 3, WithPrefixWithSuffix)
+	e := newTestElemBase()
+	elemData := testCounterElemData
+	elemData.AggTypes = testAggregationTypesExpensive
+	elemData.NumForwardedTimes = 3
+	require.NoError(t, e.resetSetData(elemData, false))
 	require.Equal(t, testCounterID, e.id)
 	require.Equal(t, testStoragePolicy, e.sp)
 	require.Equal(t, testAggregationTypesExpensive, e.aggTypes)
@@ -109,34 +113,42 @@ func TestElemBaseResetSetDataNoRollup(t *testing.T) {
 			Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
 		},
 	})
-	e := &elemBase{}
-	err := e.resetSetData(testCounterID, testStoragePolicy, testAggregationTypes, false, pipelineNoRollup, 0, WithPrefixWithSuffix)
+	e := newTestElemBase()
+	elemData := testCounterElemData
+	elemData.Pipeline = pipelineNoRollup
+	err := e.resetSetData(elemData, false)
 	require.NoError(t, err)
 }
 
 func TestElemBaseForwardedIDWithDefaultPipeline(t *testing.T) {
-	e := newElemBase(NewOptions())
+	e := newElemBase(NewElemOptions(newTestOptions()))
 	_, ok := e.ForwardedID()
 	require.False(t, ok)
 }
 
 func TestElemBaseForwardedIDWithCustomPipeline(t *testing.T) {
-	e := &elemBase{}
-	e.resetSetData(testCounterID, testStoragePolicy, testAggregationTypesExpensive, false, testPipeline, 3, WithPrefixWithSuffix)
+	e := newTestElemBase()
+	require.NoError(t, e.resetSetData(testCounterElemData, false))
 	fid, ok := e.ForwardedID()
 	require.True(t, ok)
 	require.Equal(t, id.RawID("foo.bar"), fid)
 }
 
 func TestElemBaseForwardedAggregationKeyWithDefaultPipeline(t *testing.T) {
-	e := newElemBase(NewOptions())
+	e := newElemBase(NewElemOptions(newTestOptions()))
 	_, ok := e.ForwardedAggregationKey()
 	require.False(t, ok)
 }
 
+func newTestElemBase() elemBase {
+	return newElemBase(NewElemOptions(NewOptions(clock.NewOptions())))
+}
+
 func TestElemBaseForwardedAggregationKeyWithCustomPipeline(t *testing.T) {
-	e := &elemBase{}
-	e.resetSetData(testCounterID, testStoragePolicy, testAggregationTypesExpensive, false, testPipeline, 3, WithPrefixWithSuffix)
+	e := newTestElemBase()
+	elemData := testCounterElemData
+	elemData.NumForwardedTimes = 3
+	require.NoError(t, e.resetSetData(elemData, false))
 	aggKey, ok := e.ForwardedAggregationKey()
 	require.True(t, ok)
 	expected := aggregationKey{
@@ -157,7 +169,7 @@ func TestElemBaseForwardedAggregationKeyWithCustomPipeline(t *testing.T) {
 }
 
 func TestElemBaseMarkAsTombStoned(t *testing.T) {
-	e := &elemBase{}
+	e := newTestElemBase()
 	require.False(t, e.tombstoned)
 
 	// Marking a closed element tombstoned has no impact.
@@ -171,7 +183,7 @@ func TestElemBaseMarkAsTombStoned(t *testing.T) {
 }
 
 func TestCounterElemBase(t *testing.T) {
-	opts := NewOptions()
+	opts := newTestOptions()
 	aggTypesOpts := opts.AggregationTypesOptions()
 	e := counterElemBase{}
 	require.Equal(t, []byte("stats.counts."), e.FullPrefix(opts))
@@ -222,7 +234,7 @@ func TestTimerElemBase(t *testing.T) {
 		maggregation.P95,
 		maggregation.P99,
 	}
-	opts := NewOptions()
+	opts := newTestOptions()
 	aggTypesOpts := opts.AggregationTypesOptions()
 	e := timerElemBase{}
 	require.Equal(t, []byte("stats.timers."), e.FullPrefix(opts))
@@ -233,7 +245,7 @@ func TestTimerElemBase(t *testing.T) {
 
 func TestTimerElemBaseNewAggregation(t *testing.T) {
 	e := timerElemBase{}
-	la := e.NewAggregation(NewOptions(), raggregation.Options{})
+	la := e.NewAggregation(newTestOptions(), raggregation.Options{})
 	la.AddUnion(time.Now(), unaggregated.MetricUnion{
 		Type:          metric.TimerType,
 		BatchTimerVal: []float64{100.0, 200.0},
@@ -280,7 +292,7 @@ func TestTimerElemBaseResetSetDataInvalidTypes(t *testing.T) {
 }
 
 func TestGaugeElemBase(t *testing.T) {
-	opts := NewOptions()
+	opts := newTestOptions()
 	aggTypesOpts := opts.AggregationTypesOptions()
 	e := gaugeElemBase{}
 	require.Equal(t, []byte("stats.gauges."), e.FullPrefix(opts))
@@ -290,7 +302,7 @@ func TestGaugeElemBase(t *testing.T) {
 	require.True(t, opts.GaugeElemPool() == e.ElemPool(opts))
 }
 
-func TestGaugeElemBaseNewLockedAggregation(t *testing.T) {
+func TestGaugeElemWithResendsBaseNewLockedAggregation(t *testing.T) {
 	e := gaugeElemBase{}
 	la := e.NewAggregation(nil, raggregation.Options{})
 	la.AddUnion(time.Now(), unaggregated.MetricUnion{
@@ -301,8 +313,17 @@ func TestGaugeElemBaseNewLockedAggregation(t *testing.T) {
 		Type:     metric.GaugeType,
 		GaugeVal: 200.0,
 	})
-	res := la.ValueOf(maggregation.Last)
-	require.Equal(t, float64(200.0), res)
+
+	require.Equal(t, 200.0, la.ValueOf(maggregation.Last))
+	require.Equal(t, 200.0, la.ValueOf(maggregation.Max))
+
+	require.NoError(t, la.UpdateVal(time.Now(), 210, 200))
+	require.Equal(t, 210.0, la.ValueOf(maggregation.Last))
+	require.Equal(t, 210.0, la.ValueOf(maggregation.Max))
+
+	require.NoError(t, la.UpdateVal(time.Now(), 10, 100))
+	require.Equal(t, 10.0, la.ValueOf(maggregation.Last))
+	require.Equal(t, 10.0, la.ValueOf(maggregation.Min))
 }
 
 func TestGaugeElemBaseResetSetData(t *testing.T) {
@@ -571,4 +592,27 @@ func TestParsePipelineTransformationDerivativeOrderTooHigh(t *testing.T) {
 	_, err := newParsedPipeline(p)
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "transformation derivative order is 2 higher than supported 1"))
+}
+
+func TestConsumeStateReset(t *testing.T) {
+	s := &consumeState{}
+	s.Reset()
+	require.EqualValues(t, consumeState{}, *s)
+
+	s = &consumeState{
+		annotation:    []byte("foo1"),
+		values:        []float64{1.0, 2.0, 3.0},
+		startAt:       123,
+		prevStartTime: 42,
+		lastUpdatedAt: 100,
+		dirty:         true,
+		resendEnabled: true,
+	}
+	s.Reset()
+	require.EqualValues(t, consumeState{
+		annotation: []byte{},
+		values:     []float64{},
+	}, *s)
+	require.Equal(t, 4, cap(s.annotation))
+	require.Equal(t, 3, cap(s.values))
 }

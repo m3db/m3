@@ -32,6 +32,8 @@ import (
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/matcher/cache"
+	"github.com/m3db/m3/src/metrics/matcher/namespace"
+	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/rules"
 
 	"github.com/golang/protobuf/proto"
@@ -46,10 +48,10 @@ func TestNamespacesWatchAndClose(t *testing.T) {
 	store, _, nss, _ := testNamespaces()
 	proto := &rulepb.Namespaces{
 		Namespaces: []*rulepb.Namespace{
-			&rulepb.Namespace{
+			{
 				Name: "fooNs",
 				Snapshots: []*rulepb.NamespaceSnapshot{
-					&rulepb.NamespaceSnapshot{
+					{
 						ForRulesetVersion: 1,
 						Tombstoned:        true,
 					},
@@ -62,6 +64,79 @@ func TestNamespacesWatchAndClose(t *testing.T) {
 	require.NoError(t, nss.Watch())
 	require.Equal(t, 1, nss.rules.Len())
 	nss.Close()
+}
+
+func TestNamespacesWatchSoftErr(t *testing.T) {
+	_, _, nss, _ := testNamespaces()
+	// No value set, so this will soft error
+	require.NoError(t, nss.Open())
+}
+
+func TestNamespacesWatchRulesetSoftErr(t *testing.T) {
+	store, _, nss, _ := testNamespaces()
+	proto := &rulepb.Namespaces{
+		Namespaces: []*rulepb.Namespace{
+			{
+				Name: "fooNs",
+				Snapshots: []*rulepb.NamespaceSnapshot{
+					{
+						ForRulesetVersion: 1,
+						Tombstoned:        true,
+					},
+				},
+			},
+		},
+	}
+	_, err := store.SetIfNotExists(testNamespacesKey, proto)
+	require.NoError(t, err)
+
+	// This should also soft error even though the underlying ruleset does not exist
+	require.NoError(t, nss.Open())
+}
+
+func TestNamespacesWatchHardErr(t *testing.T) {
+	_, _, _, opts := testNamespaces()
+	opts = opts.SetRequireNamespaceWatchOnInit(true)
+	nss := NewNamespaces(testNamespacesKey, opts).(*namespaces)
+	// This should hard error with RequireNamespaceWatchOnInit enabled
+	require.Error(t, nss.Open())
+}
+
+func TestNamespacesWatchRulesetHardErr(t *testing.T) {
+	store, _, _, opts := testNamespaces()
+	opts = opts.SetRequireNamespaceWatchOnInit(true)
+	nss := NewNamespaces(testNamespacesKey, opts).(*namespaces)
+
+	proto := &rulepb.Namespaces{
+		Namespaces: []*rulepb.Namespace{
+			{
+				Name: "fooNs",
+				Snapshots: []*rulepb.NamespaceSnapshot{
+					{
+						ForRulesetVersion: 1,
+						Tombstoned:        true,
+					},
+				},
+			},
+		},
+	}
+	_, err := store.SetIfNotExists(testNamespacesKey, proto)
+	require.NoError(t, err)
+
+	// This should also hard error with RequireNamespaceWatchOnInit enabled,
+	// because the underlying ruleset does not exist
+	require.Error(t, nss.Open())
+}
+
+func TestNamespacesOpenWithInterrupt(t *testing.T) {
+	interruptedCh := make(chan struct{}, 1)
+	interruptedCh <- struct{}{}
+
+	_, _, nss, _ := testNamespacesWithInterruptedCh(interruptedCh)
+	err := nss.Open()
+
+	require.Error(t, err)
+	require.Equal(t, err.Error(), "interrupted")
 }
 
 func TestToNamespacesNilValue(t *testing.T) {
@@ -80,10 +155,10 @@ func TestToNamespacesSuccess(t *testing.T) {
 	store, _, nss, _ := testNamespaces()
 	proto := &rulepb.Namespaces{
 		Namespaces: []*rulepb.Namespace{
-			&rulepb.Namespace{
+			{
 				Name: "fooNs",
 				Snapshots: []*rulepb.NamespaceSnapshot{
-					&rulepb.NamespaceSnapshot{
+					{
 						ForRulesetVersion: 1,
 						Tombstoned:        true,
 					},
@@ -128,55 +203,55 @@ func TestNamespacesProcess(t *testing.T) {
 
 	update := &rulepb.Namespaces{
 		Namespaces: []*rulepb.Namespace{
-			&rulepb.Namespace{
+			{
 				Name: "fooNs",
 				Snapshots: []*rulepb.NamespaceSnapshot{
-					&rulepb.NamespaceSnapshot{
+					{
 						ForRulesetVersion: 1,
 						Tombstoned:        false,
 					},
-					&rulepb.NamespaceSnapshot{
+					{
 						ForRulesetVersion: 2,
 						Tombstoned:        false,
 					},
 				},
 			},
-			&rulepb.Namespace{
+			{
 				Name: "barNs",
 				Snapshots: []*rulepb.NamespaceSnapshot{
-					&rulepb.NamespaceSnapshot{
+					{
 						ForRulesetVersion: 1,
 						Tombstoned:        false,
 					},
-					&rulepb.NamespaceSnapshot{
+					{
 						ForRulesetVersion: 2,
 						Tombstoned:        true,
 					},
 				},
 			},
-			&rulepb.Namespace{
+			{
 				Name: "bazNs",
 				Snapshots: []*rulepb.NamespaceSnapshot{
-					&rulepb.NamespaceSnapshot{
+					{
 						ForRulesetVersion: 1,
 						Tombstoned:        false,
 					},
-					&rulepb.NamespaceSnapshot{
+					{
 						ForRulesetVersion: 2,
 						Tombstoned:        false,
 					},
 				},
 			},
-			&rulepb.Namespace{
+			{
 				Name: "catNs",
 				Snapshots: []*rulepb.NamespaceSnapshot{
-					&rulepb.NamespaceSnapshot{
+					{
 						ForRulesetVersion: 3,
 						Tombstoned:        true,
 					},
 				},
 			},
-			&rulepb.Namespace{
+			{
 				Name:      "mehNs",
 				Snapshots: nil,
 			},
@@ -215,7 +290,7 @@ func TestNamespacesProcess(t *testing.T) {
 	}
 }
 
-func testNamespaces() (kv.Store, cache.Cache, *namespaces, Options) {
+func testNamespacesWithInterruptedCh(interruptedCh chan struct{}) (kv.TxnStore, cache.Cache, *namespaces, Options) {
 	store := mem.NewStore()
 	cache := newMemCache()
 	opts := NewOptions().
@@ -231,35 +306,41 @@ func testNamespaces() (kv.Store, cache.Cache, *namespaces, Options) {
 		}).
 		SetOnRuleSetUpdatedFn(func(namespace []byte, ruleSet RuleSet) {
 			cache.Register(namespace, ruleSet)
-		})
+		}).
+		SetInterruptedCh(interruptedCh)
+
 	return store, cache, NewNamespaces(testNamespacesKey, opts).(*namespaces), opts
+}
+
+func testNamespaces() (kv.TxnStore, cache.Cache, *namespaces, Options) {
+	return testNamespacesWithInterruptedCh(nil)
 }
 
 type memResults struct {
 	results map[string]rules.MatchResult
-	source  cache.Source
+	source  rules.Matcher
 }
 
 type memCache struct {
 	sync.RWMutex
-
+	nsResolver namespace.Resolver
 	namespaces map[string]memResults
 }
 
 func newMemCache() cache.Cache {
-	return &memCache{namespaces: make(map[string]memResults)}
+	return &memCache{namespaces: make(map[string]memResults), nsResolver: namespace.Default}
 }
 
-func (c *memCache) ForwardMatch(namespace, id []byte, fromNanos, toNanos int64) rules.MatchResult {
+func (c *memCache) ForwardMatch(id id.ID, _, _ int64, _ rules.MatchOptions) (rules.MatchResult, error) {
 	c.RLock()
 	defer c.RUnlock()
-	if results, exists := c.namespaces[string(namespace)]; exists {
-		return results.results[string(id)]
+	if results, exists := c.namespaces[string(c.nsResolver.Resolve(id))]; exists {
+		return results.results[string(id.Bytes())], nil
 	}
-	return rules.EmptyMatchResult
+	return rules.EmptyMatchResult, nil
 }
 
-func (c *memCache) Register(namespace []byte, source cache.Source) {
+func (c *memCache) Register(namespace []byte, source rules.Matcher) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -275,7 +356,7 @@ func (c *memCache) Register(namespace []byte, source cache.Source) {
 	panic(fmt.Errorf("re-registering existing namespace %s", namespace))
 }
 
-func (c *memCache) Refresh(namespace []byte, source cache.Source) {
+func (c *memCache) Refresh(namespace []byte, source rules.Matcher) {
 	c.Lock()
 	defer c.Unlock()
 

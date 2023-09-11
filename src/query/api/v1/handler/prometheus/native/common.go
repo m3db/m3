@@ -22,11 +22,9 @@ package native
 
 import (
 	"fmt"
-	"io"
 	"math"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
@@ -38,123 +36,108 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/json"
-	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/headers"
-	"github.com/m3db/m3/src/x/instrument"
-	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	"go.uber.org/zap"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (
+	// QueryParam is the name of the query form/url parameter
+	QueryParam = "query"
+
 	endParam          = "end"
 	startParam        = "start"
 	timeParam         = "time"
-	queryParam        = "query"
 	debugParam        = "debug"
 	endExclusiveParam = "end-exclusive"
 	blockTypeParam    = "block-type"
 
 	formatErrStr = "error parsing param: %s, error: %v"
-	nowTimeValue = "now"
 )
-
-func parseTime(r *http.Request, key string, now time.Time) (time.Time, error) {
-	if t := r.FormValue(key); t != "" {
-		if t == nowTimeValue {
-			return now, nil
-		}
-		return util.ParseTimeString(t)
-	}
-
-	return time.Time{}, errors.ErrNotFound
-}
 
 // parseParams parses all params from the GET request
 func parseParams(
 	r *http.Request,
 	engineOpts executor.EngineOptions,
-	timeoutOpts *prometheus.TimeoutOpts,
 	fetchOpts *storage.FetchOptions,
-	instrumentOpts instrument.Options,
-) (models.RequestParams, *xhttp.ParseError) {
+) (models.RequestParams, error) {
 	var params models.RequestParams
 
 	if err := r.ParseForm(); err != nil {
-		return params, xhttp.NewParseError(
-			fmt.Errorf(formatErrStr, timeParam, err), http.StatusBadRequest)
+		err = fmt.Errorf(formatErrStr, timeParam, err)
+		return params, xerrors.NewInvalidParamsError(err)
 	}
 
-	params.Now = time.Now()
-	if v := r.FormValue(timeParam); v != "" {
-		var err error
-		params.Now, err = parseTime(r, timeParam, params.Now)
-		if err != nil {
-			return params, xhttp.NewParseError(
-				fmt.Errorf(formatErrStr, timeParam, err), http.StatusBadRequest)
-		}
-	}
-
-	t, err := prometheus.ParseRequestTimeout(r, timeoutOpts.FetchTimeout)
+	timeParams, err := prometheus.ParseTimeParams(r)
 	if err != nil {
-		return params, xhttp.NewParseError(err, http.StatusBadRequest)
+		return params, err
 	}
 
-	params.Timeout = t
-	start, err := parseTime(r, startParam, params.Now)
-	if err != nil {
-		return params, xhttp.NewParseError(
-			fmt.Errorf(formatErrStr, startParam, err), http.StatusBadRequest)
-	}
+	params.Now = timeParams.Now
+	params.Start = xtime.ToUnixNano(timeParams.Start)
+	params.End = xtime.ToUnixNano(timeParams.End)
 
-	params.Start = start
-	end, err := parseTime(r, endParam, params.Now)
-	if err != nil {
-		return params, xhttp.NewParseError(
-			fmt.Errorf(formatErrStr, endParam, err), http.StatusBadRequest)
+	timeout := fetchOpts.Timeout
+	if timeout <= 0 {
+		err := fmt.Errorf("expected positive timeout, instead got: %d", timeout)
+		return params, xerrors.NewInvalidParamsError(
+			fmt.Errorf(formatErrStr, handleroptions.TimeoutParam, err))
 	}
+	params.Timeout = timeout
 
-	if start.After(end) {
-		return params, xhttp.NewParseError(
-			fmt.Errorf("start (%s) must be before end (%s)",
-				start, end), http.StatusBadRequest)
-	}
-
-	params.End = end
 	step := fetchOpts.Step
 	if step <= 0 {
 		err := fmt.Errorf("expected positive step size, instead got: %d", step)
-		return params, xhttp.NewParseError(
-			fmt.Errorf(formatErrStr, handleroptions.StepParam, err), http.StatusBadRequest)
+		return params, xerrors.NewInvalidParamsError(
+			fmt.Errorf(formatErrStr, handleroptions.StepParam, err))
 	}
-
 	params.Step = fetchOpts.Step
-	query, err := parseQuery(r)
+
+	query, err := ParseQuery(r)
 	if err != nil {
-		return params, xhttp.NewParseError(
-			fmt.Errorf(formatErrStr, queryParam, err), http.StatusBadRequest)
+		return params, xerrors.NewInvalidParamsError(
+			fmt.Errorf(formatErrStr, QueryParam, err))
+	}
+	params.Query = query
+
+	if debugVal := r.FormValue(debugParam); debugVal != "" {
+		params.Debug, err = strconv.ParseBool(debugVal)
+		if err != nil {
+			return params, xerrors.NewInvalidParamsError(
+				fmt.Errorf(formatErrStr, debugParam, err))
+		}
 	}
 
-	params.Query = query
-	params.Debug = parseDebugFlag(r, instrumentOpts)
-	params.BlockType = parseBlockType(r, instrumentOpts)
+	params.BlockType = models.TypeSingleBlock
+	if blockType := r.FormValue(blockTypeParam); blockType != "" {
+		intVal, err := strconv.ParseInt(blockType, 10, 8)
+		if err != nil {
+			return params, xerrors.NewInvalidParamsError(
+				fmt.Errorf(formatErrStr, blockTypeParam, err))
+		}
+
+		blockType := models.FetchedBlockType(intVal)
+
+		// Ignore error from receiving an invalid block type, and return default.
+		if err := blockType.Validate(); err != nil {
+			return params, xerrors.NewInvalidParamsError(
+				fmt.Errorf(formatErrStr, blockTypeParam, err))
+		}
+
+		params.BlockType = blockType
+	}
+
 	// Default to including end if unable to parse the flag
 	endExclusiveVal := r.FormValue(endExclusiveParam)
 	params.IncludeEnd = true
 	if endExclusiveVal != "" {
 		excludeEnd, err := strconv.ParseBool(endExclusiveVal)
 		if err != nil {
-			logging.WithContext(r.Context(), instrumentOpts).
-				Warn("unable to parse end inclusive flag", zap.Error(err))
+			return params, xerrors.NewInvalidParamsError(
+				fmt.Errorf(formatErrStr, endExclusiveParam, err))
 		}
 
 		params.IncludeEnd = !excludeEnd
-	}
-
-	if strings.ToLower(r.Header.Get(headers.RenderFormat)) == "m3ql" {
-		params.FormatType = models.FormatM3QL
 	}
 
 	params.LookbackDuration = engineOpts.LookbackDuration()
@@ -165,82 +148,31 @@ func parseParams(
 	return params, nil
 }
 
-func parseDebugFlag(r *http.Request, instrumentOpts instrument.Options) bool {
-	var (
-		debug bool
-		err   error
-	)
-
-	// Skip debug if unable to parse debug param
-	debugVal := r.FormValue(debugParam)
-	if debugVal != "" {
-		debug, err = strconv.ParseBool(r.FormValue(debugParam))
-		if err != nil {
-			logging.WithContext(r.Context(), instrumentOpts).
-				Warn("unable to parse debug flag", zap.Error(err))
-		}
-	}
-
-	return debug
-}
-
-func parseBlockType(
-	r *http.Request,
-	instrumentOpts instrument.Options,
-) models.FetchedBlockType {
-	// Use default block type if unable to parse blockTypeParam.
-	useLegacyVal := r.FormValue(blockTypeParam)
-	if useLegacyVal != "" {
-		intVal, err := strconv.ParseInt(r.FormValue(blockTypeParam), 10, 8)
-		if err != nil {
-			logging.WithContext(r.Context(), instrumentOpts).
-				Warn("cannot parse block type, defaulting to single", zap.Error(err))
-			return models.TypeSingleBlock
-		}
-
-		blockType := models.FetchedBlockType(intVal)
-		// Ignore error from receiving an invalid block type, and return default.
-		if err := blockType.Validate(); err != nil {
-			logging.WithContext(r.Context(), instrumentOpts).
-				Warn("cannot validate block type, defaulting to single", zap.Error(err))
-			return models.TypeSingleBlock
-		}
-
-		return blockType
-	}
-
-	return models.TypeSingleBlock
-}
-
 // parseInstantaneousParams parses all params from the GET request
 func parseInstantaneousParams(
 	r *http.Request,
 	engineOpts executor.EngineOptions,
-	timeoutOpts *prometheus.TimeoutOpts,
 	fetchOpts *storage.FetchOptions,
-	instrumentOpts instrument.Options,
-) (models.RequestParams, *xhttp.ParseError) {
+) (models.RequestParams, error) {
 	if err := r.ParseForm(); err != nil {
-		return models.RequestParams{},
-			xhttp.NewParseError(err, http.StatusBadRequest)
+		return models.RequestParams{}, xerrors.NewInvalidParamsError(err)
 	}
 
 	if fetchOpts.Step == 0 {
 		fetchOpts.Step = time.Second
 	}
 
-	r.Form.Set(startParam, nowTimeValue)
-	r.Form.Set(endParam, nowTimeValue)
-	params, err := parseParams(r, engineOpts, timeoutOpts,
-		fetchOpts, instrumentOpts)
+	prometheus.SetDefaultStartEndParamsForInstant(r)
+	params, err := parseParams(r, engineOpts, fetchOpts)
 	if err != nil {
-		return params, xhttp.NewParseError(err, http.StatusBadRequest)
+		return params, err
 	}
 
 	return params, nil
 }
 
-func parseQuery(r *http.Request) (string, error) {
+// ParseQuery parses a query out of an HTTP request.
+func ParseQuery(r *http.Request) (string, error) {
 	if err := r.ParseForm(); err != nil {
 		return "", err
 	}
@@ -249,7 +181,7 @@ func parseQuery(r *http.Request) (string, error) {
 	// parameters taking precedence over URL parameters (see r.ParseForm() docs
 	// for more details). We depend on the generic behavior for properly parsing
 	// POST and GET queries.
-	queries, ok := r.Form[queryParam]
+	queries, ok := r.Form[QueryParam]
 	if !ok || len(queries) == 0 || queries[0] == "" {
 		return "", errors.ErrNoQueryFound
 	}
@@ -262,59 +194,42 @@ func parseQuery(r *http.Request) (string, error) {
 	return queries[0], nil
 }
 
-func filterNaNSeries(
-	series []*ts.Series,
-	startInclusive time.Time,
-	endInclusive time.Time,
-) []*ts.Series {
-	filtered := series[:0]
-	for _, s := range series {
-		dps := s.Values().Datapoints()
-		hasVal := false
-		for _, dp := range dps {
-			if !math.IsNaN(dp.Value) {
-				ts := dp.Timestamp
-				if ts.Before(startInclusive) || ts.After(endInclusive) {
-					continue
-				}
-
-				hasVal = true
-				break
-			}
-		}
-
-		if hasVal {
-			filtered = append(filtered, s)
-		}
-	}
-
-	return filtered
-}
-
 // RenderResultsOptions is a set of options for rendering the result.
 type RenderResultsOptions struct {
-	KeepNaNs bool
-	Start    time.Time
-	End      time.Time
+	KeepNaNs                bool
+	Start                   xtime.UnixNano
+	End                     xtime.UnixNano
+	ReturnedSeriesLimit     int
+	ReturnedDatapointsLimit int
+}
+
+// RenderResultsResult is the result from rendering results.
+type RenderResultsResult struct {
+	// Datapoints is the count of datapoints rendered.
+	Datapoints int
+	// Series is the count of series rendered.
+	Series int
+	// TotalSeries is the count of series in total.
+	TotalSeries int
+	// LimitedMaxReturnedData indicates if the results rendering
+	// was truncated by a limit on returned series or datapoints.
+	LimitedMaxReturnedData bool
 }
 
 // RenderResultsJSON renders results in JSON for range queries.
 func RenderResultsJSON(
-	w io.Writer,
+	jw json.Writer,
 	result ReadResult,
 	opts RenderResultsOptions,
-) error {
+) RenderResultsResult {
 	var (
-		series   = result.Series
-		warnings = result.Meta.WarningStrings()
+		series             = result.Series
+		warnings           = result.Meta.WarningStrings()
+		seriesRendered     = 0
+		datapointsRendered = 0
+		limited            = false
 	)
 
-	// NB: if dropping NaNs, drop series with only NaNs from output entirely.
-	if !opts.KeepNaNs {
-		series = filterNaNSeries(series, opts.Start, opts.End)
-	}
-
-	jw := json.NewWriter(w)
 	jw.BeginObject()
 
 	jw.BeginObjectField("status")
@@ -339,23 +254,27 @@ func RenderResultsJSON(
 	jw.BeginObjectField("result")
 	jw.BeginArray()
 	for _, s := range series {
-		jw.BeginObject()
-		jw.BeginObjectField("metric")
-		jw.BeginObject()
-		for _, t := range s.Tags.Tags {
-			jw.BeginObjectField(string(t.Name))
-			jw.WriteString(string(t.Value))
-		}
-		jw.EndObject()
-
-		jw.BeginObjectField("values")
-		jw.BeginArray()
 		vals := s.Values()
 		length := s.Len()
+
+		// If a limit of the number of datapoints is present, then write
+		// out series' data up until that limit is hit.
+		if opts.ReturnedSeriesLimit > 0 && seriesRendered+1 > opts.ReturnedSeriesLimit {
+			limited = true
+			break
+		}
+		if opts.ReturnedDatapointsLimit > 0 && datapointsRendered+length > opts.ReturnedDatapointsLimit {
+			limited = true
+			break
+		}
+
+		hasData := false
 		for i := 0; i < length; i++ {
 			dp := vals.DatapointAt(i)
 
 			// If keepNaNs is set to false and the value is NaN, drop it from the response.
+			// If the series has no datapoints at all then this datapoint iteration will
+			// count zero total and end up skipping writing the series entirely.
 			if !opts.KeepNaNs && math.IsNaN(dp.Value) {
 				continue
 			}
@@ -364,14 +283,39 @@ func RenderResultsJSON(
 			// would be at the result node but that would make it inefficient since
 			// we would need to create another block just for the sake of restricting
 			// the bounds.
-			if dp.Timestamp.Before(opts.Start) {
+			if dp.Timestamp.Before(opts.Start) || dp.Timestamp.After(opts.End) {
 				continue
 			}
 
+			// On first datapoint for the series, write out the series beginning content.
+			if !hasData {
+				jw.BeginObject()
+				jw.BeginObjectField("metric")
+				jw.BeginObject()
+				for _, t := range s.Tags.Tags {
+					jw.BeginObjectBytesField(t.Name)
+					jw.WriteBytesString(t.Value)
+				}
+				jw.EndObject()
+
+				jw.BeginObjectField("values")
+				jw.BeginArray()
+
+				seriesRendered++
+				hasData = true
+			}
+			datapointsRendered++
+
 			jw.BeginArray()
-			jw.WriteInt(int(dp.Timestamp.Unix()))
+			jw.WriteInt(int(dp.Timestamp.Seconds()))
 			jw.WriteString(utils.FormatFloat(dp.Value))
 			jw.EndArray()
+		}
+
+		if !hasData {
+			// No datapoints written for series so continue to
+			// next instead of writing the end content.
+			continue
 		}
 
 		jw.EndArray()
@@ -386,19 +330,27 @@ func RenderResultsJSON(
 	jw.EndObject()
 
 	jw.EndObject()
-	return jw.Close()
+	return RenderResultsResult{
+		Series:                 seriesRendered,
+		Datapoints:             datapointsRendered,
+		TotalSeries:            len(series),
+		LimitedMaxReturnedData: limited,
+	}
 }
 
 // renderResultsInstantaneousJSON renders results in JSON for instant queries.
 func renderResultsInstantaneousJSON(
-	w io.Writer,
+	jw json.Writer,
 	result ReadResult,
-	keepNaNs bool,
-) {
+	opts RenderResultsOptions,
+) RenderResultsResult {
 	var (
-		series   = result.Series
-		warnings = result.Meta.WarningStrings()
-		isScalar = result.BlockType == block.BlockScalar || result.BlockType == block.BlockTime
+		series        = result.Series
+		warnings      = result.Meta.WarningStrings()
+		isScalar      = result.BlockType == block.BlockScalar || result.BlockType == block.BlockTime
+		keepNaNs      = opts.KeepNaNs
+		returnedCount = 0
+		limited       = false
 	)
 
 	resultType := "vector"
@@ -406,7 +358,6 @@ func renderResultsInstantaneousJSON(
 		resultType = "scalar"
 	}
 
-	jw := json.NewWriter(w)
 	jw.BeginObject()
 
 	jw.BeginObjectField("status")
@@ -435,9 +386,19 @@ func renderResultsInstantaneousJSON(
 		length := s.Len()
 		dp := vals.DatapointAt(length - 1)
 
+		if opts.ReturnedSeriesLimit > 0 && returnedCount >= opts.ReturnedSeriesLimit {
+			limited = true
+			break
+		}
+		if opts.ReturnedDatapointsLimit > 0 && returnedCount >= opts.ReturnedDatapointsLimit {
+			limited = true
+			break
+		}
+
 		if isScalar {
-			jw.WriteInt(int(dp.Timestamp.Unix()))
+			jw.WriteInt(int(dp.Timestamp.Seconds()))
 			jw.WriteString(utils.FormatFloat(dp.Value))
+			returnedCount++
 			continue
 		}
 
@@ -446,18 +407,20 @@ func renderResultsInstantaneousJSON(
 			continue
 		}
 
+		returnedCount++
+
 		jw.BeginObject()
 		jw.BeginObjectField("metric")
 		jw.BeginObject()
 		for _, t := range s.Tags.Tags {
-			jw.BeginObjectField(string(t.Name))
-			jw.WriteString(string(t.Value))
+			jw.BeginObjectBytesField(t.Name)
+			jw.WriteBytesString(t.Value)
 		}
 		jw.EndObject()
 
 		jw.BeginObjectField("value")
 		jw.BeginArray()
-		jw.WriteInt(int(dp.Timestamp.Unix()))
+		jw.WriteInt(int(dp.Timestamp.Seconds()))
 		jw.WriteString(utils.FormatFloat(dp.Value))
 		jw.EndArray()
 		jw.EndObject()
@@ -467,49 +430,13 @@ func renderResultsInstantaneousJSON(
 	jw.EndObject()
 
 	jw.EndObject()
-	jw.Close()
-}
 
-func renderM3QLResultsJSON(
-	w io.Writer,
-	series []*ts.Series,
-	params models.RequestParams,
-) {
-	jw := json.NewWriter(w)
-	jw.BeginArray()
-
-	for _, s := range series {
-		jw.BeginObject()
-		jw.BeginObjectField("target")
-		jw.WriteString(string(s.Name()))
-
-		jw.BeginObjectField("tags")
-		jw.BeginObject()
-
-		for _, tag := range s.Tags.Tags {
-			jw.BeginObjectField(string(tag.Name))
-			jw.WriteString(string(tag.Value))
-		}
-
-		jw.EndObject()
-
-		jw.BeginObjectField("datapoints")
-		jw.BeginArray()
-		for i := 0; i < s.Len(); i++ {
-			dp := s.Values().DatapointAt(i)
-			jw.BeginArray()
-			jw.WriteFloat64(dp.Value)
-			jw.WriteInt(int(dp.Timestamp.Unix()))
-			jw.EndArray()
-		}
-		jw.EndArray()
-
-		jw.BeginObjectField("step_size_ms")
-		jw.WriteInt(int(params.Step.Seconds() * 1000))
-
-		jw.EndObject()
+	return RenderResultsResult{
+		LimitedMaxReturnedData: limited,
+		// Series and datapoints are the same count for instant
+		// queries since a series has one datapoint.
+		Datapoints:  returnedCount,
+		Series:      returnedCount,
+		TotalSeries: len(series),
 	}
-
-	jw.EndArray()
-	jw.Close()
 }

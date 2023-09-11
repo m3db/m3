@@ -21,6 +21,7 @@
 package config
 
 import (
+	"errors"
 	"time"
 
 	"github.com/m3db/m3/src/cluster/client"
@@ -32,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/x/instrument"
 	xio "github.com/m3db/m3/src/x/io"
+	xnet "github.com/m3db/m3/src/x/net"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
 
@@ -49,6 +51,9 @@ type ConnectionConfiguration struct {
 	FlushInterval   *time.Duration       `yaml:"flushInterval"`
 	WriteBufferSize *int                 `yaml:"writeBufferSize"`
 	ReadBufferSize  *int                 `yaml:"readBufferSize"`
+	// ContextDialer specifies a custom dialer to use when creating TCP connections to the consumer.
+	// See writer.ConnectionOptions.ContextDialer for details.
+	ContextDialer xnet.ContextDialerFn `yaml:"-"` // not serializable
 }
 
 // NewOptions creates connection options.
@@ -56,6 +61,9 @@ func (c *ConnectionConfiguration) NewOptions(iOpts instrument.Options) writer.Co
 	opts := writer.NewConnectionOptions()
 	if c.NumConnections != nil {
 		opts = opts.SetNumConnections(*c.NumConnections)
+	}
+	if c.ContextDialer != nil {
+		opts = opts.SetContextDialer(c.ContextDialer)
 	}
 	if c.DialTimeout != nil {
 		opts = opts.SetDialTimeout(*c.DialTimeout)
@@ -86,23 +94,42 @@ func (c *ConnectionConfiguration) NewOptions(iOpts instrument.Options) writer.Co
 
 // WriterConfiguration configs the writer options.
 type WriterConfiguration struct {
-	TopicName                         string                         `yaml:"topicName" validate:"nonzero"`
-	TopicServiceOverride              kv.OverrideConfiguration       `yaml:"topicServiceOverride"`
-	TopicWatchInitTimeout             *time.Duration                 `yaml:"topicWatchInitTimeout"`
-	PlacementOptions                  placement.Configuration        `yaml:"placement"`
-	PlacementServiceOverride          services.OverrideConfiguration `yaml:"placementServiceOverride"`
-	PlacementWatchInitTimeout         *time.Duration                 `yaml:"placementWatchInitTimeout"`
-	MessagePool                       *pool.ObjectPoolConfiguration  `yaml:"messagePool"`
-	MessageRetry                      *retry.Configuration           `yaml:"messageRetry"`
-	MessageQueueNewWritesScanInterval *time.Duration                 `yaml:"messageQueueNewWritesScanInterval"`
-	MessageQueueFullScanInterval      *time.Duration                 `yaml:"messageQueueFullScanInterval"`
-	MessageQueueScanBatchSize         *int                           `yaml:"messageQueueScanBatchSize"`
-	InitialAckMapSize                 *int                           `yaml:"initialAckMapSize"`
-	CloseCheckInterval                *time.Duration                 `yaml:"closeCheckInterval"`
-	AckErrorRetry                     *retry.Configuration           `yaml:"ackErrorRetry"`
-	Encoder                           *proto.Configuration           `yaml:"encoder"`
-	Decoder                           *proto.Configuration           `yaml:"decoder"`
-	Connection                        *ConnectionConfiguration       `yaml:"connection"`
+	TopicName                 string                         `yaml:"topicName" validate:"nonzero"`
+	TopicServiceOverride      kv.OverrideConfiguration       `yaml:"topicServiceOverride"`
+	TopicWatchInitTimeout     *time.Duration                 `yaml:"topicWatchInitTimeout"`
+	PlacementOptions          placement.Configuration        `yaml:"placement"`
+	PlacementServiceOverride  services.OverrideConfiguration `yaml:"placementServiceOverride"`
+	PlacementWatchInitTimeout *time.Duration                 `yaml:"placementWatchInitTimeout"`
+	// MessagePool configuration is deprecated for producer side.
+	MessagePool                       *pool.ObjectPoolConfiguration `yaml:"messagePool"`
+	MessageQueueNewWritesScanInterval *time.Duration                `yaml:"messageQueueNewWritesScanInterval"`
+	MessageQueueFullScanInterval      *time.Duration                `yaml:"messageQueueFullScanInterval"`
+	MessageQueueScanBatchSize         *int                          `yaml:"messageQueueScanBatchSize"`
+	InitialAckMapSize                 *int                          `yaml:"initialAckMapSize"`
+	CloseCheckInterval                *time.Duration                `yaml:"closeCheckInterval"`
+	AckErrorRetry                     *retry.Configuration          `yaml:"ackErrorRetry"`
+	Encoder                           *proto.Configuration          `yaml:"encoder"`
+	Decoder                           *proto.Configuration          `yaml:"decoder"`
+	Connection                        *ConnectionConfiguration      `yaml:"connection"`
+
+	// StaticMessageRetry configs a static message retry policy.
+	StaticMessageRetry *StaticMessageRetryConfiguration `yaml:"staticMessageRetry"`
+	// MessageRetry configs a algorithmic retry policy.
+	// Only one of the retry configuration should be used.
+	MessageRetry *retry.Configuration `yaml:"messageRetry"`
+
+	// IgnoreCutoffCutover allows producing writes ignoring cutoff/cutover timestamp.
+	// Must be in sync with AggregatorConfiguration.WritesIgnoreCutoffCutover.
+	IgnoreCutoffCutover bool `yaml:"ignoreCutoffCutover"`
+	// WithoutConsumerScope drops the consumer tag from the metrics. For large m3msg deployments the consumer tag can
+	// add a lot of cardinality to the metrics.
+	WithoutConsumerScope bool `yaml:"withoutConsumerScope"`
+}
+
+// StaticMessageRetryConfiguration configs the static message retry policy.
+// When messageRetry config exists, messageRetry will override the static config.
+type StaticMessageRetryConfiguration struct {
+	Backoff []time.Duration `yaml:"backoff"`
 }
 
 // NewOptions creates writer options.
@@ -114,7 +141,8 @@ func (c *WriterConfiguration) NewOptions(
 	opts := writer.NewOptions().
 		SetTopicName(c.TopicName).
 		SetPlacementOptions(c.PlacementOptions.NewOptions()).
-		SetInstrumentOptions(iOpts)
+		SetInstrumentOptions(iOpts).
+		SetWithoutConsumerScope(c.WithoutConsumerScope)
 
 	kvOpts, err := c.TopicServiceOverride.NewOverrideOptions()
 	if err != nil {
@@ -144,11 +172,9 @@ func (c *WriterConfiguration) NewOptions(
 	if c.PlacementWatchInitTimeout != nil {
 		opts = opts.SetPlacementWatchInitTimeout(*c.PlacementWatchInitTimeout)
 	}
-	if c.MessagePool != nil {
-		opts = opts.SetMessagePoolOptions(c.MessagePool.NewObjectPoolOptions(iOpts))
-	}
-	if c.MessageRetry != nil {
-		opts = opts.SetMessageRetryOptions(c.MessageRetry.NewOptions(iOpts.MetricsScope()))
+	opts, err = c.setRetryOptions(opts, iOpts)
+	if err != nil {
+		return nil, err
 	}
 	if c.MessageQueueNewWritesScanInterval != nil {
 		opts = opts.SetMessageQueueNewWritesScanInterval(*c.MessageQueueNewWritesScanInterval)
@@ -178,6 +204,30 @@ func (c *WriterConfiguration) NewOptions(
 		opts = opts.SetConnectionOptions(c.Connection.NewOptions(iOpts))
 	}
 
+	opts = opts.SetIgnoreCutoffCutover(c.IgnoreCutoffCutover)
+
 	opts = opts.SetDecoderOptions(opts.DecoderOptions().SetRWOptions(rwOptions))
+	return opts, nil
+}
+
+func (c *WriterConfiguration) setRetryOptions(
+	opts writer.Options,
+	iOpts instrument.Options,
+) (writer.Options, error) {
+	if c.StaticMessageRetry != nil && c.MessageRetry != nil {
+		return nil, errors.New("invalid writer config with both static and algorithmic retry config set")
+	}
+	if c.MessageRetry != nil {
+		return opts.SetMessageRetryNanosFn(
+			writer.NextRetryNanosFn(c.MessageRetry.NewOptions(iOpts.MetricsScope())),
+		), nil
+	}
+	if c.StaticMessageRetry != nil {
+		fn, err := writer.StaticRetryNanosFn(c.StaticMessageRetry.Backoff)
+		if err != nil {
+			return nil, err
+		}
+		return opts.SetMessageRetryNanosFn(fn), nil
+	}
 	return opts, nil
 }

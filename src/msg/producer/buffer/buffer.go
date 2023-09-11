@@ -56,6 +56,8 @@ type bufferMetrics struct {
 	messageBuffered   tally.Gauge
 	byteBuffered      tally.Gauge
 	bufferScanBatch   tally.Timer
+	bytesAdded        tally.Counter
+	bytesRemoved      tally.Counter
 }
 
 type counterPerNumRefBuckets struct {
@@ -117,6 +119,8 @@ func newBufferMetrics(
 		messageBuffered:   scope.Gauge("message-buffered"),
 		byteBuffered:      scope.Gauge("byte-buffered"),
 		bufferScanBatch:   instrument.NewTimer(scope, "buffer-scan-batch", opts),
+		bytesAdded:        scope.Counter("buffer-bytes-added"),
+		bytesRemoved:      scope.Counter("buffer-bytes-removed"),
 	}
 }
 
@@ -174,6 +178,7 @@ func NewBuffer(opts Options) (producer.Buffer, error) {
 
 func (b *buffer) Add(m producer.Message) (*producer.RefCountedMessage, error) {
 	s := m.Size()
+	b.m.bytesAdded.Inc(int64(s))
 	if s > b.maxMessageSize {
 		b.m.messageTooLarge.Inc(1)
 		return nil, errMessageTooLarge
@@ -444,5 +449,6 @@ func (b *buffer) bufferLen() int {
 }
 
 func (b *buffer) subSize(rm *producer.RefCountedMessage) {
+	b.m.bytesRemoved.Inc(int64(rm.Size()))
 	b.size.Sub(rm.Size())
 }

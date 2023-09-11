@@ -21,8 +21,10 @@
 package instrument
 
 import (
+	"encoding/json"
 	"errors"
 	"log"
+	"os"
 	"runtime"
 	"strconv"
 	"sync"
@@ -52,6 +54,12 @@ var (
 	// set to a non-empty string, we log the build information at process startup.
 	LogBuildInfoAtStartup string
 
+	// LogBuildInfoToStdout controls whether we log build information to stdout or stderr.
+	// If it is set to a non-empty string then the build info will be logged to stdout,
+	// otherwise it will be logged to stderr (assuming LogBuildInfoAtStartup is also
+	// non-empty).
+	LogBuildInfoToStdout string
+
 	// goVersion is the current runtime version.
 	goVersion = runtime.Version()
 
@@ -68,19 +76,58 @@ var (
 	errBuildTimeNegative = errors.New("reporter build time must be non-negative")
 )
 
-// LogBuildInfo logs the build information to the provided logger.
+// LogBuildInfo logs the build information using the default logger.
 func LogBuildInfo() {
-	log.Printf("Go Runtime version: %s\n", goVersion)
-	log.Printf("Build Version:      %s\n", Version)
-	log.Printf("Build Revision:     %s\n", Revision)
-	log.Printf("Build Branch:       %s\n", Branch)
-	log.Printf("Build Date:         %s\n", BuildDate)
-	log.Printf("Build TimeUnix:     %s\n", BuildTimeUnix)
+	LogBuildInfoWithLogger(log.Default())
+}
+
+// LogBuildInfoJSON logs the build information in JSON using the default logger.
+func LogBuildInfoJSON() {
+	err := LogBuildInfoWithLoggerJSON(log.Default(), json.Marshal)
+	if err != nil {
+		log.Default().Fatalf("Error converting build info to JSON %s", err.Error())
+	}
+}
+
+// LogBuildInfoWithLogger logs the build information using the provided logger
+func LogBuildInfoWithLogger(logger *log.Logger) {
+	logger.Printf("Go Runtime version: %s\n", goVersion)
+	logger.Printf("Build Version:      %s\n", Version)
+	logger.Printf("Build Revision:     %s\n", Revision)
+	logger.Printf("Build Branch:       %s\n", Branch)
+	logger.Printf("Build Date:         %s\n", BuildDate)
+	logger.Printf("Build TimeUnix:     %s\n", BuildTimeUnix)
+}
+
+// LogBuildInfoWithLoggerJSON logs the build information using the provided logger in JSON
+func LogBuildInfoWithLoggerJSON(logger *log.Logger, jsonMarshalFunc func(interface{}) ([]byte, error)) error {
+	buildMap := make(map[string]string)
+	buildMap["go_runtime_version"] = goVersion
+	buildMap["build_version"] = Version
+	buildMap["build_revision"] = Revision
+	buildMap["build_branch"] = Branch
+	buildMap["build_date"] = BuildDate
+	buildMap["build_time_unix"] = BuildTimeUnix
+
+	jsonOut, err := jsonMarshalFunc(buildMap)
+	if err != nil {
+		return err
+	}
+	// If we're logging in pure JSON, remove the timestamp flag since that's in plaintext. Set it back after
+	// emitting the Build Info.
+	log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
+	logger.Printf(string(jsonOut))
+	log.SetFlags(log.LstdFlags)
+	return nil
 }
 
 func init() {
 	if LogBuildInfoAtStartup != "" {
-		LogBuildInfo()
+		logger := log.Default()
+		if LogBuildInfoToStdout != "" {
+			logger = log.New(os.Stdout, "", log.LstdFlags)
+		}
+		LogBuildInfoWithLogger(logger)
 	}
 }
 
@@ -131,13 +178,19 @@ func (b *buildReporter) Start() error {
 }
 
 func (b *buildReporter) report() {
-	scope := b.opts.MetricsScope().Tagged(map[string]string{
+	tags := map[string]string{
 		"revision":      Revision,
 		"branch":        Branch,
 		"build-date":    BuildDate,
 		"build-version": Version,
 		"go-version":    goVersion,
-	})
+	}
+
+	for k, v := range b.opts.CustomBuildTags() {
+		tags[k] = v
+	}
+
+	scope := b.opts.MetricsScope().Tagged(tags)
 	buildInfoGauge := scope.Gauge(buildInfoMetricName)
 	buildAgeGauge := scope.Gauge(buildAgeMetricName)
 	buildInfoGauge.Update(1.0)

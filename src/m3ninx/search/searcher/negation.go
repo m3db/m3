@@ -44,11 +44,10 @@ func (s *negationSearcher) Search(r index.Reader) (postings.List, error) {
 		return nil, err
 	}
 
-	sPl, err := s.searcher.Search(r)
+	negatePl, err := s.searcher.Search(r)
 	if err != nil {
 		return nil, err
 	}
 
-	pl.Difference(sPl)
-	return pl, nil
+	return pl.Difference(negatePl)
 }

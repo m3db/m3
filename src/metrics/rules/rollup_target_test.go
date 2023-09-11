@@ -48,11 +48,11 @@ func TestNewRollupTargetV1ProtoInvalidProto(t *testing.T) {
 		Policies: []*policypb.Policy{
 			&policypb.Policy{
 				StoragePolicy: &policypb.StoragePolicy{
-					Resolution: &policypb.Resolution{
+					Resolution: policypb.Resolution{
 						WindowSize: 10 * time.Second.Nanoseconds(),
 						Precision:  time.Second.Nanoseconds(),
 					},
-					Retention: &policypb.Retention{
+					Retention: policypb.Retention{
 						Period: 24 * time.Hour.Nanoseconds(),
 					},
 				},
@@ -69,35 +69,35 @@ func TestNewRollupTargetV1ProtoWithDefaultAggregationID(t *testing.T) {
 		Name: "testV1Proto",
 		Tags: []string{"testTag2", "testTag1"},
 		Policies: []*policypb.Policy{
-			&policypb.Policy{
+			{
 				StoragePolicy: &policypb.StoragePolicy{
-					Resolution: &policypb.Resolution{
+					Resolution: policypb.Resolution{
 						WindowSize: 10 * time.Second.Nanoseconds(),
 						Precision:  time.Second.Nanoseconds(),
 					},
-					Retention: &policypb.Retention{
+					Retention: policypb.Retention{
 						Period: 24 * time.Hour.Nanoseconds(),
 					},
 				},
 			},
-			&policypb.Policy{
+			{
 				StoragePolicy: &policypb.StoragePolicy{
-					Resolution: &policypb.Resolution{
+					Resolution: policypb.Resolution{
 						WindowSize: time.Minute.Nanoseconds(),
 						Precision:  time.Minute.Nanoseconds(),
 					},
-					Retention: &policypb.Retention{
+					Retention: policypb.Retention{
 						Period: 720 * time.Hour.Nanoseconds(),
 					},
 				},
 			},
-			&policypb.Policy{
+			{
 				StoragePolicy: &policypb.StoragePolicy{
-					Resolution: &policypb.Resolution{
+					Resolution: policypb.Resolution{
 						WindowSize: time.Hour.Nanoseconds(),
 						Precision:  time.Hour.Nanoseconds(),
 					},
-					Retention: &policypb.Retention{
+					Retention: policypb.Retention{
 						Period: 365 * 24 * time.Hour.Nanoseconds(),
 					},
 				},
@@ -107,15 +107,19 @@ func TestNewRollupTargetV1ProtoWithDefaultAggregationID(t *testing.T) {
 	res, err := newRollupTargetFromV1Proto(proto)
 	require.NoError(t, err)
 
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"testV1Proto",
+		[]string{"testTag1", "testTag2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+
 	expected := rollupTarget{
 		Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 			{
-				Type: pipeline.RollupOpType,
-				Rollup: pipeline.RollupOp{
-					NewName:       []byte("testV1Proto"),
-					Tags:          bs("testTag1", "testTag2"),
-					AggregationID: aggregation.DefaultID,
-				},
+				Type:   pipeline.RollupOpType,
+				Rollup: rr1,
 			},
 		}),
 		StoragePolicies: policy.StoragePolicies{
@@ -132,37 +136,37 @@ func TestNewRollupTargetV1ProtoWithCustomAggregationID(t *testing.T) {
 		Name: "testV1Proto",
 		Tags: []string{"testTag2", "testTag1"},
 		Policies: []*policypb.Policy{
-			&policypb.Policy{
+			{
 				StoragePolicy: &policypb.StoragePolicy{
-					Resolution: &policypb.Resolution{
+					Resolution: policypb.Resolution{
 						WindowSize: 10 * time.Second.Nanoseconds(),
 						Precision:  time.Second.Nanoseconds(),
 					},
-					Retention: &policypb.Retention{
+					Retention: policypb.Retention{
 						Period: 24 * time.Hour.Nanoseconds(),
 					},
 				},
 				AggregationTypes: []aggregationpb.AggregationType{1, 2},
 			},
-			&policypb.Policy{
+			{
 				StoragePolicy: &policypb.StoragePolicy{
-					Resolution: &policypb.Resolution{
+					Resolution: policypb.Resolution{
 						WindowSize: time.Minute.Nanoseconds(),
 						Precision:  time.Minute.Nanoseconds(),
 					},
-					Retention: &policypb.Retention{
+					Retention: policypb.Retention{
 						Period: 720 * time.Hour.Nanoseconds(),
 					},
 				},
 				AggregationTypes: []aggregationpb.AggregationType{1, 2},
 			},
-			&policypb.Policy{
+			{
 				StoragePolicy: &policypb.StoragePolicy{
-					Resolution: &policypb.Resolution{
+					Resolution: policypb.Resolution{
 						WindowSize: time.Hour.Nanoseconds(),
 						Precision:  time.Hour.Nanoseconds(),
 					},
-					Retention: &policypb.Retention{
+					Retention: policypb.Retention{
 						Period: 365 * 24 * time.Hour.Nanoseconds(),
 					},
 				},
@@ -173,15 +177,19 @@ func TestNewRollupTargetV1ProtoWithCustomAggregationID(t *testing.T) {
 	res, err := newRollupTargetFromV1Proto(proto)
 	require.NoError(t, err)
 
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"testV1Proto",
+		[]string{"testTag1", "testTag2"},
+		aggregation.MustCompressTypes(aggregation.Last, aggregation.Min),
+	)
+	require.NoError(t, err)
+
 	expected := rollupTarget{
 		Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 			{
-				Type: pipeline.RollupOpType,
-				Rollup: pipeline.RollupOp{
-					NewName:       []byte("testV1Proto"),
-					Tags:          bs("testTag1", "testTag2"),
-					AggregationID: aggregation.MustCompressTypes(aggregation.Last, aggregation.Min),
-				},
+				Type:   pipeline.RollupOpType,
+				Rollup: rr1,
 			},
 		}),
 		StoragePolicies: policy.StoragePolicies{
@@ -229,8 +237,8 @@ func TestNewRollupTargetV2ProtoInvalidStoragePoliciesProto(t *testing.T) {
 		},
 		StoragePolicies: []*policypb.StoragePolicy{
 			&policypb.StoragePolicy{
-				Resolution: &policypb.Resolution{Precision: 1234},
-				Retention:  &policypb.Retention{Period: 5678},
+				Resolution: policypb.Resolution{Precision: 1234},
+				Retention:  policypb.Retention{Period: 5678},
 			},
 		},
 	}
@@ -268,36 +276,44 @@ func TestNewRollupTargetV2Proto(t *testing.T) {
 			},
 		},
 		StoragePolicies: []*policypb.StoragePolicy{
-			&policypb.StoragePolicy{
-				Resolution: &policypb.Resolution{
+			{
+				Resolution: policypb.Resolution{
 					WindowSize: 10 * time.Second.Nanoseconds(),
 					Precision:  time.Second.Nanoseconds(),
 				},
-				Retention: &policypb.Retention{
+				Retention: policypb.Retention{
 					Period: 24 * time.Hour.Nanoseconds(),
 				},
 			},
-			&policypb.StoragePolicy{
-				Resolution: &policypb.Resolution{
+			{
+				Resolution: policypb.Resolution{
 					WindowSize: time.Minute.Nanoseconds(),
 					Precision:  time.Minute.Nanoseconds(),
 				},
-				Retention: &policypb.Retention{
+				Retention: policypb.Retention{
 					Period: 720 * time.Hour.Nanoseconds(),
 				},
 			},
-			&policypb.StoragePolicy{
-				Resolution: &policypb.Resolution{
+			{
+				Resolution: policypb.Resolution{
 					WindowSize: time.Hour.Nanoseconds(),
 					Precision:  time.Hour.Nanoseconds(),
 				},
-				Retention: &policypb.Retention{
+				Retention: policypb.Retention{
 					Period: 365 * 24 * time.Hour.Nanoseconds(),
 				},
 			},
 		},
 	}
 	res, err := newRollupTargetFromV2Proto(proto)
+	require.NoError(t, err)
+
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"testRollupOp",
+		[]string{"testTag1", "testTag2"},
+		aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
+	)
 	require.NoError(t, err)
 
 	expected := rollupTarget{
@@ -315,12 +331,8 @@ func TestNewRollupTargetV2Proto(t *testing.T) {
 				},
 			},
 			{
-				Type: pipeline.RollupOpType,
-				Rollup: pipeline.RollupOp{
-					NewName:       []byte("testRollupOp"),
-					Tags:          bs("testTag1", "testTag2"),
-					AggregationID: aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
-				},
+				Type:   pipeline.RollupOpType,
+				Rollup: rr1,
 			},
 		}),
 		StoragePolicies: policy.StoragePolicies{
@@ -333,6 +345,14 @@ func TestNewRollupTargetV2Proto(t *testing.T) {
 }
 
 func TestRollupTargetClone(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"testRollupOp",
+		[]string{"testTag1", "testTag2"},
+		aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
+	)
+	require.NoError(t, err)
+
 	source := rollupTarget{
 		Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 			{
@@ -348,12 +368,8 @@ func TestRollupTargetClone(t *testing.T) {
 				},
 			},
 			{
-				Type: pipeline.RollupOpType,
-				Rollup: pipeline.RollupOp{
-					NewName:       []byte("testRollupOp"),
-					Tags:          bs("testTag1", "testTag2"),
-					AggregationID: aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
-				},
+				Type:   pipeline.RollupOpType,
+				Rollup: rr1,
 			},
 		}),
 		StoragePolicies: policy.StoragePolicies{
@@ -410,6 +426,14 @@ func TestRollupTargetProtoInvalidStoragePolicies(t *testing.T) {
 }
 
 func TestRollupTargetProto(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"testRollupOp",
+		[]string{"testTag1", "testTag2"},
+		aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
+	)
+	require.NoError(t, err)
+
 	target := rollupTarget{
 		Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 			{
@@ -425,12 +449,8 @@ func TestRollupTargetProto(t *testing.T) {
 				},
 			},
 			{
-				Type: pipeline.RollupOpType,
-				Rollup: pipeline.RollupOp{
-					NewName:       []byte("testRollupOp"),
-					Tags:          bs("testTag1", "testTag2"),
-					AggregationID: aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
-				},
+				Type:   pipeline.RollupOpType,
+				Rollup: rr1,
 			},
 		}),
 		StoragePolicies: policy.StoragePolicies{
@@ -471,30 +491,30 @@ func TestRollupTargetProto(t *testing.T) {
 			},
 		},
 		StoragePolicies: []*policypb.StoragePolicy{
-			&policypb.StoragePolicy{
-				Resolution: &policypb.Resolution{
+			{
+				Resolution: policypb.Resolution{
 					WindowSize: 10 * time.Second.Nanoseconds(),
 					Precision:  time.Second.Nanoseconds(),
 				},
-				Retention: &policypb.Retention{
+				Retention: policypb.Retention{
 					Period: 24 * time.Hour.Nanoseconds(),
 				},
 			},
-			&policypb.StoragePolicy{
-				Resolution: &policypb.Resolution{
+			{
+				Resolution: policypb.Resolution{
 					WindowSize: time.Minute.Nanoseconds(),
 					Precision:  time.Minute.Nanoseconds(),
 				},
-				Retention: &policypb.Retention{
+				Retention: policypb.Retention{
 					Period: 720 * time.Hour.Nanoseconds(),
 				},
 			},
-			&policypb.StoragePolicy{
-				Resolution: &policypb.Resolution{
+			{
+				Resolution: policypb.Resolution{
 					WindowSize: time.Hour.Nanoseconds(),
 					Precision:  time.Hour.Nanoseconds(),
 				},
-				Retention: &policypb.Retention{
+				Retention: policypb.Retention{
 					Period: 365 * 24 * time.Hour.Nanoseconds(),
 				},
 			},

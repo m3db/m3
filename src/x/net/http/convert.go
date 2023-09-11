@@ -101,6 +101,13 @@ func NanosToDurationMap(input map[string]interface{}) (map[string]interface{}, e
 				}
 
 				dictTranslated[k] = durMap
+			case []interface{}:
+				durArr, err := nanosToDurationArray(vv)
+				if err != nil {
+					return nil, err
+				}
+
+				dictTranslated[k] = durArr
 			default:
 				dictTranslated[k] = vv
 			}
@@ -108,6 +115,32 @@ func NanosToDurationMap(input map[string]interface{}) (map[string]interface{}, e
 	}
 
 	return dictTranslated, nil
+}
+
+func nanosToDurationArray(input []interface{}) ([]interface{}, error) {
+	arrTranslated := make([]interface{}, len(input))
+	for i, elem := range input {
+		switch v := elem.(type) {
+		case map[string]interface{}:
+			durMap, err := NanosToDurationMap(v)
+			if err != nil {
+				return nil, err
+			}
+
+			arrTranslated[i] = durMap
+		case []interface{}:
+			durArr, err := nanosToDurationArray(v)
+			if err != nil {
+				return nil, err
+			}
+
+			arrTranslated[i] = durArr
+		default:
+			arrTranslated[i] = v
+		}
+	}
+
+	return arrTranslated, nil
 }
 
 // DurationToNanosBytes transforms a json byte slice with Duration keys into Nanos
@@ -173,6 +206,13 @@ func DurationToNanosMap(input map[string]interface{}) (map[string]interface{}, e
 				}
 
 				dictTranslated[k] = durMap
+			case []interface{}:
+				durArr, err := durationToNanosArray(vv)
+				if err != nil {
+					return nil, err
+				}
+
+				dictTranslated[k] = durArr
 			default:
 				dictTranslated[k] = vv
 			}
@@ -180,4 +220,30 @@ func DurationToNanosMap(input map[string]interface{}) (map[string]interface{}, e
 	}
 
 	return dictTranslated, nil
+}
+
+func durationToNanosArray(input []interface{}) ([]interface{}, error) {
+	arrTranslated := make([]interface{}, len(input))
+	for i, elem := range input {
+		switch v := elem.(type) {
+		case map[string]interface{}:
+			durMap, err := DurationToNanosMap(v)
+			if err != nil {
+				return nil, err
+			}
+
+			arrTranslated[i] = durMap
+		case []interface{}:
+			durArr, err := durationToNanosArray(v)
+			if err != nil {
+				return nil, err
+			}
+
+			arrTranslated[i] = durArr
+		default:
+			arrTranslated[i] = v
+		}
+	}
+
+	return arrTranslated, nil
 }

@@ -28,21 +28,26 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/cluster/shard"
+	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
-	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -75,6 +80,7 @@ var (
 	// errWriterDoesNotImplementWriteBatch is raised when the provided ts.BatchWriter does not implement
 	// ts.WriteBatch.
 	errWriterDoesNotImplementWriteBatch = errors.New("provided writer does not implement ts.WriteBatch")
+	aggregationsInProgress              int32
 )
 
 type databaseState int
@@ -92,8 +98,9 @@ type increasingIndex interface {
 
 type db struct {
 	sync.RWMutex
-	opts  Options
-	nowFn clock.NowFn
+	bootstrapMutex sync.Mutex
+	opts           Options
+	nowFn          clock.NowFn
 
 	nsWatch                namespace.NamespaceWatch
 	namespaces             *databaseNamespacesMap
@@ -103,6 +110,7 @@ type db struct {
 
 	state    databaseState
 	mediator databaseMediator
+	repairer databaseRepairer
 
 	created    uint64
 	bootstraps int
@@ -229,12 +237,34 @@ func NewDatabase(
 			zap.Error(err))
 	}
 
-	mediator, err := newMediator(
+	d.mediator, err = newMediator(
 		d, commitLog, opts.SetInstrumentOptions(databaseIOpts))
 	if err != nil {
 		return nil, err
 	}
-	d.mediator = mediator
+
+	d.repairer = newNoopDatabaseRepairer()
+	if opts.RepairEnabled() {
+		d.repairer, err = newDatabaseRepairer(d, opts)
+		if err != nil {
+			return nil, err
+		}
+		err = d.mediator.RegisterBackgroundProcess(d.repairer)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	for _, fn := range opts.BackgroundProcessFns() {
+		process, err := fn(d, opts)
+		if err != nil {
+			return nil, err
+		}
+		err = d.mediator.RegisterBackgroundProcess(process)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	return d, nil
 }
@@ -243,6 +273,14 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 	if newNamespaces == nil {
 		return nil
 	}
+	// NB: Use bootstrapMutex to protect from competing calls.
+	asyncUnlock := false
+	d.bootstrapMutex.Lock()
+	defer func() {
+		if !asyncUnlock {
+			d.bootstrapMutex.Unlock()
+		}
+	}()
 
 	// Always update schema registry before owned namespaces.
 	if err := namespace.UpdateSchemaRegistry(newNamespaces, d.opts.SchemaRegistry(), d.log); err != nil {
@@ -264,20 +302,14 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 		}
 	}
 
+	// NB: Can hold lock since all long-running tasks are enqueued to run
+	// async while holding the lock.
 	d.Lock()
 	defer d.Unlock()
 
 	removes, adds, updates := d.namespaceDeltaWithLock(newNamespaces)
 	if err := d.logNamespaceUpdate(removes, adds, updates); err != nil {
-		enrichedErr := fmt.Errorf("unable to log namespace updates: %v", err)
-		d.log.Error(enrichedErr.Error())
-		return enrichedErr
-	}
-
-	// add any namespaces marked for addition
-	if err := d.addNamespacesWithLock(adds); err != nil {
-		enrichedErr := fmt.Errorf("unable to add namespaces: %v", err)
-		d.log.Error(enrichedErr.Error())
+		d.log.Error("unable to log namespace updates", zap.Error(err))
 		return err
 	}
 
@@ -289,12 +321,72 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 			"restart the process if you want changes to take effect")
 	}
 
-	// enqueue bootstraps if new namespaces
 	if len(adds) > 0 {
-		d.queueBootstrapWithLock()
-	}
+		if d.bootstraps == 0 || !d.mediatorIsOpenWithLock() {
+			// If no bootstraps yet or mediator is not open we can just
+			// add the namespaces and optionally enqueue bootstrap (which is
+			// async) since no file operations can be in place since
+			// no bootstrap and/or mediator is not open.
+			if err := d.addNamespacesWithLock(adds); err != nil {
+				d.log.Error("unable to add namespaces", zap.Error(err))
+				return err
+			}
 
+			if d.bootstraps > 0 {
+				// If already bootstrapped before, enqueue another
+				// bootstrap (asynchronously, ok to trigger holding lock).
+				asyncUnlock = true
+				d.enqueueBootstrapAsync(d.bootstrapMutex.Unlock)
+			}
+
+			return nil
+		}
+
+		// NB: mediator is opened, we need to disable fileOps and wait for all the background processes to complete
+		// so that we could update namespaces safely. Otherwise, there is a high chance in getting
+		// invariant violation panic because cold/warm flush will receive new namespaces
+		// in the middle of their operations.
+		d.Unlock() // Don't hold the lock while we wait for file ops.
+		d.disableFileOpsAndWait()
+		d.Lock() // Reacquire lock after waiting.
+
+		// Add any namespaces marked for addition.
+		if err := d.addNamespacesWithLock(adds); err != nil {
+			d.log.Error("unable to add namespaces", zap.Error(err))
+			d.enableFileOps()
+			return err
+		}
+
+		// Enqueue bootstrap and enable file ops when bootstrap is completed.
+		asyncUnlock = true
+		d.enqueueBootstrapAsyncWithLock(
+			func() {
+				d.enableFileOps()
+				d.bootstrapMutex.Unlock()
+			})
+	}
 	return nil
+}
+
+func (d *db) mediatorIsOpenWithLock() bool {
+	if d.mediator == nil {
+		return false
+	}
+	return d.mediator.IsOpen()
+}
+
+func (d *db) disableFileOpsAndWait() {
+	if mediator := d.mediator; mediator != nil && mediator.IsOpen() {
+		d.log.Info("waiting for file ops to be disabled")
+		mediator.DisableFileOpsAndWait()
+	}
+}
+
+func (d *db) enableFileOps() {
+	if mediator := d.mediator; mediator != nil && mediator.IsOpen() {
+		d.log.Info("enabling file ops")
+		mediator.EnableFileOps()
+	}
 }
 
 func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ident.ID, []namespace.Metadata, []namespace.Metadata) {
@@ -309,7 +401,6 @@ func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ident.ID, []
 	for _, entry := range existing.Iter() {
 		ns := entry.Value()
 		newMd, err := newNamespaces.Get(ns.ID())
-
 		// if a namespace doesn't exist in newNamespaces, mark for removal
 		if err != nil {
 			removes = append(removes, ns.ID())
@@ -369,6 +460,8 @@ func (d *db) logNamespaceUpdate(removes []ident.ID, adds, updates []namespace.Me
 }
 
 func (d *db) addNamespacesWithLock(namespaces []namespace.Metadata) error {
+	createdNamespaces := make([]databaseNamespace, 0, len(namespaces))
+
 	for _, n := range namespaces {
 		// ensure namespace doesn't exist
 		_, ok := d.namespaces.Get(n.ID())
@@ -382,8 +475,22 @@ func (d *db) addNamespacesWithLock(namespaces []namespace.Metadata) error {
 			return err
 		}
 		d.namespaces.Set(n.ID(), newNs)
+		createdNamespaces = append(createdNamespaces, newNs)
 	}
+
+	hooks := d.Options().NamespaceHooks()
+	for _, ns := range createdNamespaces {
+		err := hooks.OnCreatedNamespace(ns, d.getNamespaceWithLock)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+func (d *db) getNamespaceWithLock(id ident.ID) (Namespace, bool) {
+	return d.namespaces.Get(id)
 }
 
 func (d *db) newDatabaseNamespaceWithLock(
@@ -411,30 +518,106 @@ func (d *db) Options() Options {
 }
 
 func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
+	// NB: Use bootstrapMutex to protect from competing calls.
+	d.bootstrapMutex.Lock()
+	asyncUnlock := false
+	defer func() {
+		if !asyncUnlock {
+			// Unlock only if asyncUnlock is not set. Otherwise, we will unlock asynchronously.
+			d.bootstrapMutex.Unlock()
+		}
+	}()
+	// NB: Can hold lock since all long running tasks are enqueued to run
+	// async while holding the lock.
 	d.Lock()
 	defer d.Unlock()
 
-	receivedNewShards := d.hasReceivedNewShardsWithLock(shardSet)
+	added, removed, updated := d.shardsDeltaWithLock(shardSet)
 
-	d.shardSet = shardSet
-	if receivedNewShards {
+	if !added && !removed && !updated {
+		d.log.Info("received identical shardSet, skipping shard assignment")
+		return
+	}
+
+	if added {
 		d.lastReceivedNewShards = d.nowFn()
 	}
 
+	if d.bootstraps == 0 || !d.mediatorIsOpenWithLock() {
+		// If not bootstrapped before or mediator is not open then can just
+		// immediately assign shards.
+		d.assignShardsWithLock(shardSet)
+		if d.bootstraps > 0 {
+			// If already bootstrapped before, enqueue another
+			// bootstrap (asynchronously, ok to trigger holding lock).
+			asyncUnlock = true
+			d.enqueueBootstrapAsync(d.bootstrapMutex.Unlock)
+		}
+		return
+	}
+
+	if added {
+		// Wait outside of holding lock to disable file operations.
+		d.Unlock()
+		d.disableFileOpsAndWait()
+		d.Lock()
+	}
+
+	d.assignShardsWithLock(shardSet)
+
+	if added {
+		asyncUnlock = true
+		d.enqueueBootstrapAsyncWithLock(func() {
+			d.enableFileOps()
+			d.bootstrapMutex.Unlock()
+		})
+	}
+}
+
+func (d *db) assignShardsWithLock(shardSet sharding.ShardSet) {
+	d.log.Info("assigning shards", zap.Uint32s("shards", shardSet.AllIDs()))
+	d.shardSet = shardSet
 	for _, elem := range d.namespaces.Iter() {
 		ns := elem.Value()
 		ns.AssignShardSet(shardSet)
 	}
+}
 
-	if receivedNewShards {
-		// Only trigger a bootstrap if the node received new shards otherwise
-		// the nodes will perform lots of small bootstraps (that accomplish nothing)
-		// during topology changes as other nodes mark their shards as available.
-		//
-		// These small bootstraps can significantly delay topology changes as they prevent
-		// the nodes from marking themselves as bootstrapped and durable, for example.
-		d.queueBootstrapWithLock()
+func (d *db) shardsDeltaWithLock(incoming sharding.ShardSet) (bool, bool, bool) {
+	var (
+		existing       = d.shardSet
+		existingShards = existing.All()
+		incomingShards = incoming.All()
+		existingSet    = make(map[uint32]shard.Shard, len(existingShards))
+		incomingSet    = make(map[uint32]shard.Shard, len(incomingShards))
+		added          bool
+		removed        bool
+		updated        bool
+	)
+
+	for _, shard := range existingShards {
+		existingSet[shard.ID()] = shard
 	}
+
+	for _, shard := range incomingShards {
+		incomingSet[shard.ID()] = shard
+		existingShard, ok := existingSet[shard.ID()]
+		if !ok {
+			added = true
+		} else if !existingShard.Equals(shard) {
+			updated = true
+		}
+	}
+
+	for shardID := range existingSet {
+		_, ok := incomingSet[shardID]
+		if !ok {
+			removed = true
+			break
+		}
+	}
+
+	return added, removed, updated
 }
 
 func (d *db) hasReceivedNewShardsWithLock(incoming sharding.ShardSet) bool {
@@ -466,7 +649,16 @@ func (d *db) ShardSet() sharding.ShardSet {
 	return shardSet
 }
 
-func (d *db) queueBootstrapWithLock() {
+func (d *db) enqueueBootstrapAsync(onCompleteFn func()) {
+	d.log.Info("enqueuing bootstrap")
+	d.mediator.BootstrapEnqueue(BootstrapEnqueueOptions{
+		OnCompleteFn: func(_ BootstrapResult) {
+			onCompleteFn()
+		},
+	})
+}
+
+func (d *db) enqueueBootstrapAsyncWithLock(onCompleteFn func()) {
 	// Only perform a bootstrap if at least one bootstrap has already occurred. This enables
 	// the ability to open the clustered database and assign shardsets to the non-clustered
 	// database when it receives an initial topology (as well as topology changes) without
@@ -475,15 +667,16 @@ func (d *db) queueBootstrapWithLock() {
 	// the non-clustered database bootstrapped by assigning it shardsets which will trigger new
 	// bootstraps since d.bootstraps > 0 will be true.
 	if d.bootstraps > 0 {
-		// NB(r): Trigger another bootstrap, if already bootstrapping this will
-		// enqueue a new bootstrap to execute before the current bootstrap
-		// completes.
-		go func() {
-			if result, err := d.mediator.Bootstrap(); err != nil && !result.AlreadyBootstrapping {
-				d.log.Error("error bootstrapping", zap.Error(err))
-			}
-		}()
+		d.log.Info("enqueuing bootstrap with onComplete function")
+		d.mediator.BootstrapEnqueue(BootstrapEnqueueOptions{
+			OnCompleteFn: func(_ BootstrapResult) {
+				onCompleteFn()
+			},
+		})
+		return
 	}
+
+	onCompleteFn()
 }
 
 func (d *db) Namespace(id ident.ID) (Namespace, bool) {
@@ -603,7 +796,7 @@ func (d *db) Write(
 	ctx context.Context,
 	namespace ident.ID,
 	id ident.ID,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
@@ -624,8 +817,7 @@ func (d *db) Write(
 	}
 
 	dp := ts.Datapoint{
-		Timestamp:      timestamp,
-		TimestampNanos: xtime.ToUnixNano(timestamp),
+		TimestampNanos: timestamp,
 		Value:          value,
 	}
 
@@ -636,8 +828,8 @@ func (d *db) WriteTagged(
 	ctx context.Context,
 	namespace ident.ID,
 	id ident.ID,
-	tags ident.TagIterator,
-	timestamp time.Time,
+	tagResolver convert.TagMetadataResolver,
+	timestamp xtime.UnixNano,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
@@ -648,7 +840,7 @@ func (d *db) WriteTagged(
 		return err
 	}
 
-	seriesWrite, err := n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
+	seriesWrite, err := n.WriteTagged(ctx, id, tagResolver, timestamp, value, unit, annotation)
 	if err != nil {
 		return err
 	}
@@ -658,8 +850,7 @@ func (d *db) WriteTagged(
 	}
 
 	dp := ts.Datapoint{
-		Timestamp:      timestamp,
-		TimestampNanos: xtime.ToUnixNano(timestamp),
+		TimestampNanos: timestamp,
 		Value:          value,
 	}
 
@@ -706,20 +897,6 @@ func (d *db) writeBatch(
 	errHandler IndexedErrorHandler,
 	tagged bool,
 ) error {
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBWriteBatch)
-	if sampled {
-		sp.LogFields(
-			opentracinglog.String("namespace", namespace.String()),
-			opentracinglog.Bool("tagged", tagged),
-		)
-	}
-	defer sp.Finish()
-
-	writes, ok := writer.(writes.WriteBatch)
-	if !ok {
-		return errWriterDoesNotImplementWriteBatch
-	}
-
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		if tagged {
@@ -728,6 +905,20 @@ func (d *db) writeBatch(
 			d.metrics.unknownNamespaceWriteBatch.Inc(1)
 		}
 		return err
+	}
+
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBWriteBatch)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("namespace", namespace.String()),
+			opentracinglog.Bool("tagged", tagged),
+		)
+	}
+
+	defer sp.Finish()
+	writes, ok := writer.(writes.WriteBatch)
+	if !ok {
+		return errWriterDoesNotImplementWriteBatch
 	}
 
 	iter := writes.Iter()
@@ -741,8 +932,8 @@ func (d *db) writeBatch(
 			seriesWrite, err = n.WriteTagged(
 				ctx,
 				write.Write.Series.ID,
-				write.TagIter,
-				write.Write.Datapoint.Timestamp,
+				convert.NewEncodedTagsMetadataResolver(write.EncodedTags),
+				write.Write.Datapoint.TimestampNanos,
 				write.Write.Datapoint.Value,
 				write.Write.Unit,
 				write.Write.Annotation,
@@ -751,7 +942,7 @@ func (d *db) writeBatch(
 			seriesWrite, err = n.Write(
 				ctx,
 				write.Write.Series.ID,
-				write.Write.Datapoint.Timestamp,
+				write.Write.Datapoint.TimestampNanos,
 				write.Write.Datapoint.Value,
 				write.Write.Unit,
 				write.Write.Annotation,
@@ -824,15 +1015,15 @@ func (d *db) QueryIDs(
 			opentracinglog.String("namespace", namespace.String()),
 			opentracinglog.Int("seriesLimit", opts.SeriesLimit),
 			opentracinglog.Int("docsLimit", opts.DocsLimit),
-			xopentracing.Time("start", opts.StartInclusive),
-			xopentracing.Time("end", opts.EndExclusive),
+			xopentracing.Time("start", opts.StartInclusive.ToTime()),
+			xopentracing.Time("end", opts.EndExclusive.ToTime()),
 		)
 	}
 	defer sp.Finish()
 
 	// Check if exceeding query limits at very beginning of
 	// query path to abandon as early as possible.
-	if err := d.queryLimits.AnyExceeded(); err != nil {
+	if err := d.queryLimits.AnyFetchExceeded(); err != nil {
 		return index.QueryResult{}, err
 	}
 
@@ -852,6 +1043,12 @@ func (d *db) AggregateQuery(
 	query index.Query,
 	aggResultOpts index.AggregationOptions,
 ) (index.AggregateQueryResult, error) {
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		d.metrics.unknownNamespaceQueryIDs.Inc(1)
+		return index.AggregateQueryResult{}, err
+	}
+
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBAggregateQuery)
 	if sampled {
 		sp.LogFields(
@@ -859,18 +1056,12 @@ func (d *db) AggregateQuery(
 			opentracinglog.String("namespace", namespace.String()),
 			opentracinglog.Int("seriesLimit", aggResultOpts.QueryOptions.SeriesLimit),
 			opentracinglog.Int("docsLimit", aggResultOpts.QueryOptions.DocsLimit),
-			xopentracing.Time("start", aggResultOpts.QueryOptions.StartInclusive),
-			xopentracing.Time("end", aggResultOpts.QueryOptions.EndExclusive),
+			xopentracing.Time("start", aggResultOpts.QueryOptions.StartInclusive.ToTime()),
+			xopentracing.Time("end", aggResultOpts.QueryOptions.EndExclusive.ToTime()),
 		)
 	}
+
 	defer sp.Finish()
-
-	n, err := d.namespaceFor(namespace)
-	if err != nil {
-		d.metrics.unknownNamespaceQueryIDs.Inc(1)
-		return index.AggregateQueryResult{}, err
-	}
-
 	return n.AggregateQuery(ctx, query, aggResultOpts)
 }
 
@@ -878,19 +1069,8 @@ func (d *db) ReadEncoded(
 	ctx context.Context,
 	namespace ident.ID,
 	id ident.ID,
-	start, end time.Time,
-) ([][]xio.BlockReader, error) {
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBReadEncoded)
-	if sampled {
-		sp.LogFields(
-			opentracinglog.String("namespace", namespace.String()),
-			opentracinglog.String("id", id.String()),
-			xopentracing.Time("start", start),
-			xopentracing.Time("end", end),
-		)
-	}
-	defer sp.Finish()
-
+	start, end xtime.UnixNano,
+) (series.BlockReaderIter, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
@@ -905,8 +1085,14 @@ func (d *db) FetchBlocks(
 	namespace ident.ID,
 	shardID uint32,
 	id ident.ID,
-	starts []time.Time,
+	starts []xtime.UnixNano,
 ) ([]block.FetchBlockResult, error) {
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		d.metrics.unknownNamespaceFetchBlocks.Inc(1)
+		return nil, xerrors.NewInvalidParamsError(err)
+	}
+
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBFetchBlocks)
 	if sampled {
 		sp.LogFields(
@@ -915,14 +1101,8 @@ func (d *db) FetchBlocks(
 			opentracinglog.String("id", id.String()),
 		)
 	}
+
 	defer sp.Finish()
-
-	n, err := d.namespaceFor(namespace)
-	if err != nil {
-		d.metrics.unknownNamespaceFetchBlocks.Inc(1)
-		return nil, xerrors.NewInvalidParamsError(err)
-	}
-
 	return n.FetchBlocks(ctx, shardID, id, starts)
 }
 
@@ -930,29 +1110,29 @@ func (d *db) FetchBlocksMetadataV2(
 	ctx context.Context,
 	namespace ident.ID,
 	shardID uint32,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	limit int64,
 	pageToken PageToken,
 	opts block.FetchBlocksMetadataOptions,
 ) (block.FetchBlocksMetadataResults, PageToken, error) {
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBFetchBlocksMetadataV2)
-	if sampled {
-		sp.LogFields(
-			opentracinglog.String("namespace", namespace.String()),
-			opentracinglog.Uint32("shardID", shardID),
-			xopentracing.Time("start", start),
-			xopentracing.Time("end", end),
-			opentracinglog.Int64("limit", limit),
-		)
-	}
-	defer sp.Finish()
-
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceFetchBlocksMetadata.Inc(1)
 		return nil, nil, xerrors.NewInvalidParamsError(err)
 	}
 
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBFetchBlocksMetadataV2)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("namespace", namespace.String()),
+			opentracinglog.Uint32("shardID", shardID),
+			xopentracing.Time("start", start.ToTime()),
+			xopentracing.Time("end", end.ToTime()),
+			opentracinglog.Int64("limit", limit),
+		)
+	}
+
+	defer sp.Finish()
 	return n.FetchBlocksMetadataV2(ctx, shardID, start, end, limit,
 		pageToken, opts)
 }
@@ -961,7 +1141,12 @@ func (d *db) Bootstrap() error {
 	d.Lock()
 	d.bootstraps++
 	d.Unlock()
+
+	// NB: We need to acquire bootstrapMutex to protect from receiving new shardSets or namespaces during
+	// bootstrapping.
+	d.bootstrapMutex.Lock()
 	_, err := d.mediator.Bootstrap()
+	d.bootstrapMutex.Unlock()
 	return err
 }
 
@@ -1024,7 +1209,7 @@ func (d *db) IsBootstrappedAndDurable() bool {
 }
 
 func (d *db) Repair() error {
-	return d.mediator.Repair()
+	return d.repairer.Repair()
 }
 
 func (d *db) Truncate(namespace ident.ID) (int64, error) {
@@ -1047,7 +1232,7 @@ func (d *db) BootstrapState() DatabaseBootstrapState {
 	d.RLock()
 	for _, n := range d.namespaces.Iter() {
 		ns := n.Value()
-		nsBootstrapStates[ns.ID().String()] = ns.BootstrapState()
+		nsBootstrapStates[ns.ID().String()] = ns.ShardBootstrapState()
 	}
 	d.RUnlock()
 
@@ -1059,7 +1244,7 @@ func (d *db) BootstrapState() DatabaseBootstrapState {
 func (d *db) FlushState(
 	namespace ident.ID,
 	shardID uint32,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 ) (fileOpState, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
@@ -1102,13 +1287,21 @@ func (d *db) AggregateTiles(
 	targetNsID ident.ID,
 	opts AggregateTilesOptions,
 ) (int64, error) {
+	jobInProgress := opts.InsOptions.MetricsScope().Gauge("aggregations-in-progress")
+	atomic.AddInt32(&aggregationsInProgress, 1)
+	jobInProgress.Update(float64(aggregationsInProgress))
+	defer func() {
+		atomic.AddInt32(&aggregationsInProgress, -1)
+		jobInProgress.Update(float64(aggregationsInProgress))
+	}()
+
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBAggregateTiles)
 	if sampled {
 		sp.LogFields(
 			opentracinglog.String("sourceNamespace", sourceNsID.String()),
 			opentracinglog.String("targetNamespace", targetNsID.String()),
-			xopentracing.Time("start", opts.Start),
-			xopentracing.Time("end", opts.End),
+			xopentracing.Time("start", opts.Start.ToTime()),
+			xopentracing.Time("end", opts.End.ToTime()),
 			xopentracing.Duration("step", opts.Step),
 		)
 	}
@@ -1126,9 +1319,17 @@ func (d *db) AggregateTiles(
 		return 0, err
 	}
 
-	// TODO: Create and use a dedicated persist manager
-	pm := d.opts.PersistManager()
-	return targetNs.AggregateTiles(ctx, sourceNs, opts, pm)
+	processedTileCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
+	if err != nil {
+		d.log.Error("error writing large tiles",
+			zap.String("sourceNs", sourceNsID.String()),
+			zap.String("targetNs", targetNsID.String()),
+			zap.Error(err),
+		)
+		reportAggregateTilesErrors(opts.InsOptions.MetricsScope(), err)
+	}
+
+	return processedTileCount, err
 }
 
 func (d *db) nextIndex() uint64 {
@@ -1177,9 +1378,13 @@ func (m metadatas) String() (string, error) {
 
 // NewAggregateTilesOptions creates new AggregateTilesOptions.
 func NewAggregateTilesOptions(
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	step time.Duration,
-	handleCounterResets bool,
+	targetNsID ident.ID,
+	process AggregateTilesProcess,
+	memorizeMetricTypes, backfillMetricTypes bool,
+	metricTypeByName map[string]annotation.Payload,
+	insOpts instrument.Options,
 ) (AggregateTilesOptions, error) {
 	if !end.After(start) {
 		return AggregateTilesOptions{}, fmt.Errorf("AggregateTilesOptions.End must be after Start, got %s - %s", start, end)
@@ -1189,10 +1394,35 @@ func NewAggregateTilesOptions(
 		return AggregateTilesOptions{}, fmt.Errorf("AggregateTilesOptions.Step must be positive, got %s", step)
 	}
 
+	if (memorizeMetricTypes || backfillMetricTypes) && metricTypeByName == nil {
+		return AggregateTilesOptions{}, errors.New(
+			"metricTypeByName must not be nil when memorizeMetricTypes or backfillMetricTypes is true")
+	}
+
+	scope := insOpts.MetricsScope().SubScope("computed-namespace")
+	insOpts = insOpts.SetMetricsScope(scope.Tagged(map[string]string{
+		"target-namespace": targetNsID.String(),
+		"process":          process.String(),
+	}))
+
 	return AggregateTilesOptions{
-		Start: start,
-		End: end,
-		Step: step,
-		HandleCounterResets: handleCounterResets,
+		Start:   start,
+		End:     end,
+		Step:    step,
+		Process: process,
+
+		MemorizeMetricTypes: memorizeMetricTypes,
+		BackfillMetricTypes: backfillMetricTypes,
+		MetricTypeByName:    metricTypeByName,
+
+		InsOptions: insOpts,
 	}, nil
+}
+
+func reportAggregateTilesErrors(scope tally.Scope, err error) {
+	errorType := "not-categorized"
+	if xerrors.Is(err, client.ErrSessionStatusNotOpen) {
+		errorType = "connection-to-peer"
+	}
+	scope.Tagged(map[string]string{"error-type": errorType}).Counter("aggregate-tiles-failed").Inc(1)
 }

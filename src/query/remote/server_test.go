@@ -40,7 +40,6 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/test"
-	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
@@ -52,9 +51,11 @@ import (
 )
 
 var (
-	errRead      = errors.New("read error")
-	poolsWrapper = pools.NewPoolsWrapper(
-		pools.BuildIteratorPools(pools.BuildIteratorPoolsOptions{}))
+	testName  = "remote_foo"
+	errRead   = errors.New("read error")
+	iterPools = pools.BuildIteratorPools(encoding.NewOptions(),
+		pools.BuildIteratorPoolsOptions{})
+	poolsWrapper = pools.NewPoolsWrapper(iterPools)
 )
 
 type mockStorageOptions struct {
@@ -70,47 +71,43 @@ func newMockStorage(
 	opts mockStorageOptions,
 ) *m3.MockStorage {
 	store := m3.NewMockStorage(ctrl)
-	store.EXPECT().
-		FetchCompressed(gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(
-			ctx context.Context,
-			query *storage.FetchQuery,
-			options *storage.FetchOptions,
-		) (consolidators.SeriesFetchResult, m3.Cleanup, error) {
-			var cleanup = func() error { return nil }
-			if opts.cleanup != nil {
-				cleanup = opts.cleanup
-			}
 
-			if opts.err != nil {
-				return consolidators.SeriesFetchResult{
-					Metadata: block.NewResultMetadata(),
-				}, cleanup, opts.err
-			}
+	store.EXPECT().FetchCompressedResult(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(
+		ctx context.Context,
+		query *storage.FetchQuery,
+		options *storage.FetchOptions,
+	) (consolidators.SeriesFetchResult, m3.Cleanup, error) {
+		cleanup := func() error {
+			return nil
+		}
+		if opts.cleanup != nil {
+			cleanup = opts.cleanup
+		}
 
-			if opts.fetchCompressedSleep > 0 {
-				time.Sleep(opts.fetchCompressedSleep)
-			}
+		if opts.err != nil {
+			return consolidators.SeriesFetchResult{
+				Metadata: block.NewResultMetadata(),
+			}, cleanup, opts.err
+		}
 
-			iters := opts.iters
-			if iters == nil {
-				it, err := test.BuildTestSeriesIterator(seriesID)
-				require.NoError(t, err)
-				iters = encoding.NewSeriesIterators(
-					[]encoding.SeriesIterator{it},
-					nil,
-				)
-			}
+		if opts.fetchCompressedSleep > 0 {
+			time.Sleep(opts.fetchCompressedSleep)
+		}
 
-			res, err := consolidators.NewSeriesFetchResult(
-				iters,
-				nil,
-				block.NewResultMetadata(),
-			)
+		iters := opts.iters
+		if iters == nil {
+			it, err := test.BuildTestSeriesIterator(seriesID)
+			require.NoError(t, err)
+			iters = encoding.NewSeriesIterators([]encoding.SeriesIterator{it})
+		}
 
-			return res, cleanup, err
-		}).
-		AnyTimes()
+		res, err := consolidators.NewSeriesFetchResult(
+			iters,
+			nil,
+			block.NewResultMetadata(),
+		)
+		return res, cleanup, err
+	}).AnyTimes()
 	return store
 }
 
@@ -131,7 +128,8 @@ func checkRemoteFetch(t *testing.T, r storage.PromResult) {
 }
 
 func startServer(t *testing.T, ctrl *gomock.Controller,
-	store m3.Storage) net.Listener {
+	store m3.Storage,
+) net.Listener {
 	server := NewGRPCServer(store, models.QueryContextOptions{},
 		poolsWrapper, instrument.NewOptions())
 
@@ -146,43 +144,48 @@ func startServer(t *testing.T, ctrl *gomock.Controller,
 }
 
 func createCtxReadOpts(t *testing.T) (context.Context,
-	*storage.FetchQuery, *storage.FetchOptions) {
+	*storage.FetchQuery, *storage.FetchOptions,
+) {
 	ctx := context.Background()
 	read, _, _ := createStorageFetchQuery(t)
 	readOpts := storage.NewFetchOptions()
+	readOpts.SeriesLimit = 300
 	return ctx, read, readOpts
 }
 
 func checkFetch(ctx context.Context, t *testing.T, client Client,
-	read *storage.FetchQuery, readOpts *storage.FetchOptions) {
+	read *storage.FetchQuery, readOpts *storage.FetchOptions,
+) {
 	fetch, err := client.FetchProm(ctx, read, readOpts)
 	require.NoError(t, err)
 	checkRemoteFetch(t, fetch)
 }
 
 func checkErrorFetch(ctx context.Context, t *testing.T, client Client,
-	read *storage.FetchQuery, readOpts *storage.FetchOptions) {
+	read *storage.FetchQuery, readOpts *storage.FetchOptions,
+) {
 	_, err := client.FetchProm(ctx, read, readOpts)
 	assert.Equal(t, errRead.Error(), grpc.ErrorDesc(err))
 }
 
 func buildClient(t *testing.T, hosts []string) Client {
-	readWorkerPool, err := xsync.NewPooledWorkerPool(runtime.NumCPU(),
+	readWorkerPool, err := xsync.NewPooledWorkerPool(runtime.GOMAXPROCS(0),
 		xsync.NewPooledWorkerPoolOptions())
 	readWorkerPool.Init()
 	require.NoError(t, err)
 
-	opts := m3db.NewOptions().
+	opts := m3.NewOptions(encoding.NewOptions()).
 		SetReadWorkerPool(readWorkerPool).
 		SetTagOptions(models.NewTagOptions())
 
-	client, err := NewGRPCClient(hosts, poolsWrapper, opts, grpc.WithBlock())
+	client, err := NewGRPCClient(testName, hosts, poolsWrapper, opts,
+		instrument.NewTestOptions(t))
 	require.NoError(t, err)
 	return client
 }
 
 func TestRpc(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController((*panicReporter)(t))
 	defer ctrl.Finish()
 
 	ctx, read, readOpts := createCtxReadOpts(t)
@@ -194,6 +197,18 @@ func TestRpc(t *testing.T) {
 	}()
 
 	checkFetch(ctx, t, client, read, readOpts)
+}
+
+// panicReporter is a workaround for the fact t.Fatalf calls in background threads
+// can cause hangs. panicReporter panics instead to fail the test early.
+type panicReporter testing.T
+
+func (t *panicReporter) Errorf(format string, args ...interface{}) {
+	(*testing.T)(t).Errorf(format, args...)
+}
+
+func (*panicReporter) Fatalf(format string, args ...interface{}) {
+	panic(fmt.Sprintf(format, args...))
 }
 
 func TestRpcHealth(t *testing.T) {
@@ -226,7 +241,6 @@ func TestRpcMultipleRead(t *testing.T) {
 
 	ctx, read, readOpts := createCtxReadOpts(t)
 	store := newMockStorage(t, ctrl, mockStorageOptions{})
-
 	listener := startServer(t, ctrl, store)
 	client := buildClient(t, []string{listener.Addr().String()})
 	defer func() {
@@ -235,6 +249,7 @@ func TestRpcMultipleRead(t *testing.T) {
 
 	fetch, err := client.FetchProm(ctx, read, readOpts)
 	require.NoError(t, err)
+
 	checkRemoteFetch(t, fetch)
 }
 
@@ -257,6 +272,7 @@ func TestRpcStopsStreamingWhenFetchKilledOnClient(t *testing.T) {
 	defer cancel()
 
 	_, err := client.FetchProm(ctx, read, readOpts)
+
 	require.Error(t, err)
 }
 
@@ -297,8 +313,9 @@ func TestMultipleClientRpc(t *testing.T) {
 
 func TestEmptyAddressListErrors(t *testing.T) {
 	addresses := []string{}
-	opts := m3db.NewOptions()
-	client, err := NewGRPCClient(addresses, poolsWrapper, opts, grpc.WithBlock())
+	opts := m3.NewOptions(encoding.NewOptions())
+	client, err := NewGRPCClient(testName, addresses, poolsWrapper, opts,
+		instrument.NewTestOptions(t), grpc.WithBlock())
 	assert.Nil(t, client)
 	assert.Equal(t, m3err.ErrNoClientAddresses, err)
 }
@@ -371,8 +388,10 @@ func TestBatchedFetch(t *testing.T) {
 	ctx, read, readOpts := createCtxReadOpts(t)
 	exNames := []string{"baz", "foo"}
 	exValues := []string{"qux", "bar"}
-	sizes := []int{0, 1, defaultBatch - 1, defaultBatch,
-		defaultBatch + 1, defaultBatch*2 + 1}
+	sizes := []int{
+		0, 1, defaultBatch - 1, defaultBatch,
+		defaultBatch + 1, defaultBatch*2 + 1,
+	}
 
 	for _, size := range sizes {
 		var (
@@ -389,7 +408,7 @@ func TestBatchedFetch(t *testing.T) {
 		}
 
 		store := newMockStorage(t, ctrl, mockStorageOptions{
-			iters: encoding.NewSeriesIterators(iters, nil),
+			iters: encoding.NewSeriesIterators(iters),
 			cleanup: func() error {
 				require.False(t, cleaned, msg)
 				cleaned = true
@@ -431,8 +450,10 @@ func TestBatchedSearch(t *testing.T) {
 	defer ctrl.Finish()
 
 	ctx, q, readOpts := createCtxReadOpts(t)
-	sizes := []int{0, 1, defaultBatch - 1, defaultBatch,
-		defaultBatch + 1, defaultBatch*2 + 1}
+	sizes := []int{
+		0, 1, defaultBatch - 1, defaultBatch,
+		defaultBatch + 1, defaultBatch*2 + 1,
+	}
 	for _, size := range sizes {
 		var (
 			msg     = fmt.Sprintf("batch size: %d", size)
@@ -502,8 +523,10 @@ func TestBatchedCompleteTags(t *testing.T) {
 			CompleteNameOnly: nameOnly,
 		}
 
-		sizes := []int{0, 1, defaultBatch - 1, defaultBatch,
-			defaultBatch + 1, defaultBatch*2 + 1}
+		sizes := []int{
+			0, 1, defaultBatch - 1, defaultBatch,
+			defaultBatch + 1, defaultBatch*2 + 1,
+		}
 		for _, size := range sizes {
 			var (
 				msg  = fmt.Sprintf("batch size: %d, name only: %t", size, nameOnly)
@@ -530,7 +553,7 @@ func TestBatchedCompleteTags(t *testing.T) {
 				Metadata: block.ResultMetadata{
 					Exhaustive: false,
 					LocalOnly:  true,
-					Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
+					Warnings:   []block.Warning{{Name: "foo", Message: "bar"}},
 				},
 			}
 

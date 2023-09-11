@@ -25,6 +25,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -51,4 +59,50 @@ func TestBufferForPastTimedMetric(t *testing.T) {
 			require.Equal(t, test.expected, result)
 		})
 	}
+}
+
+func TestAutoMappingRules(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	session := client.NewMockSession(ctrl)
+
+	clusters, err := m3.NewClusters(
+		m3.UnaggregatedClusterNamespaceDefinition{
+			NamespaceID: ident.StringID("default"),
+			Retention:   48 * time.Hour,
+			Session:     session,
+		}, m3.AggregatedClusterNamespaceDefinition{
+			NamespaceID: ident.StringID("2s:1d"),
+			Resolution:  2 * time.Second,
+			Retention:   24 * time.Hour,
+			Session:     session,
+		}, m3.AggregatedClusterNamespaceDefinition{
+			NamespaceID: ident.StringID("4s:2d"),
+			Resolution:  4 * time.Second,
+			Retention:   48 * time.Hour,
+			Session:     session,
+			Downsample:  &m3.ClusterNamespaceDownsampleOptions{All: false},
+		}, m3.AggregatedClusterNamespaceDefinition{
+			NamespaceID: ident.StringID("10s:4d"),
+			Resolution:  10 * time.Second,
+			Retention:   96 * time.Hour,
+			Session:     session,
+			ReadOnly:    true,
+		},
+	)
+	require.NoError(t, err)
+
+	rules, err := NewAutoMappingRules(clusters.ClusterNamespaces())
+	require.NoError(t, err)
+
+	require.Len(t, rules, 1)
+	require.Equal(t, []AutoMappingRule{
+		{
+			Aggregations: []aggregation.Type{aggregation.Last},
+			Policies: policy.StoragePolicies{
+				policy.NewStoragePolicy(2*time.Second, xtime.Second, 24*time.Hour),
+			},
+		},
+	}, rules)
 }

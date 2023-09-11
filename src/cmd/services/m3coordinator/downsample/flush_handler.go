@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"context"
 	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
@@ -37,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -57,7 +57,7 @@ var (
 
 type downsamplerFlushHandler struct {
 	sync.RWMutex
-	storage                storage.Storage
+	storage                storage.Appender
 	metricTagsIteratorPool serialize.MetricTagsIteratorPool
 	workerPool             xsync.WorkerPool
 	instrumentOpts         instrument.Options
@@ -80,7 +80,7 @@ func newDownsamplerFlushHandlerMetrics(
 }
 
 func newDownsamplerFlushHandler(
-	storage storage.Storage,
+	storage storage.Appender,
 	metricTagsIteratorPool serialize.MetricTagsIteratorPool,
 	workerPool xsync.WorkerPool,
 	tagOptions models.TagOptions,
@@ -175,10 +175,11 @@ func (w *downsamplerFlushHandlerWriter) Write(
 		writeQuery, err := storage.NewWriteQuery(storage.WriteQueryOptions{
 			Tags: tags,
 			Datapoints: ts.Datapoints{ts.Datapoint{
-				Timestamp: time.Unix(0, mp.TimeNanos),
+				Timestamp: xtime.UnixNano(mp.TimeNanos),
 				Value:     mp.Value,
 			}},
-			Unit: convert.UnitForM3DB(mp.StoragePolicy.Resolution().Precision),
+			Unit:       convert.UnitForM3DB(mp.StoragePolicy.Resolution().Precision),
+			Annotation: mp.Annotation,
 			Attributes: storagemetadata.Attributes{
 				MetricsType: storagemetadata.AggregatedMetricsType,
 				Retention:   mp.StoragePolicy.Retention().Duration(),

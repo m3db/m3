@@ -85,7 +85,7 @@ func testCommitLogBootstrapColdWrites(t *testing.T, setTestOpts setTestOptions, 
 		updateInputConfig(dataFilesData)
 	}
 	dataFilesSeriesMaps := generate.BlocksByStart(dataFilesData)
-	require.NoError(t, writeTestDataToDisk(ns1, setup, dataFilesSeriesMaps, 0))
+	require.NoError(t, writeTestDataToDiskWithIndex(ns1, setup, dataFilesSeriesMaps))
 	log.Info("finished writing data files")
 
 	log.Info("writing commit logs")
@@ -105,7 +105,7 @@ func testCommitLogBootstrapColdWrites(t *testing.T, setTestOpts setTestOptions, 
 	// not contains the same series.
 	allSeriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock, len(dataFilesSeriesMaps))
 	for i := -2; i < 0; i++ {
-		unixNano := xtime.ToUnixNano(start.Add(time.Duration(i) * blockSize))
+		unixNano := start.Add(time.Duration(i) * blockSize)
 		series := append(dataFilesSeriesMaps[unixNano], commitLogSeriesMaps[unixNano]...)
 		allSeriesMaps[unixNano] = series
 	}

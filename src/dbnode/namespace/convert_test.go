@@ -28,8 +28,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	protobuftypes "github.com/gogo/protobuf/types"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -54,8 +56,16 @@ var (
 		BlockDataExpiryAfterNotAccessPeriodNanos: toNanos(30), // 30m
 	}
 
+	validExtendedOpts = xtest.NewTestExtendedOptionsProto("foo")
+
+	validAggregationOpts = nsproto.AggregationOptions{
+		Aggregations: []*nsproto.Aggregation{
+			{Aggregated: false},
+		},
+	}
+
 	validNamespaceOpts = []nsproto.NamespaceOptions{
-		nsproto.NamespaceOptions{
+		{
 			BootstrapEnabled:      true,
 			FlushEnabled:          true,
 			WritesToCommitLog:     true,
@@ -64,21 +74,24 @@ var (
 			CacheBlocksOnRetrieve: &protobuftypes.BoolValue{Value: false},
 			RetentionOptions:      &validRetentionOpts,
 			SchemaOptions:         testSchemaOptions,
+			ExtendedOptions:       validExtendedOpts,
+			StagingState:          &nsproto.StagingState{Status: nsproto.StagingStatus_INITIALIZING},
 		},
-		nsproto.NamespaceOptions{
+		{
 			BootstrapEnabled:  true,
 			FlushEnabled:      true,
 			WritesToCommitLog: true,
 			CleanupEnabled:    true,
 			RepairEnabled:     true,
 			// Explicitly not setting CacheBlocksOnRetrieve here to test defaulting to true when not set.
-			RetentionOptions: &validRetentionOpts,
-			IndexOptions:     &validIndexOpts,
+			RetentionOptions:   &validRetentionOpts,
+			IndexOptions:       &validIndexOpts,
+			AggregationOptions: &validAggregationOpts,
 		},
 	}
 
 	validNamespaceSchemaOpts = []nsproto.NamespaceOptions{
-		nsproto.NamespaceOptions{
+		{
 			RetentionOptions: &validRetentionOpts,
 			SchemaOptions:    testSchemaOptions,
 		},
@@ -86,7 +99,7 @@ var (
 
 	invalidRetentionOpts = []nsproto.RetentionOptions{
 		// block size < buffer past
-		nsproto.RetentionOptions{
+		{
 			RetentionPeriodNanos:                     toNanos(1200), // 20h
 			BlockSizeNanos:                           toNanos(2),    // 2m
 			BufferFutureNanos:                        toNanos(12),   // 12m
@@ -95,7 +108,7 @@ var (
 			BlockDataExpiryAfterNotAccessPeriodNanos: toNanos(30), // 30m
 		},
 		// block size > retention
-		nsproto.RetentionOptions{
+		{
 			RetentionPeriodNanos:                     toNanos(1200), // 20h
 			BlockSizeNanos:                           toNanos(1260), // 21h
 			BufferFutureNanos:                        toNanos(12),   // 12m
@@ -104,7 +117,23 @@ var (
 			BlockDataExpiryAfterNotAccessPeriodNanos: toNanos(30), // 30m
 		},
 	}
+
+	invalidAggregationOpts = nsproto.AggregationOptions{
+		Aggregations: []*nsproto.Aggregation{
+			{
+				Aggregated: true,
+				Attributes: &nsproto.AggregatedAttributes{
+					ResolutionNanos:   -10,
+					DownsampleOptions: &nsproto.DownsampleOptions{All: true},
+				},
+			},
+		},
+	}
 )
+
+func init() {
+	namespace.RegisterExtendedOptionsConverter("testExtendedOptions", xtest.ConvertToTestExtendedOptions)
+}
 
 func TestNamespaceToRetentionValid(t *testing.T) {
 	validOpts := validRetentionOpts
@@ -120,7 +149,7 @@ func TestNamespaceToRetentionInvalid(t *testing.T) {
 	}
 }
 
-func TestToNamespaceValid(t *testing.T) {
+func TestToMetadataValid(t *testing.T) {
 	for _, nsopts := range validNamespaceOpts {
 		nsOpts, err := namespace.ToMetadata("abc", &nsopts)
 		require.NoError(t, err)
@@ -128,7 +157,20 @@ func TestToNamespaceValid(t *testing.T) {
 	}
 }
 
-func TestToNamespaceInvalid(t *testing.T) {
+func TestToMetadataNilIndexOpts(t *testing.T) {
+	nsopts := validNamespaceOpts[0]
+
+	nsopts.RetentionOptions.BlockSizeNanos = 7200000000000 / 2
+	nsopts.IndexOptions = nil
+
+	nsOpts, err := namespace.ToMetadata("id", &nsopts)
+	require.NoError(t, err)
+	assert.Equal(t,
+		time.Duration(nsopts.RetentionOptions.BlockSizeNanos),
+		nsOpts.Options().IndexOptions().BlockSize())
+}
+
+func TestToMetadataInvalid(t *testing.T) {
 	for _, nsopts := range validNamespaceOpts {
 		_, err := namespace.ToMetadata("", &nsopts)
 		require.Error(t, err)
@@ -171,9 +213,14 @@ func TestFromProto(t *testing.T) {
 }
 
 func TestToProto(t *testing.T) {
+	state, err := namespace.NewStagingState(nsproto.StagingStatus_READY)
+	require.NoError(t, err)
+
 	// make ns map
 	md1, err := namespace.NewMetadata(ident.StringID("ns1"),
-		namespace.NewOptions().SetBootstrapEnabled(true))
+		namespace.NewOptions().
+			SetBootstrapEnabled(true).
+			SetStagingState(state))
 	require.NoError(t, err)
 	md2, err := namespace.NewMetadata(ident.StringID("ns2"),
 		namespace.NewOptions().SetBootstrapEnabled(false))
@@ -182,7 +229,8 @@ func TestToProto(t *testing.T) {
 	require.NoError(t, err)
 
 	// convert to nsproto map
-	reg := namespace.ToProto(nsMap)
+	reg, err := namespace.ToProto(nsMap)
+	require.NoError(t, err)
 	require.Len(t, reg.Namespaces, 2)
 
 	// NB(prateek): expected/observed are inverted here
@@ -222,7 +270,8 @@ func TestSchemaToProto(t *testing.T) {
 	require.NoError(t, err)
 
 	// convert to nsproto map
-	reg := namespace.ToProto(nsMap)
+	reg, err := namespace.ToProto(nsMap)
+	require.NoError(t, err)
 	require.Len(t, reg.Namespaces, 1)
 
 	assertEqualMetadata(t, "ns1", *(reg.Namespaces["ns1"]), md1)
@@ -247,7 +296,8 @@ func TestToProtoSnapshotEnabled(t *testing.T) {
 	nsMap, err := namespace.NewMap([]namespace.Metadata{md})
 	require.NoError(t, err)
 
-	reg := namespace.ToProto(nsMap)
+	reg, err := namespace.ToProto(nsMap)
+	require.NoError(t, err)
 	require.Len(t, reg.Namespaces, 1)
 	require.Equal(t,
 		!namespace.NewOptions().SnapshotEnabled(),
@@ -258,7 +308,7 @@ func TestToProtoSnapshotEnabled(t *testing.T) {
 func TestFromProtoSnapshotEnabled(t *testing.T) {
 	validRegistry := nsproto.Registry{
 		Namespaces: map[string]*nsproto.NamespaceOptions{
-			"testns1": &nsproto.NamespaceOptions{
+			"testns1": {
 				// Use non-default value
 				SnapshotEnabled: !namespace.NewOptions().SnapshotEnabled(),
 				// Retention must be set
@@ -274,11 +324,72 @@ func TestFromProtoSnapshotEnabled(t *testing.T) {
 	require.Equal(t, !namespace.NewOptions().SnapshotEnabled(), md.Options().SnapshotEnabled())
 }
 
+func TestInvalidExtendedOptions(t *testing.T) {
+	invalidExtendedOptsNoConverterForType := &nsproto.ExtendedOptions{Type: "unknown"}
+	_, err := namespace.ToExtendedOptions(invalidExtendedOptsNoConverterForType)
+	assert.EqualError(t, err, "dynamic ExtendedOptions converter not registered for type unknown")
+
+	invalidExtendedOptsConverterFailure := xtest.NewTestExtendedOptionsProto("error")
+	_, err = namespace.ToExtendedOptions(invalidExtendedOptsConverterFailure)
+	assert.EqualError(t, err, "test error in converter")
+
+	invalidExtendedOpts := xtest.NewTestExtendedOptionsProto("invalid")
+	_, err = namespace.ToExtendedOptions(invalidExtendedOpts)
+	assert.EqualError(t, err, "invalid ExtendedOptions")
+
+	invalidExtendedOptionsNoOptions := &nsproto.ExtendedOptions{Type: "testExtendedOptions"}
+	_, err = namespace.ToExtendedOptions(invalidExtendedOptionsNoOptions)
+	assert.EqualError(t, err, "extendedOptions.Options must be set")
+}
+
+func TestConvertExtendedOptionsNil(t *testing.T) {
+	convertedExtendedOpts, err := namespace.ToExtendedOptions(nil)
+	require.NoError(t, err)
+	require.Nil(t, convertedExtendedOpts)
+}
+
+func TestToAggregationOptions(t *testing.T) {
+	aggOpts, err := namespace.ToAggregationOptions(&validAggregationOpts)
+	require.NoError(t, err)
+
+	require.Equal(t, 1, len(aggOpts.Aggregations()))
+
+	aggregation := aggOpts.Aggregations()[0]
+	require.Equal(t, false, aggregation.Aggregated)
+	require.Equal(t, namespace.AggregatedAttributes{}, aggregation.Attributes)
+}
+
+func TestToAggregationOptionsInvalid(t *testing.T) {
+	_, err := namespace.ToAggregationOptions(&invalidAggregationOpts)
+	require.Error(t, err)
+}
+
+func TestAggregationOptsToProto(t *testing.T) {
+	aggOpts, err := namespace.ToAggregationOptions(&validAggregationOpts)
+	require.NoError(t, err)
+
+	// make ns map
+	md1, err := namespace.NewMetadata(ident.StringID("ns1"),
+		namespace.NewOptions().SetAggregationOptions(aggOpts))
+	require.NoError(t, err)
+	nsMap, err := namespace.NewMap([]namespace.Metadata{md1})
+	require.NoError(t, err)
+
+	// convert to nsproto map
+	reg, err := namespace.ToProto(nsMap)
+	require.NoError(t, err)
+	require.Len(t, reg.Namespaces, 1)
+
+	nsOpts := *reg.Namespaces["ns1"]
+
+	require.Equal(t, validAggregationOpts, *nsOpts.AggregationOptions)
+}
+
 func assertEqualMetadata(t *testing.T, name string, expected nsproto.NamespaceOptions, observed namespace.Metadata) {
 	require.Equal(t, name, observed.ID().String())
 	opts := observed.Options()
 
-	expectedCacheBlocksOnRetrieve := true
+	expectedCacheBlocksOnRetrieve := false
 	if expected.CacheBlocksOnRetrieve != nil {
 		expectedCacheBlocksOnRetrieve = expected.CacheBlocksOnRetrieve.Value
 	}
@@ -295,6 +406,8 @@ func assertEqualMetadata(t *testing.T, name string, expected nsproto.NamespaceOp
 	require.True(t, expectedSchemaReg.Equal(observed.Options().SchemaHistory()))
 
 	assertEqualRetentions(t, *expected.RetentionOptions, opts.RetentionOptions())
+	assertEqualStagingState(t, expected.StagingState, opts.StagingState())
+	assertEqualExtendedOpts(t, expected.ExtendedOptions, opts.ExtendedOptions())
 }
 
 func assertEqualRetentions(t *testing.T, expected nsproto.RetentionOptions, observed retention.Options) {
@@ -305,4 +418,30 @@ func assertEqualRetentions(t *testing.T, expected nsproto.RetentionOptions, obse
 	require.Equal(t, expected.BlockDataExpiry, observed.BlockDataExpiry())
 	require.Equal(t, expected.BlockDataExpiryAfterNotAccessPeriodNanos,
 		observed.BlockDataExpiryAfterNotAccessedPeriod().Nanoseconds())
+}
+
+func assertEqualExtendedOpts(t *testing.T, expectedProto *nsproto.ExtendedOptions, observed namespace.ExtendedOptions) {
+	t.Helper()
+
+	if expectedProto == nil {
+		assert.Nil(t, observed)
+		return
+	}
+
+	expected, err := xtest.ConvertToTestExtendedOptions(expectedProto.Options)
+	require.NoError(t, err)
+
+	assert.Equal(t, expected, observed)
+}
+
+func assertEqualStagingState(t *testing.T, expected *nsproto.StagingState, observed namespace.StagingState) {
+	if expected == nil {
+		assert.Equal(t, namespace.StagingState{}, observed)
+		return
+	}
+
+	state, err := namespace.NewStagingState(expected.Status)
+	require.NoError(t, err)
+
+	require.Equal(t, state, observed)
 }

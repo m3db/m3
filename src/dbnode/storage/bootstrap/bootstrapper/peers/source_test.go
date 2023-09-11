@@ -27,12 +27,14 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cluster/shard"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
 	tu "github.com/m3db/m3/src/dbnode/topology/testutil"
 	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -52,12 +54,15 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 		blockSize                  = 2 * time.Hour
 		nsMetadata                 = testNamespaceMetadata(t)
 		numShards                  = uint32(4)
-		blockStart                 = time.Now().Truncate(blockSize)
+		blockStart                 = xtime.Now().Truncate(blockSize)
 		shardTimeRangesToBootstrap = result.NewShardTimeRanges()
 		bootstrapRanges            = xtime.NewRanges(xtime.Range{
 			Start: blockStart,
 			End:   blockStart.Add(blockSize),
 		})
+		cacheOptions = bootstrap.NewCacheOptions().
+				SetFilesystemOptions(fs.NewOptions()).
+				SetInstrumentOptions(instrument.NewOptions())
 	)
 
 	for i := 0; i < int(numShards); i++ {
@@ -153,8 +158,21 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 			src, err := newPeersSource(opts)
 			require.NoError(t, err)
 
+			var shards []uint32
+			for shard := range tc.shardsTimeRangesToBootstrap.Iter() {
+				shards = append(shards, shard)
+			}
+			cache, sErr := bootstrap.NewCache(cacheOptions.
+				SetNamespaceDetails([]bootstrap.NamespaceDetails{
+					{
+						Namespace: nsMetadata,
+						Shards:    shards,
+					},
+				}))
+			require.NoError(t, sErr)
+
 			runOpts := testDefaultRunOpts.SetInitialTopologyState(tc.topoState)
-			dataRes, err := src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
+			dataRes, err := src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap, cache, runOpts)
 			if tc.expectedErr != nil {
 				require.Equal(t, tc.expectedErr, err)
 			} else {
@@ -162,7 +180,7 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 				require.Equal(t, tc.expectedAvailableShardsTimeRanges, dataRes)
 			}
 
-			indexRes, err := src.AvailableIndex(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
+			indexRes, err := src.AvailableIndex(nsMetadata, tc.shardsTimeRangesToBootstrap, cache, runOpts)
 			if tc.expectedErr != nil {
 				require.Equal(t, tc.expectedErr, err)
 			} else {
@@ -182,7 +200,7 @@ func TestPeersSourceReturnsErrorIfUnknownPersistenceFileSetType(t *testing.T) {
 		opts     = newTestDefaultOpts(t, ctrl)
 		ropts    = testNsMd.Options().RetentionOptions()
 
-		start = time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
+		start = xtime.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 		end   = start.Add(2 * ropts.BlockSize())
 	)
 
@@ -198,13 +216,13 @@ func TestPeersSourceReturnsErrorIfUnknownPersistenceFileSetType(t *testing.T) {
 	)
 
 	runOpts := testRunOptsWithPersist.SetPersistConfig(bootstrap.PersistConfig{Enabled: true, FileSetType: 999})
-	tester := bootstrap.BuildNamespacesTester(t, runOpts, target, testNsMd)
+	tester := bootstrap.BuildNamespacesTesterWithFilesystemOptions(t, runOpts, target, opts.FilesystemOptions(), testNsMd)
 	defer tester.Finish()
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
-	_, err = src.Read(ctx, tester.Namespaces)
+	_, err = src.Read(ctx, tester.Namespaces, tester.Cache)
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "unknown persist config fileset file type"))
 	tester.EnsureNoLoadedBlocks()

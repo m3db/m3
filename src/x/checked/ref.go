@@ -28,7 +28,7 @@ import (
 	"sync/atomic"
 	"unsafe"
 
-	"github.com/m3db/m3/src/x/resource"
+	xresource "github.com/m3db/m3/src/x/resource"
 )
 
 // RefCount is an embeddable checked.Ref.
@@ -103,14 +103,14 @@ func (c *RefCount) finalizeWithLock() {
 // until the closer returned by the method is called at least once.
 // This is useful for dependent resources requiring the lifetime of this
 // entityt to be extended.
-func (c *RefCount) DelayFinalizer() resource.Closer {
+func (c *RefCount) DelayFinalizer() xresource.SimpleCloser {
 	c.finalizeState.Lock()
 	c.finalizeState.delayRef++
 	c.finalizeState.Unlock()
 	return c
 }
 
-// Close implements resource.Closer for the purpose of use with DelayFinalizer.
+// Close implements xresource.SimpleCloser for the purpose of use with DelayFinalizer.
 func (c *RefCount) Close() {
 	c.finalizeState.Lock()
 	c.finalizeState.delayRef--

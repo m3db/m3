@@ -36,12 +36,13 @@ import (
 type testAccumulatorSeries struct {
 	id          string
 	nsID        string
-	retainTag   bool
-	start       time.Time
-	end         time.Time
+	start       xtime.UnixNano
+	end         xtime.UnixNano
 	input       []accumulatorInput
 	expected    []testValue
 	expectedErr *testSeriesErr
+
+	expectedFirstAnnotation ts.Annotation
 }
 
 type accumulatorInput struct {
@@ -51,18 +52,17 @@ type accumulatorInput struct {
 }
 
 func TestSeriesIteratorAccumulator(t *testing.T) {
-	testSeriesIteratorAccumulator(t, false)
-}
-
-func TestSeriesIteratorAccumulatorRetainTag(t *testing.T) {
-	testSeriesIteratorAccumulator(t, true)
-}
-
-func testSeriesIteratorAccumulator(t *testing.T, retain bool) {
-	start := time.Now().Truncate(time.Minute)
+	start := xtime.Now().Truncate(time.Minute)
 	end := start.Add(time.Minute)
 
 	values := []accumulatorInput{
+		{
+			values: []testValue{
+				{1.0, start.Add(-1 * time.Second), xtime.Second, []byte{4}},
+				{2.0, start.Add(1 * time.Second), xtime.Second, nil},
+			},
+			id: "foo0",
+		},
 		{
 			values: []testValue{
 				{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
@@ -81,7 +81,7 @@ func testSeriesIteratorAccumulator(t *testing.T, retain bool) {
 		},
 		{
 			values: []testValue{
-				{3.0, start.Add(1 * time.Millisecond), xtime.Second, nil},
+				{3.0, start.Add(1 * time.Millisecond), xtime.Second, []byte{5}},
 				{4.0, start.Add(4 * time.Second), xtime.Second, nil},
 				{5.0, start.Add(5 * time.Second), xtime.Second, nil},
 			},
@@ -90,7 +90,7 @@ func testSeriesIteratorAccumulator(t *testing.T, retain bool) {
 	}
 
 	ex := []testValue{
-		{3.0, start.Add(1 * time.Millisecond), xtime.Second, nil},
+		{3.0, start.Add(1 * time.Millisecond), xtime.Second, []byte{5}},
 		{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
 		{2.0, start.Add(2 * time.Second), xtime.Second, nil},
 		{3.0, start.Add(3 * time.Second), xtime.Second, nil},
@@ -100,20 +100,20 @@ func testSeriesIteratorAccumulator(t *testing.T, retain bool) {
 	}
 
 	test := testAccumulatorSeries{
-		id:        "foo1",
-		nsID:      "bar",
-		start:     start,
-		end:       end,
-		retainTag: retain,
-		input:     values,
-		expected:  ex,
+		id:                      "foo0",
+		nsID:                    "bar",
+		start:                   start,
+		end:                     end,
+		input:                   values,
+		expected:                ex,
+		expectedFirstAnnotation: []byte{4},
 	}
 
 	assertTestSeriesAccumulatorIterator(t, test)
 }
 
 func TestSingleSeriesIteratorAccumulator(t *testing.T) {
-	start := time.Now().Truncate(time.Minute)
+	start := xtime.Now().Truncate(time.Minute)
 	end := start.Add(time.Minute)
 
 	values := []accumulatorInput{
@@ -134,12 +134,13 @@ func TestSingleSeriesIteratorAccumulator(t *testing.T) {
 	}
 
 	test := testAccumulatorSeries{
-		id:       "foobar",
-		nsID:     "bar",
-		start:    start,
-		end:      end,
-		input:    values,
-		expected: ex,
+		id:                      "foobar",
+		nsID:                    "bar",
+		start:                   start,
+		end:                     end,
+		input:                   values,
+		expected:                ex,
+		expectedFirstAnnotation: []byte{1, 2, 3},
 	}
 
 	assertTestSeriesAccumulatorIterator(t, test)
@@ -168,16 +169,14 @@ func newTestSeriesAccumulatorIterator(
 			Tags: ident.NewTagsIterator(ident.NewTags(
 				ident.StringTag("foo", "bar"), ident.StringTag("qux", "quz"),
 			)),
-			StartInclusive: xtime.ToUnixNano(series.start),
-			EndExclusive:   xtime.ToUnixNano(series.end),
+			StartInclusive: series.start,
+			EndExclusive:   series.end,
 			Replicas:       []MultiReaderIterator{multiIter},
 		}, nil)
 
 		iters = append(iters, iter)
 		if acc == nil {
-			a, err := NewSeriesIteratorAccumulator(iter, SeriesAccumulatorOptions{
-				RetainTags: series.retainTag,
-			})
+			a, err := NewSeriesIteratorAccumulator(iter)
 			require.NoError(t, err)
 			acc = a
 		} else {
@@ -203,9 +202,7 @@ func assertTestSeriesAccumulatorIterator(
 
 	checkTags := func() {
 		tags := iter.Tags()
-		if tags == nil {
-			return
-		}
+		require.NotNil(t, tags)
 		require.True(t, tags.Next())
 		assert.True(t, tags.Current().Equal(ident.StringTag("foo", "bar")))
 		require.True(t, tags.Next())
@@ -223,21 +220,22 @@ func assertTestSeriesAccumulatorIterator(
 	for i := 0; i < len(series.expected); i++ {
 		next := iter.Next()
 		if series.expectedErr != nil && i == series.expectedErr.atIdx {
-			assert.Equal(t, false, next)
+			assert.False(t, next)
 			break
 		}
-		require.Equal(t, true, next)
+		require.True(t, next)
 		dp, unit, annotation := iter.Current()
 		expected := series.expected[i]
 		assert.Equal(t, expected.value, dp.Value)
-		assert.Equal(t, expected.t, dp.Timestamp)
+		assert.Equal(t, expected.t, dp.TimestampNanos)
 		assert.Equal(t, expected.unit, unit)
-		assert.Equal(t, expected.annotation, []byte(annotation))
+		assert.Equal(t, expected.annotation, annotation)
+		assert.Equal(t, series.expectedFirstAnnotation, iter.FirstAnnotation())
 		checkTags()
 	}
 	// Ensure further calls to next false
 	for i := 0; i < 2; i++ {
-		assert.Equal(t, false, iter.Next())
+		assert.False(t, iter.Next())
 	}
 	if series.expectedErr == nil {
 		assert.NoError(t, iter.Err())
@@ -245,47 +243,48 @@ func assertTestSeriesAccumulatorIterator(
 		assert.Equal(t, series.expectedErr.err, iter.Err())
 	}
 
-	var tagIter ident.TagIterator
-	if series.retainTag {
-		checkTags()
-		tagIter = iter.Tags()
-	} else {
-		assert.Nil(t, iter.Tags())
-	}
-
 	assert.Equal(t, series.id, iter.id.String())
 	assert.Equal(t, series.nsID, iter.nsID.String())
+
 	iter.Close()
-	if series.retainTag {
-		// Check that the tag iterator was closed.
-		assert.False(t, tagIter.Next())
+	for _, seriesIter := range newSeriesIter.seriesIters {
+		seriesIter.Close()
 	}
+
+	// Check that the tag iterator was closed.
+	tagIter := iter.Tags()
+	require.NotNil(t, tagIter)
+	assert.False(t, tagIter.Next())
 }
 
 func TestAccumulatorMocked(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	start := time.Now()
+	start := xtime.Now()
+	annotation := ts.Annotation{5, 6, 7}
 	base := NewMockSeriesIterator(ctrl)
 	base.EXPECT().ID().Return(ident.StringID("base")).AnyTimes()
 	base.EXPECT().Namespace().Return(ident.StringID("ns")).AnyTimes()
+	base.EXPECT().FirstAnnotation().Return(annotation)
 	base.EXPECT().Next().Return(true)
-	dp := ts.Datapoint{TimestampNanos: xtime.ToUnixNano(start), Value: 88}
-	base.EXPECT().Current().Return(dp, xtime.Second, nil).AnyTimes()
+	dp := ts.Datapoint{TimestampNanos: start, Value: 88}
+	base.EXPECT().Current().Return(dp, xtime.Second, annotation).AnyTimes()
 	base.EXPECT().Next().Return(false)
 	base.EXPECT().Start().Return(start)
 	base.EXPECT().End().Return(start.Add(time.Hour))
 	base.EXPECT().Err().Return(nil).AnyTimes()
-	base.EXPECT().Close()
 
-	it, err := NewSeriesIteratorAccumulator(base, SeriesAccumulatorOptions{})
+	it, err := NewSeriesIteratorAccumulator(base)
 	require.NoError(t, err)
 
 	i := 0
 	for it.Next() {
-		ac, _, _ := it.Current()
+		ac, timeUnit, annot := it.Current()
 		assert.Equal(t, dp, ac)
+		assert.Equal(t, xtime.Second, timeUnit)
+		assert.Equal(t, annotation, annot)
+		assert.Equal(t, annotation, it.FirstAnnotation())
 		i++
 	}
 

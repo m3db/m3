@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/search"
+	"github.com/m3db/m3/src/x/context"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -35,6 +36,7 @@ type testIterator struct{}
 
 func newTestIterator() testIterator { return testIterator{} }
 
+func (it testIterator) Done() bool            { return true }
 func (it testIterator) Next() bool            { return false }
 func (it testIterator) Current() doc.Document { return doc.Document{} }
 func (it testIterator) Err() error            { return nil }
@@ -49,20 +51,16 @@ func TestExecutor(t *testing.T) {
 		r  = index.NewMockReader(mockCtrl)
 		rs = index.Readers{r}
 	)
-	gomock.InOrder(
-		q.EXPECT().Searcher().Return(nil, nil),
-
-		r.EXPECT().Close().Return(nil),
-	)
+	r.EXPECT().Close().Return(nil)
 
 	e := NewExecutor(rs).(*executor)
 
 	// Override newIteratorFn to return test iterator.
-	e.newIteratorFn = func(_ search.Searcher, _ index.Readers) (doc.Iterator, error) {
+	e.newIteratorFn = func(_ context.Context, _ search.Query, _ index.Readers) (doc.QueryDocIterator, error) {
 		return newTestIterator(), nil
 	}
 
-	it, err := e.Execute(q)
+	it, err := e.Execute(context.NewBackground(), q)
 	require.NoError(t, err)
 
 	err = it.Close()

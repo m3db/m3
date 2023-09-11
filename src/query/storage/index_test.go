@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -80,7 +81,7 @@ func TestFetchQueryToM3Query(t *testing.T) {
 	}{
 		{
 			name:     "exact match",
-			expected: "term(t1, v1)",
+			expected: "term(t1,v1)",
 			matchers: models.Matchers{
 				{
 					Type:  models.MatchEqual,
@@ -91,7 +92,7 @@ func TestFetchQueryToM3Query(t *testing.T) {
 		},
 		{
 			name:     "exact match negated",
-			expected: "negation(term(t1, v1))",
+			expected: "negation(term(t1,v1))",
 			matchers: models.Matchers{
 				{
 					Type:  models.MatchNotEqual,
@@ -102,7 +103,7 @@ func TestFetchQueryToM3Query(t *testing.T) {
 		},
 		{
 			name:     "regexp match",
-			expected: "regexp(t1, v1)",
+			expected: "regexp(t1,v1)",
 			matchers: models.Matchers{
 				{
 					Type:  models.MatchRegexp,
@@ -135,7 +136,7 @@ func TestFetchQueryToM3Query(t *testing.T) {
 		},
 		{
 			name:     "regexp match negated",
-			expected: "negation(regexp(t1, v1))",
+			expected: "negation(regexp(t1,v1))",
 			matchers: models.Matchers{
 				{
 					Type:  models.MatchNotRegexp,
@@ -193,7 +194,7 @@ func TestFetchQueryToM3Query(t *testing.T) {
 		},
 		{
 			name:     "regexp match dot star with trailing characters -> regex",
-			expected: "regexp(t1, .*foo)",
+			expected: "regexp(t1,.*foo)",
 			matchers: models.Matchers{
 				{
 					Type:  models.MatchRegexp,
@@ -204,7 +205,7 @@ func TestFetchQueryToM3Query(t *testing.T) {
 		},
 		{
 			name:     "regexp match dot plus with trailing characters -> regex",
-			expected: "regexp(t1, .+foo)",
+			expected: "regexp(t1,.+foo)",
 			matchers: models.Matchers{
 				{
 					Type:  models.MatchRegexp,
@@ -215,7 +216,7 @@ func TestFetchQueryToM3Query(t *testing.T) {
 		},
 		{
 			name:     "not regexp match dot star with trailing characters -> regex",
-			expected: "negation(regexp(t1, .*foo))",
+			expected: "negation(regexp(t1,.*foo))",
 			matchers: models.Matchers{
 				{
 					Type:  models.MatchNotRegexp,
@@ -226,7 +227,7 @@ func TestFetchQueryToM3Query(t *testing.T) {
 		},
 		{
 			name:     "not regexp match dot plus with trailing characters -> regex",
-			expected: "negation(regexp(t1, .+foo))",
+			expected: "negation(regexp(t1,.+foo))",
 			matchers: models.Matchers{
 				{
 					Type:  models.MatchNotRegexp,
@@ -255,30 +256,111 @@ func TestFetchQueryToM3Query(t *testing.T) {
 }
 
 func TestFetchOptionsToAggregateOptions(t *testing.T) {
-	fetchOptions := &FetchOptions{
-		SeriesLimit: 7,
+	now := time.Now()
+
+	tests := []struct {
+		name                  string
+		fetchOptions          *FetchOptions
+		tagQuery              *CompleteTagsQuery
+		expectedErr           bool
+		expectedAdjustedStart *time.Time
+		expectedAdjustedEnd   *time.Time
+	}{
+		{
+			name: "all options",
+			fetchOptions: &FetchOptions{
+				SeriesLimit:       7,
+				DocsLimit:         8,
+				RangeLimit:        2 * time.Hour,
+				RequireExhaustive: true,
+			},
+			tagQuery: &CompleteTagsQuery{
+				Start: xtime.ToUnixNano(now.Add(-1 * time.Hour)),
+				End:   xtime.ToUnixNano(now),
+				TagMatchers: models.Matchers{
+					models.Matcher{
+						Type: models.MatchNotRegexp,
+						Name: []byte("foo"), Value: []byte("bar"),
+					},
+				},
+				FilterNameTags:   [][]byte{[]byte("filter")},
+				CompleteNameOnly: true,
+			},
+		},
+		{
+			name: "range limit exceeded error",
+			fetchOptions: &FetchOptions{
+				RangeLimit:        30 * time.Minute,
+				RequireExhaustive: true,
+			},
+			tagQuery: &CompleteTagsQuery{
+				Start: xtime.ToUnixNano(now.Add(-1 * time.Hour)),
+				End:   xtime.ToUnixNano(now),
+				TagMatchers: models.Matchers{
+					models.Matcher{
+						Type: models.MatchNotRegexp,
+						Name: []byte("foo"), Value: []byte("bar"),
+					},
+				},
+			},
+			expectedErr: true,
+		},
+		{
+			name: "range limit truncate start/end",
+			fetchOptions: &FetchOptions{
+				RangeLimit:        30 * time.Minute,
+				RequireExhaustive: false,
+			},
+			tagQuery: &CompleteTagsQuery{
+				Start: xtime.ToUnixNano(now.Add(-1 * time.Hour)),
+				End:   xtime.ToUnixNano(now),
+				TagMatchers: models.Matchers{
+					models.Matcher{
+						Type: models.MatchNotRegexp,
+						Name: []byte("foo"), Value: []byte("bar"),
+					},
+				},
+			},
+			expectedAdjustedStart: timePtr(now.Add(-30 * time.Minute)),
+			expectedAdjustedEnd:   timePtr(now),
+		},
 	}
 
-	end := time.Now()
-	start := end.Add(-1 * time.Hour)
-	filter := [][]byte{[]byte("filter")}
-	matchers := models.Matchers{
-		models.Matcher{Type: models.MatchNotRegexp,
-			Name: []byte("foo"), Value: []byte("bar")},
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			aggOpts, err := FetchOptionsToAggregateOptions(tt.fetchOptions, tt.tagQuery)
 
-	tagQuery := &CompleteTagsQuery{
-		Start:            start,
-		End:              end,
-		TagMatchers:      matchers,
-		FilterNameTags:   filter,
-		CompleteNameOnly: true,
-	}
+			if tt.expectedErr {
+				require.Error(t, err)
+				return
+			}
 
-	aggOpts := FetchOptionsToAggregateOptions(fetchOptions, tagQuery)
-	assert.Equal(t, end, aggOpts.EndExclusive)
-	assert.Equal(t, start, aggOpts.StartInclusive)
-	assert.Equal(t, index.AggregateTagNames, aggOpts.Type)
-	require.Equal(t, 1, len(aggOpts.FieldFilter))
-	require.Equal(t, "filter", string(aggOpts.FieldFilter[0]))
+			require.NoError(t, err)
+
+			expectedStart := tt.tagQuery.Start
+			expectedEnd := tt.tagQuery.End
+			if v := tt.expectedAdjustedStart; v != nil {
+				expectedStart = xtime.ToUnixNano(*v)
+			}
+			if v := tt.expectedAdjustedEnd; v != nil {
+				expectedEnd = xtime.ToUnixNano(*v)
+			}
+			require.Equal(t, expectedStart, aggOpts.StartInclusive)
+			require.Equal(t, expectedEnd, aggOpts.EndExclusive)
+
+			if tt.tagQuery.CompleteNameOnly {
+				require.Equal(t, index.AggregateTagNames, aggOpts.Type)
+			} else {
+				require.Equal(t, index.AggregateTagNamesAndValues, aggOpts.Type)
+			}
+			require.Equal(t, tt.tagQuery.FilterNameTags, [][]byte(aggOpts.FieldFilter))
+			require.Equal(t, tt.fetchOptions.SeriesLimit, aggOpts.SeriesLimit)
+			require.Equal(t, tt.fetchOptions.DocsLimit, aggOpts.DocsLimit)
+			require.Equal(t, tt.fetchOptions.RequireExhaustive, aggOpts.RequireExhaustive)
+		})
+	}
+}
+
+func timePtr(t time.Time) *time.Time {
+	return &t
 }

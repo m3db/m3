@@ -23,7 +23,9 @@ package storage
 import (
 	"testing"
 
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 
 	"github.com/stretchr/testify/require"
 )
@@ -32,10 +34,12 @@ func TestGetRestrict(t *testing.T) {
 	var opts *RestrictQueryOptions
 	require.Nil(t, opts.GetRestrictByTag())
 	require.Nil(t, opts.GetRestrictByType())
+	require.Nil(t, opts.GetRestrictByTypes())
 
 	opts = &RestrictQueryOptions{}
 	require.Nil(t, opts.GetRestrictByTag())
 	require.Nil(t, opts.GetRestrictByType())
+	require.Nil(t, opts.GetRestrictByTypes())
 
 	opts.RestrictByTag = &RestrictByTag{}
 	require.NotNil(t, opts.GetRestrictByTag())
@@ -50,4 +54,13 @@ func TestGetRestrict(t *testing.T) {
 	byType := &RestrictByType{}
 	opts.RestrictByType = byType
 	require.Equal(t, byType, opts.GetRestrictByType())
+
+	byTypes := []*RestrictByType{
+		{
+			MetricsType:   storagemetadata.AggregatedMetricsType,
+			StoragePolicy: policy.MustParseStoragePolicy("10s:4d"),
+		},
+	}
+	opts.RestrictByTypes = byTypes
+	require.Equal(t, byTypes, opts.GetRestrictByTypes())
 }

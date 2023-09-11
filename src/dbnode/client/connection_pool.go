@@ -29,14 +29,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
-	"github.com/m3db/m3/src/dbnode/topology"
-	xclose "github.com/m3db/m3/src/x/close"
 	murmur3 "github.com/m3db/stackmurmur3/v2"
-
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/dbnode/topology"
 )
 
 const (
@@ -46,6 +45,7 @@ const (
 var (
 	errConnectionPoolClosed           = errors.New("connection pool closed")
 	errConnectionPoolHasNoConnections = newHostNotAvailableError(errors.New("connection pool has no connections"))
+	errNodeNotBootstrapped            = errors.New("node not bootstrapped")
 )
 
 type connPool struct {
@@ -68,21 +68,27 @@ type connPool struct {
 }
 
 type conn struct {
-	channel xclose.SimpleCloser
+	channel Channel
 	client  rpc.TChanNode
 }
 
 // NewConnectionFn is a function that creates a connection.
 type NewConnectionFn func(
 	channelName string, addr string, opts Options,
-) (xclose.SimpleCloser, rpc.TChanNode, error)
+) (Channel, rpc.TChanNode, error)
 
-type healthCheckFn func(client rpc.TChanNode, opts Options) error
+type healthCheckFn func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error
 
 type sleepFn func(t time.Duration)
 
 func newConnectionPool(host topology.Host, opts Options) connectionPool {
 	seed := int64(murmur3.StringSum32(host.Address()))
+
+	scope := opts.InstrumentOptions().
+		MetricsScope().
+		Tagged(map[string]string{
+			"hostID": host.ID(),
+		})
 
 	p := &connPool{
 		opts:               opts,
@@ -96,7 +102,7 @@ func newConnectionPool(host topology.Host, opts Options) connectionPool {
 		sleepConnect:       time.Sleep,
 		sleepHealth:        time.Sleep,
 		sleepHealthRetry:   time.Sleep,
-		healthStatus:       opts.InstrumentOptions().MetricsScope().Gauge("health-status"),
+		healthStatus:       scope.Gauge("health-status"),
 	}
 
 	return p
@@ -128,20 +134,20 @@ func (p *connPool) ConnectionCount() int {
 	return int(poolLen)
 }
 
-func (p *connPool) NextClient() (rpc.TChanNode, error) {
+func (p *connPool) NextClient() (rpc.TChanNode, Channel, error) {
 	p.RLock()
 	if p.status != statusOpen {
 		p.RUnlock()
-		return nil, errConnectionPoolClosed
+		return nil, nil, errConnectionPoolClosed
 	}
 	if p.poolLen < 1 {
 		p.RUnlock()
-		return nil, errConnectionPoolHasNoConnections
+		return nil, nil, errConnectionPoolHasNoConnections
 	}
 	n := atomic.AddInt64(&p.used, 1)
 	conn := p.pool[n%p.poolLen]
 	p.RUnlock()
-	return conn.client, nil
+	return conn.client, conn.channel, nil
 }
 
 func (p *connPool) Close() {
@@ -188,7 +194,7 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 				}
 
 				// Health check the connection
-				if err := p.healthCheckNewConn(client, p.opts); err != nil {
+				if err := p.healthCheckNewConn(client, p.opts, false); err != nil {
 					p.maybeEmitHealthStatus(healthStatusCheckFailed)
 					log.Debug("could not connect, failed health check", zap.String("host", address), zap.Error(err))
 					channel.Close()
@@ -200,6 +206,10 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 				if p.status == statusOpen {
 					p.pool = append(p.pool, conn{channel, client})
 					p.poolLen = int64(len(p.pool))
+				} else {
+					// NB(antanas): just being defensive.
+					// It's likely a corner case and happens only during server shutdown.
+					channel.Close()
 				}
 				p.Unlock()
 			}()
@@ -247,7 +257,7 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 					checkErr error
 				)
 				for j := 0; j < attempts; j++ {
-					if err := p.healthCheck(client, p.opts); err != nil {
+					if err := p.healthCheck(client, p.opts, false); err != nil {
 						checkErr = err
 						failed++
 						throttleDuration := time.Duration(math.Max(
@@ -304,7 +314,7 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 	}
 }
 
-func healthCheck(client rpc.TChanNode, opts Options) error {
+func healthCheck(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
 	tctx, _ := thrift.NewContext(opts.HostConnectTimeout())
 	result, err := client.Health(tctx)
 	if err != nil {
@@ -312,6 +322,9 @@ func healthCheck(client rpc.TChanNode, opts Options) error {
 	}
 	if !result.Ok {
 		return fmt.Errorf("status not ok: %s", result.Status)
+	}
+	if checkBootstrapped && !result.Bootstrapped {
+		return errNodeNotBootstrapped
 	}
 	return nil
 }

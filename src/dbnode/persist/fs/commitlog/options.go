@@ -26,8 +26,8 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
@@ -36,6 +36,9 @@ import (
 const (
 	// defaultStrategy is the default commit log write strategy
 	defaultStrategy = StrategyWriteBehind
+
+	// defaultFailureStrategy is the default commit log failure strategy
+	defaultFailureStrategy = FailureStrategyPanic
 
 	// defaultFlushInterval is the default commit log flush interval
 	defaultFlushInterval = time.Second
@@ -56,7 +59,7 @@ const (
 
 var (
 	// defaultBacklogQueueSize is the default commit log backlog queue size.
-	defaultBacklogQueueSize = 1024 * runtime.NumCPU()
+	defaultBacklogQueueSize = 1024 * runtime.GOMAXPROCS(0)
 
 	// defaultBacklogQueueChannelSize is the default commit log backlog queue channel size.
 	defaultBacklogQueueChannelSize = int(float64(defaultBacklogQueueSize) / MaximumQueueSizeQueueChannelSizeRatio)
@@ -66,7 +69,13 @@ var (
 	errFlushIntervalNonNegative = errors.New("flush interval must be non-negative")
 	errBlockSizePositive        = errors.New("block size must be a positive duration")
 	errReadConcurrencyPositive  = errors.New("read concurrency must be a positive integer")
+	errMissingFailureCallback   = errors.New("failure callback must be non-nil if FailureStrategyCallback is used")
 )
+
+// FailureCallback is used in the FailureStrategyCallback failure mode.
+// If this function returns false, the error will be treated as fatal.
+// This function MUST exit quickly
+type FailureCallback func(err error) bool
 
 type options struct {
 	clockOpts               clock.Options
@@ -81,27 +90,76 @@ type options struct {
 	bytesPool               pool.CheckedBytesPool
 	identPool               ident.Pool
 	readConcurrency         int
+	failureMode             FailureStrategy
+	failureCallback         FailureCallback
+}
+
+type optionsInput struct {
+	fsOptions fs.Options
+	// allows differentiating between explicitly nil and unset
+	fsOptionsSet bool
+
+	identPoolOpts   ident.PoolOptions
+	bytePoolOptions pool.ObjectPoolOptions
+}
+
+// OptionSetter is a function that modifies the behavior of NewOptions
+type OptionSetter func(o *optionsInput)
+
+// WithFileSystemOptions is an OptionsSetter that provides custom fs.Options
+// Passing nil will be equivalent to calling Options.SetFilesystemOptions(nil)
+func WithFileSystemOptions(o fs.Options) OptionSetter {
+	return func(input *optionsInput) {
+		input.fsOptions = o
+		input.fsOptionsSet = true
+	}
+}
+
+// WithIdentPoolOptions is an OptionsSetter that provides options to the IdentifierPool
+func WithIdentPoolOptions(o ident.PoolOptions) OptionSetter {
+	return func(input *optionsInput) {
+		input.identPoolOpts = o
+	}
+}
+
+// WithBytesPoolOptions is an OptionsSetter that provides options to BytesPool
+func WithBytesPoolOptions(o pool.ObjectPoolOptions) OptionSetter {
+	return func(input *optionsInput) {
+		input.bytePoolOptions = o
+	}
 }
 
 // NewOptions creates new commit log options
-func NewOptions() Options {
+func NewOptions(setters ...OptionSetter) Options {
+	presetOptions := optionsInput{}
+	for _, setter := range setters {
+		setter(&presetOptions)
+	}
+
+	if !presetOptions.fsOptionsSet && presetOptions.fsOptions == nil {
+		presetOptions.fsOptions = fs.NewOptions()
+	}
+
 	o := &options{
 		clockOpts:               clock.NewOptions(),
 		instrumentOpts:          instrument.NewOptions(),
 		blockSize:               defaultBlockSize,
-		fsOpts:                  fs.NewOptions(),
+		fsOpts:                  presetOptions.fsOptions,
 		strategy:                defaultStrategy,
+		failureMode:             defaultFailureStrategy,
 		flushSize:               defaultFlushSize,
 		flushInterval:           defaultFlushInterval,
 		backlogQueueSize:        defaultBacklogQueueSize,
 		backlogQueueChannelSize: defaultBacklogQueueChannelSize,
-		bytesPool: pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
-			return pool.NewBytesPool(s, nil)
+		bytesPool: pool.NewCheckedBytesPool(nil, presetOptions.bytePoolOptions, func(s []pool.Bucket) pool.BytesPool {
+			return pool.NewBytesPool(s, presetOptions.bytePoolOptions)
 		}),
 		readConcurrency: defaultReadConcurrency,
+		failureCallback: nil,
 	}
+
 	o.bytesPool.Init()
-	o.identPool = ident.NewPool(o.bytesPool, ident.PoolOptions{})
+	o.identPool = ident.NewPool(o.bytesPool, presetOptions.identPoolOpts)
 	return o
 }
 
@@ -122,6 +180,10 @@ func (o *options) Validate() error {
 		return fmt.Errorf(
 			"BacklogQueueSize / BacklogQueueChannelSize ratio must be at most: %f, but was: %f",
 			MaximumQueueSizeQueueChannelSizeRatio, float64(o.BacklogQueueSize())/float64(o.BacklogQueueChannelSize()))
+	}
+
+	if o.FailureStrategy() == FailureStrategyCallback && o.FailureCallback() == nil {
+		return errMissingFailureCallback
 	}
 
 	return nil
@@ -245,4 +307,24 @@ func (o *options) SetIdentifierPool(value ident.Pool) Options {
 
 func (o *options) IdentifierPool() ident.Pool {
 	return o.identPool
+}
+
+func (o *options) SetFailureStrategy(value FailureStrategy) Options {
+	opts := *o
+	opts.failureMode = value
+	return &opts
+}
+
+func (o *options) FailureStrategy() FailureStrategy {
+	return o.failureMode
+}
+
+func (o *options) SetFailureCallback(value FailureCallback) Options {
+	opts := *o
+	opts.failureCallback = value
+	return &opts
+}
+
+func (o *options) FailureCallback() FailureCallback {
+	return o.failureCallback
 }

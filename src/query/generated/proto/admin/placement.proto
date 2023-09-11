@@ -8,6 +8,7 @@ message PlacementInitRequest {
   repeated placementpb.Instance instances = 1;
   int32 num_shards = 2;
   int32 replication_factor = 3;
+  placementpb.Options option_override = 99;
 }
 
 message PlacementGetResponse {
@@ -20,12 +21,20 @@ message PlacementAddRequest {
   // By default add requests will only succeed if all instances in the placement
   // are AVAILABLE for all their shards. force overrides that.
   bool force = 2;
+  placementpb.Options option_override = 99;
+}
+
+message PlacementRemoveRequest {
+  repeated string instance_ids = 1;
+  bool force = 2;
+  placementpb.Options option_override = 99;
 }
 
 message PlacementReplaceRequest {
   repeated string leavingInstanceIDs = 1;
   repeated placementpb.Instance candidates = 2;
   bool force = 3;
+  placementpb.Options option_override = 99;
 }
 
 message PlacementSetRequest {
@@ -33,6 +42,8 @@ message PlacementSetRequest {
   int32 version = 2;
   // Confirm must be set, otherwise just a dry run is executed.
   bool confirm = 3;
+  // Force will skip validating the placement.
+  bool force = 4;
 }
 
 message PlacementSetResponse {

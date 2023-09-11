@@ -44,7 +44,6 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
 	"github.com/m3db/m3/src/metrics/aggregation"
-	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/config/hostid"
@@ -62,6 +61,7 @@ var (
 
 var (
 	defaultNumPassthroughWriters = 8
+	defaultHostID                = "m3aggregator_local"
 )
 
 // AggregatorConfiguration contains aggregator configuration.
@@ -133,7 +133,7 @@ type AggregatorConfiguration struct {
 	FlushManager flushManagerConfiguration `yaml:"flushManager"`
 
 	// Flushing handler configuration.
-	Flush handler.FlushHandlerConfiguration `yaml:"flush"`
+	Flush handler.FlushConfiguration `yaml:"flush"`
 
 	// Passthrough controls the passthrough knobs.
 	Passthrough *passthroughConfiguration `yaml:"passthrough"`
@@ -173,6 +173,19 @@ type AggregatorConfiguration struct {
 
 	// Pool of entries.
 	EntryPool pool.ObjectPoolConfiguration `yaml:"entryPool"`
+
+	// AddToReset is the yaml config for aggregator.Options.AddToReset
+	AddToReset bool `yaml:"addToReset"`
+
+	// TimedMetricsFlushOffsetEnabled enables using FlushOffset for timed metrics.
+	TimedMetricsFlushOffsetEnabled bool `yaml:"timedMetricsFlushOffsetEnabled"`
+
+	// FeatureFlags are feature flags to apply.
+	FeatureFlags aggregator.FeatureFlagConfigurations `yaml:"featureFlags"`
+
+	// WritesIgnoreCutoffCutover allows accepting writes ignoring cutoff/cutover timestamp.
+	// Must be in sync with m3msg WriterConfiguration.IgnoreCutoffCutover.
+	WritesIgnoreCutoffCutover bool `yaml:"writesIgnoreCutoffCutover"`
 }
 
 // InstanceIDType is the instance ID type that defines how the
@@ -211,12 +224,15 @@ func (t InstanceIDType) String() string {
 	return "unknown"
 }
 
-var (
-	validInstanceIDTypes = []InstanceIDType{
-		HostIDInstanceIDType,
-		HostIDPortInstanceIDType,
-	}
-)
+var validInstanceIDTypes = []InstanceIDType{
+	HostIDInstanceIDType,
+	HostIDPortInstanceIDType,
+}
+
+// MarshalYAML returns the YAML representation of the InstanceIDType.
+func (t InstanceIDType) MarshalYAML() (interface{}, error) {
+	return t.String(), nil
+}
 
 // UnmarshalYAML unmarshals a InstanceIDType into a valid type from string.
 func (t *InstanceIDType) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -253,17 +269,22 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	client client.Client,
 	serveOpts serve.Options,
 	runtimeOptsManager aggruntime.OptionsManager,
+	clockOpts clock.Options,
 	instrumentOpts instrument.Options,
 ) (aggregator.Options, error) {
-	opts := aggregator.NewOptions().
+	opts := aggregator.NewOptions(clockOpts).
 		SetInstrumentOptions(instrumentOpts).
 		SetRuntimeOptionsManager(runtimeOptsManager).
-		SetVerboseErrors(c.VerboseErrors)
+		SetVerboseErrors(c.VerboseErrors).
+		SetAddToReset(c.AddToReset).
+		SetTimedMetricsFlushOffsetEnabled(c.TimedMetricsFlushOffsetEnabled).
+		SetFeatureFlagBundlesParsed(c.FeatureFlags.Parse())
 
 	rwOpts := serveOpts.RWOptions()
 	if rwOpts == nil {
 		rwOpts = xio.NewOptions()
 	}
+
 	// Set the aggregation types options.
 	aggTypesOpts, err := c.AggregationTypes.NewOptions(instrumentOpts)
 	if err != nil {
@@ -332,7 +353,8 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		opts = opts.SetBufferDurationAfterShardCutoff(c.BufferDurationAfterShardCutoff)
 	}
 	if c.BufferDurationForPastTimedMetric != 0 {
-		opts = opts.SetBufferForPastTimedMetricFn(bufferForPastTimedMetricFn(c.BufferDurationForPastTimedMetric))
+		opts = opts.SetBufferForPastTimedMetric(c.BufferDurationForPastTimedMetric).
+			SetBufferForPastTimedMetricFn(bufferForPastTimedMetricFn(c.BufferDurationForPastTimedMetric))
 	}
 	if c.BufferDurationForFutureTimedMetric != 0 {
 		opts = opts.SetBufferForFutureTimedMetric(c.BufferDurationForFutureTimedMetric)
@@ -360,6 +382,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		placementNamespace,
 		placementManager,
 		flushTimesManager,
+		clockOpts,
 		iOpts,
 	)
 	if err != nil {
@@ -374,6 +397,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		electionManager,
 		flushTimesManager,
 		iOpts,
+		opts.BufferForPastTimedMetric(),
 	)
 	if err != nil {
 		return nil, err
@@ -441,8 +465,10 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	counterElemPoolOpts := c.CounterElemPool.NewObjectPoolOptions(iOpts)
 	counterElemPool := aggregator.NewCounterElemPool(counterElemPoolOpts)
 	opts = opts.SetCounterElemPool(counterElemPool)
+	// use a singleton ElemOptions to avoid allocs per elem.
+	elemOpts := aggregator.NewElemOptions(opts)
 	counterElemPool.Init(func() *aggregator.CounterElem {
-		return aggregator.MustNewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, aggregator.NoPrefixNoSuffix, opts)
+		return aggregator.MustNewCounterElem(aggregator.ElemData{}, elemOpts)
 	})
 
 	// Set timer elem pool.
@@ -451,7 +477,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	timerElemPool := aggregator.NewTimerElemPool(timerElemPoolOpts)
 	opts = opts.SetTimerElemPool(timerElemPool)
 	timerElemPool.Init(func() *aggregator.TimerElem {
-		return aggregator.MustNewTimerElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, aggregator.NoPrefixNoSuffix, opts)
+		return aggregator.MustNewTimerElem(aggregator.ElemData{}, elemOpts)
 	})
 
 	// Set gauge elem pool.
@@ -460,7 +486,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	gaugeElemPool := aggregator.NewGaugeElemPool(gaugeElemPoolOpts)
 	opts = opts.SetGaugeElemPool(gaugeElemPool)
 	gaugeElemPool.Init(func() *aggregator.GaugeElem {
-		return aggregator.MustNewGaugeElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, aggregator.NoPrefixNoSuffix, opts)
+		return aggregator.MustNewGaugeElem(aggregator.ElemData{}, elemOpts)
 	})
 
 	// Set entry pool.
@@ -469,8 +495,27 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	entryPool := aggregator.NewEntryPool(entryPoolOpts)
 	runtimeOpts := runtimeOptsManager.RuntimeOptions()
 	opts = opts.SetEntryPool(entryPool)
-	entryPool.Init(func() *aggregator.Entry { return aggregator.NewEntry(nil, runtimeOpts, opts) })
+	// allocate metrics only once to reduce memory utilization
+	metrics := aggregator.NewEntryMetrics(iOpts.MetricsScope())
+	entryPool.Init(func() *aggregator.Entry {
+		return aggregator.NewEntryWithMetrics(nil, metrics, runtimeOpts, opts)
+	})
+
+	opts = opts.SetWritesIgnoreCutoffCutover(c.WritesIgnoreCutoffCutover)
+
 	return opts, nil
+}
+
+// HostIDOrDefault returns the host ID or default.
+func (c *AggregatorConfiguration) HostIDOrDefault() hostid.Configuration {
+	if c.HostID == nil {
+		return hostid.Configuration{
+			Resolver: hostid.ConfigResolver,
+			Value:    &defaultHostID,
+		}
+	}
+
+	return *c.HostID
 }
 
 func (c *AggregatorConfiguration) newInstanceID(address string) (string, error) {
@@ -513,27 +558,26 @@ type streamConfiguration struct {
 	// Error epsilon for quantile computation.
 	Eps float64 `yaml:"eps"`
 
-	// Initial heap capacity for quantile computation.
+	// Initial sample pool capacity for quantile computation.
 	Capacity int `yaml:"capacity"`
 
 	// Insertion and compression frequency.
 	InsertAndCompressEvery int `yaml:"insertAndCompressEvery"`
 
-	// Flush frequency.
+	// FlushEvery is deprecated.
 	FlushEvery int `yaml:"flushEvery"`
 
-	// Pool of streams.
+	// StreamPool is deprecated.
 	StreamPool pool.ObjectPoolConfiguration `yaml:"streamPool"`
 
-	// Pool of metric samples.
+	// SamplePool is deprecated.
 	SamplePool *pool.ObjectPoolConfiguration `yaml:"samplePool"`
 
-	// Pool of float slices.
+	// FloatsPool is deprecated.
 	FloatsPool pool.BucketizedPoolConfiguration `yaml:"floatsPool"`
 }
 
-func (c *streamConfiguration) NewStreamOptions(instrumentOpts instrument.Options) (cm.Options, error) {
-	scope := instrumentOpts.MetricsScope()
+func (c *streamConfiguration) NewStreamOptions(_ instrument.Options) (cm.Options, error) {
 	opts := cm.NewOptions().
 		SetEps(c.Eps).
 		SetCapacity(c.Capacity)
@@ -541,29 +585,6 @@ func (c *streamConfiguration) NewStreamOptions(instrumentOpts instrument.Options
 	if c.InsertAndCompressEvery != 0 {
 		opts = opts.SetInsertAndCompressEvery(c.InsertAndCompressEvery)
 	}
-	if c.FlushEvery != 0 {
-		opts = opts.SetFlushEvery(c.FlushEvery)
-	}
-
-	if c.SamplePool != nil {
-		iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("sample-pool"))
-		samplePoolOpts := c.SamplePool.NewObjectPoolOptions(iOpts)
-		samplePool := cm.NewSamplePool(samplePoolOpts)
-		opts = opts.SetSamplePool(samplePool)
-		samplePool.Init()
-	}
-
-	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("floats-pool"))
-	floatsPoolOpts := c.FloatsPool.NewObjectPoolOptions(iOpts)
-	floatsPool := pool.NewFloatsPool(c.FloatsPool.NewBuckets(), floatsPoolOpts)
-	opts = opts.SetFloatsPool(floatsPool)
-	floatsPool.Init()
-
-	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("stream-pool"))
-	streamPoolOpts := c.StreamPool.NewObjectPoolOptions(iOpts)
-	streamPool := cm.NewStreamPool(streamPoolOpts)
-	opts = opts.SetStreamPool(streamPool)
-	streamPool.Init(func() cm.Stream { return cm.NewStream(nil, opts) })
 
 	if err := opts.Validate(); err != nil {
 		return nil, err
@@ -572,8 +593,8 @@ func (c *streamConfiguration) NewStreamOptions(instrumentOpts instrument.Options
 }
 
 type placementManagerConfiguration struct {
-	KVConfig         kv.OverrideConfiguration       `yaml:"kvConfig"`
-	PlacementWatcher placement.WatcherConfiguration `yaml:"placementWatcher"`
+	KVConfig kv.OverrideConfiguration       `yaml:"kvConfig"`
+	Watcher  placement.WatcherConfiguration `yaml:"placementWatcher"`
 }
 
 func (c placementManagerConfiguration) NewPlacementManager(
@@ -591,12 +612,11 @@ func (c placementManagerConfiguration) NewPlacementManager(
 	}
 	scope := instrumentOpts.MetricsScope()
 	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("placement-watcher"))
-	placementWatcherOpts := c.PlacementWatcher.NewOptions(store, iOpts)
-	placementWatcher := placement.NewStagedPlacementWatcher(placementWatcherOpts)
+	placementWatcherOpts := c.Watcher.NewOptions(store, iOpts)
 	placementManagerOpts := aggregator.NewPlacementManagerOptions().
 		SetInstrumentOptions(instrumentOpts).
 		SetInstanceID(instanceID).
-		SetStagedPlacementWatcher(placementWatcher)
+		SetWatcherOptions(placementWatcherOpts)
 	return aggregator.NewPlacementManager(placementManagerOpts), nil
 }
 
@@ -680,6 +700,7 @@ func (c electionManagerConfiguration) NewElectionManager(
 	placementNamespace string,
 	placementManager aggregator.PlacementManager,
 	flushTimesManager aggregator.FlushTimesManager,
+	clockOpts clock.Options,
 	instrumentOpts instrument.Options,
 ) (aggregator.ElectionManager, error) {
 	electionOpts, err := c.Election.NewElectionOptions()
@@ -711,6 +732,7 @@ func (c electionManagerConfiguration) NewElectionManager(
 	changeRetryOpts := c.ChangeRetrier.NewOptions(scope.SubScope("change-retrier"))
 	resignRetryOpts := c.ResignRetrier.NewOptions(scope.SubScope("resign-retrier"))
 	opts := aggregator.NewElectionManagerOptions().
+		SetClockOptions(clockOpts).
 		SetInstrumentOptions(instrumentOpts).
 		SetElectionOptions(electionOpts).
 		SetCampaignOptions(campaignOpts).
@@ -785,8 +807,9 @@ type flushManagerConfiguration struct {
 	// Number of workers per CPU.
 	NumWorkersPerCPU float64 `yaml:"numWorkersPerCPU" validate:"min=0.0,max=1.0"`
 
-	// How frequently the flush times are persisted.
-	FlushTimesPersistEvery time.Duration `yaml:"flushTimesPersistEvery"`
+	// DeprecatedFlushTimesPersistEvery controlled how often flush times were
+	// persisted, but is now deprecated.
+	DeprecatedFlushTimesPersistEvery time.Duration `yaml:"flushTimesPersistEvery"`
 
 	// Maximum buffer size.
 	MaxBufferSize time.Duration `yaml:"maxBufferSize"`
@@ -800,12 +823,14 @@ func (c flushManagerConfiguration) NewFlushManagerOptions(
 	electionManager aggregator.ElectionManager,
 	flushTimesManager aggregator.FlushTimesManager,
 	instrumentOpts instrument.Options,
+	bufferForPastTimedMetric time.Duration,
 ) (aggregator.FlushManagerOptions, error) {
 	opts := aggregator.NewFlushManagerOptions().
 		SetInstrumentOptions(instrumentOpts).
 		SetPlacementManager(placementManager).
 		SetElectionManager(electionManager).
-		SetFlushTimesManager(flushTimesManager)
+		SetFlushTimesManager(flushTimesManager).
+		SetBufferForPastTimedMetric(bufferForPastTimedMetric)
 	if c.CheckEvery != 0 {
 		opts = opts.SetCheckEvery(c.CheckEvery)
 	}
@@ -820,7 +845,7 @@ func (c flushManagerConfiguration) NewFlushManagerOptions(
 		opts = opts.SetMaxJitterFn(maxJitterFn)
 	}
 	if c.NumWorkersPerCPU != 0 {
-		runtimeCPU := float64(runtime.NumCPU())
+		runtimeCPU := float64(runtime.GOMAXPROCS(0))
 		numWorkers := c.NumWorkersPerCPU * runtimeCPU
 		workerPoolSize := int(math.Ceil(numWorkers))
 		if workerPoolSize < 1 {
@@ -829,9 +854,6 @@ func (c flushManagerConfiguration) NewFlushManagerOptions(
 		workerPool := sync.NewWorkerPool(workerPoolSize)
 		workerPool.Init()
 		opts = opts.SetWorkerPool(workerPool)
-	}
-	if c.FlushTimesPersistEvery != 0 {
-		opts = opts.SetFlushTimesPersistEvery(c.FlushTimesPersistEvery)
 	}
 	if c.MaxBufferSize != 0 {
 		opts = opts.SetMaxBufferSize(c.MaxBufferSize)

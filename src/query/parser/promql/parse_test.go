@@ -80,7 +80,7 @@ func TestDAGWithOffset(t *testing.T) {
 func TestInvalidOffset(t *testing.T) {
 	q := "up offset -2m"
 	_, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
-	require.Error(t, err)
+	require.NoError(t, err)
 }
 
 func TestNegativeUnary(t *testing.T) {
@@ -174,6 +174,35 @@ func TestAggregateParses(t *testing.T) {
 			assert.Len(t, edges, 1)
 			assert.Equal(t, edges[0].ParentID, parser.NodeID("0"))
 			assert.Equal(t, edges[0].ChildID, parser.NodeID("1"))
+		})
+	}
+}
+
+var aggregationWithTagListTests = []string{
+	// different number of tags
+	"sum(up) by (t1,)",
+	"sum(up) by (t1,t2)",
+	"sum(up) without (t1)",
+	"sum(up) without (t1, t2, t3)",
+
+	// trailing comma in tag list
+	"sum(up) by (t1,)",
+	"sum(up) without (t1, t2,)",
+
+	// alternative form
+	"sum by (t) (up)",
+	"sum by (t,) (up)",
+	"sum without (t) (up)",
+	"sum without (t,) (up)",
+}
+
+func TestAggregationWithTagListDoesNotError(t *testing.T) {
+	for _, q := range aggregationWithTagListTests {
+		t.Run(q, func(t *testing.T) {
+			p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
+			require.NoError(t, err)
+			_, _, err = p.DAG()
+			require.NoError(t, err)
 		})
 	}
 }
@@ -274,10 +303,12 @@ func TestSort(t *testing.T) {
 			require.NoError(t, err)
 			transforms, edges, err := p.DAG()
 			require.NoError(t, err)
-			assert.Len(t, transforms, 1)
+			assert.Len(t, transforms, 2)
 			assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
 			assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
-			assert.Len(t, edges, 0)
+			assert.Equal(t, transforms[1].Op.OpType(), tt.expectedType)
+			assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
+			assert.Len(t, edges, 1)
 		})
 	}
 }
@@ -353,6 +384,15 @@ var binaryParseTests = []struct {
 	{"up and up", functions.FetchType, functions.FetchType, binary.AndType},
 	{"up or up", functions.FetchType, functions.FetchType, binary.OrType},
 	{"up unless up", functions.FetchType, functions.FetchType, binary.UnlessType},
+
+	// Various spacing
+	{"up/ up", functions.FetchType, functions.FetchType, binary.DivType},
+	{"up-up", functions.FetchType, functions.FetchType, binary.MinusType},
+	{"10 -up", scalar.ScalarType, functions.FetchType, binary.MinusType},
+	{"up*10", functions.FetchType, scalar.ScalarType, binary.MultiplyType},
+	{"up!=10", functions.FetchType, scalar.ScalarType, binary.NotEqType},
+	{"10   <up", scalar.ScalarType, functions.FetchType, binary.LesserType},
+	{"up>=   10", functions.FetchType, scalar.ScalarType, binary.GreaterEqType},
 }
 
 func TestBinaryParses(t *testing.T) {
@@ -429,6 +469,7 @@ var temporalParseTests = []struct {
 	{"sum_over_time(up[5m])", temporal.SumType},
 	{"stddev_over_time(up[5m])", temporal.StdDevType},
 	{"stdvar_over_time(up[5m])", temporal.StdVarType},
+	{"last_over_time(up[5m])", temporal.LastType},
 	{"quantile_over_time(0.2, up[5m])", temporal.QuantileType},
 	{"irate(up[5m])", temporal.IRateType},
 	{"idelta(up[5m])", temporal.IDeltaType},
@@ -503,6 +544,61 @@ func TestMissingTagsDoNotPanic(t *testing.T) {
 	assert.NotPanics(t, func() { _, _, _ = p.DAG() })
 }
 
+var functionArgumentExpressionTests = []struct {
+	name string
+	q    string
+}{
+	{
+		"scalar argument",
+		"vector(((1)))",
+	},
+	{
+		"string argument",
+		`label_join(up, ("foo"), ((",")), ((("bar"))))`,
+	},
+	{
+		"vector argument",
+		"abs(((foo)))",
+	},
+	{
+		"matrix argument",
+		"stddev_over_time(((metric[1m])))",
+	},
+}
+
+func TestExpressionsInFunctionArgumentsDoNotError(t *testing.T) {
+	for _, tt := range functionArgumentExpressionTests {
+		t.Run(tt.name, func(t *testing.T) {
+			p, err := Parse(tt.q, time.Second, models.NewTagOptions(), NewParseOptions())
+			require.NoError(t, err)
+			_, _, err = p.DAG()
+			require.NoError(t, err)
+		})
+	}
+}
+
+var invalidFunctionArgumentsTests = []string{
+	"vector(())",
+	"vector((1)",
+	"vector(metric)",
+	`label_join(up, "f" + "oo", ",", "ba" + "r")`,
+	`label_join(up, 1, ",", 2)`,
+	`label_join("up", "foo", ",", "bar")`,
+	"abs(1)",
+	"abs(())",
+	"stddev_over_time(metric[1m]+1)",
+	"stddev_over_time(metric)",
+}
+
+func TestParseInvalidFunctionArgumentsErrors(t *testing.T) {
+	for _, q := range invalidFunctionArgumentsTests {
+		t.Run(q, func(t *testing.T) {
+			_, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
+			require.Error(t, err)
+		})
+	}
+}
+
 func TestCustomParseOptions(t *testing.T) {
 	q := "query"
 	v := "foo"
@@ -519,7 +615,7 @@ func TestCustomParseOptions(t *testing.T) {
 	assert.Equal(t, 1, called)
 	parse, ok := ex.(*promParser)
 	require.True(t, ok)
-	assert.Equal(t, pql.ValueTypeString, string(parse.expr.Type()))
+	assert.Equal(t, pql.ValueTypeString, parse.expr.Type())
 	str, ok := parse.expr.(*pql.StringLiteral)
 	require.True(t, ok)
 	assert.Equal(t, v, str.Val)

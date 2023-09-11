@@ -28,7 +28,7 @@ import (
 )
 
 func TestStoragePolicyFilter(t *testing.T) {
-	var cfg flushHandlerConfiguration
+	var cfg FlushHandlerConfiguration
 
 	str := `
 dynamicBackend:
@@ -48,7 +48,7 @@ dynamicBackend:
 }
 
 func TestFlushHandlerConfigurationValidate(t *testing.T) {
-	var cfg flushHandlerConfiguration
+	var cfg FlushHandlerConfiguration
 
 	neitherConfigured := ``
 	require.NoError(t, yaml.Unmarshal([]byte(neitherConfigured), &cfg))

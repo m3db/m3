@@ -95,7 +95,7 @@ func testPromReadInstantHandler(
 ) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 
-	setup := newTestSetup()
+	setup := newTestSetup(t, nil)
 	promReadInstant := setup.Handlers.instantRead
 
 	seriesMeta := test.NewSeriesMeta("dummy", len(values))
@@ -112,7 +112,7 @@ func testPromReadInstantHandler(
 	req := httptest.NewRequest(PromReadInstantHTTPMethods[0], PromReadInstantURL, nil)
 
 	params := url.Values{}
-	params.Set(queryParam, "dummy0{}")
+	params.Set(QueryParam, "dummy0{}")
 
 	req.URL.RawQuery = params.Encode()
 
@@ -172,7 +172,7 @@ func testPromReadInstantHandler(
 }
 
 func TestPromReadInstantHandlerStorageError(t *testing.T) {
-	setup := newTestSetup()
+	setup := newTestSetup(t, nil)
 	promReadInstant := setup.Handlers.instantRead
 
 	storageErr := fmt.Errorf("storage err")
@@ -181,7 +181,7 @@ func TestPromReadInstantHandlerStorageError(t *testing.T) {
 	req := httptest.NewRequest(PromReadInstantHTTPMethods[0], PromReadInstantURL, nil)
 
 	params := url.Values{}
-	params.Set(queryParam, "dummy0{}")
+	params.Set(QueryParam, "dummy0{}")
 
 	req.URL.RawQuery = params.Encode()
 

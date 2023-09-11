@@ -33,11 +33,12 @@ func _() {
 	_ = x[PerSecond-2]
 	_ = x[Increase-3]
 	_ = x[Add-4]
+	_ = x[Reset-5]
 }
 
-const _Type_name = "UnknownTypeAbsolutePerSecondIncreaseAdd"
+const _Type_name = "UnknownTypeAbsolutePerSecondIncreaseAddReset"
 
-var _Type_index = [...]uint8{0, 11, 19, 28, 36, 39}
+var _Type_index = [...]uint8{0, 11, 19, 28, 36, 39, 44}
 
 func (i Type) String() string {
 	if i < 0 || i >= Type(len(_Type_index)-1) {

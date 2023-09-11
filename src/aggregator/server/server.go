@@ -21,7 +21,8 @@
 package server
 
 import (
-	"fmt"
+	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -30,8 +31,10 @@ import (
 	m3aggregator "github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/config"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
+	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/instrument"
+	xos "github.com/m3db/m3/src/x/os"
 
 	"go.uber.org/zap"
 )
@@ -47,6 +50,18 @@ type RunOptions struct {
 
 	// AdminOptions are additional options to apply to the aggregator server.
 	AdminOptions []AdminOption
+
+	// CustomBuildTags are additional tags to be added to the instrument build
+	// reporter.
+	CustomBuildTags map[string]string
+
+	// InterruptCh is a programmatic interrupt channel to supply to
+	// interrupt and shutdown the server.
+	InterruptCh <-chan error
+
+	// ShutdownCh is an optional channel to supply if interested in receiving
+	// a notification that the server has shutdown.
+	ShutdownCh chan<- struct{}
 }
 
 // AdminOption is an additional option to apply to the aggregator server.
@@ -57,18 +72,37 @@ func Run(opts RunOptions) {
 	cfg := opts.Config
 
 	// Create logger and metrics scope.
-	logger, err := cfg.Logging.BuildLogger()
+	logger, err := cfg.LoggingOrDefault().BuildLogger()
 	if err != nil {
-		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
-		// sending stdlib "log" to black hole. Don't remove unless with good reason.
-		fmt.Fprintf(os.Stderr, "error creating logger: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("error creating logger: %v", err)
 	}
+
+	// NB(nate): Register shutdown notification defer function first so that
+	// it's the last defer to fire before terminating. This allows other defer methods
+	// that clean up resources to execute first.
+	if opts.ShutdownCh != nil {
+		defer func() {
+			select {
+			case opts.ShutdownCh <- struct{}{}:
+				break
+			default:
+				logger.Warn("could not send shutdown notification as channel was full")
+			}
+		}()
+	}
+
 	defer logger.Sync()
+
+	cfg.Debug.SetRuntimeValues(logger)
 
 	xconfig.WarnOnDeprecation(cfg, logger)
 
-	scope, closer, err := cfg.Metrics.NewRootScope()
+	defaultServeMux := http.NewServeMux()
+	metricsCfg := cfg.MetricsOrDefault()
+	scope, closer, _, err := metricsCfg.NewRootScopeAndReporters(
+		instrument.NewRootScopeAndReportersOptions{
+			PrometheusDefaultServeMux: defaultServeMux,
+		})
 	if err != nil {
 		logger.Fatal("error creating metrics root scope", zap.Error(err))
 	}
@@ -76,8 +110,9 @@ func Run(opts RunOptions) {
 	instrumentOpts := instrument.NewOptions().
 		SetLogger(logger).
 		SetMetricsScope(scope).
-		SetTimerOptions(instrument.TimerOptions{StandardSampleRate: cfg.Metrics.SampleRate()}).
-		SetReportInterval(cfg.Metrics.ReportInterval())
+		SetTimerOptions(instrument.TimerOptions{StandardSampleRate: metricsCfg.SampleRate()}).
+		SetReportInterval(metricsCfg.ReportInterval()).
+		SetCustomBuildTags(opts.CustomBuildTags)
 
 	buildReporter := instrument.NewBuildReporter(instrumentOpts)
 	if err := buildReporter.Start(); err != nil {
@@ -85,6 +120,11 @@ func Run(opts RunOptions) {
 	}
 
 	defer buildReporter.Stop()
+
+	if cfg.M3Msg == nil && cfg.RawTCP == nil {
+		m3MsgCfg := cfg.M3MsgOrDefault()
+		cfg.M3Msg = &m3MsgCfg
+	}
 
 	serverOptions := serve.NewOptions(instrumentOpts)
 	if cfg.M3Msg != nil {
@@ -115,12 +155,11 @@ func Run(opts RunOptions) {
 			SetRawTCPServerOpts(cfg.RawTCP.NewServerOptions(rawTCPInstrumentOpts))
 	}
 
-	if cfg.HTTP != nil {
-		// Create the http server options.
-		serverOptions = serverOptions.
-			SetHTTPAddr(cfg.HTTP.ListenAddress).
-			SetHTTPServerOpts(cfg.HTTP.NewServerOptions())
-	}
+	// Create the http server options.
+	httpCfg := cfg.HTTPOrDefault()
+	serverOptions = serverOptions.
+		SetHTTPAddr(httpCfg.ListenAddress).
+		SetHTTPServerOpts(httpCfg.NewServerOptions().SetMux(defaultServeMux))
 
 	for i, transform := range opts.AdminOptions {
 		if opts, err := transform(serverOptions); err != nil {
@@ -132,19 +171,22 @@ func Run(opts RunOptions) {
 	}
 
 	// Create the kv client.
-	client, err := cfg.KVClient.NewKVClient(instrumentOpts.
+	kvCfg := cfg.KVClientOrDefault()
+	client, err := kvCfg.NewKVClient(instrumentOpts.
 		SetMetricsScope(scope.SubScope("kv-client")))
 	if err != nil {
 		logger.Fatal("error creating the kv client", zap.Error(err))
 	}
 
 	// Create the runtime options manager.
-	runtimeOptsManager := cfg.RuntimeOptions.NewRuntimeOptionsManager()
+	runtimeCfg := cfg.RuntimeOptionsOrDefault()
+	runtimeOptsManager := runtimeCfg.NewRuntimeOptionsManager()
 
 	// Create the aggregator.
-	aggregatorOpts, err := cfg.Aggregator.NewAggregatorOptions(
+	aggCfg := cfg.AggregatorOrDefault()
+	aggregatorOpts, err := aggCfg.NewAggregatorOptions(
 		serverOptions.RawTCPAddr(),
-		client, serverOptions, runtimeOptsManager,
+		client, serverOptions, runtimeOptsManager, clock.NewOptions(),
 		instrumentOpts.SetMetricsScope(scope.SubScope("aggregator")))
 	if err != nil {
 		logger.Fatal("error creating aggregator options", zap.Error(err))
@@ -156,7 +198,7 @@ func Run(opts RunOptions) {
 
 	// Watch runtime option changes after aggregator is open.
 	placementManager := aggregatorOpts.PlacementManager()
-	cfg.RuntimeOptions.WatchRuntimeOptionChanges(client, runtimeOptsManager, placementManager, logger)
+	runtimeCfg.WatchRuntimeOptionChanges(client, runtimeOptsManager, placementManager, logger)
 
 	doneCh := make(chan struct{})
 	closedCh := make(chan struct{})
@@ -173,17 +215,19 @@ func Run(opts RunOptions) {
 	}()
 
 	// Handle interrupts.
-	sigC := make(chan os.Signal, 1)
-	signal.Notify(sigC, syscall.SIGINT, syscall.SIGTERM)
+	xos.WaitForInterrupt(logger, xos.InterruptOptions{
+		InterruptCh: opts.InterruptCh,
+	})
 
-	logger.Warn("interrupt", zap.Any("signal", fmt.Errorf("%s", <-sigC)))
+	if s := aggCfg.ShutdownWaitTimeout; s != 0 {
+		sigC := make(chan os.Signal, 1)
+		signal.Notify(sigC, syscall.SIGINT, syscall.SIGTERM)
 
-	if s := cfg.Aggregator.ShutdownWaitTimeout; s != 0 {
 		logger.Info("waiting intentional shutdown period", zap.Duration("waitTimeout", s))
 		select {
 		case sig := <-sigC:
 			logger.Info("second signal received, skipping shutdown wait", zap.String("signal", sig.String()))
-		case <-time.After(cfg.Aggregator.ShutdownWaitTimeout):
+		case <-time.After(aggCfg.ShutdownWaitTimeout):
 			logger.Info("shutdown period elapsed")
 		}
 	}
@@ -195,5 +239,6 @@ func Run(opts RunOptions) {
 		logger.Info("server closed clean")
 	case <-time.After(gracefulShutdownTimeout):
 		logger.Info("server closed due to timeout", zap.Duration("timeout", gracefulShutdownTimeout))
+		scope.SubScope("aggregator-server-close").Counter("timeout").Inc(1)
 	}
 }

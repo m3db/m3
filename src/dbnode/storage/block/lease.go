@@ -36,7 +36,7 @@ var (
 
 type leaseManager struct {
 	sync.Mutex
-	updateOpenLeasesInProgress bool
+	updateOpenLeasesInProgress sync.Map
 	leasers                    []Leaser
 	verifier                   LeaseVerifier
 }
@@ -139,19 +139,6 @@ func (m *leaseManager) UpdateOpenLeases(
 		m.Unlock()
 		return UpdateLeasesResult{}, errUpdateOpenLeasesVerifierNotSet
 	}
-	if m.updateOpenLeasesInProgress {
-		// Prevent UpdateOpenLeases() calls from happening concurrently (since the lock
-		// is not held for the duration) to ensure that Leaser's receive all updates
-		// and in the correct order.
-		//
-		// NB(rartoul): In the future this could be made more granular by preventing
-		// concurrent calls for a given descriptor, but for now this is simpler since
-		// there is no existing code path that calls this method concurrently.
-		m.Unlock()
-		return UpdateLeasesResult{}, errConcurrentUpdateOpenLeases
-	}
-
-	m.updateOpenLeasesInProgress = true
 	// NB(rartoul): Release lock while calling UpdateOpenLease() so that
 	// calls to OpenLease() and OpenLatestLease() are not blocked which
 	// would blocks reads and could cause deadlocks if those calls were
@@ -159,11 +146,15 @@ func (m *leaseManager) UpdateOpenLeases(
 	// return before being released.
 	m.Unlock()
 
-	defer func() {
-		m.Lock()
-		m.updateOpenLeasesInProgress = false
-		m.Unlock()
-	}()
+	hashableDescriptor := NewHashableLeaseDescriptor(descriptor)
+	if _, ok := m.updateOpenLeasesInProgress.LoadOrStore(hashableDescriptor, struct{}{}); ok {
+		// Prevent UpdateOpenLeases() calls from happening concurrently (since the lock
+		// is not held for the duration) to ensure that Leaser's receive all updates
+		// and in the correct order.
+		return UpdateLeasesResult{}, errConcurrentUpdateOpenLeases
+	}
+
+	defer m.updateOpenLeasesInProgress.Delete(hashableDescriptor)
 
 	var result UpdateLeasesResult
 	for _, l := range m.leasers {

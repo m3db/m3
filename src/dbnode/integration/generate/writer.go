@@ -128,7 +128,7 @@ func (w *writer) writeWithPredicate(
 	encoder.SetSchema(nsCtx.Schema)
 	for start, data := range seriesMaps {
 		err := writeToDiskWithPredicate(
-			writer, shardSet, encoder, start.ToTime(), nsCtx, blockSize,
+			writer, shardSet, encoder, start, nsCtx, blockSize,
 			data, volume, pred, fileSetType, snapshotInterval)
 		if err != nil {
 			return err
@@ -140,7 +140,7 @@ func (w *writer) writeWithPredicate(
 	if w.opts.WriteEmptyShards() {
 		for start := range starts {
 			err := writeToDiskWithPredicate(
-				writer, shardSet, encoder, start.ToTime(), nsCtx, blockSize,
+				writer, shardSet, encoder, start, nsCtx, blockSize,
 				nil, volume, pred, fileSetType, snapshotInterval)
 			if err != nil {
 				return err
@@ -155,7 +155,7 @@ func writeToDiskWithPredicate(
 	writer fs.DataFileSetWriter,
 	shardSet sharding.ShardSet,
 	encoder encoding.Encoder,
-	start time.Time,
+	start xtime.UnixNano,
 	nsCtx ns.Context,
 	blockSize time.Duration,
 	seriesList SeriesBlock,
@@ -193,7 +193,7 @@ func writeToDiskWithPredicate(
 			return err
 		}
 
-		ctx := context.NewContext()
+		ctx := context.NewBackground()
 		for _, series := range seriesList {
 			encoder.Reset(start, 0, nsCtx.Schema)
 			for _, dp := range series.Data {

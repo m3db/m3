@@ -36,7 +36,7 @@ const (
 	defaultDataReadBufferSize              = 65536
 	defaultInfoReadBufferSize              = 128
 	defaultSeekReadBufferSize              = 4096
-	defaultThroughputLimitMbps             = 100.0
+	defaultThroughputLimitMbps             = 1000.0
 	defaultThroughputCheckEvery            = 128
 	defaultForceIndexSummariesMmapMemory   = false
 	defaultForceBloomFilterMmapMemory      = false

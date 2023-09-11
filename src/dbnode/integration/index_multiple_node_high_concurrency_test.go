@@ -55,6 +55,7 @@ func TestIndexMultipleNodeHighConcurrency(t *testing.T) {
 		topology.ReadConsistencyLevelOne,
 		topology.ReadConsistencyLevelUnstrictMajority,
 		topology.ReadConsistencyLevelMajority,
+		topology.ReadConsistencyLevelUnstrictAll,
 		topology.ReadConsistencyLevelAll,
 	}
 	for _, lvl := range levels {
@@ -65,12 +66,13 @@ func TestIndexMultipleNodeHighConcurrency(t *testing.T) {
 				minShard := uint32(0)
 				maxShard := uint32(numShards - 1)
 
-				// nodes = m3db nodes
-				nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, true, []services.ServiceInstance{
+				instances := []services.ServiceInstance{
 					node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Available)),
 					node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Available)),
 					node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
-				})
+				}
+				// nodes = m3db nodes
+				nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, true, instances) //nolint:govet
 				clientopts = clientopts.SetReadConsistencyLevel(lvl)
 
 				defer closeFn()
@@ -90,7 +92,7 @@ func TestIndexMultipleNodeHighConcurrency(t *testing.T) {
 					insertWg       sync.WaitGroup
 					numTotalErrors uint32
 				)
-				now := nodes[0].DB().Options().ClockOptions().NowFn()()
+				now := xtime.ToUnixNano(nodes[0].DB().Options().ClockOptions().NowFn()())
 				start := time.Now()
 				log.Info("starting data write")
 

@@ -143,14 +143,16 @@ func TestDecodeIndexEntryMoreFieldsThanExpected(t *testing.T) {
 	// Strip checksum, add new field, add updated checksum
 	enc.buf.Truncate(len(enc.Bytes()) - 5)
 	require.NoError(t, enc.enc.EncodeInt64(1234))
-	require.NoError(t, enc.enc.EncodeInt64(int64(digest.Checksum(enc.Bytes()))))
+	checksum := int64(digest.Checksum(enc.Bytes()))
+	require.NoError(t, enc.enc.EncodeInt64(checksum))
+	expected := testIndexEntry
+	expected.IndexChecksum = checksum
 
 	// Verify we can successfully skip unnecessary fields
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
-
-	require.Equal(t, testIndexEntry, res)
+	require.Equal(t, expected, res)
 }
 
 func TestDecodeLogInfoMoreFieldsThanExpected(t *testing.T) {
@@ -263,7 +265,7 @@ func TestDecodeBytesAllocNew(t *testing.T) {
 	require.Equal(t, []byte("testIndexEntry"), res.ID)
 }
 
-func TestDecodeIndexEntryInvalidChecksum(t *testing.T) {
+func TestDecodeIndexEntryInvalidWideEntry(t *testing.T) {
 	var (
 		enc = NewEncoder()
 		dec = NewDecoder(nil)
@@ -276,5 +278,19 @@ func TestDecodeIndexEntryInvalidChecksum(t *testing.T) {
 
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	_, err := dec.DecodeIndexEntry(nil)
-	require.Error(t, err)
+	require.EqualError(t, err, errorIndexEntryChecksumMismatch.Error())
+}
+
+func TestDecodeIndexEntryIncompleteFile(t *testing.T) {
+	var (
+		enc = NewEncoder()
+		dec = NewDecoder(nil)
+	)
+	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
+
+	enc.buf.Truncate(len(enc.Bytes()) - 4)
+
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
+	_, err := dec.DecodeIndexEntry(nil)
+	require.EqualError(t, err, "decode index entry encountered error: EOF")
 }

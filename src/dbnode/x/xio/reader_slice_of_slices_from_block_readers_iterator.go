@@ -22,6 +22,8 @@ package xio
 
 import (
 	"time"
+
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type readerSliceOfSlicesIterator struct {
@@ -48,12 +50,12 @@ func (it *readerSliceOfSlicesIterator) Next() bool {
 	return true
 }
 
-var timeZero = time.Time{}
+var timeZero = xtime.UnixNano(0)
 
 // ensure readerSliceOfSlicesIterator implements ReaderSliceOfSlicesIterator
 var _ ReaderSliceOfSlicesIterator = &readerSliceOfSlicesIterator{}
 
-func (it *readerSliceOfSlicesIterator) CurrentReaders() (int, time.Time, time.Duration) {
+func (it *readerSliceOfSlicesIterator) CurrentReaders() (int, xtime.UnixNano, time.Duration) {
 	if len(it.blocks) < it.arrayIdx() {
 		return 0, timeZero, 0
 	}
@@ -105,8 +107,12 @@ func (it *readerSliceOfSlicesIterator) Size() (int, error) {
 	return size, nil
 }
 
-func (it *readerSliceOfSlicesIterator) Rewind() {
-	it.resetIndex()
+func (it *readerSliceOfSlicesIterator) RewindToIndex(idx int) {
+	it.idx = idx
+}
+
+func (it *readerSliceOfSlicesIterator) Index() int {
+	return it.idx
 }
 
 func (it *readerSliceOfSlicesIterator) resetIndex() {

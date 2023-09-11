@@ -26,14 +26,15 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -43,7 +44,7 @@ import (
 
 const (
 	// WriteJSONURL is the url for the write json handler
-	WriteJSONURL = handler.RoutePrefixV1 + "/json/write"
+	WriteJSONURL = route.Prefix + "/json/write"
 
 	// JSONWriteHTTPMethod is the HTTP method used with this resource.
 	JSONWriteHTTPMethod = http.MethodPost
@@ -78,7 +79,7 @@ type WriteQuery struct {
 func (h *WriteJSONHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	req, rErr := parseRequest(r)
 	if rErr != nil {
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.WriteError(w, rErr)
 		return
 	}
 
@@ -88,7 +89,7 @@ func (h *WriteJSONHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		logger.Error("parsing error",
 			zap.String("remoteAddr", r.RemoteAddr),
 			zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 	}
 
 	if err := h.store.Write(r.Context(), writeQuery); err != nil {
@@ -96,7 +97,7 @@ func (h *WriteJSONHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		logger.Error("write error",
 			zap.String("remoteAddr", r.RemoteAddr),
 			zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+		xhttp.WriteError(w, err)
 	}
 }
 
@@ -115,7 +116,7 @@ func (h *WriteJSONHandler) newWriteQuery(req *WriteQuery) (*storage.WriteQuery, 
 		Tags: tags,
 		Datapoints: ts.Datapoints{
 			{
-				Timestamp: parsedTime,
+				Timestamp: xtime.ToUnixNano(parsedTime),
 				Value:     req.Value,
 			},
 		},
@@ -127,23 +128,22 @@ func (h *WriteJSONHandler) newWriteQuery(req *WriteQuery) (*storage.WriteQuery, 
 	})
 }
 
-func parseRequest(r *http.Request) (*WriteQuery, *xhttp.ParseError) {
+func parseRequest(r *http.Request) (*WriteQuery, error) {
 	body := r.Body
 	if r.Body == nil {
-		err := fmt.Errorf("empty request body")
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xerrors.NewInvalidParamsError(fmt.Errorf("empty request body"))
 	}
 
 	defer body.Close()
 
 	js, err := ioutil.ReadAll(body)
 	if err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusInternalServerError)
+		return nil, err
 	}
 
 	var writeQuery *WriteQuery
 	if err = json.Unmarshal(js, &writeQuery); err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
 
 	return writeQuery, nil

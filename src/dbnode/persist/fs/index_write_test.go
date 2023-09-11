@@ -22,14 +22,18 @@ package fs
 
 import (
 	"fmt"
+	iofs "io/fs"
 	"io/ioutil"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -42,7 +46,7 @@ func TestSnapshotIndexWriter(t *testing.T) {
 
 	testSnapshotSegments := []struct {
 		snapshotIndex int
-		snapshotTime  time.Time
+		snapshotTime  xtime.UnixNano
 		shards        map[uint32]struct{}
 		segments      []testIndexSegment
 	}{
@@ -117,16 +121,16 @@ func TestSnapshotIndexWriter(t *testing.T) {
 		actualFiles = append(actualFiles, file.Name())
 	}
 	require.Equal(t, []string{
-		fmt.Sprintf("fileset-%d-0-checkpoint.db", test.blockStart.UnixNano()),
-		fmt.Sprintf("fileset-%d-0-digest.db", test.blockStart.UnixNano()),
-		fmt.Sprintf("fileset-%d-0-info.db", test.blockStart.UnixNano()),
-		fmt.Sprintf("fileset-%d-0-segment-0-first.db", test.blockStart.UnixNano()),
-		fmt.Sprintf("fileset-%d-0-segment-0-second.db", test.blockStart.UnixNano()),
-		fmt.Sprintf("fileset-%d-1-checkpoint.db", test.blockStart.UnixNano()),
-		fmt.Sprintf("fileset-%d-1-digest.db", test.blockStart.UnixNano()),
-		fmt.Sprintf("fileset-%d-1-info.db", test.blockStart.UnixNano()),
-		fmt.Sprintf("fileset-%d-1-segment-0-first.db", test.blockStart.UnixNano()),
-		fmt.Sprintf("fileset-%d-1-segment-0-second.db", test.blockStart.UnixNano()),
+		fmt.Sprintf("fileset-%d-0-checkpoint.db", test.blockStart),
+		fmt.Sprintf("fileset-%d-0-digest.db", test.blockStart),
+		fmt.Sprintf("fileset-%d-0-info.db", test.blockStart),
+		fmt.Sprintf("fileset-%d-0-segment-0-first.db", test.blockStart),
+		fmt.Sprintf("fileset-%d-0-segment-0-second.db", test.blockStart),
+		fmt.Sprintf("fileset-%d-1-checkpoint.db", test.blockStart),
+		fmt.Sprintf("fileset-%d-1-digest.db", test.blockStart),
+		fmt.Sprintf("fileset-%d-1-info.db", test.blockStart),
+		fmt.Sprintf("fileset-%d-1-segment-0-first.db", test.blockStart),
+		fmt.Sprintf("fileset-%d-1-segment-0-second.db", test.blockStart),
 	}, actualFiles)
 
 	// Verify can read them
@@ -152,4 +156,32 @@ func TestSnapshotIndexWriter(t *testing.T) {
 		err = reader.Close()
 		require.NoError(t, err)
 	}
+}
+
+func TestIndexWriterFilesetErrExists(t *testing.T) {
+	test := newIndexWriteTestSetup(t)
+	defer test.cleanup()
+
+	writer := newTestIndexWriter(t, test.filePathPrefix)
+
+	indexWriterOpenOptions := IndexWriterOpenOptions{
+		Identifier:  test.fileSetID,
+		BlockSize:   test.blockSize,
+		FileSetType: persist.FileSetSnapshotType,
+		Shards:      map[uint32]struct{}{3: {}},
+	}
+
+	writeFn := func() error {
+		if err := writer.Open(indexWriterOpenOptions); err != nil {
+			return err
+		}
+		return writer.Close()
+	}
+
+	err := writeFn()
+	require.NoError(t, err)
+
+	err = writeFn()
+	require.Error(t, err)
+	assert.True(t, xerrors.Is(err, iofs.ErrExist))
 }

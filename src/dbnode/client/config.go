@@ -23,7 +23,6 @@ package client
 import (
 	"errors"
 	"fmt"
-	"io"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -31,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -41,11 +41,6 @@ import (
 
 const (
 	asyncWriteWorkerPoolDefaultSize = 128
-)
-
-var (
-	errConfigurationMustSupplyConfig = errors.New(
-		"must supply config when no topology initializer parameter supplied")
 )
 
 // Configuration is a configuration that can be used to construct a client.
@@ -79,6 +74,12 @@ type Configuration struct {
 
 	// LogErrorSampleRate is the log error sample rate.
 	LogErrorSampleRate sampler.Rate `yaml:"logErrorSampleRate"`
+
+	// LogHostWriteErrorSampleRate is the log write error per host sample rate.
+	LogHostWriteErrorSampleRate sampler.Rate `yaml:"logHostWriteErrorSampleRate"`
+
+	// LogHostFetchErrorSampleRate is the log fetch error per host sample rate.
+	LogHostFetchErrorSampleRate sampler.Rate `yaml:"logHostFetchErrorSampleRate"`
 
 	// BackgroundHealthCheckFailLimit is the amount of times a background check
 	// must fail before a connection is taken out of consideration.
@@ -115,8 +116,16 @@ type Configuration struct {
 	// from the remote peer. Defaults to 4096.
 	FetchSeriesBlocksBatchSize *int `yaml:"fetchSeriesBlocksBatchSize"`
 
-	// WriteShardsInitializing sets whether or not to write to nodes that are initializing.
+	// WriteShardsInitializing sets whether or not writes to leaving shards
+	// count towards consistency, by default they do not.
 	WriteShardsInitializing *bool `yaml:"writeShardsInitializing"`
+
+	// ShardsLeavingCountTowardsConsistency sets whether or not writes to leaving shards
+	// count towards consistency, by default they do not.
+	ShardsLeavingCountTowardsConsistency *bool `yaml:"shardsLeavingCountTowardsConsistency"`
+
+	// IterateEqualTimestampStrategy specifies the iterate equal timestamp strategy.
+	IterateEqualTimestampStrategy *encoding.IterateEqualTimestampStrategy `yaml:"iterateEqualTimestampStrategy"`
 }
 
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
@@ -225,6 +234,10 @@ type ConfigurationParameters struct {
 	// constructing a client from configuration.
 	InstrumentOptions instrument.Options
 
+	// ClockOptions is an optional argument when
+	// constructing a client from configuration.
+	ClockOptions clock.Options
+
 	// TopologyInitializer is an optional argument when
 	// constructing a client from configuration.
 	TopologyInitializer topology.Initializer
@@ -282,7 +295,8 @@ func (c Configuration) NewAdminClient(
 	fetchRequestScope := iopts.MetricsScope().SubScope("fetch-req")
 
 	cfgParams := environment.ConfigurationParameters{
-		InstrumentOpts: iopts,
+		InstrumentOpts:                     iopts,
+		AllowEmptyInitialNamespaceRegistry: true,
 	}
 	if c.HashingConfiguration != nil {
 		cfgParams.HashingSeed = c.HashingConfiguration.Seed
@@ -291,6 +305,7 @@ func (c Configuration) NewAdminClient(
 	var (
 		syncTopoInit         = params.TopologyInitializer
 		syncClientOverrides  environment.ClientOverrides
+		syncNsInit           namespace.Initializer
 		asyncTopoInits       = []topology.Initializer{}
 		asyncClientOverrides = []environment.ClientOverrides{}
 	)
@@ -311,15 +326,23 @@ func (c Configuration) NewAdminClient(
 			} else {
 				syncTopoInit = envCfg.TopologyInitializer
 				syncClientOverrides = envCfg.ClientOverrides
+				syncNsInit = envCfg.NamespaceInitializer
 			}
 		}
 	}
 
 	v := NewAdminOptions().
 		SetTopologyInitializer(syncTopoInit).
+		SetNamespaceInitializer(syncNsInit).
 		SetAsyncTopologyInitializers(asyncTopoInits).
 		SetInstrumentOptions(iopts).
-		SetLogErrorSampleRate(c.LogErrorSampleRate)
+		SetLogErrorSampleRate(c.LogErrorSampleRate).
+		SetLogHostWriteErrorSampleRate(c.LogHostWriteErrorSampleRate).
+		SetLogHostFetchErrorSampleRate(c.LogHostFetchErrorSampleRate)
+
+	if params.ClockOptions != nil {
+		v = v.SetClockOptions(params.ClockOptions)
+	}
 
 	if c.UseV2BatchAPIs != nil {
 		v = v.SetUseV2BatchAPIs(*c.UseV2BatchAPIs)
@@ -356,7 +379,7 @@ func (c Configuration) NewAdminClient(
 		v = v.SetReadConsistencyLevel(*c.ReadConsistencyLevel)
 	}
 	if c.ConnectConsistencyLevel != nil {
-		v.SetClusterConnectConsistencyLevel(*c.ConnectConsistencyLevel)
+		v = v.SetClusterConnectConsistencyLevel(*c.ConnectConsistencyLevel)
 	}
 	if c.BackgroundHealthCheckFailLimit != nil {
 		v = v.SetBackgroundHealthCheckFailLimit(*c.BackgroundHealthCheckFailLimit)
@@ -398,15 +421,18 @@ func (c Configuration) NewAdminClient(
 		v = v.SetHostQueueOpsFlushInterval(*syncClientOverrides.HostQueueFlushInterval)
 	}
 
+	if c.IterateEqualTimestampStrategy != nil {
+		o := v.IterationOptions()
+		o.IterateEqualTimestampStrategy = *c.IterateEqualTimestampStrategy
+		v = v.SetIterationOptions(o)
+	}
+
 	encodingOpts := params.EncodingOptions
 	if encodingOpts == nil {
 		encodingOpts = encoding.NewOptions()
 	}
 
-	v = v.SetReaderIteratorAllocate(func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
-		intOptimized := m3tsz.DefaultIntOptimizationEnabled
-		return m3tsz.NewReaderIterator(r, intOptimized, encodingOpts)
-	})
+	v = v.SetReaderIteratorAllocate(m3tsz.DefaultReaderIteratorAllocFn(encodingOpts))
 
 	if c.Proto != nil && c.Proto.Enabled {
 		v = v.SetEncodingProto(encodingOpts)
@@ -424,6 +450,9 @@ func (c Configuration) NewAdminClient(
 
 	if c.WriteShardsInitializing != nil {
 		v = v.SetWriteShardsInitializing(*c.WriteShardsInitializing)
+	}
+	if c.ShardsLeavingCountTowardsConsistency != nil {
+		v = v.SetShardsLeavingCountTowardsConsistency(*c.ShardsLeavingCountTowardsConsistency)
 	}
 
 	// Cast to admin options to apply admin config options.

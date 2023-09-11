@@ -9,18 +9,22 @@ common: &common
     # Allow manual retries.
     manual: true
 
+# Temporarily disable codecov while we investigate issues with uploading.
+env:
+  SKIP_CODECOV: "true"
+
 steps:
   - name: "Codegen"
     command: make clean install-vendor-m3 test-all-gen
     env:
       CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.13.x
+      GIMME_GO_VERSION: 1.18.x
     plugins:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3
     <<: *common
   - name: "Unit %n"
-    command: make clean install-vendor-m3 test-ci-unit
+    command: make clean install-vendor-m3 test-base
     parallelism: 4
     plugins:
       docker-compose#v2.5.1:
@@ -28,15 +32,24 @@ steps:
         workdir: /go/src/github.com/m3db/m3
     <<: *common
   - name: "Big Unit %n"
-    command: make clean install-vendor-m3 test-ci-big-unit
+    command: make clean install-vendor-m3 test-big-base
     parallelism: 2
     plugins:
       docker-compose#v2.5.1:
         run: app
         workdir: /go/src/github.com/m3db/m3
     <<: *common
-  - name: "Services, Tools, Metalint"
-    command: make clean install-vendor-m3 services tools metalint
+  - name: "Services, Tools"
+    command: make clean install-vendor-m3 services tools
+    plugins:
+      docker-compose#v2.5.1:
+        run: app
+        workdir: /go/src/github.com/m3db/m3
+    <<: *common
+  - name: "Lint"
+    command: make clean lint
+    env:
+      CGO_ENABLED: 0
     plugins:
       docker-compose#v2.5.1:
         run: app
@@ -47,17 +60,34 @@ steps:
     parallelism: 2
     env:
       CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.13.x
+      GIMME_GO_VERSION: 1.18.x
     plugins:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3
+    <<: *common
+  - label: "M3 Cluster Integration Tests"
+    command: make clean test-ci-cluster-integration
+    env:
+      CGO_ENABLED: 0
+      GIMME_GO_VERSION: 1.18.x
+    plugins:
+      gopath-checkout#v1.0.1:
+        import: github.com/m3db/m3
+    <<: *common
+  - label: "M3 Cluster Integration Test Harness Tests"
+    command: make clean test-ci-test-harness
+    skip: "NB(nate): temporarily disabling to resolve some tests flakes"
+    plugins:
+      docker-compose#v2.5.1:
+        run: app
+        workdir: /go/src/github.com/m3db/m3
     <<: *common
   - name: "Prometheus compatibility (:docker:)"
     command: make clean install-vendor-m3 docker-compatibility-test
     parallelism: 1
     env:
       CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.13.x
+      GIMME_GO_VERSION: 1.18.x
     plugins:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3
@@ -78,9 +108,25 @@ steps:
         run: app
         workdir: /go/src/github.com/m3db/m3
     <<: *common
-  - label: "Integration (collector, aggregator, m3em, cluster, msg, metrics) %n"
+  - name: "Integration (aggregator TCP client) %n"
+    parallelism: 1
+    command: make clean install-vendor-m3 test-ci-integration-aggregator aggregator_client=tcp
+    plugins:
+      docker-compose#v2.5.1:
+        run: app
+        workdir: /go/src/github.com/m3db/m3
+    <<: *common
+  - name: "Integration (aggregator m3msg client) %n"
+    parallelism: 1
+    command: make clean install-vendor-m3 test-ci-integration-aggregator aggregator_client=m3msg
+    plugins:
+      docker-compose#v2.5.1:
+        run: app
+        workdir: /go/src/github.com/m3db/m3
+    <<: *common
+  - label: "Integration (m3em, cluster, msg, metrics) %n"
     parallelism: 4
-    command: make clean install-vendor-m3 test-ci-integration-collector test-ci-integration-aggregator test-ci-integration-m3em test-ci-integration-cluster test-ci-integration-msg test-ci-integration-metrics
+    command: make clean install-vendor-m3 test-ci-integration-m3em test-ci-integration-cluster test-ci-integration-msg test-ci-integration-metrics
     plugins:
       docker-compose#v2.5.1:
         run: app
@@ -90,7 +136,7 @@ steps:
     command: make clean install-vendor-m3 docs-test
     env:
       CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.13.x
+      GIMME_GO_VERSION: 1.18.x
     plugins:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3

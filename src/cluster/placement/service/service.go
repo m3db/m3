@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3/src/cluster/placement/algo"
 	"github.com/m3db/m3/src/cluster/placement/selector"
 	"github.com/m3db/m3/src/cluster/shard"
-
 	"go.uber.org/zap"
 )
 
@@ -37,36 +36,79 @@ type placementService struct {
 }
 
 // NewPlacementService returns an instance of placement service.
-func NewPlacementService(s placement.Storage, opts placement.Options) placement.Service {
+func NewPlacementService(s placement.Storage, opts ...Option) placement.Service {
 	return &placementService{
 		Storage: s,
 		placementServiceImpl: newPlacementServiceImpl(
-			opts,
 			s,
-
+			opts...,
 		),
 	}
 }
 
+type options struct {
+	placementAlgorithm placement.Algorithm
+	placementOpts      placement.Options
+}
+
+// Option is an interface for PlacementService options.
+type Option interface {
+	apply(*options)
+}
+
+// WithAlgorithm sets the algorithm implementation that will be used by PlacementService.
+func WithAlgorithm(algo placement.Algorithm) Option {
+	return &algorithmOption{placementAlgorithm: algo}
+}
+
+type algorithmOption struct {
+	placementAlgorithm placement.Algorithm
+}
+
+func (a *algorithmOption) apply(opts *options) {
+	opts.placementAlgorithm = a.placementAlgorithm
+}
+
+type placementOptionsOption struct {
+	opts placement.Options
+}
+
+func (a *placementOptionsOption) apply(opts *options) {
+	opts.placementOpts = a.opts
+}
+
+// WithPlacementOptions sets the placement options for PlacementService.
+func WithPlacementOptions(opts placement.Options) Option {
+	return &placementOptionsOption{opts: opts}
+}
+
 func newPlacementServiceImpl(
-	opts placement.Options,
 	storage minimalPlacementStorage,
+	opts ...Option,
 ) *placementServiceImpl {
-	if opts == nil {
-		opts = placement.NewOptions()
+	o := options{
+		placementOpts: placement.NewOptions(),
 	}
 
-	instanceSelector := opts.InstanceSelector()
+	for _, opt := range opts {
+		opt.apply(&o)
+	}
+
+	if o.placementAlgorithm == nil {
+		o.placementAlgorithm = algo.NewAlgorithm(o.placementOpts)
+	}
+
+	instanceSelector := o.placementOpts.InstanceSelector()
 	if instanceSelector == nil {
-		instanceSelector = selector.NewInstanceSelector(opts)
+		instanceSelector = selector.NewInstanceSelector(o.placementOpts)
 	}
 
 	return &placementServiceImpl{
 		store:    storage,
-		opts:     opts,
-		algo:     algo.NewAlgorithm(opts),
+		opts:     o.placementOpts,
+		algo:     o.placementAlgorithm,
 		selector: instanceSelector,
-		logger:   opts.InstrumentOptions().Logger(),
+		logger:   o.placementOpts.InstrumentOptions().Logger(),
 	}
 }
 
@@ -334,6 +376,28 @@ func (ps *placementServiceImpl) MarkAllShardsAvailable() (placement.Placement, e
 	}
 	if !updated {
 		return curPlacement, nil
+	}
+
+	if err := placement.Validate(tempPlacement); err != nil {
+		return nil, err
+	}
+
+	return ps.store.CheckAndSet(tempPlacement, curPlacement.Version())
+}
+
+func (ps *placementServiceImpl) BalanceShards() (placement.Placement, error) {
+	curPlacement, err := ps.store.Placement()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := ps.opts.ValidateFnBeforeUpdate()(curPlacement); err != nil {
+		return nil, err
+	}
+
+	tempPlacement, err := ps.algo.BalanceShards(curPlacement)
+	if err != nil {
+		return nil, err
 	}
 
 	if err := placement.Validate(tempPlacement); err != nil {

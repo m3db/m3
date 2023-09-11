@@ -20,12 +20,10 @@
 
 package block
 
-import (
-	"time"
-)
+import xtime "github.com/m3db/m3/src/x/time"
 
 var (
-	defaultTimeTransform       = func(t time.Time) time.Time { return t }
+	defaultTimeTransform       = func(t xtime.UnixNano) xtime.UnixNano { return t }
 	defaultValueTransform      = func(v float64) float64 { return v }
 	defaultMetaTransform       = func(m Metadata) Metadata { return m }
 	defaultSeriesMetaTransform = func(m []SeriesMeta) []SeriesMeta { return m }

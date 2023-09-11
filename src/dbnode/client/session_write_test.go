@@ -32,11 +32,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
-	xtest "github.com/m3db/m3/src/x/test"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xretry "github.com/m3db/m3/src/x/retry"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -51,8 +51,9 @@ func TestSessionWriteNotOpenError(t *testing.T) {
 
 	s := newDefaultTestSession(t)
 
-	err := s.Write(ident.StringID("namespace"), ident.StringID("foo"), time.Now(), 1.337, xtime.Second, nil)
-	assert.Equal(t, errSessionStatusNotOpen, err)
+	err := s.Write(ident.StringID("namespace"), ident.StringID("foo"), xtime.Now(),
+		1.337, xtime.Second, nil)
+	assert.Equal(t, ErrSessionStatusNotOpen, err)
 }
 
 func TestSessionWrite(t *testing.T) {
@@ -79,7 +80,7 @@ func testSessionWrite(t *testing.T, testOpts testOptions) {
 		assert.True(t, ok)
 		assert.Equal(t, w.id.String(), string(write.request.ID))
 		assert.Equal(t, w.value, write.request.Datapoint.Value)
-		assert.Equal(t, w.t.Unix(), write.request.Datapoint.Timestamp)
+		assert.Equal(t, w.t.Seconds(), write.request.Datapoint.Timestamp)
 		assert.Equal(t, rpc.TimeType_UNIX_SECONDS, write.request.Datapoint.TimestampTimeType)
 		assert.NotNil(t, write.completionFn)
 		if testOpts.annEqual != nil {
@@ -169,14 +170,14 @@ func TestSessionWriteBadUnitErr(t *testing.T) {
 		ns         ident.ID
 		id         ident.ID
 		value      float64
-		t          time.Time
+		t          xtime.UnixNano
 		unit       xtime.Unit
 		annotation []byte
 	}{
 		ns:         ident.StringID("testNs"),
 		id:         ident.StringID("foo"),
 		value:      1.0,
-		t:          time.Now(),
+		t:          xtime.Now(),
 		unit:       xtime.Unit(byte(255)),
 		annotation: nil,
 	}
@@ -203,14 +204,14 @@ func TestSessionWriteBadRequestErrorIsNonRetryable(t *testing.T) {
 		ns         ident.ID
 		id         ident.ID
 		value      float64
-		t          time.Time
+		t          xtime.UnixNano
 		unit       xtime.Unit
 		annotation []byte
 	}{
 		ns:         ident.StringID("testNs"),
 		id:         ident.StringID("foo"),
 		value:      1.0,
-		t:          time.Now(),
+		t:          xtime.Now(),
 		unit:       xtime.Second,
 		annotation: nil,
 	}
@@ -260,14 +261,14 @@ func TestSessionWriteRetry(t *testing.T) {
 		ns         ident.ID
 		id         ident.ID
 		value      float64
-		t          time.Time
+		t          xtime.UnixNano
 		unit       xtime.Unit
 		annotation []byte
 	}{
 		ns:         ident.StringID("testNs"),
 		id:         ident.StringID("foo"),
 		value:      1.0,
-		t:          time.Now(),
+		t:          xtime.Now(),
 		unit:       xtime.Second,
 		annotation: nil,
 	}
@@ -288,7 +289,7 @@ func TestSessionWriteRetry(t *testing.T) {
 			assert.True(t, ok)
 			assert.Equal(t, w.id.String(), string(write.request.ID))
 			assert.Equal(t, w.value, write.request.Datapoint.Value)
-			assert.Equal(t, w.t.Unix(), write.request.Datapoint.Timestamp)
+			assert.Equal(t, w.t.Seconds(), write.request.Datapoint.Timestamp)
 			assert.Equal(t, rpc.TimeType_UNIX_SECONDS, write.request.Datapoint.TimestampTimeType)
 			assert.NotNil(t, write.completionFn)
 			completionFn = write.completionFn
@@ -392,14 +393,14 @@ func testWriteConsistencyLevel(
 		ns         ident.ID
 		id         ident.ID
 		value      float64
-		t          time.Time
+		t          xtime.UnixNano
 		unit       xtime.Unit
 		annotation []byte
 	}{
 		ns:         ident.StringID("testNs"),
 		id:         ident.StringID("foo"),
 		value:      1.0,
-		t:          time.Now(),
+		t:          xtime.Now(),
 		unit:       xtime.Second,
 		annotation: nil,
 	}
@@ -491,7 +492,7 @@ type writeStub struct {
 	ns         ident.ID
 	id         ident.ID
 	value      float64
-	t          time.Time
+	t          xtime.UnixNano
 	unit       xtime.Unit
 	annotation []byte
 }
@@ -509,7 +510,7 @@ func newDefaultTestSession(t *testing.T) clientSession {
 func newRetryEnabledTestSession(t *testing.T, opts Options) clientSession {
 	opts = opts.
 		SetWriteRetrier(
-		xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(1)))
+			xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(1)))
 	return newTestSession(t, opts)
 }
 
@@ -518,7 +519,7 @@ func newWriteStub() writeStub {
 		ns:         ident.StringID("testNs"),
 		id:         ident.StringID("foo"),
 		value:      1.0,
-		t:          time.Now(),
+		t:          xtime.Now(),
 		unit:       xtime.Second,
 		annotation: nil}
 }

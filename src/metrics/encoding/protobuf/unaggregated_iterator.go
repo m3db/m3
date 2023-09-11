@@ -31,39 +31,24 @@ import (
 )
 
 // UnaggregatedIterator decodes unaggregated metrics.
-type UnaggregatedIterator interface {
-	// Next returns true if there are more items to decode.
-	Next() bool
-
-	// Current returns the current decoded value.
-	Current() encoding.UnaggregatedMessageUnion
-
-	// Err returns the error encountered during decoding, if any.
-	Err() error
-
-	// Close closes the iterator.
-	Close()
-}
-
-type unaggregatedIterator struct {
+type UnaggregatedIterator struct {
+	pb             metricpb.MetricWithMetadatas
 	reader         encoding.ByteReadScanner
 	bytesPool      pool.BytesPool
+	err            error
+	buf            []byte
+	msg            encoding.UnaggregatedMessageUnion
 	maxMessageSize int
-
-	closed bool
-	pb     metricpb.MetricWithMetadatas
-	msg    encoding.UnaggregatedMessageUnion
-	buf    []byte
-	err    error
+	closed         bool
 }
 
 // NewUnaggregatedIterator creates a new unaggregated iterator.
 func NewUnaggregatedIterator(
 	reader encoding.ByteReadScanner,
 	opts UnaggregatedOptions,
-) UnaggregatedIterator {
+) *UnaggregatedIterator {
 	bytesPool := opts.BytesPool()
-	return &unaggregatedIterator{
+	return &UnaggregatedIterator{
 		reader:         reader,
 		bytesPool:      bytesPool,
 		maxMessageSize: opts.MaxMessageSize(),
@@ -71,7 +56,8 @@ func NewUnaggregatedIterator(
 	}
 }
 
-func (it *unaggregatedIterator) Close() {
+// Close closes the iterator.
+func (it *UnaggregatedIterator) Close() {
 	if it.closed {
 		return
 	}
@@ -87,10 +73,14 @@ func (it *unaggregatedIterator) Close() {
 	it.err = nil
 }
 
-func (it *unaggregatedIterator) Err() error                                 { return it.err }
-func (it *unaggregatedIterator) Current() encoding.UnaggregatedMessageUnion { return it.msg }
+// Err returns the error encountered during decoding, if any
+func (it *UnaggregatedIterator) Err() error { return it.err }
 
-func (it *unaggregatedIterator) Next() bool {
+// Current returns the current decoded value
+func (it *UnaggregatedIterator) Current() *encoding.UnaggregatedMessageUnion { return &it.msg }
+
+// Next returns true if there are more items to decode.
+func (it *UnaggregatedIterator) Next() bool {
 	if it.err != nil || it.closed {
 		return false
 	}
@@ -102,6 +92,10 @@ func (it *unaggregatedIterator) Next() bool {
 		it.err = fmt.Errorf("decoded message size %d is larger than supported max message size %d", size, it.maxMessageSize)
 		return false
 	}
+	if size <= 0 {
+		it.err = fmt.Errorf("decoded message size %d is zero or negative", size)
+		return false
+	}
 	it.ensureBufferSize(size)
 	if err := it.decodeMessage(size); err != nil {
 		return false
@@ -109,7 +103,7 @@ func (it *unaggregatedIterator) Next() bool {
 	return true
 }
 
-func (it *unaggregatedIterator) decodeSize() (int, error) {
+func (it *UnaggregatedIterator) decodeSize() (int, error) {
 	n, err := binary.ReadVarint(it.reader)
 	if err != nil {
 		it.err = err
@@ -118,11 +112,12 @@ func (it *unaggregatedIterator) decodeSize() (int, error) {
 	return int(n), nil
 }
 
-func (it *unaggregatedIterator) ensureBufferSize(targetSize int) {
+func (it *UnaggregatedIterator) ensureBufferSize(targetSize int) {
 	it.buf = ensureBufferSize(it.buf, it.bytesPool, targetSize, dontCopyData)
 }
 
-func (it *unaggregatedIterator) decodeMessage(size int) error {
+//nolint:gocyclo
+func (it *UnaggregatedIterator) decodeMessage(size int) error {
 	_, err := io.ReadFull(it.reader, it.buf[:size])
 	if err != nil {
 		it.err = err

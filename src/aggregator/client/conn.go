@@ -21,6 +21,7 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"math/rand"
 	"net"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/x/clock"
 	xio "github.com/m3db/m3/src/x/io"
+	xnet "github.com/m3db/m3/src/x/net"
 	"github.com/m3db/m3/src/x/retry"
 
 	"github.com/uber-go/tally"
@@ -44,38 +46,37 @@ var (
 	uninitWriter          uninitializedWriter
 )
 
-type sleepFn func(time.Duration)
-type connectWithLockFn func() error
-type writeWithLockFn func([]byte) error
+type (
+	sleepFn           func(time.Duration)
+	connectWithLockFn func() error
+	writeWithLockFn   func([]byte) error
+)
 
 // connection is a persistent connection that retries establishing
 // connection with exponential backoff if the connection goes down.
 type connection struct {
-	sync.Mutex
-
-	addr           string
-	connTimeout    time.Duration
-	writeTimeout   time.Duration
-	keepAlive      bool
-	initThreshold  int
-	multiplier     int
-	maxThreshold   int
-	maxDuration    time.Duration
-	writeRetryOpts retry.Options
-	rngFn          retry.RngFn
-
-	conn                    *net.TCPConn
+	metrics                 connectionMetrics
+	writeRetryOpts          retry.Options
 	writer                  xio.ResettableWriter
-	numFailures             int
+	connectWithLockFn       connectWithLockFn
+	sleepFn                 sleepFn
+	nowFn                   clock.NowFn
+	conn                    net.Conn
+	rngFn                   retry.RngFn
+	writeWithLockFn         writeWithLockFn
+	addr                    string
+	maxDuration             time.Duration
+	maxThreshold            int
+	multiplier              int
+	initThreshold           int
 	threshold               int
 	lastConnectAttemptNanos int64
-	metrics                 connectionMetrics
-
-	// These are for testing purposes.
-	nowFn             clock.NowFn
-	sleepFn           sleepFn
-	connectWithLockFn connectWithLockFn
-	writeWithLockFn   writeWithLockFn
+	writeTimeout            time.Duration
+	connTimeout             time.Duration
+	numFailures             int
+	mtx                     sync.Mutex
+	keepAlive               bool
+	dialer                  xnet.ContextDialerFn
 }
 
 // newConnection creates a new connection.
@@ -90,6 +91,7 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 		maxThreshold:   opts.MaxReconnectThreshold(),
 		maxDuration:    opts.MaxReconnectDuration(),
 		writeRetryOpts: opts.WriteRetryOptions(),
+		dialer:         opts.ContextDialer(),
 		rngFn:          rand.New(rand.NewSource(time.Now().UnixNano())).Int63n,
 		nowFn:          opts.ClockOptions().NowFn(),
 		sleepFn:        time.Sleep,
@@ -103,12 +105,6 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 	c.connectWithLockFn = c.connectWithLock
 	c.writeWithLockFn = c.writeWithLock
 
-	c.Lock()
-	if err := c.connectWithLockFn(); err != nil {
-		c.numFailures++
-	}
-	c.Unlock()
-
 	return c
 }
 
@@ -116,16 +112,16 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 // connection if the connection is down.
 func (c *connection) Write(data []byte) error {
 	var err error
-	c.Lock()
+	c.mtx.Lock()
 	if c.conn == nil {
 		if err = c.checkReconnectWithLock(); err != nil {
 			c.numFailures++
-			c.Unlock()
+			c.mtx.Unlock()
 			return err
 		}
 	}
 	if err = c.writeAttemptWithLock(data); err == nil {
-		c.Unlock()
+		c.mtx.Unlock()
 		return nil
 	}
 	for i := 1; i <= c.writeRetryOpts.MaxRetries(); i++ {
@@ -141,19 +137,19 @@ func (c *connection) Write(data []byte) error {
 		}
 		c.metrics.writeRetries.Inc(1)
 		if err = c.writeAttemptWithLock(data); err == nil {
-			c.Unlock()
+			c.mtx.Unlock()
 			return nil
 		}
 	}
 	c.numFailures++
-	c.Unlock()
+	c.mtx.Unlock()
 	return err
 }
 
 func (c *connection) Close() {
-	c.Lock()
+	c.mtx.Lock()
 	c.closeWithLock()
-	c.Unlock()
+	c.mtx.Unlock()
 }
 
 // writeAttemptWithLock attempts to establish a new connection and writes raw bytes
@@ -174,34 +170,62 @@ func (c *connection) writeAttemptWithLock(data []byte) error {
 }
 
 func (c *connection) connectWithLock() error {
+	// TODO: propagate this all the way up the callstack.
+	ctx := context.TODO()
+
 	c.lastConnectAttemptNanos = c.nowFn().UnixNano()
-	conn, err := net.DialTimeout(tcpProtocol, c.addr, c.connTimeout)
+
+	ctx, cancel := context.WithTimeout(ctx, c.connTimeout)
+	defer cancel()
+
+	conn, err := c.dialContext(ctx, c.addr)
 	if err != nil {
 		c.metrics.connectError.Inc(1)
 		return err
 	}
 
-	tcpConn := conn.(*net.TCPConn)
-	if err := tcpConn.SetKeepAlive(c.keepAlive); err != nil {
-		c.metrics.setKeepAliveError.Inc(1)
+	// N.B.: If using a custom dialer which doesn't return *net.TCPConn, users are responsible for TCP keep alive options
+	// themselves.
+	if tcpConn, ok := conn.(keepAlivable); ok {
+		if err := tcpConn.SetKeepAlive(c.keepAlive); err != nil {
+			c.metrics.setKeepAliveError.Inc(1)
+		}
 	}
 
 	if c.conn != nil {
 		c.conn.Close() // nolint: errcheck
 	}
 
-	c.conn = tcpConn
-	c.writer.Reset(tcpConn)
+	c.conn = conn
+	c.writer.Reset(conn)
 	return nil
+}
+
+// Make sure net.TCPConn implements this; otherwise bad things will happen.
+var _ keepAlivable = (*net.TCPConn)(nil)
+
+type keepAlivable interface {
+	SetKeepAlive(shouldKeepAlive bool) error
+}
+
+func (c *connection) dialContext(ctx context.Context, addr string) (net.Conn, error) {
+	if dialer := c.dialer; dialer != nil {
+		return dialer(ctx, tcpProtocol, addr)
+	}
+	var dialer net.Dialer
+	return dialer.DialContext(ctx, tcpProtocol, addr)
 }
 
 func (c *connection) checkReconnectWithLock() error {
 	// If we haven't accumulated enough failures to warrant another reconnect
 	// and we haven't past the maximum duration since the last time we attempted
 	// to connect then we simply return false without reconnecting.
-	tooManyFailures := c.numFailures >= c.threshold
+	// If we exhausted maximum allowed failures then we will retry only based on
+	// maximum duration since the last attempt.
+	enoughFailuresToRetry := c.numFailures >= c.threshold
+	exhaustedMaxFailures := c.numFailures >= c.maxThreshold
 	sufficientTimePassed := c.nowFn().UnixNano()-c.lastConnectAttemptNanos >= c.maxDuration.Nanoseconds()
-	if !tooManyFailures && !sufficientTimePassed {
+	if !sufficientTimePassed && (exhaustedMaxFailures || !enoughFailuresToRetry) {
 		return errNoActiveConnection
 	}
 	err := c.connectWithLockFn()
@@ -211,7 +235,7 @@ func (c *connection) checkReconnectWithLock() error {
 	}
 
 	// Only raise the threshold when it is crossed, not when the max duration is reached.
-	if tooManyFailures && c.threshold < c.maxThreshold {
+	if enoughFailuresToRetry && c.threshold < c.maxThreshold {
 		newThreshold := c.threshold * c.multiplier
 		if newThreshold > c.maxThreshold {
 			newThreshold = c.maxThreshold

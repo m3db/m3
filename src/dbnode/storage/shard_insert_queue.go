@@ -26,13 +26,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/series"
-	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -67,6 +66,7 @@ type dbShardInsertQueue struct {
 	nowFn              clock.NowFn
 	insertEntryBatchFn dbShardInsertEntryBatchFn
 	sleepFn            func(time.Duration)
+	coreFn             xsync.CoreFn
 
 	// rate limits, protected by mutex
 	insertBatchBackoff   time.Duration
@@ -125,6 +125,7 @@ type dbShardInsertEntryBatchFn func(inserts []dbShardInsert) error
 func newDatabaseShardInsertQueue(
 	insertEntryBatchFn dbShardInsertEntryBatchFn,
 	nowFn clock.NowFn,
+	coreFn xsync.CoreFn,
 	scope tally.Scope,
 	logger *zap.Logger,
 ) *dbShardInsertQueue {
@@ -134,6 +135,7 @@ func newDatabaseShardInsertQueue(
 		nowFn:              nowFn,
 		insertEntryBatchFn: insertEntryBatchFn,
 		sleepFn:            time.Sleep,
+		coreFn:             coreFn,
 		currBatch:          currBatch,
 		// NB(r): Use 2 * num cores so that each CPU insert queue which
 		// is 1 per num CPU core can always enqueue a notification without
@@ -288,7 +290,7 @@ func (q *dbShardInsertQueue) Insert(insert dbShardInsert) (*sync.WaitGroup, erro
 		}
 	}
 
-	inserts := q.currBatch.insertsByCPUCore[xsync.CPUCore()]
+	inserts := q.currBatch.insertsByCPUCore[q.coreFn()]
 	inserts.Lock()
 	// Track if first insert, if so then we need to notify insert loop,
 	// otherwise we already have a pending notification.
@@ -335,7 +337,7 @@ type dbShardInsertsByCPUCore struct {
 }
 
 type dbShardInsert struct {
-	entry *lookup.Entry
+	entry *Entry
 	opts  dbShardInsertAsyncOptions
 }
 
@@ -350,16 +352,16 @@ type dbShardInsertAsyncOptions struct {
 	hasPendingRetrievedBlock bool
 	hasPendingIndexing       bool
 
-	// NB(prateek): `entryRefCountIncremented` indicates if the
+	// NB(prateek): `releaseEntryRef` indicates if the
 	// entry provided along with the dbShardInsertAsyncOptions
-	// already has it's ref count incremented. It's used to
-	// correctly manage the lifecycle of the entry across the
+	// already has it's ref count incremented and it will be decremented after insert.
+	// It's used to correctly manage the lifecycle of the entry across the
 	// shard -> shard Queue -> shard boundaries.
-	entryRefCountIncremented bool
+	releaseEntryRef bool
 }
 
 type dbShardPendingWrite struct {
-	timestamp  time.Time
+	timestamp  xtime.UnixNano
 	value      float64
 	unit       xtime.Unit
 	annotation checked.Bytes
@@ -367,14 +369,14 @@ type dbShardPendingWrite struct {
 }
 
 type dbShardPendingIndex struct {
-	timestamp  time.Time
+	timestamp  xtime.UnixNano
 	enqueuedAt time.Time
 }
 
 type dbShardPendingRetrievedBlock struct {
 	id      ident.ID
 	tags    ident.TagIterator
-	start   time.Time
+	start   xtime.UnixNano
 	segment ts.Segment
 	nsCtx   namespace.Context
 }

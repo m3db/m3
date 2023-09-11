@@ -1,5 +1,4 @@
-listenAddress:
-  value: "0.0.0.0:7201"
+listenAddress: 0.0.0.0:7201
 
 logging:
   level: info
@@ -15,15 +14,7 @@ metrics:
   extended: none
 
 clusters:
-  - namespaces:
-      - namespace: metrics_0_30m
-        type: unaggregated
-        retention: 30m
-      - namespace: metrics_30s_24h
-        type: aggregated
-        retention: 24h
-        resolution: 30s
-    client:
+  - client:
       config:
         service:
           env: default_env
@@ -45,3 +36,5 @@ carbon:
 
 tagOptions:
   idScheme: quoted
+
+storeMetricsType: true

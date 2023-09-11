@@ -33,13 +33,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -145,7 +145,7 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, commitLog.Open())
 
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	shardSet := setup.ShardSet()
@@ -189,8 +189,8 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 				UniqueIndex: uint64(j),
 			}
 			dp := ts.Datapoint{
-				Timestamp: blockStart.Add(time.Duration(i) * step),
-				Value:     rand.Float64(),
+				TimestampNanos: blockStart.Add(time.Duration(i) * step),
+				Value:          rand.Float64(), //nolint: gosec
 			}
 			require.NoError(t, commitLog.Write(ctx, series, dp, xtime.Second, nil))
 		}

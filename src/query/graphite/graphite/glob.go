@@ -25,7 +25,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/m3db/m3/src/query/graphite/errors"
+	"github.com/m3db/m3/src/x/errors"
 )
 
 const (
@@ -33,7 +33,7 @@ const (
 	ValidIdentifierRunes = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
 		"abcdefghijklmnopqrstuvwxyz" +
 		"0123456789" +
-		"$-_'|<>%#/:"
+		"$-_'|<>%#/:~"
 )
 
 // GlobToRegexPattern converts a graphite-style glob into a regex pattern, with
@@ -90,18 +90,24 @@ func (p *pattern) UnwriteLast() {
 
 func globToRegexPattern(glob string, opts GlobOptions) ([]byte, bool, error) {
 	var (
-		pattern  pattern
-		escaping = false
-		regexed  = false
+		p            pattern
+		escaping     bool
+		regexed      bool
+		matchAll     bool
+		prevMatchAll bool
 	)
 
 	groupStartStack := []rune{rune(0)} // rune(0) indicates pattern is not in a group
 	for i, r := range glob {
-		prevEval := pattern.LastEvaluate()
-		pattern.Evaluate(r)
+		// Evaluate if last was a matchAll statement and reset current matchAll.
+		prevMatchAll = matchAll
+		matchAll = false
+
+		prevEval := p.LastEvaluate()
+		p.Evaluate(r)
 
 		if escaping {
-			pattern.WriteRune(r)
+			p.WriteRune(r)
 			escaping = false
 			continue
 		}
@@ -109,28 +115,38 @@ func globToRegexPattern(glob string, opts GlobOptions) ([]byte, bool, error) {
 		switch r {
 		case '\\':
 			escaping = true
-			pattern.WriteRune('\\')
+			p.WriteRune('\\')
 		case '.':
-			// Match hierarchy separator
-			pattern.WriteString("\\.+")
-			regexed = true
+			// Check that previous rune was not the match all statement
+			// since we need to skip adding a trailing dot to pattern if so.
+			// It's meant to match zero or more segment separators.
+			// e.g. "foo.**.bar.baz" glob should match:
+			// - foo.term.bar.baz
+			// - foo.term1.term2.bar.baz
+			// - foo.bar.baz
+			if !prevMatchAll {
+				// Match hierarchy separator
+				p.WriteString("\\.+")
+				regexed = true
+			}
 		case '?':
 			// Match anything except the hierarchy separator
-			pattern.WriteString("[^\\.]")
+			p.WriteString("[^\\.]")
 			regexed = true
 		case '*':
 			if opts.AllowMatchAll && prevEval == '*' {
-				pattern.UnwriteLast()
-				pattern.WriteString(".*")
+				p.UnwriteLast()
+				p.WriteString(".*")
 				regexed = true
+				matchAll = true
 			} else {
 				// Match everything up to the next hierarchy separator
-				pattern.WriteString("[^\\.]*")
+				p.WriteString("[^\\.]*")
 				regexed = true
 			}
 		case '{':
 			// Begin non-capturing group
-			pattern.WriteString("(")
+			p.WriteString("(")
 			groupStartStack = append(groupStartStack, r)
 			regexed = true
 		case '}':
@@ -140,11 +156,11 @@ func globToRegexPattern(glob string, opts GlobOptions) ([]byte, bool, error) {
 				return nil, false, errors.NewInvalidParamsError(fmt.Errorf("invalid '}' at %d, no prior for '{' in %s", i, glob))
 			}
 
-			pattern.WriteRune(')')
+			p.WriteRune(')')
 			groupStartStack = groupStartStack[:len(groupStartStack)-1]
 		case '[':
 			// Begin character range
-			pattern.WriteRune('[')
+			p.WriteRune('[')
 			groupStartStack = append(groupStartStack, r)
 			regexed = true
 		case ']':
@@ -154,15 +170,15 @@ func globToRegexPattern(glob string, opts GlobOptions) ([]byte, bool, error) {
 				return nil, false, errors.NewInvalidParamsError(fmt.Errorf("invalid ']' at %d, no prior for '[' in %s", i, glob))
 			}
 
-			pattern.WriteRune(']')
+			p.WriteRune(']')
 			groupStartStack = groupStartStack[:len(groupStartStack)-1]
 		case '<', '>', '\'', '$':
-			pattern.WriteRune('\\')
-			pattern.WriteRune(r)
+			p.WriteRune('\\')
+			p.WriteRune(r)
 		case ',':
 			// Commas are part of the pattern if they appear in a group
 			if groupStartStack[len(groupStartStack)-1] == '{' {
-				pattern.WriteRune('|')
+				p.WriteRune('|')
 			} else {
 				return nil, false, errors.NewInvalidParamsError(fmt.Errorf("invalid ',' outside of matching group at pos %d in %s", i, glob))
 			}
@@ -170,7 +186,7 @@ func globToRegexPattern(glob string, opts GlobOptions) ([]byte, bool, error) {
 			if !strings.ContainsRune(ValidIdentifierRunes, r) {
 				return nil, false, errors.NewInvalidParamsError(fmt.Errorf("invalid character %c at pos %d in %s", r, i, glob))
 			}
-			pattern.WriteRune(r)
+			p.WriteRune(r)
 		}
 	}
 
@@ -178,5 +194,5 @@ func globToRegexPattern(glob string, opts GlobOptions) ([]byte, bool, error) {
 		return nil, false, errors.NewInvalidParamsError(fmt.Errorf("unbalanced '%c' in %s", groupStartStack[len(groupStartStack)-1], glob))
 	}
 
-	return pattern.buff.Bytes(), regexed, nil
+	return p.buff.Bytes(), regexed, nil
 }

@@ -27,28 +27,19 @@ import (
 	"net/http"
 	"testing"
 
-	xjson "github.com/m3db/m3/src/x/json"
 	"github.com/sergi/go-diff/diffmatchpatch"
 
-	"github.com/golang/protobuf/jsonpb"
+	xjson "github.com/m3db/m3/src/x/json"
+
+	"github.com/gogo/protobuf/jsonpb"
 	extprom "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/expfmt"
 	"github.com/stretchr/testify/require"
 )
 
 func TestPrometheusDefaults(t *testing.T) {
-	sanitization := PrometheusMetricSanitization
-	extended := DetailedExtendedMetrics
-	cfg := MetricsConfiguration{
-		Sanitization: &sanitization,
-		SamplingRate: 1,
-		PrometheusReporter: &PrometheusConfiguration{
-			HandlerPath:   "/metrics",
-			ListenAddress: "0.0.0.0:0",
-			TimerType:     "histogram",
-		},
-		ExtendedMetrics: &extended,
-	}
+	cfg := newConfiguration()
+
 	_, closer, reporters, err := cfg.NewRootScopeAndReporters(
 		NewRootScopeAndReportersOptions{})
 	require.NoError(t, err)
@@ -61,7 +52,7 @@ func TestPrometheusDefaults(t *testing.T) {
 	require.True(t, numDefaultBuckets > 0)
 	require.Equal(t, numDefaultBuckets, len(cfg.PrometheusReporter.DefaultHistogramBuckets))
 
-	// Make sure populated default summmary objectives buckets.
+	// Make sure populated default summary objectives buckets.
 	numQuantiles := len(DefaultSummaryQuantileObjectives())
 	require.True(t, numQuantiles > 0)
 	require.Equal(t, numQuantiles, len(cfg.PrometheusReporter.DefaultSummaryObjectives))
@@ -77,21 +68,7 @@ func TestPrometheusExternalRegistries(t *testing.T) {
 		SubScope: "ext2",
 	}
 
-	sanitization := PrometheusMetricSanitization
-	extended := DetailedExtendedMetrics
-	cfg := MetricsConfiguration{
-		Sanitization: &sanitization,
-		SamplingRate: 1,
-		PrometheusReporter: &PrometheusConfiguration{
-			HandlerPath:   "/metrics",
-			ListenAddress: "0.0.0.0:0",
-			TimerType:     "histogram",
-		},
-		ExtendedMetrics: &extended,
-	}
-
-	listener, err := net.Listen("tcp", ":0")
-	require.NoError(t, err)
+	cfg, listener := startMetricsEndpoint(t)
 
 	scope, closer, reporters, err := cfg.NewRootScopeAndReporters(
 		NewRootScopeAndReportersOptions{
@@ -133,21 +110,12 @@ func TestPrometheusExternalRegistries(t *testing.T) {
 	baz.Inc()
 
 	// Wait for report.
-	require.NoError(t, closer.Close())
-
-	url := fmt.Sprintf("http://%s/metrics", listener.Addr().String())
-	resp, err := http.Get(url)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	defer resp.Body.Close()
-
-	var parser expfmt.TextParser
-	metricFamilies, err := parser.TextToMetricFamilies(resp.Body)
-	require.NoError(t, err)
+	mClosers, ok := closer.(metricsClosers)
+	require.True(t, ok)
+	require.NoError(t, mClosers.reporterCloser.Close())
 
 	expected := map[string]xjson.Map{
-		"foo": xjson.Map{
+		"foo": {
 			"name": "foo",
 			"help": "foo counter",
 			"type": "COUNTER",
@@ -163,7 +131,7 @@ func TestPrometheusExternalRegistries(t *testing.T) {
 				},
 			},
 		},
-		"ext1_bar": xjson.Map{
+		"ext1_bar": {
 			"name": "ext1_bar",
 			"help": "bar help",
 			"type": "COUNTER",
@@ -179,7 +147,7 @@ func TestPrometheusExternalRegistries(t *testing.T) {
 				},
 			},
 		},
-		"ext2_baz": xjson.Map{
+		"ext2_baz": {
 			"name": "ext2_baz",
 			"help": "baz help",
 			"type": "COUNTER",
@@ -196,6 +164,113 @@ func TestPrometheusExternalRegistries(t *testing.T) {
 			},
 		},
 	}
+
+	assertMetricsEqual(t, listener, expected)
+	require.NoError(t, mClosers.Close())
+}
+
+func TestCommonLabelsAdded(t *testing.T) {
+	extReg1 := PrometheusExternalRegistry{
+		Registry: extprom.NewRegistry(),
+		SubScope: "ext1",
+	}
+
+	cfg, listener := startMetricsEndpoint(t)
+
+	scope, closer, reporters, err := cfg.NewRootScopeAndReporters(
+		NewRootScopeAndReportersOptions{
+			PrometheusHandlerListener:    listener,
+			PrometheusExternalRegistries: []PrometheusExternalRegistry{extReg1},
+			CommonLabels:                 map[string]string{"commonLabel": "commonLabelValue"},
+		})
+	require.NoError(t, err)
+	require.NotNil(t, reporters.PrometheusReporter)
+
+	foo := scope.Counter("foo")
+	foo.Inc(3)
+
+	bar := extprom.NewCounter(extprom.CounterOpts{Name: "bar", Help: "bar help"})
+	extReg1.Registry.MustRegister(bar)
+	bar.Inc()
+
+	// Wait for report.
+	mClosers, ok := closer.(metricsClosers)
+	require.True(t, ok)
+	require.NoError(t, mClosers.reporterCloser.Close())
+
+	expected := map[string]xjson.Map{
+		"foo": {
+			"name": "foo",
+			"help": "foo counter",
+			"type": "COUNTER",
+			"metric": xjson.Array{
+				xjson.Map{
+					"counter": xjson.Map{"value": 3},
+					"label": xjson.Array{
+						xjson.Map{
+							"name":  "commonLabel",
+							"value": "commonLabelValue",
+						},
+					},
+				},
+			},
+		},
+		"ext1_bar": {
+			"name": "ext1_bar",
+			"help": "bar help",
+			"type": "COUNTER",
+			"metric": xjson.Array{
+				xjson.Map{
+					"counter": xjson.Map{"value": 1},
+					"label": xjson.Array{
+						xjson.Map{
+							"name":  "commonLabel",
+							"value": "commonLabelValue",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	assertMetricsEqual(t, listener, expected)
+	require.NoError(t, mClosers.Close())
+}
+
+func startMetricsEndpoint(t *testing.T) (MetricsConfiguration, net.Listener) {
+	cfg := newConfiguration()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	return cfg, listener
+}
+
+func newConfiguration() MetricsConfiguration {
+	sanitization := PrometheusMetricSanitization
+	extended := DetailedExtendedMetrics
+	cfg := MetricsConfiguration{
+		Sanitization: &sanitization,
+		SamplingRate: 1,
+		PrometheusReporter: &PrometheusConfiguration{
+			HandlerPath:   "/metrics",
+			ListenAddress: "0.0.0.0:0",
+			TimerType:     "histogram",
+		},
+		ExtendedMetrics: &extended,
+	}
+	return cfg
+}
+
+func assertMetricsEqual(t *testing.T, listener net.Listener, expected map[string]xjson.Map) {
+	url := fmt.Sprintf("http://%s/metrics", listener.Addr().String()) //nolint
+	resp, err := http.Get(url)                                        //nolint
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	defer resp.Body.Close()
+
+	var parser expfmt.TextParser
+	metricFamilies, err := parser.TextToMetricFamilies(resp.Body)
+	require.NoError(t, err)
 
 	expectMatch := len(expected)
 	actualMatch := 0

@@ -24,6 +24,7 @@ option go_package = "github.com/m3db/m3/src/metrics/generated/proto/policypb";
 
 package policypb;
 
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "github.com/m3db/m3/src/metrics/generated/proto/aggregationpb/aggregation.proto";
 
 message Resolution {
@@ -36,8 +37,8 @@ message Retention {
 }
 
 message StoragePolicy {
-  Resolution resolution = 1;
-  Retention retention = 2;
+  Resolution resolution = 1 [(gogoproto.nullable) = false];
+  Retention retention = 2 [(gogoproto.nullable) = false];
 }
 
 message Policy {

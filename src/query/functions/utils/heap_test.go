@@ -21,9 +21,12 @@
 package utils
 
 import (
+	"math"
 	"math/rand"
 	"sort"
 	"testing"
+
+	"github.com/m3db/m3/src/query/test/compare"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -215,4 +218,136 @@ func TestNegativeCapacityHeap(t *testing.T) {
 	for _, pair := range flushed {
 		assert.Equal(t, testArray[pair.Index], pair.Val)
 	}
+}
+
+func equalPairs(t *testing.T, expected, actual []ValueIndexPair) {
+	assert.Equal(t, len(expected), len(actual))
+	for i, e := range expected {
+		compare.EqualsWithNans(t, e.Val, actual[i].Val)
+		assert.Equal(t, e.Index, actual[i].Index)
+	}
+}
+
+func TestFlushOrdered(t *testing.T) {
+	maxHeap := NewFloatHeap(true, 3)
+
+	maxHeap.Push(0.1, 0)
+	maxHeap.Push(1.1, 1)
+	maxHeap.Push(2.1, 2)
+	maxHeap.Push(3.1, 3)
+
+	actualMax := maxHeap.OrderedFlush()
+
+	assert.Equal(t, []ValueIndexPair{
+		{Val: 3.1, Index: 3},
+		{Val: 2.1, Index: 2},
+		{Val: 1.1, Index: 1},
+	}, actualMax)
+	assert.Equal(t, 0, maxHeap.Len())
+
+	minHeap := NewFloatHeap(false, 3)
+	minHeap.Push(0.1, 0)
+	minHeap.Push(1.1, 1)
+	minHeap.Push(2.1, 2)
+	minHeap.Push(3.1, 3)
+
+	actualMin := minHeap.OrderedFlush()
+
+	assert.Equal(t, []ValueIndexPair{
+		{Val: 0.1, Index: 0},
+		{Val: 1.1, Index: 1},
+		{Val: 2.1, Index: 2},
+	}, actualMin)
+	assert.Equal(t, 0, minHeap.Len())
+}
+
+func TestFlushOrderedWhenRandomInsertionOrder(t *testing.T) {
+	maxHeap := NewFloatHeap(true, 3)
+
+	maxHeap.Push(math.NaN(), 4)
+	maxHeap.Push(0.1, 0)
+	maxHeap.Push(2.1, 2)
+	maxHeap.Push(1.1, 1)
+	maxHeap.Push(3.1, 3)
+	maxHeap.Push(math.NaN(), 5)
+
+	actualMax := maxHeap.OrderedFlush()
+
+	assert.Equal(t, []ValueIndexPair{
+		{Val: 3.1, Index: 3},
+		{Val: 2.1, Index: 2},
+		{Val: 1.1, Index: 1},
+	}, actualMax)
+	assert.Equal(t, 0, maxHeap.Len())
+
+	minHeap := NewFloatHeap(false, 3)
+	maxHeap.Push(math.NaN(), 4)
+	minHeap.Push(0.1, 0)
+	minHeap.Push(2.1, 2)
+	minHeap.Push(1.1, 1)
+	minHeap.Push(3.1, 3)
+	maxHeap.Push(math.NaN(), 5)
+
+	actualMin := minHeap.OrderedFlush()
+
+	assert.Equal(t, []ValueIndexPair{
+		{Val: 0.1, Index: 0},
+		{Val: 1.1, Index: 1},
+		{Val: 2.1, Index: 2},
+	}, actualMin)
+	assert.Equal(t, 0, minHeap.Len())
+}
+
+func TestFlushOrderedWhenRandomInsertionOrderAndTakeNaNs(t *testing.T) {
+	maxHeap := NewFloatHeap(true, 3)
+	maxHeap.Push(math.NaN(), 4)
+	maxHeap.Push(1.1, 1)
+	maxHeap.Push(3.1, 3)
+	maxHeap.Push(math.NaN(), 5)
+
+	actualMax := maxHeap.OrderedFlush()
+
+	equalPairs(t, []ValueIndexPair{
+		{Val: 3.1, Index: 3},
+		{Val: 1.1, Index: 1},
+		{Val: math.NaN(), Index: 4},
+	}, actualMax)
+	assert.Equal(t, 0, maxHeap.Len())
+
+	minHeap := NewFloatHeap(false, 3)
+	minHeap.Push(math.NaN(), 4)
+	minHeap.Push(0.1, 0)
+	minHeap.Push(2.1, 2)
+	minHeap.Push(math.NaN(), 5)
+
+	actualMin := minHeap.OrderedFlush()
+
+	equalPairs(t, []ValueIndexPair{
+		{Val: 0.1, Index: 0},
+		{Val: 2.1, Index: 2},
+		{Val: math.NaN(), Index: 4},
+	}, actualMin)
+	assert.Equal(t, 0, minHeap.Len())
+}
+
+func TestSortLesserWithNaNs(t *testing.T) {
+	actual := []float64{ 5.0, 4.1, math.NaN(), 8.6, 0.1 }
+	expected := []float64{ 0.1, 4.1, 5.0, 8.6, math.NaN() }
+
+	sort.Slice(actual, func(i, j int) bool {
+		return LesserWithNaNs(actual[i], actual[j])
+	})
+
+	compare.EqualsWithNans(t, expected, actual)
+}
+
+func TestSortGreaterWithNaNs(t *testing.T) {
+	actual := []float64{ 5.0, 4.1, math.NaN(), 8.6, 0.1 }
+	expected := []float64{ 8.6, 5.0, 4.1, 0.1, math.NaN() }
+
+	sort.Slice(actual, func(i, j int) bool {
+		return GreaterWithNaNs(actual[i], actual[j])
+	})
+
+	compare.EqualsWithNans(t, expected, actual)
 }
