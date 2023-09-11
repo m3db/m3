@@ -107,7 +107,7 @@ type Map interface {
 	LookupHostShardSet(hostID string) (HostShardSet, bool)
 
 	// LookupInitializingHostPair returns the initializing host bootstrapping from specific shard from leaving host.
-	LookupInitializingHostPair(hostID string, id uint32) (string, bool)
+	LookupInitializingHostPair(leavingHostID string, id uint32) (string, bool)
 
 	// HostsLen returns the length of all hosts in the map
 	HostsLen() int

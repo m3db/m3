@@ -194,12 +194,18 @@ func TestReplaceNodeWithShardsLeavingAndInitializingCountTowardsConsistencySet(t
 	minShard := uint32(0)
 	maxShard := uint32(numShards - 1)
 
+	initShards := newClusterShardsRange(minShard, maxShard, shard.Initializing)
+	for i := minShard; i < maxShard; i++ {
+		shard, _ := initShards.Shard(i)
+		shard.SetSourceID("testhost0")
+	}
+
 	// nodes = m3db nodes
 	nodes, closeFn, testWrite := makeTestWrite(t, numShards, []services.ServiceInstance{
 		node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Leaving)),
 		node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Available)),
 		node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
-		node(t, 3, newClusterShardsRange(minShard, maxShard, shard.Initializing)),
+		node(t, 3, initShards),
 	}, true)
 	defer closeFn()
 
@@ -211,6 +217,54 @@ func TestReplaceNodeWithShardsLeavingAndInitializingCountTowardsConsistencySet(t
 	defer func() { require.NoError(t, nodes[3].StopServer()) }()
 
 	// Writes succeed to one available node and on both leaving and initializing node.
+	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
+	assert.NoError(t, testWrite(topology.ConsistencyLevelMajority))
+	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
+}
+
+func TestMultipleReplaceNodeWithShardsLeavingAndInitializingCountTowardsConsistencySet(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	numShards := defaultNumShards
+	minShard := uint32(0)
+	maxShard := uint32(numShards - 1)
+
+	// 1st replace with testhost0 as source node.
+	initShards1 := newClusterShardsRange(minShard, maxShard, shard.Initializing)
+	for i := minShard; i < maxShard; i++ {
+		shard, _ := initShards1.Shard(i)
+		shard.SetSourceID("testhost0")
+	}
+
+	// 2nd replace with testhost1 as source node.
+	initShards2 := newClusterShardsRange(minShard, maxShard, shard.Initializing)
+	for i := minShard; i < maxShard; i++ {
+		shard, _ := initShards2.Shard(i)
+		shard.SetSourceID("testhost1")
+	}
+
+	// nodes = m3db nodes
+	nodes, closeFn, testWrite := makeTestWrite(t, numShards, []services.ServiceInstance{
+		node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Leaving)),
+		node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Leaving)),
+		node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
+		node(t, 3, initShards1),
+		node(t, 4, initShards2),
+	}, true)
+	defer closeFn()
+
+	require.NoError(t, nodes[0].StartServer())
+	defer func() { require.NoError(t, nodes[0].StopServer()) }()
+	require.NoError(t, nodes[1].StartServer())
+	defer func() { require.NoError(t, nodes[1].StopServer()) }()
+	require.NoError(t, nodes[3].StartServerDontWaitBootstrap())
+	defer func() { require.NoError(t, nodes[3].StopServer()) }()
+	require.NoError(t, nodes[4].StartServerDontWaitBootstrap())
+	defer func() { require.NoError(t, nodes[4].StopServer()) }()
+
+	// Writes succeed to both leaving and initializing pairs.
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
 	assert.NoError(t, testWrite(topology.ConsistencyLevelMajority))
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
@@ -279,7 +333,7 @@ func makeTestWrite(
 		SetClusterConnectTimeout(2 * time.Second).
 		SetWriteRequestTimeout(2 * time.Second).
 		SetTopologyInitializer(topoInit).
-		SetShardsLeavingCountTowardsConsistency(isShardsLeavingAndInitializingCountTowardsConsistency)
+		SetShardsLeavingAndInitializingCountTowardsConsistency(isShardsLeavingAndInitializingCountTowardsConsistency)
 
 	testWrite := func(cLevel topology.ConsistencyLevel) error {
 		clientopts = clientopts.SetWriteConsistencyLevel(cLevel)

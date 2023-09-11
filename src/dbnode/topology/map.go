@@ -34,7 +34,7 @@ type staticMap struct {
 	orderedHosts             []Host
 	hostsByShard             [][]Host
 	orderedShardHostsByShard [][]orderedShardHost
-	initializingHostMap      map[string]map[uint32]string
+	initializingHostMap      map[string]map[uint32]string // it stores {leavingHostID : {shardID : initializingHostID}}
 	replicas                 int
 	majority                 int
 }
@@ -110,8 +110,8 @@ func (t *staticMap) LookupHostShardSet(id string) (HostShardSet, bool) {
 	return value, ok
 }
 
-func (t *staticMap) LookupInitializingHostPair(hostID string, id uint32) (string, bool) {
-	value, ok := t.initializingHostMap[hostID]
+func (t *staticMap) LookupInitializingHostPair(leavingHostID string, id uint32) (string, bool) {
+	value, ok := t.initializingHostMap[leavingHostID]
 	if !ok {
 		return "", false
 	}
