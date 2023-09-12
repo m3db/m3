@@ -496,18 +496,18 @@ func (mr *MockMapMockRecorder) LookupHostShardSet(hostID interface{}) *gomock.Ca
 }
 
 // LookupInitializingHostPair mocks base method.
-func (m *MockMap) LookupInitializingHostPair(hostID string, id uint32) (string, bool) {
+func (m *MockMap) LookupInitializingHostPair(leavingHostID string, id uint32) (string, bool) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LookupInitializingHostPair", hostID, id)
+	ret := m.ctrl.Call(m, "LookupInitializingHostPair", leavingHostID, id)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
 
 // LookupInitializingHostPair indicates an expected call of LookupInitializingHostPair.
-func (mr *MockMapMockRecorder) LookupInitializingHostPair(hostID, id interface{}) *gomock.Call {
+func (mr *MockMapMockRecorder) LookupInitializingHostPair(leavingHostID, id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookupInitializingHostPair", reflect.TypeOf((*MockMap)(nil).LookupInitializingHostPair), hostID, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookupInitializingHostPair", reflect.TypeOf((*MockMap)(nil).LookupInitializingHostPair), leavingHostID, id)
 }
 
 // MajorityReplicas mocks base method.
