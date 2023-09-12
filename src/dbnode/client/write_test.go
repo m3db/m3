@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	tterrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/checked"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -41,9 +42,9 @@ import (
 func testWriteSuccess(t *testing.T, state shard.State, success bool) {
 	var writeWg sync.WaitGroup
 
-	wState, s, host := writeTestSetup(t, &writeWg)
-	setShardStates(t, s, host, state)
-	wState.completionFn(host, nil)
+	wState, s, hosts := writeTestSetup(t, &writeWg)
+	setShardStates(t, s, hosts[0], state)
+	wState.completionFn(hosts[0], nil)
 
 	if success {
 		assert.Equal(t, int32(1), wState.success)
@@ -78,11 +79,11 @@ func retryabilityCheck(t *testing.T, wState *writeState, testFn errTestFn) {
 func simpleRetryableTest(t *testing.T, passedErr error, customHost topology.Host, testFn errTestFn) {
 	var writeWg sync.WaitGroup
 
-	wState, _, host := writeTestSetup(t, &writeWg)
+	wState, _, hosts := writeTestSetup(t, &writeWg)
 	if customHost != nil {
-		host = customHost
+		hosts[0] = customHost
 	}
-	wState.completionFn(host, passedErr)
+	wState.completionFn(hosts[0], passedErr)
 	retryabilityCheck(t, wState, testFn)
 	writeTestTeardown(wState, &writeWg)
 }
@@ -106,10 +107,10 @@ func TestBadHostID(t *testing.T) {
 func TestBadShardID(t *testing.T) {
 	var writeWg sync.WaitGroup
 
-	wState, _, host := writeTestSetup(t, &writeWg)
+	wState, _, hosts := writeTestSetup(t, &writeWg)
 	o := wState.op.(*writeOperation)
 	o.shardID = writeOperationZeroed.shardID
-	wState.completionFn(host, nil)
+	wState.completionFn(hosts[0], nil)
 	retryabilityCheck(t, wState, xerrors.IsRetryableError)
 	writeTestTeardown(wState, &writeWg)
 }
@@ -117,9 +118,9 @@ func TestBadShardID(t *testing.T) {
 func TestShardNotAvailable(t *testing.T) {
 	var writeWg sync.WaitGroup
 
-	wState, s, host := writeTestSetup(t, &writeWg)
-	setShardStates(t, s, host, shard.Initializing)
-	wState.completionFn(host, nil)
+	wState, s, hosts := writeTestSetup(t, &writeWg)
+	setShardStates(t, s, hosts[0], shard.Initializing)
+	wState.completionFn(hosts[0], nil)
 	retryabilityCheck(t, wState, xerrors.IsRetryableError)
 	writeTestTeardown(wState, &writeWg)
 }
@@ -127,12 +128,75 @@ func TestShardNotAvailable(t *testing.T) {
 func TestShardLeavingWithShardsLeavingCountTowardsConsistency(t *testing.T) {
 	var writeWg sync.WaitGroup
 
-	wState, s, host := writeTestSetup(t, &writeWg)
+	wState, s, hosts := writeTestSetup(t, &writeWg)
 	wState.shardsLeavingCountTowardsConsistency = true
-	setShardStates(t, s, host, shard.Leaving)
-	wState.completionFn(host, nil)
+	setShardStates(t, s, hosts[0], shard.Leaving)
+	wState.completionFn(hosts[0], nil)
 	assert.Equal(t, int32(1), wState.success)
 	writeTestTeardown(wState, &writeWg)
+}
+
+func TestShardLeavingAndInitializingCountTowardsConsistencyWithTrueFlag(t *testing.T) {
+	var writeWg sync.WaitGroup
+
+	wState, s, hosts := writeTestSetup(t, &writeWg)
+
+	setupShardLeavingAndInitializingCountTowardsConsistency(t, wState, s, true)
+	wState.completionFn(hosts[1], nil)
+	wState.incRef()
+	assert.Equal(t, int32(0), wState.success)
+	wState.completionFn(hosts[0], nil)
+	assert.Equal(t, int32(1), wState.success)
+	writeTestTeardown(wState, &writeWg)
+}
+
+func TestShardLeavingAndInitializingCountTowardsConsistencyWithFalseFlag(t *testing.T) {
+	var writeWg sync.WaitGroup
+
+	wState, s, hosts := writeTestSetup(t, &writeWg)
+
+	setupShardLeavingAndInitializingCountTowardsConsistency(t, wState, s, false)
+	wState.completionFn(hosts[1], nil)
+	wState.incRef()
+	wState.completionFn(hosts[0], nil)
+	assert.Equal(t, int32(0), wState.success)
+	writeTestTeardown(wState, &writeWg)
+}
+
+func setupShardLeavingAndInitializingCountTowardsConsistency(
+	t *testing.T,
+	wState *writeState,
+	s *session,
+	leavingAndInitializingFlag bool) {
+	hostShardSets := []topology.HostShardSet{}
+	for _, host := range s.state.topoMap.Hosts() {
+		hostShard, _ := sharding.NewShardSet(
+			sharding.NewShards([]uint32{0, 1, 2}, shard.Available),
+			sharding.DefaultHashFn(3),
+		)
+		hostShardSet := topology.NewHostShardSet(host, hostShard)
+		hostShardSets = append(hostShardSets, hostShardSet)
+	}
+	opts := topology.NewStaticOptions().
+		SetShardSet(s.state.topoMap.ShardSet()).
+		SetReplicas(3).
+		SetHostShardSets(hostShardSets)
+	m := topology.NewStaticMap(opts)
+	s.state.topoMap = m
+	wState.topoMap = m // update topology with hostshards options
+
+	// mark leaving shards in host0 and init in host1
+	markHostReplacement(t, s, s.state.topoMap.Hosts()[0], s.state.topoMap.Hosts()[1])
+
+	opts = topology.NewStaticOptions().
+		SetShardSet(s.state.topoMap.ShardSet()).
+		SetReplicas(3).
+		SetHostShardSets(hostShardSets)
+	m = topology.NewStaticMap(opts)
+	wState.topoMap = m
+	s.state.topoMap = m // update the topology manually after replace node.
+
+	wState.shardsLeavingAndInitializingCountTowardsConsistency = leavingAndInitializingFlag
 }
 
 // utils
@@ -169,13 +233,30 @@ func setShardStates(t *testing.T, s *session, host topology.Host, state shard.St
 	}
 }
 
+func markHostReplacement(t *testing.T, s *session, leavingHost topology.Host, initializingHost topology.Host) {
+	s.state.RLock()
+	leavingHostShardSet, ok := s.state.topoMap.LookupHostShardSet(leavingHost.ID())
+	require.True(t, ok)
+	initializingHostShardSet, ok := s.state.topoMap.LookupHostShardSet(initializingHost.ID())
+	s.state.RUnlock()
+	require.True(t, ok)
+
+	for _, leavinghostShard := range leavingHostShardSet.ShardSet().All() {
+		leavinghostShard.SetState(shard.Leaving)
+	}
+	for _, initializinghostShard := range initializingHostShardSet.ShardSet().All() {
+		initializinghostShard.SetState(shard.Initializing)
+		initializinghostShard.SetSourceID(leavingHost.ID())
+	}
+}
+
 type fakeHost struct{ id string }
 
 func (f fakeHost) ID() string      { return f.id }
 func (f fakeHost) Address() string { return "" }
 func (f fakeHost) String() string  { return "" }
 
-func writeTestSetup(t *testing.T, writeWg *sync.WaitGroup) (*writeState, *session, topology.Host) {
+func writeTestSetup(t *testing.T, writeWg *sync.WaitGroup) (*writeState, *session, []topology.Host) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -192,12 +273,11 @@ func writeTestSetup(t *testing.T, writeWg *sync.WaitGroup) (*writeState, *sessio
 		require.NoError(t, s.Close())
 	}()
 
-	host := s.state.topoMap.Hosts()[0] // any host
+	hosts := s.state.topoMap.Hosts()
 
 	wState := getWriteState(s, w)
 	wState.incRef() // for the test
 	wState.incRef() // allow introspection
-
 	// Begin write
 	writeWg.Add(1)
 	go func() {
@@ -210,10 +290,10 @@ func writeTestSetup(t *testing.T, writeWg *sync.WaitGroup) (*writeState, *sessio
 	enqueueWg.Wait()
 	require.True(t, s.state.topoMap.Replicas() == sessionTestReplicas)
 	for i := 0; i < s.state.topoMap.Replicas(); i++ {
-		completionFn(host, nil) // maintain session state
+		completionFn(hosts[i], nil) // maintain session state
 	}
 
-	return wState, s, host
+	return wState, s, hosts
 }
 
 func writeTestTeardown(wState *writeState, writeWg *sync.WaitGroup) {
