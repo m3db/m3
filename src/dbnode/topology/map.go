@@ -75,7 +75,6 @@ func NewStaticMap(opts StaticOptions) Map {
 		host := hostShardSet.Host()
 		var shardToInitializingHost map[uint32]string
 		for _, shard := range hostShardSet.ShardSet().All() {
-
 			if shard.SourceID() != "" {
 				if topoMap.initializingHostMap == nil {
 					topoMap.initializingHostMap = make(map[string]map[uint32]string)

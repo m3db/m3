@@ -201,13 +201,13 @@ func TestReplaceNodeWithShardsLeavingAndInitializingCountTowardsConsistencySet(t
 	}
 
 	// nodes = m3db nodes
-	nodes, closeFn, testWrite := makeTestWrite(t, numShards, []services.ServiceInstance{
+	nodes, closeFunc, testWrite := makeTestWrite(t, numShards, []services.ServiceInstance{
 		node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Leaving)),
 		node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Available)),
 		node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
 		node(t, 3, initShards),
 	}, true)
-	defer closeFn()
+	defer closeFunc()
 
 	require.NoError(t, nodes[0].StartServer())
 	defer func() { require.NoError(t, nodes[0].StopServer()) }()
@@ -246,14 +246,14 @@ func TestMultipleReplaceNodeWithShardsLeavingAndInitializingCountTowardsConsiste
 	}
 
 	// nodes = m3db nodes
-	nodes, closeFn, testWrite := makeTestWrite(t, numShards, []services.ServiceInstance{
+	nodes, closeFunc, testWrite := makeTestWrite(t, numShards, []services.ServiceInstance{
 		node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Leaving)),
 		node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Leaving)),
 		node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
 		node(t, 3, initShards1),
 		node(t, 4, initShards2),
 	}, true)
-	defer closeFn()
+	defer closeFunc()
 
 	require.NoError(t, nodes[0].StartServer())
 	defer func() { require.NoError(t, nodes[0].StopServer()) }()

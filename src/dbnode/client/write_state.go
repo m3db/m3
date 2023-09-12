@@ -318,7 +318,6 @@ func newCountTowardsConsistency(
 	leavingCountsIndividually bool,
 	leavingAndInitializingCountsAsPair bool,
 ) countTowardsConsistency {
-
 	isAvailable := shardState == shard.Available
 	isLeaving := shardState == shard.Leaving
 	isInitializing := shardState == shard.Initializing
