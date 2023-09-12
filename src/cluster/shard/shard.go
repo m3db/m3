@@ -108,7 +108,6 @@ func (s *shard) State() State                      { return s.state }
 func (s *shard) SetState(state State) Shard        { s.state = state; return s }
 func (s *shard) SourceID() string                  { return s.sourceID }
 func (s *shard) SetSourceID(sourceID string) Shard { s.sourceID = sourceID; return s }
-
 func (s *shard) CutoverNanos() int64 {
 	if s.cutoverNanos != UnInitializedValue {
 		return s.cutoverNanos

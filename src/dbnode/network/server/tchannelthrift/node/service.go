@@ -2851,17 +2851,24 @@ func (p *writeBatchPooledReqPool) Init() {
 
 func (p *writeBatchPooledReqPool) Get(size int) *writeBatchPooledReq {
 	cappedSize := size
-	if cappedSize > client.DefaultWriteBatchSize {
-		cappedSize = client.DefaultWriteBatchSize
+
+	// NB(r): Capping pooled IDs to 2x the default write batch size to account for
+	// clients which are sending batches greater than default write batch size
+	if cappedSize > (2 * client.DefaultWriteBatchSize) {
+		cappedSize = 2 * client.DefaultWriteBatchSize
 	}
 	// NB(r): Make pooled IDs plus an extra one for the namespace
 	cappedSize++
 
 	pooledReq := p.pool.Get().(*writeBatchPooledReq)
 	if cappedSize > len(pooledReq.pooledIDs) {
-		newPooledIDs := make([]writeBatchPooledReqID, 0, cappedSize)
-		newPooledIDs = append(newPooledIDs, pooledReq.pooledIDs...)
+		// 1. Allocate slice of required length in case the current length is insufficient.
+		newPooledIDs := make([]writeBatchPooledReqID, cappedSize)
 
+		// 2. Transfer existing elements into the new slice for reuse.
+		copy(newPooledIDs, pooledReq.pooledIDs)
+
+		// 3. Fill remaining part of the slice with new elements.
 		for i := len(pooledReq.pooledIDs); i < len(newPooledIDs); i++ {
 			newPooledIDs[i].bytes = checked.NewBytes(nil, nil)
 			newPooledIDs[i].id = ident.BinaryID(newPooledIDs[i].bytes)

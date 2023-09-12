@@ -76,6 +76,14 @@ func (s *shardSet) Lookup(identifier ident.ID) uint32 {
 	return s.fn(identifier)
 }
 
+func (s *shardSet) LookupShard(shardID uint32) (shard.Shard, error) {
+	hostShard, ok := s.shardMap[shardID]
+	if !ok {
+		return nil, ErrInvalidShardID
+	}
+	return hostShard, nil
+}
+
 func (s *shardSet) LookupStateByID(shardID uint32) (shard.State, error) {
 	hostShard, ok := s.shardMap[shardID]
 	if !ok {

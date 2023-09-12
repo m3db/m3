@@ -34,6 +34,7 @@ type staticMap struct {
 	orderedHosts             []Host
 	hostsByShard             [][]Host
 	orderedShardHostsByShard [][]orderedShardHost
+	initializingHostMap      map[string]map[uint32]string // it stores {leavingHostID : {shardID : initializingHostID}}
 	replicas                 int
 	majority                 int
 }
@@ -57,6 +58,7 @@ func NewStaticMap(opts StaticOptions) Map {
 		host := hostShardSet.Host()
 		topoMap.hostShardSetsByID[host.ID()] = hostShardSet
 		topoMap.orderedHosts = append(topoMap.orderedHosts, host)
+
 		for _, shard := range hostShardSet.ShardSet().All() {
 			id := shard.ID()
 			topoMap.hostsByShard[id] = append(topoMap.hostsByShard[id], host)
@@ -69,7 +71,22 @@ func NewStaticMap(opts StaticOptions) Map {
 				append(topoMap.orderedShardHostsByShard[id], elem)
 		}
 	}
-
+	for _, hostShardSet := range hostShardSets {
+		host := hostShardSet.Host()
+		var shardToInitializingHost map[uint32]string
+		for _, shard := range hostShardSet.ShardSet().All() {
+			if shard.SourceID() != "" {
+				if topoMap.initializingHostMap == nil {
+					topoMap.initializingHostMap = make(map[string]map[uint32]string)
+				}
+				if shardToInitializingHost == nil {
+					shardToInitializingHost = make(map[uint32]string)
+				}
+				shardToInitializingHost[shard.ID()] = host.ID()
+				topoMap.initializingHostMap[shard.SourceID()] = shardToInitializingHost
+			}
+		}
+	}
 	return &topoMap
 }
 
@@ -90,6 +107,15 @@ func (t *staticMap) HostShardSets() []HostShardSet {
 func (t *staticMap) LookupHostShardSet(id string) (HostShardSet, bool) {
 	value, ok := t.hostShardSetsByID[id]
 	return value, ok
+}
+
+func (t *staticMap) LookupInitializingHostPair(leavingHostID string, id uint32) (string, bool) {
+	value, ok := t.initializingHostMap[leavingHostID]
+	if !ok {
+		return "", false
+	}
+	initializingHost, ok := value[id]
+	return initializingHost, ok
 }
 
 func (t *staticMap) HostsLen() int {
