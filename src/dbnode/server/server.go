@@ -852,28 +852,34 @@ func Run(runOpts RunOptions) {
 		if err != nil {
 			logger.Warn("could not create handler options for debug writer", zap.Error(err))
 		} else {
-			envCfgCluster, err := envConfig.Services.SyncCluster()
-			if err != nil || envCfgCluster.Service == nil {
-				logger.Warn("could not get cluster config for debug writer",
+			if envConfig.Services == nil || len(envConfig.Services) == 0 {
+				logger.Warn("no DynamicConfiguration set; not configuring debug writer",
 					zap.Error(err),
-					zap.Bool("envCfgClusterServiceIsNil", envCfgCluster.Service == nil))
+				)
 			} else {
-				debugWriter, err = extdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
-					cpuProfileDuration,
-					syncCfg.ClusterClient,
-					handlerOpts,
-					[]handleroptions.ServiceNameAndDefaults{
-						{
-							ServiceName: handleroptions.M3DBServiceName,
-							Defaults: []handleroptions.ServiceOptionsDefault{
-								handleroptions.WithDefaultServiceEnvironment(envCfgCluster.Service.Env),
-								handleroptions.WithDefaultServiceZone(envCfgCluster.Service.Zone),
+				envCfgCluster, err := envConfig.Services.SyncCluster()
+				if err != nil {
+					logger.Warn("could not get cluster config for debug writer",
+						zap.Error(err),
+					)
+				} else {
+					debugWriter, err = extdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
+						cpuProfileDuration,
+						syncCfg.ClusterClient,
+						handlerOpts,
+						[]handleroptions.ServiceNameAndDefaults{
+							{
+								ServiceName: handleroptions.M3DBServiceName,
+								Defaults: []handleroptions.ServiceOptionsDefault{
+									handleroptions.WithDefaultServiceEnvironment(envCfgCluster.Service.Env),
+									handleroptions.WithDefaultServiceZone(envCfgCluster.Service.Zone),
+								},
 							},
 						},
-					},
-					iOpts)
-				if err != nil {
-					logger.Error("unable to create debug writer", zap.Error(err))
+						iOpts)
+					if err != nil {
+						logger.Error("unable to create debug writer", zap.Error(err))
+					}
 				}
 			}
 		}

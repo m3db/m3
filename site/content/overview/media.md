@@ -14,10 +14,6 @@ weight: 3
 
 Recordings of all past meetups can be found on a [Vimeo M3 Community Meetings folder](https://vimeo.com/user/120001164/folder/2290331).
 
-- [June 2020 Meetup](https://vimeo.com/440390957).
-
-- [July 2020 Meetup and LinkedIn presentation](https://vimeo.com/440390957).
-
 - [August 2020 Meetup and Walmart presentation](https://vimeo.com/449883279).
 
 - [M3 Day 2021](https://vimeo.com/user/120001164/folder/3804212).
