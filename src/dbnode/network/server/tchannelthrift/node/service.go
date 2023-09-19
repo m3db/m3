@@ -440,9 +440,10 @@ func (s *service) Bootstrapped(ctx thrift.Context) (*rpc.NodeBootstrappedResult_
 // BootstrappedInPlacementOrNoPlacement is designed to be used with cluster
 // management tools like k8s that expected an endpoint that will return
 // success if the node either:
-// 1) Has no cluster placement set yet.
-// 2) Is bootstrapped and durable, meaning it is bootstrapped and is able
-//    to bootstrap the shards it owns from it's own local disk.
+//  1. Has no cluster placement set yet.
+//  2. Is bootstrapped and durable, meaning it is bootstrapped and is able
+//     to bootstrap the shards it owns from it's own local disk.
+//
 // This is useful in addition to the Bootstrapped RPC method as it helps
 // progress node addition/removal/modifications when no placement is set
 // at all and therefore the node has not been able to bootstrap yet.
@@ -519,10 +520,26 @@ func (s *service) query(ctx context.Context, db storage.Database, req *rpc.Query
 	if len(req.Source) > 0 {
 		opts.Source = req.Source
 	}
-	queryResult, err := db.QueryIDs(ctx, nsID, index.Query{Query: q}, opts)
+
+	query := index.Query{Query: q}
+	s.logger.Info(
+		"qwe start QueryIDs from query",
+		zap.String("nsID", nsID.String()),
+		zap.String("query", query.String()),
+		zap.String("opts", fmt.Sprintf("%+v", opts)),
+	)
+	queryResult, err := db.QueryIDs(ctx, nsID, query, opts)
 	if err != nil {
 		return nil, convert.ToRPCError(err)
 	}
+	s.logger.Info(
+		"qwe end QueryIDs from query",
+		zap.Int("resultsSize", queryResult.Results.Size()),
+		zap.Int("totalDocsCount", queryResult.Results.TotalDocsCount()),
+		zap.Bool("enforceLimits", queryResult.Results.EnforceLimits()),
+		zap.Bool("exhaustive", queryResult.Exhaustive),
+		zap.Int("waited", queryResult.Waited),
+	)
 
 	result := &rpc.QueryResult_{
 		Results:    make([]*rpc.QueryResultElement, 0, queryResult.Results.Map().Len()),
@@ -834,10 +851,24 @@ func (s *service) fetchTaggedIter(
 		return nil, tterrors.NewBadRequestError(err)
 	}
 
+	s.logger.Info(
+		"qwe start QueryIDs from fetch",
+		zap.String("nsID", ns.String()),
+		zap.String("query", query.String()),
+		zap.String("opts", fmt.Sprintf("%+v", opts)),
+	)
 	queryResult, err := db.QueryIDs(ctx, ns, query, opts)
 	if err != nil {
 		return nil, convert.ToRPCError(err)
 	}
+	s.logger.Info(
+		"qwe end QueryIDs from fetch",
+		zap.Int("resultsSize", queryResult.Results.Size()),
+		zap.Int("totalDocsCount", queryResult.Results.TotalDocsCount()),
+		zap.Bool("enforceLimits", queryResult.Results.EnforceLimits()),
+		zap.Bool("exhaustive", queryResult.Exhaustive),
+		zap.Int("waited", queryResult.Waited),
+	)
 
 	permits, err := s.seriesReadPermits.NewPermits(ctx)
 	if err != nil {
