@@ -22,7 +22,7 @@ package filter
 
 import (
 	"testing"
-	
+
 	"github.com/m3db/m3/src/msg/producer"
 
 	"github.com/golang/mock/gomock"
