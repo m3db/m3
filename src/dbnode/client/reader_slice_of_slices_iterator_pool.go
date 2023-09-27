@@ -35,7 +35,7 @@ func newReaderSliceOfSlicesIteratorPool(
 
 func (p *readerSliceOfSlicesIteratorPool) Init() {
 	p.pool.Init(func() interface{} {
-		return newReaderSliceOfSlicesIterator(nil, p)
+		return NewReaderSliceOfSlicesIterator(nil, p)
 	})
 }
 
