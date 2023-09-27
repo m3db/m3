@@ -155,11 +155,14 @@ type DynamicBackendConfiguration struct {
 	// Producer configs the m3msg producer.
 	Producer config.ProducerConfiguration `yaml:"producer"`
 
-	// Filters configs the filter for consumer services.
-	Filters []ConsumerServiceFilterConfiguration `yaml:"filters"`
+	// ShardSetFilters configs the shard set filter for consumer services.
+	ShardSetFilters []ConsumerServiceFilterConfiguration `yaml:"filters"`
 
-	// Filters configs the filter for consumer services.
+	// StoragePolicyFilters configs the storage policy filter for consumer services.
 	StoragePolicyFilters []storagePolicyFilterConfiguration `yaml:"storagePolicyFilters"`
+
+	// PercentageFilters configs the percentage filter for consumer services.
+	PercentageFilters []percentageFilterConfiguration `yaml:"percentageFilters"`
 
 	// Writer configs the writer options.
 	Writer writerConfiguration `yaml:"writer"`
@@ -183,7 +186,7 @@ func (c *DynamicBackendConfiguration) newProtobufHandler(
 		return nil, err
 	}
 	logger := instrumentOpts.Logger()
-	for _, filter := range c.Filters {
+	for _, filter := range c.ShardSetFilters {
 		sid, f := filter.NewConsumerServiceFilter()
 		p.RegisterFilter(sid, f)
 		logger.Info("registered filter for consumer service", zap.Stringer("service", sid))
@@ -193,6 +196,13 @@ func (c *DynamicBackendConfiguration) newProtobufHandler(
 		p.RegisterFilter(sid, f)
 		logger.Info("registered storage policy filter for consumer service",
 			zap.Any("policies", filter.StoragePolicies),
+			zap.Stringer("service", sid))
+	}
+	for _, filter := range c.PercentageFilters {
+		sid, f := filter.NewConsumerServiceFilter()
+		p.RegisterFilter(sid, f)
+		logger.Info("registered percentage filter for consumer service",
+			zap.Any("percentage", filter.Percentage),
 			zap.Stringer("service", sid))
 	}
 	wOpts := c.Writer.NewWriterOptions(instrumentOpts)
@@ -207,6 +217,15 @@ type storagePolicyFilterConfiguration struct {
 
 func (c storagePolicyFilterConfiguration) NewConsumerServiceFilter() (services.ServiceID, producer.FilterFunc) {
 	return c.ServiceID.NewServiceID(), writer.NewStoragePolicyFilter(c.StoragePolicies)
+}
+
+type percentageFilterConfiguration struct {
+	ServiceID  services.ServiceIDConfiguration `yaml:"serviceID" validate:"nonzero"`
+	Percentage float64                         `yaml:"percentage" validate:"min=0.0,max=1.0"`
+}
+
+func (c percentageFilterConfiguration) NewConsumerServiceFilter() (services.ServiceID, producer.FilterFunc) {
+	return c.ServiceID.NewServiceID(), filter.NewPercentageFilter(c.Percentage)
 }
 
 // ConsumerServiceFilterConfiguration - exported to be able to write unit tests
