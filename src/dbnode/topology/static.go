@@ -43,7 +43,7 @@ func (i staticInitializer) Init() (Topology, error) {
 	if err := i.opts.Validate(); err != nil {
 		return nil, err
 	}
-	return NewStaticTopology(i.opts)
+	return NewStaticTopology(i.opts), nil
 }
 
 func (i staticInitializer) TopologyIsSet() (bool, error) {
