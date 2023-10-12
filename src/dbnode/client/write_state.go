@@ -92,7 +92,6 @@ func newWriteState(
 	w := &writeState{
 		pool:           pool,
 		tagEncoderPool: encoderPool,
-		reusableByteID: ident.NewReusableBytesID(),
 	}
 	w.destructorFn = w.close
 	w.L = w
@@ -253,9 +252,7 @@ func (w *writeState) setHostSuccessListWithLock(hostID, pairedHostID string) {
 }
 
 type writeStatePool struct {
-	hostSuccessList     []ident.ID
 	pool                pool.ObjectPool
-	reusableByteID      *ident.ReusableBytesID
 	tagEncoderPool      serialize.TagEncoderPool
 	logger              *zap.Logger
 	logHostErrorSampler *sampler.Sampler
@@ -270,7 +267,6 @@ func newWriteStatePool(
 	p := pool.NewObjectPool(opts)
 	return &writeStatePool{
 		pool:                p,
-		reusableByteID:      ident.NewReusableBytesID(),
 		tagEncoderPool:      tagEncoderPool,
 		logger:              logger,
 		logHostErrorSampler: logHostErrorSampler,
@@ -351,7 +347,7 @@ func findHost(hostSuccessList []string, hostID string) bool {
 	// The reason for iterating over list(hostSuccessList) instead of taking map here is the slice performs better over
 	// the map for less than 10 datasets.
 	for _, val := range hostSuccessList {
-		if val.Equal(hostID) {
+		if val == hostID {
 			return true
 		}
 	}
