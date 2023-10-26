@@ -1,34 +1,3 @@
 # Change the default theme to be use when building the site with Hugo
 [module]
   replacements = "github.com/chronosphereio/victor -> ../../../victor"
-
-  [[module.imports]]
-    path = "github.com/chronosphereio/victor"
-    
-  [[module.mounts]]
-    source = "content"
-    target = "content/docs"
-
-  [[module.mounts]]
-    source = "static"
-    target = "static"
-
-  [[module.mounts]]
-    source = "layouts"
-    target = "layouts"
-
-  [[module.mounts]]
-    source = "data"
-    target = "data"
-
-  [[module.mounts]]
-    source = "assets"
-    target = "assets"
-
-  [[module.mounts]]
-    source = "i18n"
-    target = "i18n"
-
-  [[module.mounts]]
-    source = "archetypes"
-    target = "archetypes"
