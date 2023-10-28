@@ -236,6 +236,72 @@ func TestFetchQueryToM3Query(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:     "disjunction with empty (no field) match, no parens",
+			expected: "disjunction(negation(field(env)), regexp(env,one|))",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchRegexp,
+					Name:  []byte("env"),
+					Value: []byte("one|"),
+				},
+			},
+		},
+		{
+			name:     "disjunction with empty (no field) match",
+			expected: "disjunction(negation(field(env)), regexp(env,(|one|two)))",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchRegexp,
+					Name:  []byte("env"),
+					Value: []byte("(|one|two)"),
+				},
+			},
+		},
+		{
+			name:     "disjunction with non trivial empty (no field) match",
+			expected: "disjunction(negation(field(env)), regexp(env,\\d*|one))",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchRegexp,
+					Name:  []byte("env"),
+					Value: []byte("\\d*|one"),
+				},
+			},
+		},
+		{
+			name:     "disjunction with both empty (no field) matches",
+			expected: "disjunction(negation(field(env)), regexp(env,(|)))",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchRegexp,
+					Name:  []byte("env"),
+					Value: []byte("(|)"),
+				},
+			},
+		},
+		{
+			name:     "negated disjunction with empty (no field) match",
+			expected: "conjunction(field(env),negation(regexp(env,(|one))))",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchNotRegexp,
+					Name:  []byte("env"),
+					Value: []byte("(|one)"),
+				},
+			},
+		},
+		{
+			name:     "negated disjunction with both empty (no field) matches",
+			expected: "conjunction(field(env),negation(regexp(env,(|))))",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchNotRegexp,
+					Name:  []byte("env"),
+					Value: []byte("(|)"),
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {
