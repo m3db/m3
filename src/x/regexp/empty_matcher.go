@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-//Package regexp contains regexp processing related utilities.
+// Package regexp contains regexp processing related utilities.
 package regexp
 
 import (
