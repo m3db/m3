@@ -57,162 +57,162 @@ func TestEnsureRegexpUnachoredee(t *testing.T) {
 
 func TestEnsureRegexpUnachored(t *testing.T) {
 	testCases := []testCase{
-		testCase{
+		{
 			name:           "naked ^",
 			input:          "^",
 			expectedOutput: "emp{}",
 		},
-		testCase{
+		{
 			name:           "naked $",
 			input:          "$",
 			expectedOutput: "emp{}",
 		},
-		testCase{
+		{
 			name:           "empty string ^$",
 			input:          "^$",
 			expectedOutput: "cat{}",
 		},
-		testCase{
+		{
 			name:           "invalid naked concat ^$",
 			input:          "$^",
 			expectedOutput: "cat{eot{}bot{}}",
 		},
-		testCase{
+		{
 			name:           "simple case of ^",
 			input:          "^abc",
 			expectedOutput: "str{abc}",
 		},
-		testCase{
+		{
 			name:           "simple case of $",
 			input:          "abc$",
 			expectedOutput: "str{abc}",
 		},
-		testCase{
+		{
 			name:           "simple case of both ^ & $",
 			input:          "^abc$",
 			expectedOutput: "str{abc}",
 		},
-		testCase{
+		{
 			name:           "weird case of internal ^",
 			input:          "^a^bc$",
 			expectedOutput: "cat{lit{a}bot{}str{bc}}",
 		},
-		testCase{
+		{
 			name:           "weird case of internal $",
 			input:          "^a$bc$",
 			expectedOutput: "cat{lit{a}eot{}str{bc}}",
 		},
-		testCase{
+		{
 			name:           "alternate of sub expressions with only legal ^ and $",
 			input:          "(?:^abc$)|(?:^xyz$)",
 			expectedOutput: "alt{str{abc}str{xyz}}",
 		},
-		testCase{
+		{
 			name:           "concat of sub expressions with only legal ^ and $",
 			input:          "(^abc$)(?:^xyz$)",
 			expectedOutput: "cat{cap{cat{str{abc}eot{}}}bot{}str{xyz}}",
 		},
-		testCase{
+		{
 			name:           "alternate of sub expressions with illegal ^ and $",
 			input:          "(?:^a$bc$)|(?:^xyz$)",
 			expectedOutput: "alt{cat{lit{a}eot{}str{bc}}str{xyz}}",
 		},
-		testCase{
+		{
 			name:           "concat of sub expressions with illegal ^ and $",
 			input:          "(?:^a$bc$)(?:^xyz$)",
 			expectedOutput: "cat{lit{a}eot{}str{bc}eot{}bot{}str{xyz}}",
 		},
-		testCase{
+		{
 			name:           "question mark case both boundaries success",
 			input:          "(?:^abc$)?",
 			expectedOutput: "que{str{abc}}",
 		},
-		testCase{
+		{
 			name:           "question mark case only ^",
 			input:          "(?:^abc)?",
 			expectedOutput: "que{str{abc}}",
 		},
-		testCase{
+		{
 			name:           "question mark case only $",
 			input:          "(?:abc$)?",
 			expectedOutput: "que{str{abc}}",
 		},
-		testCase{
+		{
 			name:           "question concat case $",
 			input:          "abc$?",
 			expectedOutput: "str{abc}",
 		},
-		testCase{
+		{
 			name:           "star mark case both boundaries success",
 			input:          "(?:^abc$)*",
 			expectedOutput: "cat{que{str{abc}}star{cat{bot{}str{abc}eot{}}}}",
 		},
-		testCase{
+		{
 			name:           "star mark case only ^",
 			input:          "(?:^abc)*",
 			expectedOutput: "cat{que{str{abc}}star{cat{bot{}str{abc}}}}",
 		},
-		testCase{
+		{
 			name:           "star mark case only $",
 			input:          "(?:abc$)*",
 			expectedOutput: "cat{que{str{abc}}star{cat{str{abc}eot{}}}}",
 		},
-		testCase{
+		{
 			name:           "star concat case $",
 			input:          "abc$*",
 			expectedOutput: "cat{str{abc}star{eot{}}}",
 		},
-		testCase{
+		{
 			name:           "star concat case ^",
 			input:          "^*abc",
 			expectedOutput: "cat{star{bot{}}str{abc}}",
 		},
-		testCase{
+		{
 			name:           "plus mark case both boundaries success",
 			input:          "(?:^abc$)+",
 			expectedOutput: "cat{str{abc}star{cat{bot{}str{abc}eot{}}}}",
 		},
-		testCase{
+		{
 			name:           "plus mark case with capturing group",
 			input:          "(^abc$)+",
 			expectedOutput: "cat{cap{str{abc}}star{cap{cat{bot{}str{abc}eot{}}}}}",
 		},
-		testCase{
+		{
 			name:           "plus mark case only ^",
 			input:          "(?:^abc)+",
 			expectedOutput: "cat{str{abc}star{cat{bot{}str{abc}}}}",
 		},
-		testCase{
+		{
 			name:           "plus mark case only $",
 			input:          "(?:abc$)+",
 			expectedOutput: "cat{str{abc}star{cat{str{abc}eot{}}}}",
 		},
-		testCase{
+		{
 			name:           "plus concat case $",
 			input:          "abc$+",
 			expectedOutput: "cat{str{abc}star{eot{}}}",
 		},
-		testCase{
+		{
 			name:           "plus concat case ^",
 			input:          "^+abc",
 			expectedOutput: "cat{star{bot{}}str{abc}}",
 		},
-		testCase{
+		{
 			name:           "repeat case both boundaries success",
 			input:          "(?:^abc$){3,4}",
 			expectedOutput: "cat{str{abc}rep{2,3 cat{bot{}str{abc}eot{}}}}",
 		},
-		testCase{
+		{
 			name:           "repeat case unbounded max",
 			input:          "(?:^abc$){3,}",
 			expectedOutput: "cat{str{abc}rep{2,-1 cat{bot{}str{abc}eot{}}}}",
 		},
-		testCase{
+		{
 			name:           "repeat case unbounded max with 1 min",
 			input:          "(?:^abc$){1,2}",
 			expectedOutput: "cat{str{abc}rep{0,1 cat{bot{}str{abc}eot{}}}}",
 		},
-		testCase{
+		{
 			name:           "repeat case unbounded max with 0 min",
 			input:          "(?:^abc$){0,2}",
 			expectedOutput: "rep{0,2 cat{bot{}str{abc}eot{}}}",
@@ -222,7 +222,7 @@ func TestEnsureRegexpUnachored(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			re, err := parseRegexp(tc.input)
 			require.NoError(t, err)
-			parsed, err := ensureRegexpUnanchored(re)
+			parsed, err := EnsureRegexpUnanchored(re)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedOutput, dumpRegexp(parsed))
 		})
@@ -231,57 +231,57 @@ func TestEnsureRegexpUnachored(t *testing.T) {
 
 func TestEnsureRegexpAnchored(t *testing.T) {
 	testCases := []testCase{
-		testCase{
+		{
 			name:           "naked ^",
 			input:          "(?:)",
 			expectedOutput: "cat{bot{}eot{\\z}}",
 		},
-		testCase{
+		{
 			name:           "invalid naked concat ^$",
 			input:          "$^",
 			expectedOutput: "cat{bot{}eot{}bot{}eot{\\z}}",
 		},
-		testCase{
+		{
 			name:           "simple case of literal",
 			input:          "abc",
 			expectedOutput: "cat{bot{}str{abc}eot{\\z}}",
 		},
-		testCase{
+		{
 			name:           "weird case of internal ^",
 			input:          "a^bc",
 			expectedOutput: "cat{bot{}lit{a}bot{}str{bc}eot{\\z}}",
 		},
-		testCase{
+		{
 			name:           "weird case of internal $",
 			input:          "a$bc",
 			expectedOutput: "cat{bot{}lit{a}eot{}str{bc}eot{\\z}}",
 		},
-		testCase{
+		{
 			name:           "alternate of sub expressions with only legal ^ and $",
 			input:          "abc|xyz",
 			expectedOutput: "cat{bot{}alt{str{abc}str{xyz}}eot{\\z}}",
 		},
-		testCase{
+		{
 			name:           "concat of sub expressions with only legal ^ and $",
 			input:          "(?:abc)(?:xyz)",
 			expectedOutput: "cat{bot{}str{abcxyz}eot{\\z}}",
 		},
-		testCase{
+		{
 			name:           "question mark case both boundaries success",
 			input:          "(?:abc)?",
 			expectedOutput: "cat{bot{}que{str{abc}}eot{\\z}}",
 		},
-		testCase{
+		{
 			name:           "star mark case both boundaries success",
 			input:          "(?:abc)*",
 			expectedOutput: "cat{bot{}star{str{abc}}eot{\\z}}",
 		},
-		testCase{
+		{
 			name:           "plus mark case both boundaries success",
 			input:          "(?:abc)+",
 			expectedOutput: "cat{bot{}plus{str{abc}}eot{\\z}}",
 		},
-		testCase{
+		{
 			name:           "repeat case both boundaries success",
 			input:          "(?:abc){3,4}",
 			expectedOutput: "cat{bot{}str{abc}str{abc}str{abc}que{str{abc}}eot{\\z}}",
@@ -291,8 +291,7 @@ func TestEnsureRegexpAnchored(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			re, err := parseRegexp(tc.input)
 			require.NoError(t, err)
-			parsed, err := ensureRegexpAnchored(re)
-			require.NoError(t, err)
+			parsed := EnsureRegexpAnchored(re)
 			assert.Equal(t, tc.expectedOutput, dumpRegexp(parsed))
 		})
 	}

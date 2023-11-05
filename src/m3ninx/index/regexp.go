@@ -21,7 +21,6 @@
 package index
 
 import (
-	"context"
 	"fmt"
 	re "regexp"
 	"regexp/syntax"
@@ -37,7 +36,6 @@ var (
 	// dotStartCompiledRegex is a CompileRegex that matches any input.
 	// NB: It can be accessed through DotStartCompiledRegex().
 	dotStarCompiledRegex CompiledRegex
-	cacheContext         = context.Background()
 )
 
 func init() {
@@ -146,7 +144,7 @@ func CompileRegex(r []byte) (CompiledRegex, error) {
 	// Issue (a): Vellum does not allow regexps which use characters '^', or '$'.
 	// To address this issue, we strip these characters from appropriate locations in the parsed syntax.Regexp
 	// for Vellum's RE.
-	vellumRe, err := ensureRegexpUnanchored(reAst)
+	vellumRe, err := EnsureRegexpUnanchored(reAst)
 	if err != nil {
 		return CompiledRegex{}, fmt.Errorf("unable to create FST re: %v", err)
 	}
@@ -154,10 +152,7 @@ func CompileRegex(r []byte) (CompiledRegex, error) {
 	// Issue (b): Vellum treats every regular expression as anchored, where as the map-backed segment does not.
 	// To address this issue, we ensure that every incoming regular expression is modified to be anchored
 	// when querying the map-backed segment, and isn't anchored when querying Vellum's RE.
-	simpleRe, err := ensureRegexpAnchored(vellumRe)
-	if err != nil {
-		return CompiledRegex{}, fmt.Errorf("unable to create map re: %v", err)
-	}
+	simpleRe := EnsureRegexpAnchored(vellumRe)
 
 	simpleRE, err := re.Compile(simpleRe.String())
 	if err != nil {
@@ -191,10 +186,10 @@ func parseRegexp(re string) (*syntax.Regexp, error) {
 	return syntax.Parse(re, syntax.Perl)
 }
 
-// ensureRegexpAnchored adds '^' and '$' characters to appropriate locations in the parsed syntax.Regexp,
-// to ensure every input regular expression is converted to it's equivalent anchored regular expression.
+// EnsureRegexpAnchored adds '^' and '$' characters to appropriate locations in the parsed syntax.Regexp,
+// to ensure every input regular expression is converted to its equivalent anchored regular expression.
 // NB: assumes input regexp AST is un-anchored.
-func ensureRegexpAnchored(unanchoredRegexp *syntax.Regexp) (*syntax.Regexp, error) {
+func EnsureRegexpAnchored(unanchoredRegexp *syntax.Regexp) *syntax.Regexp {
 	ast := &syntax.Regexp{
 		Op:    syntax.OpConcat,
 		Flags: syntax.Perl,
@@ -210,13 +205,13 @@ func ensureRegexpAnchored(unanchoredRegexp *syntax.Regexp) (*syntax.Regexp, erro
 			},
 		},
 	}
-	return simplify(ast.Simplify()), nil
+	return simplify(ast.Simplify())
 }
 
-// ensureRegexpUnanchored strips '^' and '$' characters from appropriate locations in the parsed syntax.Regexp,
-// to ensure every input regular expression is converted to it's equivalent un-anchored regular expression
+// EnsureRegexpUnanchored strips '^' and '$' characters from appropriate locations in the parsed syntax.Regexp,
+// to ensure every input regular expression is converted to its equivalent un-anchored regular expression
 // assuming the entire input is matched.
-func ensureRegexpUnanchored(parsed *syntax.Regexp) (*syntax.Regexp, error) {
+func EnsureRegexpUnanchored(parsed *syntax.Regexp) (*syntax.Regexp, error) {
 	r, _, err := ensureRegexpUnanchoredHelper(parsed, true, true)
 	if err != nil {
 		return nil, err
