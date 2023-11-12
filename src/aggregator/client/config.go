@@ -83,7 +83,7 @@ func (c *Configuration) NewClient(
 	instrumentOpts instrument.Options,
 	rwOpts xio.Options,
 ) (Client, error) {
-	opts, err := c.newClientOptions(kvClient, clockOpts, instrumentOpts, rwOpts)
+	opts, err := c.NewClientOptions(kvClient, clockOpts, instrumentOpts, rwOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +96,9 @@ var (
 	errLegacyClientNoWatcherConfig     = errors.New("no placement watcher config set")
 )
 
-func (c *Configuration) newClientOptions(
+// NewClientOptions creates Options that can be used to
+// create a New Aggregator Client.
+func (c *Configuration) NewClientOptions(
 	kvClient m3clusterclient.Client,
 	clockOpts clock.Options,
 	instrumentOpts instrument.Options,

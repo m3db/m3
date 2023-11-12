@@ -140,7 +140,7 @@ func TestNewClientOptions(t *testing.T) {
 	clockOpts := clock.NewOptions()
 	instrumentOpts := instrument.NewOptions()
 	rwOpts := xio.NewOptions()
-	opts, err := cfg.newClientOptions(kvClient, clockOpts, instrumentOpts, rwOpts)
+	opts, err := cfg.NewClientOptions(kvClient, clockOpts, instrumentOpts, rwOpts)
 	require.NoError(t, err)
 
 	// Verify the constructed options match expectations.
