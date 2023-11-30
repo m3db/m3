@@ -27,6 +27,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
+	"go.uber.org/atomic"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -594,8 +597,43 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 		defer nowLock.Unlock()
 		return now.ToTime()
 	}
+
 	opts := DefaultTestOptions()
-	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
+
+	permitOpts := opts.PermitsOptions()
+	permitManager := opts.PermitsOptions().IndexQueryPermitsManager()
+	mockPermitManager := permits.NewMockManager(ctrl)
+	mockPermitManager.EXPECT().NewPermits(gomock.Any()).DoAndReturn(func(ctx context.Context) (permits.Permits, error) {
+		p, err := permitManager.NewPermits(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		acquired := atomic.NewInt32(0)
+		released := atomic.NewInt32(0)
+
+		mockPermits := permits.NewMockPermits(ctrl)
+		mockPermits.EXPECT().Acquire(ctx).DoAndReturn(func(ctx context.Context) (permits.AcquireResult, error) {
+			acquired.Inc()
+			return p.Acquire(ctx)
+		}).AnyTimes()
+		mockPermits.EXPECT().Release(gomock.Any()).DoAndReturn(func(toRelease permits.Permit) {
+			released.Inc()
+			p.Release(toRelease)
+		}).AnyTimes()
+		mockPermits.EXPECT().Close().DoAndReturn(func() {
+			// Verify the acquire/release calls match by the time we close.
+			require.Equal(t, acquired.Load(), released.Load())
+			require.Equal(t, acquired.Load() > 0, true)
+			fmt.Println(acquired, released)
+			p.Close()
+		}).Times(1) // close once per NewPermits(...) call
+
+		return mockPermits, nil
+	}).Times(6) // 3 blocks per test below
+	permitOpts = permitOpts.SetIndexQueryPermitsManager(mockPermitManager)
+
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn)).SetPermitsOptions(permitOpts)
 
 	bActive := index.NewMockBlock(ctrl)
 	bActive.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
