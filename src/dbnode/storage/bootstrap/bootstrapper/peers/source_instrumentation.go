@@ -21,6 +21,8 @@
 package peers
 
 import (
+	"fmt"
+	"sync"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -29,6 +31,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
@@ -158,12 +161,37 @@ func (i *instrumentationReadShardsContext) bootstrapShardsCompleted() {
 }
 
 type instrumentation struct {
+	sync.Mutex
 	opts                               Options
 	profiler                           instrument.Profiler
 	scope                              tally.Scope
 	log                                *zap.Logger
 	nowFn                              clock.NowFn
 	persistedIndexBlocksOutOfRetention tally.Counter
+	dataTimeRanges                     map[ident.ID]*timeRangeMetrics
+	indexTimeRanges                    map[ident.ID]*timeRangeMetrics
+}
+
+type timeRangeMetrics struct {
+	timeRanges result.ShardTimeRanges
+	gauge      tally.Gauge
+}
+
+func newTimeRangeMetrics(
+	nsID ident.ID,
+	shardTimeRanges result.ShardTimeRanges,
+	phase phase,
+	scope tally.Scope,
+) *timeRangeMetrics {
+	timeRanges := shardTimeRanges.Copy()
+	gauge := scope.Tagged(map[string]string{"ns": nsID.String()}).
+		Gauge(fmt.Sprintf("bootstrap-%s-ranges", phase))
+	totalRanges := totalRanges(timeRanges)
+	gauge.Update(float64(totalRanges))
+	return &timeRangeMetrics{
+		timeRanges: timeRanges,
+		gauge:      gauge,
+	}
 }
 
 func newInstrumentation(opts Options) *instrumentation {
@@ -180,7 +208,86 @@ func newInstrumentation(opts Options) *instrumentation {
 		log:                                instrumentOptions.Logger().With(zap.String("bootstrapper", "peers")),
 		nowFn:                              opts.ResultOptions().ClockOptions().NowFn(),
 		persistedIndexBlocksOutOfRetention: scope.Counter("persist-index-blocks-out-of-retention"),
+		dataTimeRanges:                     map[ident.ID]*timeRangeMetrics{},
+		indexTimeRanges:                    map[ident.ID]*timeRangeMetrics{},
 	}
+}
+
+type phase string
+
+const (
+	phaseData  phase = "data"
+	phaseIndex phase = "index"
+)
+
+func (i *instrumentation) availableDataBootstrapRanges(nsID ident.ID, shardTimeRanges result.ShardTimeRanges) {
+	if shardTimeRanges == nil {
+		return
+	}
+	i.Lock()
+	i.dataTimeRanges[nsID] = newTimeRangeMetrics(nsID, shardTimeRanges, phaseData, i.scope)
+	i.Unlock()
+	i.log.Info("resolved data ranges to bootstrap",
+		zap.Stringer("ns", nsID),
+		zap.Int("shards", shardTimeRanges.Len()))
+}
+
+func (i *instrumentation) availableIndexBootstrapRanges(nsID ident.ID, shardTimeRanges result.ShardTimeRanges) {
+	if shardTimeRanges == nil {
+		return
+	}
+	i.Lock()
+	i.indexTimeRanges[nsID] = newTimeRangeMetrics(nsID, shardTimeRanges, phaseIndex, i.scope)
+	i.Unlock()
+	i.log.Info("resolved index ranges to bootstrap",
+		zap.Stringer("ns", nsID),
+		zap.Int("shards", shardTimeRanges.Len()))
+}
+
+func (i *instrumentation) dataRangeDone(nsID ident.ID, fulfilled result.ShardTimeRanges) {
+	if fulfilled.IsEmpty() {
+		return
+	}
+	i.Lock()
+	metrics, ok := i.dataTimeRanges[nsID]
+	if !ok {
+		i.Unlock()
+		return
+	}
+	metrics.timeRanges.Subtract(fulfilled)
+	totalRanges := totalRanges(metrics.timeRanges)
+	metrics.gauge.Update(float64(totalRanges))
+	i.Unlock()
+	i.log.Debug("data range done",
+		zap.Int("numberOfRanges", totalRanges),
+	)
+}
+
+func (i *instrumentation) indexRangeDone(nsID ident.ID, fulfilled result.ShardTimeRanges) {
+	if fulfilled.IsEmpty() {
+		return
+	}
+	i.Lock()
+	metrics, ok := i.indexTimeRanges[nsID]
+	if !ok {
+		i.Unlock()
+		return
+	}
+	metrics.timeRanges.Subtract(fulfilled)
+	totalRanges := totalRanges(metrics.timeRanges)
+	metrics.gauge.Update(float64(totalRanges))
+	i.Unlock()
+	i.log.Debug("index range done",
+		zap.Int("numberOfRanges", totalRanges),
+	)
+}
+
+func totalRanges(shardTimeRanges result.ShardTimeRanges) int {
+	res := 0
+	for _, ranges := range shardTimeRanges.Iter() {
+		res += ranges.Len()
+	}
+	return res
 }
 
 func (i *instrumentation) peersBootstrapperSourceReadStarted(
