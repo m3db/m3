@@ -115,21 +115,26 @@ const (
 type dbShard struct {
 	sync.RWMutex
 	block.DatabaseBlockRetriever
-	opts                     Options
-	seriesOpts               series.Options
-	nowFn                    clock.NowFn
-	state                    dbShardState
-	namespace                namespace.Metadata
-	seriesBlockRetriever     series.QueryableBlockRetriever
-	seriesOnRetrieveBlock    block.OnRetrieveBlock
-	namespaceReaderMgr       databaseNamespaceReaderManager
-	increasingIndex          increasingIndex
-	seriesPool               series.DatabaseSeriesPool
-	reverseIndex             NamespaceIndex
-	insertQueue              *dbShardInsertQueue
-	lookup                   *shardMap
-	list                     *list.List
-	bootstrapState           BootstrapState
+	opts       Options
+	seriesOpts series.Options
+	nowFn      clock.NowFn
+
+	namespace             namespace.Metadata
+	seriesBlockRetriever  series.QueryableBlockRetriever
+	seriesOnRetrieveBlock block.OnRetrieveBlock
+	namespaceReaderMgr    databaseNamespaceReaderManager
+	increasingIndex       increasingIndex
+	seriesPool            series.DatabaseSeriesPool
+	reverseIndex          NamespaceIndex
+	insertQueue           *dbShardInsertQueue
+
+	// protected by dbShard lock
+	lastEntryIndex uint64
+	lookup         *shardMap
+	list           *list.List
+	state          dbShardState
+	bootstrapState BootstrapState
+
 	newMergerFn              fs.NewMergerFn
 	newFSMergeWithMemFn      newFSMergeWithMemFn
 	filesetsFn               filesetsFn
@@ -1414,12 +1419,18 @@ func (s *dbShard) insertNewShardEntryWithLock(entry *Entry) {
 	// we explicitly set it with options to not copy the key and not to
 	// finalize it.
 	copiedID := entry.Series.ID()
+
+	// It is important to keep increasing order of shard index since it's used for cursor pagination filtering when peers bootstrapping in memory block.
+	s.lastEntryIndex++
+	entry.indexInShard.Store(s.lastEntryIndex)
+	entry.SetInsertTime(s.nowFn())
+
 	listElem := s.list.PushBack(entry)
 	s.lookup.SetUnsafe(copiedID, listElem, shardMapSetUnsafeOptions{
 		NoCopyKey:     true,
 		NoFinalizeKey: true,
 	})
-	entry.SetInsertTime(s.nowFn())
+
 }
 
 func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
@@ -1654,13 +1665,13 @@ func (s *dbShard) fetchActiveBlocksMetadata(
 	s.forEachShardEntry(func(entry *Entry) bool {
 		// Break out of the iteration loop once we've accumulated enough entries.
 		if int64(len(res.Results())) >= limit {
-			next := int64(entry.Index)
+			next := int64(entry.indexInShard.Load())
 			nextIndexCursor = &next
 			return false
 		}
 
 		// Fast forward past indexes lower than page token
-		if int64(entry.Index) < indexCursor {
+		if int64(entry.indexInShard.Load()) < indexCursor {
 			return true
 		}
 

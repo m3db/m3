@@ -64,8 +64,7 @@ type testIncreasingIndex struct {
 }
 
 func (i *testIncreasingIndex) nextIndex() uint64 {
-	created := atomic.AddUint64(&i.created, 1)
-	return created - 1
+	return atomic.AddUint64(&i.created, 1)
 }
 
 func testDatabaseShard(t *testing.T, opts Options) *dbShard {
@@ -924,6 +923,9 @@ func writeShardAndVerify(
 	assert.Equal(t, id, seriesWrite.Series.ID.String())
 	assert.Equal(t, "testns1", seriesWrite.Series.Namespace.String())
 	assert.Equal(t, expectedIdx, seriesWrite.Series.UniqueIndex)
+	entry, err := shard.lookupEntryWithLock(ident.StringID(id))
+	require.NoError(t, err)
+	assert.Equal(t, expectedIdx, entry.indexInShard.Load())
 }
 
 func TestShardTick(t *testing.T) {
@@ -1001,20 +1003,20 @@ func TestShardTick(t *testing.T) {
 		setNow(nowFn().Add(t))
 	}
 
-	writeShardAndVerify(ctx, t, shard, "foo", nowFn(), 1.0, true, 0)
+	writeShardAndVerify(ctx, t, shard, "foo", nowFn(), 1.0, true, 1)
 	// same time, different value should write
-	writeShardAndVerify(ctx, t, shard, "foo", nowFn(), 2.0, true, 0)
+	writeShardAndVerify(ctx, t, shard, "foo", nowFn(), 2.0, true, 1)
 
-	writeShardAndVerify(ctx, t, shard, "bar", nowFn(), 2.0, true, 1)
+	writeShardAndVerify(ctx, t, shard, "bar", nowFn(), 2.0, true, 2)
 	// same tme, same value should not write
-	writeShardAndVerify(ctx, t, shard, "bar", nowFn(), 2.0, false, 1)
+	writeShardAndVerify(ctx, t, shard, "bar", nowFn(), 2.0, false, 2)
 
-	writeShardAndVerify(ctx, t, shard, "baz", nowFn(), 3.0, true, 2)
+	writeShardAndVerify(ctx, t, shard, "baz", nowFn(), 3.0, true, 3)
 	// different time, same value should write
-	writeShardAndVerify(ctx, t, shard, "baz", nowFn().Add(1), 3.0, true, 2)
+	writeShardAndVerify(ctx, t, shard, "baz", nowFn().Add(1), 3.0, true, 3)
 
 	// same time, same value should not write, regardless of being out of order
-	writeShardAndVerify(ctx, t, shard, "foo", nowFn(), 2.0, false, 0)
+	writeShardAndVerify(ctx, t, shard, "foo", nowFn(), 2.0, false, 1)
 
 	r, err := shard.Tick(context.NewNoOpCanncellable(), nowFn(), namespace.Context{})
 	require.NoError(t, err)
