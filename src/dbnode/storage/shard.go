@@ -1420,7 +1420,8 @@ func (s *dbShard) insertNewShardEntryWithLock(entry *Entry) {
 	// finalize it.
 	copiedID := entry.Series.ID()
 
-	// It is important to keep increasing order of shard index since it's used for cursor pagination filtering when peers bootstrapping in memory block.
+	// It is important to keep increasing order of shard index since it's used for cursor pagination filtering
+	// when peers bootstrapping in memory block.
 	s.lastEntryIndex++
 	entry.indexInShard.Store(s.lastEntryIndex)
 	entry.SetInsertTime(s.nowFn())
