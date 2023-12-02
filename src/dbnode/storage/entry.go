@@ -135,7 +135,7 @@ type Entry struct {
 	pendingIndexBatchSizeOne []writes.PendingIndexInsert
 	// Should only be accessed once entry is inserted into shard.
 	// Indexes below 1 are considered invalid.
-	indexInShard atomic.Uint64
+	indexInShard xatomic.Uint64
 }
 
 // ensure Entry satisfies the `doc.OnIndexSeries` interface.
