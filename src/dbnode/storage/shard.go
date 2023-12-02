@@ -1430,7 +1430,6 @@ func (s *dbShard) insertNewShardEntryWithLock(entry *Entry) {
 		NoCopyKey:     true,
 		NoFinalizeKey: true,
 	})
-
 }
 
 func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
