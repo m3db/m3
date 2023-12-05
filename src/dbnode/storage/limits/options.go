@@ -108,14 +108,14 @@ func (o *limitOpts) DiskSeriesReadLimitOpts() LookbackLimitOptions {
 	return o.diskSeriesReadLimitOpts
 }
 
-// SetDiskSeriesReadLimitOpts sets the disk ts read limit options.
+// SetAggregateDocsLimitOpts sets the disk ts read limit options.
 func (o *limitOpts) SetAggregateDocsLimitOpts(value LookbackLimitOptions) Options {
 	opts := *o
 	opts.diskAggregateDocsLimitOpts = value
 	return &opts
 }
 
-// DiskSeriesReadLimitOpts returns the disk ts read limit options.
+// AggregateDocsLimitOpts returns the disk ts read limit options.
 func (o *limitOpts) AggregateDocsLimitOpts() LookbackLimitOptions {
 	return o.diskAggregateDocsLimitOpts
 }

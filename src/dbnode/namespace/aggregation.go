@@ -73,7 +73,7 @@ func NewAggregatedAggregation(attrs AggregatedAttributes) Aggregation {
 	}
 }
 
-// NewAggregateAttributes creates new AggregatedAttributes.
+// NewAggregatedAttributes creates new AggregatedAttributes.
 func NewAggregatedAttributes(resolution time.Duration, downsampleOptions DownsampleOptions) (AggregatedAttributes, error) {
 	if resolution <= 0 {
 		return AggregatedAttributes{}, fmt.Errorf("invalid resolution %v. must be greater than 0", resolution)

@@ -267,7 +267,7 @@ func makeQuantileOverTimeFn(q float64) aggFunc {
 	}
 }
 
-// qauntile calculates the given quantile of a slice of values.
+// quantile calculates the given quantile of a slice of values.
 //
 // This slice will be sorted.
 // If 'values' has zero elements, NaN is returned.

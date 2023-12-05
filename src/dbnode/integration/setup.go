@@ -530,7 +530,7 @@ func NewTestSetup(
 	}, nil
 }
 
-// guestBestTruncateBlockSize guesses for the best block size to truncate testSetup's nowFn
+// guessBestTruncateBlockSize guesses for the best block size to truncate testSetup's nowFn
 func guessBestTruncateBlockSize(mds []namespace.Metadata) (time.Duration, bool) {
 	// gcd of a pair of numbers
 	gcd := func(a, b int64) int64 {

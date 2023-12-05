@@ -489,7 +489,7 @@ func (agg *aggregator) shouldProcessPlacementWithLock(
 	return false
 }
 
-// updateShardSetWithLock resets the instance's shard set id given the instance from
+// updateShardSetIDWithLock resets the instance's shard set id given the instance from
 // the latest placement, or clears it if the instance is nil (i.e., instance not found).
 func (agg *aggregator) updateShardSetIDWithLock(instance placement.Instance) error {
 	if instance == nil {

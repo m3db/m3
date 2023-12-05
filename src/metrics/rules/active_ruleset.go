@@ -381,7 +381,7 @@ func (as *activeRuleSet) rollupResultsFor(id []byte, timeNanos int64, matchOpts 
 	return res, nil
 }
 
-// toRollupMatchResult applies the rollup operation in each rollup pipelines contained
+// toRollupResults applies the rollup operation in each rollup pipelines contained
 // in the rollup targets against the matching ID to determine the resulting new rollup
 // ID. It additionally distinguishes rollup pipelines whose first operation is a rollup
 // operation from those that aren't since the former pipelines are applied against the
@@ -845,7 +845,7 @@ func (as *activeRuleSet) cutoverNanosAt(idx int) int64 {
 	return timeNanosMax
 }
 
-// filterByAggregationType takes a list of pipelines as input and returns those
+// filteredPipelinesWithAggregationType takes a list of pipelines as input and returns those
 // containing the given aggregation type.
 func filteredPipelinesWithAggregationType(
 	pipelines []metadata.PipelineMetadata,
