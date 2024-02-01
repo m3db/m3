@@ -14,6 +14,8 @@ echo "Pull containers required for test"
 docker pull $PROMREMOTECLI_IMAGE
 docker pull $JQ_IMAGE
 
+docker-compose -f ${COMPOSE_FILE} up -d etcd
+
 echo "Run m3dbnode"
 docker-compose -f ${COMPOSE_FILE} up -d dbnode01
 

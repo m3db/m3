@@ -15,8 +15,8 @@ mkdir -p ./bin
 
 # by keeping all the required files in ./bin, it makes the build context
 # for docker much smaller
-cp ./src/query/config/m3coordinator-local-etcd.yml ./bin
-cp ./src/dbnode/config/m3dbnode-local-etcd.yml ./bin
+cp ./src/query/config/m3coordinator-local-docker-etcd.yml ./bin
+cp ./src/dbnode/config/m3dbnode-local-docker-etcd.yml ./bin
 cp ./src/aggregator/config/m3aggregator.yml ./bin
 
 # build images
@@ -26,7 +26,9 @@ function build_image {
   local svc=$1
   echo "creating image for $svc"
   make ${svc}-linux-amd64
-  docker build -t "${svc}_integration:${REVISION}" -f ./scripts/docker-integration-tests/${svc}.Dockerfile ./bin
+  docker build \
+    --no-cache \
+    -t "${svc}_integration:${REVISION}" -f ./scripts/docker-integration-tests/${svc}.Dockerfile ./bin
 }
 
 if [[ "$SERVICE" != "" ]]; then

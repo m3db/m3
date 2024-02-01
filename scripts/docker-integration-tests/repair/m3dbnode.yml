@@ -13,12 +13,7 @@ db:
         etcdClusters:
           - zone: embedded
             endpoints:
-              - dbnode01:2379
-      seedNodes:
-        initialCluster:
-          - hostID: m3db_local_1
-            endpoint: http://dbnode01:2380
-
+              - etcd:2379
   # Enable repairs.
   repair:
     enabled: true

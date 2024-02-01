@@ -22,7 +22,7 @@ clusters:
           etcdClusters:
             - zone: embedded
               endpoints:
-                - dbnode01:2379
+                - etcd:2379
 
 downsample:
   remoteAggregator:

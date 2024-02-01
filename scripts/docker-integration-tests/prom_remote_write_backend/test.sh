@@ -20,7 +20,7 @@ docker pull $PROMREMOTECLI_IMAGE
 trap 'cleanup ${COMPOSE_FILE} ${TEST_SUCCESS}' EXIT
 
 echo "Run ETCD"
-docker-compose -f "${COMPOSE_FILE}" up -d etcd01
+docker-compose -f "${COMPOSE_FILE}" up -d etcd
 
 echo "Run Coordinator in Admin mode"
 docker-compose -f "${COMPOSE_FILE}" up -d coordinatoradmin

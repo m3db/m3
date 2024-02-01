@@ -40,7 +40,7 @@ kvClient:
     etcdClusters:
       - zone: embedded
         endpoints:
-          - etcd01:2379
+          - etcd:2379
 
 runtimeOptions:
   kvConfig:
