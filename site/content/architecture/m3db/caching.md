@@ -7,7 +7,7 @@ weight: 7
 
 Blocks that are still being actively compressed / M3TSZ encoded must be kept in memory until they are sealed and flushed to disk. Blocks that have already been sealed, however, don't need to remain in-memory. In order to support efficient reads, M3DB implements various caching policies which determine which flushed blocks are kept in memory, and which are not. The "cache" itself is not a separate datastructure in memory, cached blocks are simply stored in their respective [in-memory objects](/docs/architecture/m3db/engine#in-memory-object-layout) with various different mechanisms (depending on the chosen cache policy) determining which series / blocks are evicted and which are retained.
 
-For general purpose workloads, the `lru` caching policy is reccommended.
+For general purpose workloads, the `lru` caching policy is recommended.
 
 ## None Cache Policy
 

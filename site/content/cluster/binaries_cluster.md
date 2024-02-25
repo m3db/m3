@@ -34,7 +34,7 @@ M3 in production can run on local or cloud-based VMs, or bare-metal servers. M3 
 ### Network
 
 {{% notice tip %}}
-If you use AWS or GCP, we recommend you use static IPs so that if you need to replace a host, you don't have to update configuration files on all the hosts, but decommission the old seed node and provision a new seed node with the same host ID and static IP that the old seed node had. If you're using AWS you can use an [Elastic Network Interface](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-eni.html) on a Virtual Private Cloud (VPC) and for GCP you can use an [internal static IP address](https://cloud.google.com/compute/docs/ip-addresses/reserve-static-internal-ip-address).
+If you use AWS or GCP, we recommend you use static IPs so that if you need to replace a host, you don't have to update configuration files on all the hosts, but decommission the old seed node and provision a new seed node with the same host ID and static IP that the old seed node had. If you're using AWS, you can use an [Elastic Network Interface](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-eni.html) on a Virtual Private Cloud (VPC) and for GCP you can use an [internal static IP address](https://cloud.google.com/compute/docs/ip-addresses/reserve-static-internal-ip-address).
 {{% /notice %}}
 
 This example creates three static IP addresses for three storage nodes, using the embedded coordinator.
