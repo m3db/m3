@@ -56,4 +56,4 @@ Load can easily be increased by modifying the `prometheus.yml` file to reduce th
 
 ## Containers Hanging / Unresponsive
 
-Running the entire stack can be resource intensive. If the containers are unresponsive try increasing the amount of cores and memory that the docker daemon is allowed to use.
+Running the entire stack can be resource intensive. If the containers are unresponsive, try increasing the amount of cores and memory that the docker daemon is allowed to use.

@@ -59,6 +59,6 @@ In order to convert M3DB blocks into M3 Query blocks, we need to consolidate acr
 
 At a high level, M3DB returns to M3 Query `SeriesBlocks` that contain a list of `SeriesIterators` for a given timeseries per namespace. M3 Query then aligns the blocks across common time bounds before applying consolidation.
 
-For example, let's say we have a query that returns two timeseries from two different namespaces- 1min and 10min. When we create the M3 Query `Block`, in order to accurately consolidate results from these two namespaces, we need to convert everything to have a 10min resolution. Otherwise it will not be possible to perform correctly apply functions.
+For example, let's say we have a query that returns two timeseries from two different namespaces- 1min and 10min. When we create the M3 Query `Block`, in order to accurately consolidate results from these two namespaces, we need to convert everything to have a 10min resolution. Otherwise, it will not be possible to perform correctly apply functions.
 
 > Coming Soon: More documentation on how M3 Query applies consolidation.

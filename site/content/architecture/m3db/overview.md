@@ -30,7 +30,7 @@ Here are some attributes of the project:
 
 Due to the nature of the requirements for the project, which are primarily to reduce the cost of ingesting and storing billions of timeseries and providing fast scalable reads, there are a few limitations currently that make M3DB not suitable for use as a general purpose time series database.
 
-The project has aimed to avoid compactions when at all possible, currently the only compactions M3DB performs are in-memory for the mutable compressed time series window (default configured at 2 hours).  As such out of order writes are limited to the size of a single compressed time series window.  Consequently backfilling large amounts of data is not currently possible.
+The project has aimed to avoid compactions when at all possible, currently the only compactions M3DB performs are in-memory for the mutable compressed time series window (default configured at 2 hours). As such out of order writes are limited to the size of a single compressed time series window. Consequently backfilling large amounts of data is not currently possible.
 
 The project has also optimized the storage and retrieval of float64 values, as such there is no way to use it as a general time series database of arbitrary data structures just yet.
 

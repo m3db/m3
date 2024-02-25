@@ -19,7 +19,7 @@ A fileset has the following files:
 * **Data file:** Stores the series compressed data streams.
 * **Bloom filter file:** Stores a bloom filter bitset of all series contained in this fileset for quick knowledge of whether to attempt retrieving a series for this fileset volume.
 * **Digests file:** Stores the digest checksums of the info file, summaries file, index file, data file and bloom filter file in the fileset volume for integrity verification.
-* **Checkpoint file:** Stores a digest of the digests file and written at the succesful completion of a fileset volume being persisted, allows for quickly checking if a volume was completed.
+* **Checkpoint file:** Stores a digest of the digests file and written at the successful completion of a fileset volume being persisted, allows for quickly checking if a volume was completed.
 
 ```
                                                      ┌───────────────────────┐

@@ -8,9 +8,9 @@ draft: true
 M3DB is integrated with opentracing to provide insight into query performance and errors.
 
 #### Jaeger
-To enable Jaeger as the tracing backend, set tracing.backend to "jaeger" (see also our sample local config:
+To enable Jaeger as the tracing backend, set tracing.backend to "jaeger" (see also our sample local config):
 tracing:
-    backend: jaeger  # enables jaeger with default configs
+    backend: jaeger # enables jaeger with default configs
     jaeger:
         # optional configuration for jaeger -- see
         # https://github.com/jaegertracing/jaeger-client-go/blob/master/config/config.go#L37
@@ -44,7 +44,7 @@ File an issue against M3 and we can work with you on how best to add the backend
 Note: all URLs assume a local jaeger setup as described in Jaeger's docs.
 
 **Finding slow queries**
-To find prom queries longer than , filter for minDuration >= <threshold> on operation="GET /api/v1/query_range".
+To find prom queries longer than, filter for minDuration >= <threshold> on operation="GET /api/v1/query_range".
 Sample query: http://localhost:16686/search?end=1548876672544000&limit=20&lookback=1h&maxDuration&minDuration=1ms&operation=GET%20%2Fapi%2Fv1%2Fquery_range&service=m3query&start=1548873072544000
 
 **Finding queries with errors**

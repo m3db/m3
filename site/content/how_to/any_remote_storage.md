@@ -22,7 +22,7 @@ We are going to setup:
 - 1 M3 Coordinator with in process M3 Aggregator that is aggregating and downsampling metrics.
 - Finally, we are going define some aggregation and downsampling rules as an example.
 
-For simplicity lets put all config files in one directory and export env variable:
+For simplicity, lets put all config files in one directory and export env variable:
 ```shell
 export CONFIG_DIR="<path to your config folder>"
 ```
@@ -45,7 +45,7 @@ docker run -p 9090:9090 --name prometheus \
   --enable-feature=remote-write-receiver
 ```
 
-Next we configure and run M3 Coordinator:
+Next, we configure and run M3 Coordinator:
 
 `m3_coord_simple.yml`
 {{< codeinclude file="docs/includes/integrations/prometheus/m3_coord_simple.yml" language="yaml" >}}
