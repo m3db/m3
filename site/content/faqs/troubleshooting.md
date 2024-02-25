@@ -16,7 +16,7 @@ Double check your configuration against the [bootstrapping guide](/docs/operatio
 
 If you're using the commitlog bootstrapper, and it seems to be slow, ensure that snapshotting is enabled for your namespace. Enabling snapshotting will require a node restart to take effect.
 
-If an m3db node hasn't been able to snapshot for a while, or is stuck in the commitlog bootstrapping phase for a long time due to accumulating a large number of commitlogs, consider using the peers bootstrapper. In situations where a large number of commitlogs need to be read, the peers bootstrapper will outperform the commitlog bootstrapper (faster and less memory usage) due to the fact that it will receive already-compressed data from its peers. Keep in mind that this will only work with a replication factor of 3 or larger and if the nodes peers are healthy and bootstrapped. Review the [bootstrapping guide](/docs/operational_guide/bootstrapping_crash_recovery) for more information.
+If an m3db node hasn't been able to snapshot for awhile, or is stuck in the commitlog bootstrapping phase for a long time due to accumulating a large number of commitlogs, consider using the peers bootstrapper. In situations where a large number of commitlogs need to be read, the peers bootstrapper will outperform the commitlog bootstrapper (faster and less memory usage) due to the fact that it will receive already-compressed data from its peers. Keep in mind that this will only work with a replication factor of 3 or larger and if the nodes peers are healthy and bootstrapped. Review the [bootstrapping guide](/docs/operational_guide/bootstrapping_crash_recovery) for more information.
 
 ## Nodes a crashing with memory allocation errors, but there's plenty of available memory
 
