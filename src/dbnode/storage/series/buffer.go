@@ -156,8 +156,9 @@ type bufferStats struct {
 }
 
 type bufferTickResult struct {
-	mergedOutOfOrderBlocks int
-	evictedBucketTimes     OptimizedTimes
+	mergedOutOfOrderBlocks  int
+	evictedBucketTimes      OptimizedTimes
+	cumulativeEncoderLength int
 }
 
 // OptimizedTimes is a struct that holds an unknown number of times. This is
@@ -461,8 +462,10 @@ func (b *dbBuffer) Stats() bufferStats {
 }
 
 func (b *dbBuffer) Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Context) bufferTickResult {
-	mergedOutOfOrder := 0
-	var evictedBucketTimes OptimizedTimes
+	var (
+		evictedBucketTimes                     OptimizedTimes
+		mergedOutOfOrder, cumulativeEncoderLen int
+	)
 	for tNano, buckets := range b.bucketsMap {
 		// The blockStates map is never written to after creation, so this
 		// read access is safe. Since this version map is a snapshot of the
@@ -520,10 +523,12 @@ func (b *dbBuffer) Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Con
 		if merges > 0 {
 			mergedOutOfOrder++
 		}
+		cumulativeEncoderLen += buckets.streamsLen()
 	}
 	return bufferTickResult{
-		mergedOutOfOrderBlocks: mergedOutOfOrder,
-		evictedBucketTimes:     evictedBucketTimes,
+		mergedOutOfOrderBlocks:  mergedOutOfOrder,
+		evictedBucketTimes:      evictedBucketTimes,
+		cumulativeEncoderLength: cumulativeEncoderLen,
 	}
 }
 

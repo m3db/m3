@@ -264,6 +264,13 @@ type TickResult struct {
 	MergedOutOfOrderBlocks int
 	// EvictedBuckets is count of buckets just evicted from the buffer map.
 	EvictedBuckets int
+	// EncoderCumulativeLength is the cumulative length of writable encoders.
+	EncoderCumulativeLength int
+	// ReadableCumulativeLength is the cumulative length of readable blocks.
+	ReadersCumulativeLength int
+	// ReadSinceLastTick returns a bool indicating whether a series received
+	// any Read calls since the last tick.
+	ReadSinceLastTick int
 }
 
 // DatabaseSeriesAllocate allocates a database series for a pool.

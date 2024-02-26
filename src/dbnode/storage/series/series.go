@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"go.uber.org/zap"
 
@@ -63,9 +64,10 @@ type dbSeries struct {
 	// that are behind the ID in "metadata doc.Metadata", the whole
 	// reason we keep an ident.ID on the series is since there's a lot
 	// of existing callsites that require the ID as an ident.ID.
-	id          ident.ID
-	metadata    doc.Metadata
-	uniqueIndex uint64
+	id                 ident.ID
+	metadata           doc.Metadata
+	uniqueIndex        uint64
+	readsSinceLastTick atomic.Int64
 
 	bootstrap dbSeriesBootstrap
 
@@ -150,6 +152,9 @@ func (s *dbSeries) Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Con
 	}
 	r.TickStatus = update.TickStatus
 	r.MadeExpiredBlocks, r.MadeUnwiredBlocks = update.madeExpiredBlocks, update.madeUnwiredBlocks
+	r.EncoderCumulativeLength = bufferResult.cumulativeEncoderLength
+	r.ReadersCumulativeLength = s.cachedBlocksSizeWithRLock()
+	r.ReadSinceLastTick = int(s.readsSinceLastTick.Swap(0))
 
 	s.Unlock()
 
@@ -391,6 +396,7 @@ func (s *dbSeries) ReadEncoded(
 	nsCtx namespace.Context,
 ) (BlockReaderIter, error) {
 	s.RLock()
+	s.readsSinceLastTick.Add(1)
 	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
 	iter, err := reader.readersWithBlocksMapAndBuffer(ctx, start, end, s.cachedBlocks, s.buffer, nsCtx)
 	s.RUnlock()
@@ -726,4 +732,12 @@ func (s *dbSeries) Reset(opts DatabaseSeriesOptions) {
 	s.onRetrieveBlock = opts.OnRetrieveBlock
 	s.blockOnEvictedFromWiredList = opts.OnEvictedFromWiredList
 	s.Unlock()
+}
+
+func (s *dbSeries) cachedBlocksSizeWithRLock() int {
+	cumulativeSize := 0
+	for _, b := range s.cachedBlocks.AllBlocks() {
+		cumulativeSize += b.Len()
+	}
+	return cumulativeSize
 }
