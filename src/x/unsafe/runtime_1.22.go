@@ -1,3 +1,5 @@
+//go:build go1.22
+
 // Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,9 +23,9 @@
 // Package unsafe contains operations that step around the type safety of Go programs.
 package unsafe
 
-// Fastrandn returns a uint32 in range of 0..n, like rand() % n, but faster not as precise,
-// https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/
-func Fastrandn(n uint32) uint32 {
-	// This is similar to fastrand() % n, but faster.
-	return uint32(uint64(fastrand()) * uint64(n) >> 32)
-}
+import (
+	_ "unsafe" // needed for go:linkname hack
+)
+
+//go:linkname fastrand runtime.cheaprand
+func fastrand() uint32
