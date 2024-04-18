@@ -80,6 +80,13 @@ connection:
     maxBackoff: 1s
     maxRetries: 2
     jitter: true
+  tls:
+    tlsEnabled: false
+    insecureSkipVerify: true
+    serverName: TestServer
+    caFile: /tmp/ca
+    certFile: /tmp/cert
+    keyFile: /tmp/key
 `
 
 func TestConfigUnmarshal(t *testing.T) {
@@ -120,6 +127,12 @@ func TestConfigUnmarshal(t *testing.T) {
 	require.Equal(t, time.Second, cfg.Connection.WriteRetries.MaxBackoff)
 	require.Equal(t, 2, cfg.Connection.WriteRetries.MaxRetries)
 	require.Equal(t, true, *cfg.Connection.WriteRetries.Jitter)
+	require.False(t, cfg.Connection.TLS.TLSEnabled)
+	require.True(t, *cfg.Connection.TLS.InsecureSkipVerify)
+	require.Equal(t, "TestServer", *cfg.Connection.TLS.ServerName)
+	require.Equal(t, "/tmp/ca", *cfg.Connection.TLS.CAFile)
+	require.Equal(t, "/tmp/cert", *cfg.Connection.TLS.CertFile)
+	require.Equal(t, "/tmp/key", *cfg.Connection.TLS.KeyFile)
 	require.Nil(t, cfg.Connection.WriteRetries.Forever)
 }
 
@@ -171,4 +184,10 @@ func TestNewClientOptions(t *testing.T) {
 	require.Equal(t, 2, opts.ConnectionOptions().WriteRetryOptions().MaxRetries())
 	require.Equal(t, true, opts.ConnectionOptions().WriteRetryOptions().Jitter())
 	require.Equal(t, false, opts.ConnectionOptions().WriteRetryOptions().Forever())
+	require.False(t, opts.ConnectionOptions().TLSOptions().TLSEnabled())
+	require.True(t, opts.ConnectionOptions().TLSOptions().InsecureSkipVerify())
+	require.Equal(t, "TestServer", opts.ConnectionOptions().TLSOptions().ServerName())
+	require.Equal(t, "/tmp/ca", opts.ConnectionOptions().TLSOptions().CAFile())
+	require.Equal(t, "/tmp/cert", opts.ConnectionOptions().TLSOptions().CertFile())
+	require.Equal(t, "/tmp/key", opts.ConnectionOptions().TLSOptions().KeyFile())
 }

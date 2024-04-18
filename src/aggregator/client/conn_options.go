@@ -113,6 +113,12 @@ type ConnectionOptions interface {
 	// RWOptions returns the RW options.
 	RWOptions() xio.Options
 
+	// SetTLSOptions sets TLS options
+	SetTLSOptions(value TLSOptions) ConnectionOptions
+
+	// TLSOptions returns the TLS options
+	TLSOptions() TLSOptions
+
 	// ContextDialer allows customizing the way an aggregator client the aggregator, at the TCP layer.
 	// By default, this is:
 	// (&net.ContextDialer{}).DialContext. This can be used to do a variety of things, such as forwarding a connection
@@ -137,6 +143,7 @@ type connectionOptions struct {
 	maxThreshold   int
 	multiplier     int
 	connKeepAlive  bool
+	tlsOptions     TLSOptions
 	dialer         xnet.ContextDialerFn
 }
 
@@ -159,6 +166,7 @@ func NewConnectionOptions() ConnectionOptions {
 		multiplier:     defaultReconnectThresholdMultiplier,
 		maxDuration:    defaultMaxReconnectDuration,
 		writeRetryOpts: defaultWriteRetryOpts,
+		tlsOptions:     NewTLSOptions(),
 		rwOpts:         xio.NewOptions(),
 		dialer:         nil, // Will default to net.Dialer{}.DialContext
 	}
@@ -272,6 +280,16 @@ func (o *connectionOptions) SetRWOptions(value xio.Options) ConnectionOptions {
 
 func (o *connectionOptions) RWOptions() xio.Options {
 	return o.rwOpts
+}
+
+func (o *connectionOptions) SetTLSOptions(value TLSOptions) ConnectionOptions {
+	opts := *o
+	opts.tlsOptions = value
+	return &opts
+}
+
+func (o *connectionOptions) TLSOptions() TLSOptions {
+	return o.tlsOptions
 }
 
 func (o *connectionOptions) ContextDialer() xnet.ContextDialerFn {

@@ -207,6 +207,37 @@ func (c *Configuration) NewClientOptions(
 	return opts, nil
 }
 
+// TLSConfiguration contains the TLS configuration
+type TLSConfiguration struct {
+	TLSEnabled         bool    `yaml:"tlsEnabled"`
+	InsecureSkipVerify *bool   `yaml:"insecureSkipVerify"`
+	ServerName         *string `yaml:"serverName"`
+	CAFile             *string `yaml:"caFile"`
+	CertFile           *string `yaml:"certFile"`
+	KeyFile            *string `yaml:"keyFile"`
+}
+
+// NewTLSOptions creates new TLS options
+func (c *TLSConfiguration) NewTLSOptions() TLSOptions {
+	opts := NewTLSOptions().SetTLSEnabled(c.TLSEnabled)
+	if c.InsecureSkipVerify != nil {
+		opts = opts.SetInsecureSkipVerify(*c.InsecureSkipVerify)
+	}
+	if c.ServerName != nil {
+		opts = opts.SetServerName(*c.ServerName)
+	}
+	if c.CAFile != nil {
+		opts = opts.SetCAFile(*c.CAFile)
+	}
+	if c.CertFile != nil {
+		opts = opts.SetCertFile(*c.CertFile)
+	}
+	if c.KeyFile != nil {
+		opts = opts.SetKeyFile(*c.KeyFile)
+	}
+	return opts
+}
+
 // ConnectionConfiguration contains the connection configuration.
 type ConnectionConfiguration struct {
 	ConnectionTimeout            time.Duration        `yaml:"connectionTimeout"`
@@ -217,6 +248,7 @@ type ConnectionConfiguration struct {
 	ReconnectThresholdMultiplier int                  `yaml:"reconnectThresholdMultiplier"`
 	MaxReconnectDuration         *time.Duration       `yaml:"maxReconnectDuration"`
 	WriteRetries                 *retry.Configuration `yaml:"writeRetries"`
+	TLS                          *TLSConfiguration    `yaml:"tls"`
 }
 
 // NewConnectionOptions creates new connection options.
@@ -246,6 +278,9 @@ func (c *ConnectionConfiguration) NewConnectionOptions(scope tally.Scope) Connec
 	if c.WriteRetries != nil {
 		retryOpts := c.WriteRetries.NewOptions(scope)
 		opts = opts.SetWriteRetryOptions(retryOpts)
+	}
+	if c.TLS != nil {
+		opts = opts.SetTLSOptions(c.TLS.NewTLSOptions())
 	}
 	return opts
 }

@@ -22,9 +22,13 @@ package client
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
+	"fmt"
 	"math/rand"
 	"net"
+	"os"
 	"sync"
 	"time"
 
@@ -77,6 +81,7 @@ type connection struct {
 	mtx                     sync.Mutex
 	keepAlive               bool
 	dialer                  xnet.ContextDialerFn
+	tls                     TLSOptions
 }
 
 // newConnection creates a new connection.
@@ -101,6 +106,7 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 			xio.ResettableWriterOptions{WriteBufferSize: 0},
 		),
 		metrics: newConnectionMetrics(opts.InstrumentOptions().MetricsScope()),
+		tls:     opts.TLSOptions(),
 	}
 	c.connectWithLockFn = c.connectWithLock
 	c.writeWithLockFn = c.writeWithLock
@@ -152,6 +158,34 @@ func (c *connection) Close() {
 	c.mtx.Unlock()
 }
 
+func (c *connection) upgradeToTLS(conn net.Conn) (net.Conn, error) {
+	certPool := x509.NewCertPool()
+	if c.tls.CAFile() != "" {
+		certs, err := os.ReadFile(c.tls.CAFile())
+		if err != nil {
+			return conn, fmt.Errorf("read bundle error: %w", err)
+		}
+		if ok := certPool.AppendCertsFromPEM(certs); !ok {
+			return conn, fmt.Errorf("cannot append cert to cert pool")
+		}
+	}
+	tlsConfig := &tls.Config{
+		RootCAs:            certPool,
+		InsecureSkipVerify: c.tls.InsecureSkipVerify(),
+		ServerName:         c.tls.ServerName(),
+	}
+	if c.tls.CertFile() != "" && c.tls.KeyFile() != "" {
+		tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+			cert, err := tls.LoadX509KeyPair(c.tls.CertFile(), c.tls.KeyFile())
+			if err != nil {
+				return nil, fmt.Errorf("load x509 key pair error: %w", err)
+			}
+			return &cert, nil
+		}
+	}
+	return tls.Client(conn, tlsConfig), nil
+}
+
 // writeAttemptWithLock attempts to establish a new connection and writes raw bytes
 // to the connection while holding the write lock.
 // If the write succeeds, c.conn is guaranteed to be a valid connection on return.
@@ -189,6 +223,15 @@ func (c *connection) connectWithLock() error {
 	if tcpConn, ok := conn.(keepAlivable); ok {
 		if err := tcpConn.SetKeepAlive(c.keepAlive); err != nil {
 			c.metrics.setKeepAliveError.Inc(1)
+		}
+	}
+
+	if c.tls.TLSEnabled() {
+		conn, err = c.upgradeToTLS(conn)
+		if err != nil {
+			c.metrics.connectError.Inc(1)
+			conn.Close()
+			return err
 		}
 	}
 

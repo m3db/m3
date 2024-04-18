@@ -251,6 +251,7 @@ type options struct {
 	maxBatchSize               int
 	flushWorkerCount           int
 	aggregatorClientType       AggregatorClientType
+	tlsOptions                 TLSOptions
 }
 
 // NewOptions creates a new set of client options.
