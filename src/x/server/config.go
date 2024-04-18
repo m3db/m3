@@ -40,6 +40,9 @@ type Configuration struct {
 
 	// KeepAlive period.
 	KeepAlivePeriod *time.Duration `yaml:"keepAlivePeriod"`
+
+	// TLS configuration
+	TLS *TLSConfiguration `yaml:"tls"`
 }
 
 // NewOptions creates server options.
@@ -53,10 +56,48 @@ func (c Configuration) NewOptions(iOpts instrument.Options) Options {
 	if c.KeepAlivePeriod != nil {
 		opts = opts.SetTCPConnectionKeepAlivePeriod(*c.KeepAlivePeriod)
 	}
+	if c.TLS != nil {
+		opts = opts.SetTLSOptions(c.TLS.NewOptions())
+	}
 	return opts
 }
 
 // NewServer creates a new server.
 func (c Configuration) NewServer(handler Handler, iOpts instrument.Options) Server {
 	return NewServer(c.ListenAddress, handler, c.NewOptions(iOpts))
+}
+
+// TLSConfiguration configs a tls server
+type TLSConfiguration struct {
+	// Mode is the tls server mode
+	// disabled - allows plaintext connections only
+	// permissive - allows both plaintext and TLS connections
+	// enforced - allows TLS connections only
+	Mode string `yaml:"mode" validate:"nonzero,regexp=^(disabled|permissive|enforced)$"`
+
+	// MutualTLSEnabled sets mTLS
+	MutualTLSEnabled bool `yaml:"mTLSEnabled"`
+
+	// CertFile path to a server certificate file
+	CertFile string `yaml:"certFile"`
+
+	// KeyFile path to a server key file
+	KeyFile string `yaml:"keyFile"`
+
+	// ClientCAFile path to a CA file for verifying clients
+	ClientCAFile string `yaml:"clientCAFile"`
+}
+
+// NewOptions creates TLS options
+func (c TLSConfiguration) NewOptions() TLSOptions {
+	opts := NewTLSOptions().
+		SetMutualTLSEnabled(c.MutualTLSEnabled).
+		SetCertFile(c.CertFile).
+		SetKeyFile(c.KeyFile).
+		SetClientCAFile(c.ClientCAFile)
+	var tlsMode TLSMode
+	if err := tlsMode.UnmarshalText([]byte(c.Mode)); err == nil {
+		opts = opts.SetMode(tlsMode)
+	}
+	return opts
 }

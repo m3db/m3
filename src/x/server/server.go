@@ -22,7 +22,11 @@
 package server
 
 import (
+	"crypto/tls"
+	"crypto/x509"
+	"fmt"
 	"net"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -91,6 +95,7 @@ type server struct {
 	metrics      serverMetrics
 	handler      Handler
 	listenerOpts xnet.ListenerOptions
+	tlsOpts      TLSOptions
 
 	addConnectionFn    addConnectionFn
 	removeConnectionFn removeConnectionFn
@@ -112,6 +117,7 @@ func NewServer(address string, handler Handler, opts Options) Server {
 		metrics:                      newServerMetrics(scope),
 		handler:                      handler,
 		listenerOpts:                 opts.ListenerOptions(),
+		tlsOpts:                      opts.TLSOptions(),
 	}
 
 	// Set up the connection functions.
@@ -140,15 +146,81 @@ func (s *server) Serve(l net.Listener) error {
 	return nil
 }
 
+func (s *server) upgradeToTLS(conn BufferedConn) (BufferedConn, error) {
+	certPool := x509.NewCertPool()
+	if s.tlsOpts.ClientCAFile() != "" {
+		certs, err := os.ReadFile(s.tlsOpts.ClientCAFile())
+		if err != nil {
+			return conn, fmt.Errorf("read bundle error: %w", err)
+		}
+		if ok := certPool.AppendCertsFromPEM(certs); !ok {
+			return conn, fmt.Errorf("cannot append cert to cert pool")
+		}
+	}
+	clientAuthType := tls.NoClientCert
+	if s.tlsOpts.MutualTLSEnabled() {
+		clientAuthType = tls.RequireAndVerifyClientCert
+	}
+	tlsConfig := &tls.Config{
+		ClientCAs: certPool,
+		GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+			cert, err := tls.LoadX509KeyPair(s.tlsOpts.CertFile(), s.tlsOpts.KeyFile())
+			if err != nil {
+				return nil, fmt.Errorf("load x509 key pair error: %w", err)
+			}
+			return &cert, nil
+		},
+		ClientAuth: clientAuthType,
+	}
+	tlsConn := tls.Server(conn, tlsConfig)
+	return newBufferedConn(tlsConn), nil
+}
+
+func (s *server) maybeUpgradeToTLS(conn BufferedConn) (BufferedConn, error) {
+	switch s.tlsOpts.Mode() {
+	case TLSPermissive:
+		isTLSConnection, err := conn.IsTLS()
+		if err != nil {
+			return conn, err
+		}
+		if isTLSConnection {
+			conn, err = s.upgradeToTLS(conn)
+			if err != nil {
+				return conn, err
+			}
+		}
+	case TLSEnforced:
+		var err error
+		var isTLSConnection bool
+		isTLSConnection, err = conn.IsTLS()
+		if err != nil {
+			return conn, err
+		}
+		if !isTLSConnection {
+			return conn, fmt.Errorf("Not a tls connection")
+		}
+		conn, err = s.upgradeToTLS(conn)
+		if err != nil {
+			return conn, err
+		}
+	}
+	return conn, nil
+}
+
 func (s *server) serve() {
 	connCh, errCh := xnet.StartForeverAcceptLoop(s.listener, s.retryOpts)
 	for conn := range connCh {
-		conn := conn
-		if tcpConn, ok := conn.(*net.TCPConn); ok {
+		conn := newBufferedConn(conn)
+		if tcpConn, ok := conn.GetConn().(*net.TCPConn); ok {
 			tcpConn.SetKeepAlive(s.tcpConnectionKeepAlive)
 			if s.tcpConnectionKeepAlivePeriod != 0 {
 				tcpConn.SetKeepAlivePeriod(s.tcpConnectionKeepAlivePeriod)
 			}
+		}
+		conn, err := s.maybeUpgradeToTLS(conn)
+		if err != nil {
+			conn.Close()
+			continue
 		}
 		if !s.addConnectionFn(conn) {
 			conn.Close()
