@@ -151,10 +151,12 @@ func (s *server) upgradeToTLS(conn BufferedConn) (BufferedConn, error) {
 	if s.tlsOpts.ClientCAFile() != "" {
 		certs, err := os.ReadFile(s.tlsOpts.ClientCAFile())
 		if err != nil {
-			return conn, fmt.Errorf("read bundle error: %w", err)
+			conn.Close()
+			return nil, fmt.Errorf("read bundle error: %w", err)
 		}
 		if ok := certPool.AppendCertsFromPEM(certs); !ok {
-			return conn, fmt.Errorf("cannot append cert to cert pool")
+			conn.Close()
+			return nil, fmt.Errorf("cannot append cert to cert pool")
 		}
 	}
 	clientAuthType := tls.NoClientCert
@@ -181,12 +183,13 @@ func (s *server) maybeUpgradeToTLS(conn BufferedConn) (BufferedConn, error) {
 	case TLSPermissive:
 		isTLSConnection, err := conn.IsTLS()
 		if err != nil {
-			return conn, err
+			conn.Close()
+			return nil, err
 		}
 		if isTLSConnection {
 			conn, err = s.upgradeToTLS(conn)
 			if err != nil {
-				return conn, err
+				return nil, err
 			}
 		}
 	case TLSEnforced:
@@ -194,14 +197,16 @@ func (s *server) maybeUpgradeToTLS(conn BufferedConn) (BufferedConn, error) {
 		var isTLSConnection bool
 		isTLSConnection, err = conn.IsTLS()
 		if err != nil {
-			return conn, err
+			conn.Close()
+			return nil, err
 		}
 		if !isTLSConnection {
-			return conn, fmt.Errorf("Not a tls connection")
+			conn.Close()
+			return nil, fmt.Errorf("not a tls connection")
 		}
 		conn, err = s.upgradeToTLS(conn)
 		if err != nil {
-			return conn, err
+			return nil, err
 		}
 	}
 	return conn, nil
@@ -219,7 +224,6 @@ func (s *server) serve() {
 		}
 		conn, err := s.maybeUpgradeToTLS(conn)
 		if err != nil {
-			conn.Close()
 			continue
 		}
 		if !s.addConnectionFn(conn) {
