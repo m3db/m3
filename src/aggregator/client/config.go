@@ -209,33 +209,23 @@ func (c *Configuration) NewClientOptions(
 
 // TLSConfiguration contains the TLS configuration
 type TLSConfiguration struct {
-	TLSEnabled         bool    `yaml:"tlsEnabled"`
-	InsecureSkipVerify *bool   `yaml:"insecureSkipVerify"`
-	ServerName         *string `yaml:"serverName"`
-	CAFile             *string `yaml:"caFile"`
-	CertFile           *string `yaml:"certFile"`
-	KeyFile            *string `yaml:"keyFile"`
+	TLSEnabled         bool   `yaml:"tlsEnabled"`
+	InsecureSkipVerify bool   `yaml:"insecureSkipVerify"`
+	ServerName         string `yaml:"serverName"`
+	CAFile             string `yaml:"caFile"`
+	CertFile           string `yaml:"certFile"`
+	KeyFile            string `yaml:"keyFile"`
 }
 
 // NewTLSOptions creates new TLS options
 func (c *TLSConfiguration) NewTLSOptions() TLSOptions {
-	opts := NewTLSOptions().SetTLSEnabled(c.TLSEnabled)
-	if c.InsecureSkipVerify != nil {
-		opts = opts.SetInsecureSkipVerify(*c.InsecureSkipVerify)
-	}
-	if c.ServerName != nil {
-		opts = opts.SetServerName(*c.ServerName)
-	}
-	if c.CAFile != nil {
-		opts = opts.SetCAFile(*c.CAFile)
-	}
-	if c.CertFile != nil {
-		opts = opts.SetCertFile(*c.CertFile)
-	}
-	if c.KeyFile != nil {
-		opts = opts.SetKeyFile(*c.KeyFile)
-	}
-	return opts
+	return NewTLSOptions().
+		SetTLSEnabled(c.TLSEnabled).
+		SetInsecureSkipVerify(c.InsecureSkipVerify).
+		SetServerName(c.ServerName).
+		SetCAFile(c.CAFile).
+		SetCertFile(c.CertFile).
+		SetKeyFile(c.KeyFile)
 }
 
 // ConnectionConfiguration contains the connection configuration.

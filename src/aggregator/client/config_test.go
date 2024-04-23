@@ -128,11 +128,11 @@ func TestConfigUnmarshal(t *testing.T) {
 	require.Equal(t, 2, cfg.Connection.WriteRetries.MaxRetries)
 	require.Equal(t, true, *cfg.Connection.WriteRetries.Jitter)
 	require.False(t, cfg.Connection.TLS.TLSEnabled)
-	require.True(t, *cfg.Connection.TLS.InsecureSkipVerify)
-	require.Equal(t, "TestServer", *cfg.Connection.TLS.ServerName)
-	require.Equal(t, "/tmp/ca", *cfg.Connection.TLS.CAFile)
-	require.Equal(t, "/tmp/cert", *cfg.Connection.TLS.CertFile)
-	require.Equal(t, "/tmp/key", *cfg.Connection.TLS.KeyFile)
+	require.True(t, cfg.Connection.TLS.InsecureSkipVerify)
+	require.Equal(t, "TestServer", cfg.Connection.TLS.ServerName)
+	require.Equal(t, "/tmp/ca", cfg.Connection.TLS.CAFile)
+	require.Equal(t, "/tmp/cert", cfg.Connection.TLS.CertFile)
+	require.Equal(t, "/tmp/key", cfg.Connection.TLS.KeyFile)
 	require.Nil(t, cfg.Connection.WriteRetries.Forever)
 }
 
