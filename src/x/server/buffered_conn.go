@@ -49,7 +49,10 @@ type bufferedConn struct {
 	r *bufio.Reader
 }
 
-// IsTLS returns is the connection is TLS or not
+// IsTLS returns is the connection is TLS or not.
+// It peeks at the first byte and checks
+// if it is equal to the TLS handshake first byte
+// https://www.rfc-editor.org/rfc/rfc5246#appendix-A.1
 func (b *bufferedConn) IsTLS() (bool, error) {
 	connBytes, err := b.Peek(1)
 	if err != nil {
