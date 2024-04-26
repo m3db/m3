@@ -491,7 +491,7 @@ func testConnectionOptions() ConnectionOptions {
 
 func testTLSConnectionOptions() ConnectionOptions {
 	tlsOptions := NewTLSOptions().
-		SetTLSEnabled(true).
+		SetEnabled(true).
 		SetInsecureSkipVerify(true).
 		SetCAFile("./testdata/rootCA.crt").
 		SetCertFile("./testdata/client.crt").

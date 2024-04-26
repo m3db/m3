@@ -226,7 +226,7 @@ func (c *connection) connectWithLock() error {
 		}
 	}
 
-	if c.tls.TLSEnabled() {
+	if c.tls.Enabled() {
 		conn, err = c.upgradeToTLS(conn)
 		if err != nil {
 			c.metrics.connectError.Inc(1)

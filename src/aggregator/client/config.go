@@ -209,7 +209,7 @@ func (c *Configuration) NewClientOptions(
 
 // TLSConfiguration contains the TLS configuration
 type TLSConfiguration struct {
-	TLSEnabled         bool   `yaml:"tlsEnabled"`
+	Enabled            bool   `yaml:"enabled"`
 	InsecureSkipVerify bool   `yaml:"insecureSkipVerify"`
 	ServerName         string `yaml:"serverName"`
 	CAFile             string `yaml:"caFile"`
@@ -220,7 +220,7 @@ type TLSConfiguration struct {
 // NewTLSOptions creates new TLS options
 func (c *TLSConfiguration) NewTLSOptions() TLSOptions {
 	return NewTLSOptions().
-		SetTLSEnabled(c.TLSEnabled).
+		SetEnabled(c.Enabled).
 		SetInsecureSkipVerify(c.InsecureSkipVerify).
 		SetServerName(c.ServerName).
 		SetCAFile(c.CAFile).

@@ -21,11 +21,11 @@
 package client
 
 type TLSOptions interface {
-	// SetTLSEnabled sets the TLS enabled option
-	SetTLSEnabled(value bool) TLSOptions
+	// SetEnabled sets the TLS enabled option
+	SetEnabled(value bool) TLSOptions
 
-	// TLSEnabled returns the TLS enabled option
-	TLSEnabled() bool
+	// Enabled returns the TLS enabled option
+	Enabled() bool
 
 	// SetInsecureSkipVerify sets the insecure skip verify option
 	SetInsecureSkipVerify(value bool) TLSOptions
@@ -59,7 +59,7 @@ type TLSOptions interface {
 }
 
 type tlsOptions struct {
-	tlsEnabled         bool
+	enabled            bool
 	insecureSkipVerify bool
 	serverName         string
 	caFile             string
@@ -70,19 +70,19 @@ type tlsOptions struct {
 // NewTLSOptions creates new TLS options
 func NewTLSOptions() TLSOptions {
 	return &tlsOptions{
-		tlsEnabled:         false,
+		enabled:            false,
 		insecureSkipVerify: true,
 	}
 }
 
-func (o *tlsOptions) SetTLSEnabled(value bool) TLSOptions {
+func (o *tlsOptions) SetEnabled(value bool) TLSOptions {
 	opts := *o
-	opts.tlsEnabled = value
+	opts.enabled = value
 	return &opts
 }
 
-func (o *tlsOptions) TLSEnabled() bool {
-	return o.tlsEnabled
+func (o *tlsOptions) Enabled() bool {
+	return o.enabled
 }
 
 func (o *tlsOptions) SetInsecureSkipVerify(value bool) TLSOptions {
