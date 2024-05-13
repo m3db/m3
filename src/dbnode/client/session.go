@@ -199,6 +199,7 @@ type sessionMetrics struct {
 	topologyUpdatedSuccess                           tally.Counter
 	topologyUpdatedError                             tally.Counter
 	streamFromPeersMetrics                           map[shardMetricsKey]streamFromPeersMetrics
+	clusterConnectLatency                            tally.Histogram
 }
 
 func newSessionMetrics(scope tally.Scope) sessionMetrics {
@@ -225,6 +226,7 @@ func newSessionMetrics(scope tally.Scope) sessionMetrics {
 		topologyUpdatedSuccess: scope.Counter("topology.updated-success"),
 		topologyUpdatedError:   scope.Counter("topology.updated-error"),
 		streamFromPeersMetrics: make(map[shardMetricsKey]streamFromPeersMetrics),
+		clusterConnectLatency:  histogramWithDurationBuckets(scope, "cluster-connect.latency"),
 	}
 }
 
@@ -895,6 +897,7 @@ func (s *session) hostQueues(
 		}
 	}()
 
+	startConnectAttempt := s.nowFn()
 	for {
 		if now := s.nowFn(); now.Sub(start) >= s.opts.ClusterConnectTimeout() {
 			switch firstConnectConsistencyLevel {
@@ -941,6 +944,7 @@ func (s *session) hostQueues(
 	}
 
 	connected = true
+	s.metrics.clusterConnectLatency.RecordDuration(s.nowFn().Sub(startConnectAttempt))
 	return queues, replicas, majority, nil
 }
 
