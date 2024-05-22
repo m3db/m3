@@ -1,0 +1,78 @@
+listenAddress: 0.0.0.0:7202
+
+carbon:
+  ingester:
+    listenAddress: "0.0.0.0:7204"
+    rules:
+      - pattern: .*
+        aggregation:
+          type: mean
+        policies:
+          - resolution: 10s
+            retention: 6h
+
+clusters:
+  - client:
+      config:
+        service:
+          env: default_env
+          zone: embedded
+          service: m3db
+          cacheDir: /var/lib/m3kv
+          etcdClusters:
+            - zone: embedded
+              endpoints:
+                - dbnode01:2379
+
+downsample:
+  remoteAggregator:
+    client:
+      placementKV:
+        namespace: /placement
+        environment: override_test_env
+      placementWatcher:
+        key: m3aggregator
+        initWatchTimeout: 10s
+      hashType: murmur32
+      shardCutoffLingerDuration: 1m
+      forceFlushEvery: 1s
+      flushWorkerCount: 4
+      maxTimerBatchSize: 1120
+      queueSize: 100
+      queueDropType: oldest
+      encoder:
+        initBufferSize: 2048
+        maxMessageSize: 10485760
+        bytesPool:
+          buckets:
+            - capacity: 2048
+              count: 4096
+            - capacity: 4096
+              count: 4096
+          watermark:
+            low: 0.7
+            high: 1.0
+      connection:
+        writeTimeout: 250ms
+        tls:
+          enabled: true
+          insecureSkipVerify: true
+          caFile: /tmp/rootCA.crt
+          certFile: /tmp/client.crt
+          keyFile: /tmp/client.key
+
+ingest:
+  ingester:
+    workerPoolSize: 100
+    opPool:
+      size: 10000
+    retry:
+      maxRetries: 3
+      jitter: true
+    logSampleRate: 0.01
+  m3msg:
+    server:
+      listenAddress: "0.0.0.0:7507"
+      retry:
+        maxBackoff: 10s
+        jitter: true
