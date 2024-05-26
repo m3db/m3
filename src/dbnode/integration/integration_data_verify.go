@@ -236,7 +236,7 @@ func writeVerifyDebugOutput(
 
 	list := make(readableSeriesList, 0, len(series))
 	for i := range series {
-		tags := make([]readableSeriesTag, len(series[i].Tags.Values()))
+		tags := make([]readableSeriesTag, 0, len(series[i].Tags.Values()))
 		for _, tag := range series[i].Tags.Values() {
 			tags = append(tags, readableSeriesTag{
 				Name:  tag.Name.String(),
