@@ -35,6 +35,8 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
+
+	murmur3 "github.com/m3db/stackmurmur3/v2"
 )
 
 // Configuration is config used to create a Matcher.
@@ -46,6 +48,7 @@ type Configuration struct {
 	NamespaceTag          string                       `yaml:"namespaceTag" validate:"nonzero"`
 	DefaultNamespace      string                       `yaml:"defaultNamespace" validate:"nonzero"`
 	NameTagKey            string                       `yaml:"nameTagKey" validate:"nonzero"`
+	IncludeTagKeys        []string                     `yaml:"includeTagKeys"`
 	MatchRangePast        *time.Duration               `yaml:"matchRangePast"`
 	SortedTagIteratorPool pool.ObjectPoolConfiguration `yaml:"sortedTagIteratorPool"`
 }
@@ -111,6 +114,7 @@ func (cfg *Configuration) NewOptions(
 	}
 	tagsFilterOptions := filters.TagsFilterOptions{
 		NameTagKey:          []byte(cfg.NameTagKey),
+		IncludeTagKeys:      createIncludeTagKeysMap(cfg.IncludeTagKeys),
 		NameAndTagsFn:       m3.NameAndTags,
 		SortedTagIteratorFn: sortedTagIteratorFn,
 	}
@@ -146,4 +150,13 @@ func (cfg *Configuration) NewOptions(
 	}
 
 	return opts, nil
+}
+
+func createIncludeTagKeysMap(includeTagKeys []string) map[uint64]struct{} {
+	includeTagKeysMap := make(map[uint64]struct{}, len(includeTagKeys))
+	for _, includeTagKey := range includeTagKeys {
+		hashKey := murmur3.Sum64([]byte(includeTagKey))
+		includeTagKeysMap[hashKey] = struct{}{}
+	}
+	return includeTagKeysMap
 }

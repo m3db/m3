@@ -2208,7 +2208,8 @@ func testMatchOptions() MatchOptions {
 
 func testTagsFilterOptions() filters.TagsFilterOptions {
 	return filters.TagsFilterOptions{
-		NameTagKey: []byte("name"),
+		NameTagKey:     []byte("name"),
+		IncludeTagKeys: [][]byte{[]byte("includeThisTag1"), []byte("includeThisTag2")},
 		NameAndTagsFn: func(b []byte) ([]byte, []byte, error) {
 			idx := bytes.Index(b, []byte("|"))
 			if idx == -1 {

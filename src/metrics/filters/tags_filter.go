@@ -118,7 +118,10 @@ type TagsFilterOptions struct {
 	// Name of the name tag.
 	NameTagKey []byte
 
-	// Function to extract name and tags from an id.
+	// Name of tags to automatically include in the rollup metric, if seen in the original metric.
+	IncludeTagKeys map[uint64]struct{}
+
+	//Function to extract name and tags from an id.
 	NameAndTagsFn id.NameAndTagsFn
 
 	// Function to create a new sorted tag iterator from id tags.
