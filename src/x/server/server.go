@@ -180,35 +180,22 @@ func (s *server) upgradeToTLS(conn BufferedConn) (BufferedConn, error) {
 }
 
 func (s *server) maybeUpgradeToTLS(conn BufferedConn) (BufferedConn, error) {
-	switch s.tlsOpts.Mode() {
-	case TLSPermissive:
-		isTLSConnection, err := conn.IsTLS()
-		if err != nil {
-			conn.Close()
-			return nil, err
-		}
-		if isTLSConnection {
-			conn, err = s.upgradeToTLS(conn)
-			if err != nil {
-				return nil, err
-			}
-		}
-	case TLSEnforced:
-		var err error
-		var isTLSConnection bool
-		isTLSConnection, err = conn.IsTLS()
-		if err != nil {
-			conn.Close()
-			return nil, err
-		}
-		if !isTLSConnection {
-			conn.Close()
-			return nil, fmt.Errorf("not a tls connection")
-		}
+	if s.tlsOpts.Mode() == TLSDisabled {
+		return conn, nil
+	}
+	isTLSConnection, err := conn.IsTLS()
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
+	if isTLSConnection {
 		conn, err = s.upgradeToTLS(conn)
 		if err != nil {
 			return nil, err
 		}
+	} else if s.tlsOpts.Mode() == TLSEnforced {
+		conn.Close()
+		return nil, fmt.Errorf("not a tls connection")
 	}
 	return conn, nil
 }
