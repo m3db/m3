@@ -82,6 +82,7 @@ type connection struct {
 	keepAlive               bool
 	dialer                  xnet.ContextDialerFn
 	tls                     TLSOptions
+	certPool                *x509.CertPool
 }
 
 // newConnection creates a new connection.
@@ -105,8 +106,9 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 			uninitWriter,
 			xio.ResettableWriterOptions{WriteBufferSize: 0},
 		),
-		metrics: newConnectionMetrics(opts.InstrumentOptions().MetricsScope()),
-		tls:     opts.TLSOptions(),
+		metrics:  newConnectionMetrics(opts.InstrumentOptions().MetricsScope()),
+		tls:      opts.TLSOptions(),
+		certPool: x509.NewCertPool(),
 	}
 	c.connectWithLockFn = c.connectWithLock
 	c.writeWithLockFn = c.writeWithLock
@@ -159,18 +161,17 @@ func (c *connection) Close() {
 }
 
 func (c *connection) upgradeToTLS(conn net.Conn) (net.Conn, error) {
-	certPool := x509.NewCertPool()
 	if c.tls.CAFile() != "" {
 		certs, err := os.ReadFile(c.tls.CAFile())
 		if err != nil {
 			return conn, fmt.Errorf("read bundle error: %w", err)
 		}
-		if ok := certPool.AppendCertsFromPEM(certs); !ok {
+		if ok := c.certPool.AppendCertsFromPEM(certs); !ok {
 			return conn, fmt.Errorf("cannot append cert to cert pool")
 		}
 	}
 	tlsConfig := &tls.Config{
-		RootCAs:            certPool,
+		RootCAs:            c.certPool,
 		InsecureSkipVerify: c.tls.InsecureSkipVerify(),
 		ServerName:         c.tls.ServerName(),
 	}
