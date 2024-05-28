@@ -155,7 +155,8 @@ func TestTLSPermissiveServerListenAndClose(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	for h.called() < numClients {
+	numChecks := 0
+	for h.called() < numClients && numChecks < 5 {
 		time.Sleep(100 * time.Millisecond)
 	}
 
@@ -199,8 +200,10 @@ func TestTLSEnforcedServerListenAndClose(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	for h.called() < numClients/2 {
+	numChecks := 0
+	for h.called() < numClients/2 && numChecks < 5 {
 		time.Sleep(100 * time.Millisecond)
+		numChecks++
 	}
 
 	require.False(t, h.isClosed())
@@ -241,8 +244,10 @@ func TestMutualTLSServerListenAndClose(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	for h.called() < numClients {
+	numChecks := 0
+	for h.called() < numClients && numChecks < 5 {
 		time.Sleep(100 * time.Millisecond)
+		numChecks++
 	}
 
 	require.False(t, h.isClosed())
