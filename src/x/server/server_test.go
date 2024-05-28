@@ -39,6 +39,10 @@ const (
 	testListenAddress = "127.0.0.1:0"
 )
 
+func testPlainTCPServer(addr string) (*server, *mockHandler, *int32, *int32) {
+	return testServer(addr, TLSDisabled, false)
+}
+
 // nolint: unparam
 func testServer(addr string, tlsMode TLSMode, mTLSEnabled bool) (*server, *mockHandler, *int32, *int32) {
 	var (
@@ -74,7 +78,7 @@ func testServer(addr string, tlsMode TLSMode, mTLSEnabled bool) (*server, *mockH
 }
 
 func TestServerListenAndClose(t *testing.T) {
-	s, h, numAdded, numRemoved := testServer(testListenAddress, TLSDisabled, false)
+	s, h, numAdded, numRemoved := testPlainTCPServer(testListenAddress)
 
 	var (
 		numClients  = 9
@@ -112,7 +116,7 @@ func TestServerListenAndClose(t *testing.T) {
 }
 
 func TestServe(t *testing.T) {
-	s, _, _, _ := testServer(testListenAddress, TLSDisabled, false)
+	s, _, _, _ := testPlainTCPServer(testListenAddress)
 
 	l, err := net.Listen("tcp", testListenAddress)
 	require.NoError(t, err)
