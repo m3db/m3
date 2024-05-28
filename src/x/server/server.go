@@ -96,6 +96,7 @@ type server struct {
 	handler      Handler
 	listenerOpts xnet.ListenerOptions
 	tlsOpts      TLSOptions
+	certPool     *x509.CertPool
 
 	addConnectionFn    addConnectionFn
 	removeConnectionFn removeConnectionFn
@@ -118,6 +119,7 @@ func NewServer(address string, handler Handler, opts Options) Server {
 		handler:                      handler,
 		listenerOpts:                 opts.ListenerOptions(),
 		tlsOpts:                      opts.TLSOptions(),
+		certPool:                     x509.NewCertPool(),
 	}
 
 	// Set up the connection functions.
@@ -147,14 +149,13 @@ func (s *server) Serve(l net.Listener) error {
 }
 
 func (s *server) upgradeToTLS(conn BufferedConn) (BufferedConn, error) {
-	certPool := x509.NewCertPool()
 	if s.tlsOpts.ClientCAFile() != "" {
 		certs, err := os.ReadFile(s.tlsOpts.ClientCAFile())
 		if err != nil {
 			conn.Close()
 			return nil, fmt.Errorf("read bundle error: %w", err)
 		}
-		if ok := certPool.AppendCertsFromPEM(certs); !ok {
+		if ok := s.certPool.AppendCertsFromPEM(certs); !ok {
 			conn.Close()
 			return nil, fmt.Errorf("cannot append cert to cert pool")
 		}
@@ -164,7 +165,7 @@ func (s *server) upgradeToTLS(conn BufferedConn) (BufferedConn, error) {
 		clientAuthType = tls.RequireAndVerifyClientCert
 	}
 	tlsConfig := &tls.Config{
-		ClientCAs: certPool,
+		ClientCAs: s.certPool,
 		GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 			cert, err := tls.LoadX509KeyPair(s.tlsOpts.CertFile(), s.tlsOpts.KeyFile())
 			if err != nil {
