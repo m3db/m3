@@ -215,8 +215,8 @@ func TestTLSEnforcedServerListenAndClose(t *testing.T) {
 	s.Close()
 
 	require.True(t, h.isClosed())
-	require.Equal(t, int32(numClients)/2, atomic.LoadInt32(numAdded))
-	require.Equal(t, int32(numClients)/2, atomic.LoadInt32(numRemoved))
+	require.Equal(t, int32(numClients), atomic.LoadInt32(numAdded))
+	require.Equal(t, int32(numClients), atomic.LoadInt32(numRemoved))
 	require.Equal(t, numClients/2, h.called())
 	require.Equal(t, expectedRes, h.res())
 }

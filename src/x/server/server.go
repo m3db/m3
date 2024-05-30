@@ -148,15 +148,13 @@ func (s *server) Serve(l net.Listener) error {
 	return nil
 }
 
-func (s *server) upgradeToTLS(conn BufferedConn) (BufferedConn, error) {
+func (s *server) getTLSConfig() (*tls.Config, error) {
 	if s.tlsOpts.ClientCAFile() != "" {
 		certs, err := os.ReadFile(s.tlsOpts.ClientCAFile())
 		if err != nil {
-			conn.Close()
 			return nil, fmt.Errorf("read bundle error: %w", err)
 		}
 		if ok := s.certPool.AppendCertsFromPEM(certs); !ok {
-			conn.Close()
 			return nil, fmt.Errorf("cannot append cert to cert pool")
 		}
 	}
@@ -175,26 +173,27 @@ func (s *server) upgradeToTLS(conn BufferedConn) (BufferedConn, error) {
 		},
 		ClientAuth: clientAuthType,
 	}
-	tlsConn := tls.Server(conn, tlsConfig)
-	return newBufferedConn(tlsConn), nil
+	return tlsConfig, nil
 }
 
-func (s *server) maybeUpgradeToTLS(conn BufferedConn) (BufferedConn, error) {
+func (s *server) maybeUpgradeToTLS(conn SecuredConn) (SecuredConn, error) {
 	if s.tlsOpts.Mode() == TLSDisabled {
 		return conn, nil
 	}
 	isTLSConnection, err := conn.IsTLS()
 	if err != nil {
-		conn.Close()
 		return nil, err
 	}
 	if isTLSConnection {
-		conn, err = s.upgradeToTLS(conn)
+		tlsConfig, err := s.getTLSConfig()
+		if err != nil {
+			return nil, err
+		}
+		conn = conn.UpgradeToTLS(tlsConfig)
 		if err != nil {
 			return nil, err
 		}
 	} else if s.tlsOpts.Mode() == TLSEnforced {
-		conn.Close()
 		return nil, fmt.Errorf("not a tls connection")
 	}
 	return conn, nil
@@ -203,27 +202,27 @@ func (s *server) maybeUpgradeToTLS(conn BufferedConn) (BufferedConn, error) {
 func (s *server) serve() {
 	connCh, errCh := xnet.StartForeverAcceptLoop(s.listener, s.retryOpts)
 	for conn := range connCh {
-		conn := newBufferedConn(conn)
+		conn := newSecuredConn(conn)
 		if tcpConn, ok := conn.GetConn().(*net.TCPConn); ok {
 			tcpConn.SetKeepAlive(s.tcpConnectionKeepAlive)
 			if s.tcpConnectionKeepAlivePeriod != 0 {
 				tcpConn.SetKeepAlivePeriod(s.tcpConnectionKeepAlivePeriod)
 			}
 		}
-		conn, err := s.maybeUpgradeToTLS(conn)
-		if err != nil {
-			continue
-		}
 		if !s.addConnectionFn(conn) {
 			conn.Close()
 		} else {
 			s.wgConns.Add(1)
 			go func() {
-				s.handler.Handle(conn)
+				defer conn.Close()
+				defer s.removeConnectionFn(conn)
+				defer s.wgConns.Done()
 
-				conn.Close()
-				s.removeConnectionFn(conn)
-				s.wgConns.Done()
+				securedConn, err := s.maybeUpgradeToTLS(conn)
+				if err != nil {
+					return
+				}
+				s.handler.Handle(securedConn)
 			}()
 		}
 	}

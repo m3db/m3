@@ -23,56 +23,76 @@ package server
 
 import (
 	"bufio"
+	"crypto/tls"
 	"net"
 )
 
 // TLSHandshakeFirstByte is the first byte of a tls connection handshake
 const TLSHandshakeFirstByte = 0x16
 
-func newBufferedConn(conn net.Conn) BufferedConn {
-	return &bufferedConn{
-		r:    bufio.NewReader(conn),
-		Conn: conn,
+func newSecuredConn(conn net.Conn) SecuredConn {
+	return &securedConn{
+		r:     bufio.NewReader(conn),
+		Conn:  conn,
+		isTLS: nil,
 	}
 }
 
-// BufferedConn represents the buffered connection
-type BufferedConn interface {
+// SecuredConn represents the secured connection
+type SecuredConn interface {
 	net.Conn
 	IsTLS() (bool, error)
-	Peek(int) ([]byte, error)
 	GetConn() net.Conn
+	UpgradeToTLS(*tls.Config) SecuredConn
 }
 
-type bufferedConn struct {
+type securedConn struct {
 	net.Conn
-	r *bufio.Reader
+	r     *bufio.Reader
+	isTLS *bool
 }
 
 // IsTLS returns is the connection is TLS or not.
 // It peeks at the first byte and checks
 // if it is equal to the TLS handshake first byte
 // https://www.rfc-editor.org/rfc/rfc5246#appendix-A.1
-func (b *bufferedConn) IsTLS() (bool, error) {
-	connBytes, err := b.Peek(1)
+func (b *securedConn) IsTLS() (bool, error) {
+	if b.isTLS != nil {
+		return *b.isTLS, nil
+	}
+	connBytes, err := b.r.Peek(1)
 	if err != nil {
 		return false, err
 	}
 	isTLS := len(connBytes) > 0 && connBytes[0] == TLSHandshakeFirstByte
+	b.isTLS = &isTLS
 	return isTLS, nil
 }
 
-// Peek returns the next n bytes without advancing the reader
-func (b *bufferedConn) Peek(n int) ([]byte, error) {
-	return b.r.Peek(n)
+func (b *securedConn) UpgradeToTLS(tlsConfig *tls.Config) SecuredConn {
+	tlsConn := tls.Server(b, tlsConfig)
+	t := true
+	return &securedConn{
+		r:     bufio.NewReader(tlsConn),
+		Conn:  tlsConn,
+		isTLS: &t,
+	}
 }
 
 // Read reads n bytes
-func (b *bufferedConn) Read(n []byte) (int, error) {
+func (b *securedConn) Read(n []byte) (int, error) {
+	// Before reading we need to ensure if we know the type of the connection.
+	// After reading data it will be impossible to determine
+	// if the connection has the TLS layer or not.
+	if b.isTLS == nil {
+		if _, err := b.IsTLS(); err != nil {
+			return 0, err
+		}
+	}
 	return b.r.Read(n)
 }
 
 // GetConn returns net.Conn connection
-func (b *bufferedConn) GetConn() net.Conn {
+func (b *securedConn) GetConn() net.Conn {
 	return b.Conn
 }

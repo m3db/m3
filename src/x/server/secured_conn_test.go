@@ -57,10 +57,10 @@ func TestPlainTCPConnection(t *testing.T) {
 	_, err = clientConn.Write([]byte("not a tls connection"))
 	require.NoError(t, err)
 
-	var conn BufferedConn
+	var conn SecuredConn
 	select {
 	case newConn := <-connCh:
-		conn = newBufferedConn(newConn)
+		conn = newSecuredConn(newConn)
 	case newErr := <-errCh:
 		err = newErr
 	}
@@ -85,10 +85,10 @@ func TestTLSConnection(t *testing.T) {
 	defer tlsConn.Close()
 	go tlsConn.Handshake()
 
-	var conn BufferedConn
+	var conn SecuredConn
 	select {
 	case newConn := <-connCh:
-		conn = newBufferedConn(newConn)
+		conn = newSecuredConn(newConn)
 	case newErr := <-errCh:
 		err = newErr
 	}
