@@ -2,6 +2,11 @@
 
 set -eo pipefail
 
+echo "amainsd debug"
+whoami
+ls -al vendor
+echo "end amainsd debug"
+
 echo "--- :git: cleaning checkout"
 if [[ -d "./_tools" ]]; then
   chmod -R +w ./_tools
