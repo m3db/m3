@@ -21,7 +21,7 @@ function build() {
   fi
 
   local action=$1
-  local url="https://api.buildkite.com/v2/organizations/uberopensource/pipelines/m3-monorepo-ci"
+  local url="https://api.buildkite.com/v2/organizations/uberopensource/pipelines/m3-monorepo-ci-uber-oss"
   local auth="Authorization: Bearer $BUILDKITE_CLI_TOKEN"
 
   if [[ "$action" != "build" && "$action" != "list" ]]; then
