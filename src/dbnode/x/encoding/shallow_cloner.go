@@ -150,6 +150,9 @@ func (s shallowCloner) cloneBlockReader(
 	head := s.pools.CheckedBytesWrapper().Get(seg.Head.Bytes())
 	tail := s.pools.CheckedBytesWrapper().Get(seg.Tail.Bytes())
 	checksum := seg.CalculateChecksum()
+	// nb: the FinalizeNone is of particular importance here. It ensures we don't assume ownership
+	// of the head/tail bytes. So when Close() is called, we nil out our pointers and stop there.
+	// (instead of returning the []byte to a pool, and so on).
 	segCopy := ts.NewSegment(head, tail, checksum, ts.FinalizeNone)
 	segReader := xio.NewSegmentReader(segCopy)
 
