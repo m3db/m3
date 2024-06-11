@@ -21,7 +21,7 @@
 // mockgen rules for generating mocks for exported interfaces (reflection mode)
 
 //go:generate sh -c "mockgen -package=fs $PACKAGE/src/dbnode/persist/fs DataFileSetWriter,DataFileSetReader,DataFileSetSeeker,IndexFileSetWriter,IndexFileSetReader,IndexSegmentFileSetWriter,IndexSegmentFileSet,IndexSegmentFile,SnapshotMetadataFileWriter,DataFileSetSeekerManager,ConcurrentDataFileSetSeeker,MergeWith,StreamingWriter | genclean -pkg $PACKAGE/src/dbnode/persist/fs -out ../../persist/fs/fs_mock.go"
-//go:generate sh -c "mockgen -package=xio $PACKAGE/src/dbnode/x/xio SegmentReader,SegmentReaderPool | genclean -pkg $PACKAGE/src/dbnode/x/xio -out ../../x/xio/io_mock.go"
+//go:generate sh -c "mockgen -package=xio $PACKAGE/src/dbnode/x/xio ReaderSliceOfSlicesIterator,SegmentReader,SegmentReaderPool | genclean -pkg $PACKAGE/src/dbnode/x/xio -out ../../x/xio/io_mock.go"
 //go:generate sh -c "mockgen -package=digest -destination=../../digest/digest_mock.go $PACKAGE/src/dbnode/digest ReaderWithDigest"
 //go:generate sh -c "mockgen -package=series $PACKAGE/src/dbnode/storage/series DatabaseSeries,QueryableBlockRetriever | genclean -pkg $PACKAGE/src/dbnode/storage/series -out ../../storage/series/series_mock.go"
 //go:generate sh -c "mockgen -package=storage $PACKAGE/src/dbnode/storage IndexWriter | genclean -pkg $PACKAGE/src/dbnode/storage -out ../../storage/lookup_mock.go"
@@ -44,5 +44,6 @@
 //go:generate sh -c "mockgen -package=writes -destination=../../ts/writes/write_batch_mock.go -source=../../ts/writes/types.go"
 //go:generate sh -c "mockgen -package=index -destination=../../storage/index/index_mock.go -source=../../storage/index/types.go"
 //go:generate sh -c "mockgen -package=permits -destination=../../storage/limits/permits/permits_mock.go -source=../../storage/limits/permits/types.go"
+//go:generate sh -c "mockgen -package=xpool -destination=../../x/xpool/xpool_mock.go -source=../../x/xpool/types.go"
 
 package mocks
