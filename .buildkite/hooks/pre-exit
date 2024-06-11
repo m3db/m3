@@ -6,4 +6,4 @@ echo "--- :git: cleaning checkout"
 if [[ -d "./_tools" ]]; then
   chmod -R +w ./_tools
 fi
-git clean -dffx
+#git clean -dffx
