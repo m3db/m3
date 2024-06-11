@@ -1,5 +1,5 @@
 #!/bin/bash
-: '
+
 set -eo pipefail
 
 echo "--- :git: cleaning checkout"
@@ -7,4 +7,3 @@ if [[ -d "./_tools" ]]; then
   chmod -R +w ./_tools
 fi
 git clean -dffx
-'
