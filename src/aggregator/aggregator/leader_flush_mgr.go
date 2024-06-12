@@ -21,6 +21,7 @@
 package aggregator
 
 import (
+	"math"
 	"sync"
 	"time"
 
@@ -84,11 +85,14 @@ type leaderFlushManager struct {
 	logger            *zap.Logger
 	scope             tally.Scope
 
-	doneCh         <-chan struct{}
-	flushTimes     flushMetadataHeap
-	flushedByShard map[uint32]*schema.ShardFlushTimes
-	flushTask      *leaderFlushTask
-	metrics        leaderFlushManagerMetrics
+	doneCh                <-chan struct{}
+	flushTimes            flushMetadataHeap
+	flushedByShard        map[uint32]*schema.ShardFlushTimes
+	initialFlushedByShard *schema.ShardSetFlushTimes
+	initialFlushes        int
+	flushTask             *leaderFlushTask
+	metrics               leaderFlushManagerMetrics
+	computeMetrics        *computeMetrics
 }
 
 func newLeaderFlushManager(
@@ -110,10 +114,11 @@ func newLeaderFlushManager(
 		doneCh:            doneCh,
 		flushedByShard:    make(map[uint32]*schema.ShardFlushTimes, defaultInitialFlushCapacity),
 		metrics:           newLeaderFlushManagerMetrics(scope),
+		computeMetrics:    newComputeMetrics(scope),
 	}
 	mgr.flushTask = &leaderFlushTask{
 		mgr:      mgr,
-		flushers: make([]flushingMetricList, 0, defaultInitialFlushCapacity),
+		flushers: make([]flusherWithTime, 0, defaultInitialFlushCapacity),
 	}
 	return mgr
 }
@@ -124,11 +129,136 @@ func (mgr *leaderFlushManager) Open() {}
 // the flushers in the buckets.
 func (mgr *leaderFlushManager) Init(buckets []*flushBucket) {
 	mgr.Lock()
+	shardSetFlushTimes, err := mgr.flushTimesManager.Get()
+	if err != nil {
+		mgr.logger.Warn("could not load shard set flush times", zap.Error(err))
+	} else {
+		mgr.initialFlushedByShard = shardSetFlushTimes
+	}
+
 	mgr.flushTimes.Reset()
 	for bucketIdx, bucket := range buckets {
-		mgr.enqueueBucketWithLock(bucketIdx, bucket)
+		mgr.enqueueBucketWithLock(bucketIdx, bucket, true)
 	}
+
+	mgr.initialFlushes = mgr.flushTimes.Len()
 	mgr.Unlock()
+}
+
+type computeMetrics struct {
+	noShardSetFlushTimes tally.Counter
+	noShard              tally.Counter
+	noStandardRes        tally.Counter
+	noFwdRes             tally.Counter
+	noFwdNumFwds         tally.Counter
+	noTimedRes           tally.Counter
+	invalidFlushNanos    tally.Counter
+	validFlushNanos      tally.Counter
+
+	remainingToCompute tally.Gauge
+}
+
+func newComputeMetrics(scope tally.Scope) *computeMetrics {
+	newCounter := func(name string) tally.Counter {
+		return scope.Tagged(map[string]string{"compute_status": name}).Counter("computed")
+	}
+	return &computeMetrics{
+		noShardSetFlushTimes: newCounter("no_shard_set_flush_times"),
+		noShard:              newCounter("no_shard"),
+		noStandardRes:        newCounter("no_standard_res"),
+		noFwdRes:             newCounter("no_fwd_res"),
+		noFwdNumFwds:         newCounter("no_fwd_num_fwds"),
+		noTimedRes:           newCounter("no_timed_res"),
+		invalidFlushNanos:    newCounter("invalid_flush_nanos"),
+		validFlushNanos:      newCounter("valid_flush_nanos"),
+
+		remainingToCompute: scope.Gauge("remaining_to_compute"),
+	}
+}
+
+func computeFlusherWithTime(
+	flusher flushingMetricList,
+	shardSetFlushTimes *schema.ShardSetFlushTimes,
+	bucketID metricListID,
+	m *computeMetrics,
+) flusherWithTime {
+	flush := flusherWithTime{flusher: flusher}
+	if shardSetFlushTimes == nil {
+		m.noShardSetFlushTimes.Inc(1)
+		return flush
+	}
+
+	shard := flusher.Shard()
+	shardFlushTimes, exists := shardSetFlushTimes.ByShard[shard]
+	if !exists {
+		m.noShard.Inc(1)
+		return flush
+	}
+
+	switch bucketID.listType {
+	case standardMetricListType:
+		resolution := int64(bucketID.standard.resolution)
+		flushTimes := getStandardFlushTimesByResolutionFn(shardFlushTimes)
+		lastFlushedAtNanos, exists := flushTimes[resolution]
+		if !exists {
+			m.noStandardRes.Inc(1)
+			return flush
+		}
+
+		flush.flushBeforeNanos = lastFlushedAtNanos
+	case forwardedMetricListType:
+		resolution := int64(bucketID.forwarded.resolution)
+		flushTimesForResolution, exists := shardFlushTimes.ForwardedByResolution[resolution]
+		if !exists {
+			m.noFwdRes.Inc(1)
+			return flush
+		}
+
+		numForwards := int32(bucketID.forwarded.numForwardedTimes)
+		lastFlushedAtNanos, exists := flushTimesForResolution.ByNumForwardedTimes[numForwards]
+		if !exists {
+			m.noFwdNumFwds.Inc(1)
+			return flush
+		}
+
+		flush.flushBeforeNanos = lastFlushedAtNanos
+	case timedMetricListType:
+		resolution := int64(bucketID.timed.resolution)
+		flushTimes := getTimedFlushTimesByResolutionFn(shardFlushTimes)
+		lastFlushedAtNanos, exists := flushTimes[resolution]
+		if !exists {
+			m.noTimedRes.Inc(1)
+			return flush
+		}
+
+		flush.flushBeforeNanos = lastFlushedAtNanos
+	default:
+		panic("should never get here")
+	}
+
+	if flush.flushBeforeNanos == math.MaxInt64 {
+		m.invalidFlushNanos.Inc(1)
+		flush.flushBeforeNanos = 0
+	} else {
+		m.validFlushNanos.Inc(1)
+	}
+
+	return flush
+}
+
+func computeFlushersWithTime(
+	dst []flusherWithTime,
+	bucket *flushBucket,
+	shardSetFlushTimes *schema.ShardSetFlushTimes,
+	m *computeMetrics,
+) []flusherWithTime {
+	dst = dst[:0]
+	bucketID := bucket.bucketID
+	for _, flusher := range bucket.flushers {
+		dst = append(dst, computeFlusherWithTime(flusher, shardSetFlushTimes, bucketID, m))
+	}
+
+	return dst
 }
 
 func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.Duration) {
@@ -156,7 +286,25 @@ func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.
 			// flushers are registered or old flushers are unregistered.
 			mgr.flushTask.duration = buckets[bucketIdx].duration
 			mgr.flushTask.jitter = buckets[bucketIdx].offset
-			mgr.flushTask.flushers = append(mgr.flushTask.flushers[:0], buckets[bucketIdx].flushers...)
+			mgr.flushTask.flushers = mgr.flushTask.flushers[:0]
+			mgr.flushTask.flushers = computeFlushersWithTime(
+				mgr.flushTask.flushers,
+				buckets[bucketIdx],
+				mgr.initialFlushedByShard,
+				mgr.computeMetrics,
+			)
+
+			if earliestFlush.initialFlush {
+				mgr.initialFlushes--
+				// NB(arnikola): clear out the initial flushed data after each of the
+				// initial flushes have been prepared or run.
+				if mgr.initialFlushes == 0 {
+					mgr.initialFlushedByShard = nil
+				}
+			}
+
+			mgr.computeMetrics.remainingToCompute.Update(float64(mgr.initialFlushes))
+			// NB: initialFlush should always be set to false on re-adding to heap.
 			nextFlushMetadata := flushMetadata{
 				timeNanos: earliestFlush.timeNanos + int64(buckets[bucketIdx].interval),
 				bucketIdx: bucketIdx,
@@ -209,7 +357,7 @@ func (mgr *leaderFlushManager) OnBucketAdded(
 	bucket *flushBucket,
 ) {
 	mgr.Lock()
-	mgr.enqueueBucketWithLock(bucketIdx, bucket)
+	mgr.enqueueBucketWithLock(bucketIdx, bucket, false)
 	mgr.Unlock()
 }
 
@@ -247,11 +395,13 @@ func (mgr *leaderFlushManager) Close() {}
 func (mgr *leaderFlushManager) enqueueBucketWithLock(
 	bucketIdx int,
 	bucket *flushBucket,
+	initialFlsuh bool,
 ) {
 	nextFlushNanos := mgr.computeNextFlushNanos(bucket.interval, bucket.offset)
 	newFlushMetadata := flushMetadata{
-		timeNanos: nextFlushNanos,
-		bucketIdx: bucketIdx,
+		timeNanos:    nextFlushNanos,
+		bucketIdx:    bucketIdx,
+		initialFlush: initialFlsuh,
 	}
 	mgr.flushTimes.Push(newFlushMetadata)
 }
@@ -479,7 +629,7 @@ type leaderFlushTask struct {
 	mgr            *leaderFlushManager
 	duration       tally.Timer
 	jitter         time.Duration
-	flushers       []flushingMetricList
+	flushers       []flusherWithTime
 	persistFlushFn func()
 }
 
@@ -496,7 +646,9 @@ func (t *leaderFlushTask) Run() {
 		start     = mgr.nowFn()
 		jitter    = t.jitter
 	)
-	for _, flusher := range t.flushers {
+	// fiolter though here.
+	for _, timedFlusher := range t.flushers {
+		flusher := timedFlusher.flusher
 		// By default traffic is cut off from a shard, unless the shard is in the list of
 		// shards owned by the instance, in which case the cutover time and the cutoff time
 		// are set to the corresponding cutover and cutoff times of the shard.
@@ -512,12 +664,12 @@ func (t *leaderFlushTask) Run() {
 		// topology change in case we need to back out of the change and move the shard
 		// back to the instance.
 		req := flushRequest{
-			CutoverNanos:      cutoverNanos,
-			CutoffNanos:       cutoffNanos,
-			BufferAfterCutoff: mgr.maxBufferSize,
-			Jitter:            jitter,
+			CutoverNanos:         cutoverNanos,
+			CutoffNanos:          cutoffNanos,
+			BufferAfterCutoff:    mgr.maxBufferSize,
+			Jitter:               jitter,
+			LatestPersistedFlush: timedFlusher.flushBeforeNanos,
 		}
-		flusher := flusher
 		wgWorkers.Add(1)
 		mgr.workers.Go(func() {
 			flusher.Flush(req)
@@ -531,8 +683,9 @@ func (t *leaderFlushTask) Run() {
 
 // flushMetadata contains metadata information for a flush.
 type flushMetadata struct {
-	timeNanos int64
-	bucketIdx int
+	initialFlush bool
+	timeNanos    int64
+	bucketIdx    int
 }
 
 // flushMetadataHeap is a min heap for flush metadata where the metadata with the
