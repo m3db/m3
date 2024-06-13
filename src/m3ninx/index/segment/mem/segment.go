@@ -30,6 +30,8 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/util"
+
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -64,6 +66,8 @@ type memSegment struct {
 		nextID postings.ID
 	}
 	readerID postings.AtomicID
+
+	inserts tally.Counter
 }
 
 // NewSegment returns a new in-memory mutable segment. It will start assigning
@@ -74,6 +78,7 @@ func NewSegment(opts Options) (segment.MutableSegment, error) {
 		newUUIDFn: opts.NewUUIDFn(),
 		termsDict: newTermsDict(opts),
 		readerID:  postings.NewAtomicID(0),
+		inserts:   opts.InstrumentOptions().MetricsScope().Counter("segment-doc-inserts"),
 	}
 
 	s.docs.data = make([]doc.Metadata, opts.InitialCapacity())
@@ -183,6 +188,7 @@ func (s *memSegment) Insert(d doc.Metadata) ([]byte, error) {
 			return nil, err
 		}
 		s.readerID.Inc()
+		s.inserts.Inc(1)
 	}
 
 	return d.ID, nil
