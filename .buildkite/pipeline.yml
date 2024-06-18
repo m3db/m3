@@ -1,7 +1,40 @@
+container:
+  kubernetes: &kubernetes
+    gitEnvFrom:
+      - secretRef:
+          name: oss-github-ssh-credentials
+    sidecars:
+      - image: us-west1-docker.pkg.dev/ci-compute/buildkite-images/buildkite-dind:v1
+        volumeMounts:
+          - mountPath: /var/run/
+            name: docker-sock
+        securityContext:
+          privileged: true
+          allowPrivilegeEscalation: true
+    mirrorVolumeMounts: true # CRITICAL: this must be at the same indentation level as sidecars
+    podSpec: &podSpec
+      containers:
+        - &commandContainer
+          image: us-west1-docker.pkg.dev/ci-compute/buildkite-images/buildkite-command-container:v2
+          command:
+            - |-
+              echo "Command step was not overridden."
+              exit 1
+          volumeMounts:
+            - mountPath: /var/run/
+              name: docker-sock
+          resources:
+            requests:
+              cpu: 7500m
+              memory: 28G
+      volumes:
+        - name: docker-sock
+          emptyDir: {}
+
 common: &common
   timeout_in_minutes: 20
   agents:
-    queue: workers
+    queue: "buildkite-gcp"
   retry:
     # Automatically retry failures one time.
     automatic:
