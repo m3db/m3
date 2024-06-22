@@ -37,7 +37,7 @@ agents:
 common: &common
   timeout_in_minutes: 20
   agents:
-    queue: workers
+    queue: "buildkite-gcp"
   retry:
     # Automatically retry failures one time.
     automatic:
@@ -74,7 +74,7 @@ steps:
               command:
                 - |-
                   make clean install-vendor-m3 test-base
-#    <<: *common
+    <<: *common
 #  - name: "Big Unit %n"
 #    command: make clean install-vendor-m3 test-big-base
 #    parallelism: 2
