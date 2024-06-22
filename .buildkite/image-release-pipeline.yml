@@ -7,7 +7,7 @@ steps:
     env:
       M3_DOCKER_REPO: quay.io/m3db
     agents:
-      queue: builders
+      queue: "buildkite-gcp"
     timeout_in_minutes: 60
     retry:
       automatic:
@@ -23,7 +23,7 @@ steps:
     env:
       M3_DOCKER_REPO: quay.io/m3
     agents:
-      queue: builders
+      queue: "buildkite-gcp"
     timeout_in_minutes: 60
     retry:
       automatic:

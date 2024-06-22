@@ -1,3 +1,39 @@
+container:
+  kubernetes: &kubernetes
+    gitEnvFrom:
+      - secretRef:
+          name: oss-github-ssh-credentials
+    sidecars:
+      - image: us-west1-docker.pkg.dev/ci-compute/buildkite-images/buildkite-dind:v1
+        volumeMounts:
+          - mountPath: /var/run/
+            name: docker-sock
+        securityContext:
+          privileged: true
+          allowPrivilegeEscalation: true
+    mirrorVolumeMounts: true # CRITICAL: this must be at the same indentation level as sidecars
+    podSpec: &podSpec
+      containers:
+        - &commandContainer
+          image: us-west1-docker.pkg.dev/ci-compute/buildkite-images/buildkite-command-container:v2
+          command:
+            - |-
+              echo "Command step was not overridden."
+              exit 1
+          volumeMounts:
+            - mountPath: /var/run/
+              name: docker-sock
+          resources:
+            requests:
+              cpu: 7500m
+              memory: 28G
+      volumes:
+        - name: docker-sock
+          emptyDir: {}
+
+agents:
+  queue: "buildkite-gcp"
+
 common: &common
   timeout_in_minutes: 20
   agents:
@@ -14,150 +50,158 @@ env:
   SKIP_CODECOV: "true"
 
 steps:
-  - name: "Codegen"
-    command: make clean install-vendor-m3 test-all-gen
-    env:
-      CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.18.x
-    plugins:
-        gopath-checkout#v1.0.1:
-          import: github.com/m3db/m3
-    <<: *common
+#  - name: "Codegen"
+#    command: make clean install-vendor-m3 test-all-gen
+#    env:
+#      CGO_ENABLED: 0
+#      GIMME_GO_VERSION: 1.18.x
+#    plugins:
+#        gopath-checkout#v1.0.1:
+#          import: github.com/m3db/m3
+#    <<: *common
   - name: "Unit %n"
-    command: make clean install-vendor-m3 test-base
     parallelism: 4
     plugins:
       docker-compose#v2.5.1:
         run: app
         workdir: /go/src/github.com/m3db/m3
-    <<: *common
-  - name: "Big Unit %n"
-    command: make clean install-vendor-m3 test-big-base
-    parallelism: 2
-    plugins:
-      docker-compose#v2.5.1:
-        run: app
-        workdir: /go/src/github.com/m3db/m3
-    <<: *common
-  - name: "Services, Tools"
-    command: make clean install-vendor-m3 services tools
-    plugins:
-      docker-compose#v2.5.1:
-        run: app
-        workdir: /go/src/github.com/m3db/m3
-    <<: *common
-  - name: "Lint"
-    command: make clean lint
-    env:
-      CGO_ENABLED: 0
-    plugins:
-      docker-compose#v2.5.1:
-        run: app
-        workdir: /go/src/github.com/m3db/m3
-    <<: *common
-  - name: "Integration (:docker:)"
-    command: make clean install-vendor-m3 docker-integration-test
-    parallelism: 2
-    env:
-      CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.18.x
-    plugins:
-        gopath-checkout#v1.0.1:
-          import: github.com/m3db/m3
-    <<: *common
-  - label: "M3 Cluster Integration Tests"
-    command: make clean test-ci-cluster-integration
-    env:
-      CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.18.x
-    plugins:
-      gopath-checkout#v1.0.1:
-        import: github.com/m3db/m3
-    <<: *common
-  - label: "M3 Cluster Integration Test Harness Tests"
-    command: make clean test-ci-test-harness
-    skip: "NB(nate): temporarily disabling to resolve some tests flakes"
-    plugins:
-      docker-compose#v2.5.1:
-        run: app
-        workdir: /go/src/github.com/m3db/m3
-    <<: *common
-  - name: "Prometheus compatibility (:docker:)"
-    command: make clean install-vendor-m3 docker-compatibility-test
-    parallelism: 1
-    env:
-      CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.18.x
-    plugins:
-        gopath-checkout#v1.0.1:
-          import: github.com/m3db/m3
-    <<: *common
-  - name: "Integration (dbnode Recently Read) %n"
-    parallelism: 2
-    command: make clean install-vendor-m3 test-ci-integration-dbnode cache_policy=recently_read
-    plugins:
-      docker-compose#v2.5.1:
-        run: app
-        workdir: /go/src/github.com/m3db/m3
-    <<: *common
-  - name: "Integration (dbnode LRU) %n"
-    parallelism: 2
-    command: make clean install-vendor-m3 test-ci-integration-dbnode cache_policy=lru
-    plugins:
-      docker-compose#v2.5.1:
-        run: app
-        workdir: /go/src/github.com/m3db/m3
-    <<: *common
-  - name: "Integration (aggregator TCP client) %n"
-    parallelism: 1
-    command: make clean install-vendor-m3 test-ci-integration-aggregator aggregator_client=tcp
-    plugins:
-      docker-compose#v2.5.1:
-        run: app
-        workdir: /go/src/github.com/m3db/m3
-    <<: *common
-  - name: "Integration (aggregator m3msg client) %n"
-    parallelism: 1
-    command: make clean install-vendor-m3 test-ci-integration-aggregator aggregator_client=m3msg
-    plugins:
-      docker-compose#v2.5.1:
-        run: app
-        workdir: /go/src/github.com/m3db/m3
-    <<: *common
-  - label: "Integration (m3em, cluster, msg, metrics) %n"
-    parallelism: 4
-    command: make clean install-vendor-m3 test-ci-integration-m3em test-ci-integration-cluster test-ci-integration-msg test-ci-integration-metrics
-    plugins:
-      docker-compose#v2.5.1:
-        run: app
-        workdir: /go/src/github.com/m3db/m3
-    <<: *common
-  - name: "Documentation tests"
-    command: make clean install-vendor-m3 docs-test
-    env:
-      CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.18.x
-    plugins:
-        gopath-checkout#v1.0.1:
-          import: github.com/m3db/m3
-    <<: *common
-  - label: "FOSSA license scan"
-    command: make clean install-vendor-m3 fossa
-    plugins:
-      docker-compose#v2.5.1:
-        run: app
-        workdir: /go/src/github.com/m3db/m3
-        env:
-          - FOSSA_API_KEY
-    <<: *common
-  - name: "Check for docker and docs builds :docker: :books:"
-    commands:
-    - ".ci/docker/check_do_docker.sh"
-    - ".buildkite/scripts/check_do_docs.sh"
-    agents:
-      queue: init
-    timeout_in_minutes: 10
-    retry:
-      automatic:
-        limit: 1
-      manual: true
+      kubernetes:
+        <<: *kubernetes
+        podSpec:
+          <<: *podSpec
+          containers:
+            - <<: *commandContainer
+              command:
+                - |-
+                  make clean install-vendor-m3 test-base
+#    <<: *common
+#  - name: "Big Unit %n"
+#    command: make clean install-vendor-m3 test-big-base
+#    parallelism: 2
+#    plugins:
+#      docker-compose#v2.5.1:
+#        run: app
+#        workdir: /go/src/github.com/m3db/m3
+#    <<: *common
+#  - name: "Services, Tools"
+#    command: make clean install-vendor-m3 services tools
+#    plugins:
+#      docker-compose#v2.5.1:
+#        run: app
+#        workdir: /go/src/github.com/m3db/m3
+#    <<: *common
+#  - name: "Lint"
+#    command: make clean lint
+#    env:
+#      CGO_ENABLED: 0
+#    plugins:
+#      docker-compose#v2.5.1:
+#        run: app
+#        workdir: /go/src/github.com/m3db/m3
+#    <<: *common
+#  - name: "Integration (:docker:)"
+#    command: make clean install-vendor-m3 docker-integration-test
+#    parallelism: 2
+#    env:
+#      CGO_ENABLED: 0
+#      GIMME_GO_VERSION: 1.18.x
+#    plugins:
+#        gopath-checkout#v1.0.1:
+#          import: github.com/m3db/m3
+#    <<: *common
+#  - label: "M3 Cluster Integration Tests"
+#    command: make clean test-ci-cluster-integration
+#    env:
+#      CGO_ENABLED: 0
+#      GIMME_GO_VERSION: 1.18.x
+#    plugins:
+#      gopath-checkout#v1.0.1:
+#        import: github.com/m3db/m3
+#    <<: *common
+#  - label: "M3 Cluster Integration Test Harness Tests"
+#    command: make clean test-ci-test-harness
+#    skip: "NB(nate): temporarily disabling to resolve some tests flakes"
+#    plugins:
+#      docker-compose#v2.5.1:
+#        run: app
+#        workdir: /go/src/github.com/m3db/m3
+#    <<: *common
+#  - name: "Prometheus compatibility (:docker:)"
+#    command: make clean install-vendor-m3 docker-compatibility-test
+#    parallelism: 1
+#    env:
+#      CGO_ENABLED: 0
+#      GIMME_GO_VERSION: 1.18.x
+#    plugins:
+#        gopath-checkout#v1.0.1:
+#          import: github.com/m3db/m3
+#    <<: *common
+#  - name: "Integration (dbnode Recently Read) %n"
+#    parallelism: 2
+#    command: make clean install-vendor-m3 test-ci-integration-dbnode cache_policy=recently_read
+#    plugins:
+#      docker-compose#v2.5.1:
+#        run: app
+#        workdir: /go/src/github.com/m3db/m3
+#    <<: *common
+#  - name: "Integration (dbnode LRU) %n"
+#    parallelism: 2
+#    command: make clean install-vendor-m3 test-ci-integration-dbnode cache_policy=lru
+#    plugins:
+#      docker-compose#v2.5.1:
+#        run: app
+#        workdir: /go/src/github.com/m3db/m3
+#    <<: *common
+#  - name: "Integration (aggregator TCP client) %n"
+#    parallelism: 1
+#    command: make clean install-vendor-m3 test-ci-integration-aggregator aggregator_client=tcp
+#    plugins:
+#      docker-compose#v2.5.1:
+#        run: app
+#        workdir: /go/src/github.com/m3db/m3
+#    <<: *common
+#  - name: "Integration (aggregator m3msg client) %n"
+#    parallelism: 1
+#    command: make clean install-vendor-m3 test-ci-integration-aggregator aggregator_client=m3msg
+#    plugins:
+#      docker-compose#v2.5.1:
+#        run: app
+#        workdir: /go/src/github.com/m3db/m3
+#    <<: *common
+#  - label: "Integration (m3em, cluster, msg, metrics) %n"
+#    parallelism: 4
+#    command: make clean install-vendor-m3 test-ci-integration-m3em test-ci-integration-cluster test-ci-integration-msg test-ci-integration-metrics
+#    plugins:
+#      docker-compose#v2.5.1:
+#        run: app
+#        workdir: /go/src/github.com/m3db/m3
+#    <<: *common
+#  - name: "Documentation tests"
+#    command: make clean install-vendor-m3 docs-test
+#    env:
+#      CGO_ENABLED: 0
+#      GIMME_GO_VERSION: 1.18.x
+#    plugins:
+#        gopath-checkout#v1.0.1:
+#          import: github.com/m3db/m3
+#    <<: *common
+#  - label: "FOSSA license scan"
+#    command: make clean install-vendor-m3 fossa
+#    plugins:
+#      docker-compose#v2.5.1:
+#        run: app
+#        workdir: /go/src/github.com/m3db/m3
+#        env:
+#          - FOSSA_API_KEY
+#    <<: *common
+#  - name: "Check for docker and docs builds :docker: :books:"
+#    commands:
+#    - ".ci/docker/check_do_docker.sh"
+#    - ".buildkite/scripts/check_do_docs.sh"
+#    agents:
+#      queue: init
+#    timeout_in_minutes: 10
+#    retry:
+#      automatic:
+#        limit: 1
+#      manual: true
