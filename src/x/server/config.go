@@ -86,6 +86,9 @@ type TLSConfiguration struct {
 
 	// ClientCAFile path to a CA file for verifying clients
 	ClientCAFile string `yaml:"clientCAFile"`
+
+	// CertificatesTTL is a time duration certificates are stored in memory
+	CertificatesTTL time.Duration `yaml:"certificatesTTL"`
 }
 
 // NewOptions creates TLS options
@@ -94,7 +97,8 @@ func (c TLSConfiguration) NewOptions() TLSOptions {
 		SetMutualTLSEnabled(c.MutualTLSEnabled).
 		SetCertFile(c.CertFile).
 		SetKeyFile(c.KeyFile).
-		SetClientCAFile(c.ClientCAFile)
+		SetClientCAFile(c.ClientCAFile).
+		SetCertificatesTTL(c.CertificatesTTL)
 	var tlsMode TLSMode
 	if err := tlsMode.UnmarshalText([]byte(c.Mode)); err == nil {
 		opts = opts.SetMode(tlsMode)

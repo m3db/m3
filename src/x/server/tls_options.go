@@ -20,6 +20,8 @@
 
 package server
 
+import "time"
+
 // TLSOptions provide a set of TLS options
 type TLSOptions interface {
 	// SetMode sets the tls mode
@@ -46,14 +48,20 @@ type TLSOptions interface {
 	SetClientCAFile(value string) TLSOptions
 	// ClientCAFile returns the CA file path
 	ClientCAFile() string
+
+	// SetCertificatesTTL sets the certificates TTL
+	SetCertificatesTTL(value time.Duration) TLSOptions
+	// CertificatesTTL returns the certificates TTL
+	CertificatesTTL() time.Duration
 }
 
 type tlsOptions struct {
-	mode         TLSMode
-	mTLSEnabled  bool
-	certFile     string
-	keyFile      string
-	clientCAFile string
+	mode            TLSMode
+	mTLSEnabled     bool
+	certFile        string
+	keyFile         string
+	clientCAFile    string
+	certificatesTTL time.Duration
 }
 
 // NewTLSOptions creates a new set of tls options
@@ -112,4 +120,14 @@ func (o *tlsOptions) SetClientCAFile(value string) TLSOptions {
 
 func (o *tlsOptions) ClientCAFile() string {
 	return o.clientCAFile
+}
+
+func (o *tlsOptions) SetCertificatesTTL(value time.Duration) TLSOptions {
+	opts := *o
+	opts.certificatesTTL = value
+	return &opts
+}
+
+func (o *tlsOptions) CertificatesTTL() time.Duration {
+	return o.certificatesTTL
 }

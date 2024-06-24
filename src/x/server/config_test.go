@@ -41,6 +41,7 @@ tls:
   certFile: /tmp/cert
   keyFile: /tmp/key
   clientCAFile: /tmp/ca
+  certificatesTTL: 10m
 `
 
 	var cfg Configuration
@@ -54,6 +55,7 @@ tls:
 	require.Equal(t, "/tmp/cert", cfg.TLS.CertFile)
 	require.Equal(t, "/tmp/key", cfg.TLS.KeyFile)
 	require.Equal(t, "/tmp/ca", cfg.TLS.ClientCAFile)
+	require.Equal(t, 10*time.Minute, cfg.TLS.CertificatesTTL)
 
 	opts := cfg.NewOptions(instrument.NewOptions())
 	require.Equal(t, 5*time.Second, opts.TCPConnectionKeepAlivePeriod())
@@ -64,6 +66,7 @@ tls:
 	require.Equal(t, "/tmp/cert", opts.TLSOptions().CertFile())
 	require.Equal(t, "/tmp/key", opts.TLSOptions().KeyFile())
 	require.Equal(t, "/tmp/ca", opts.TLSOptions().ClientCAFile())
+	require.Equal(t, 10*time.Minute, opts.TLSOptions().CertificatesTTL())
 
 	require.NotNil(t, cfg.NewServer(nil, instrument.NewOptions()))
 }
