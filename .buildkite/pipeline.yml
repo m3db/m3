@@ -49,6 +49,8 @@ common: &common
 env:
   SKIP_CODECOV: "true"
 
+# Buildkite pipeline is currently broken, and we are working on fixing it. In the meantime, we are temporarily
+# disabling steps until it is fixed. ISSUE: https://github.com/m3db/m3/issues/4274
 steps:
 #  - name: "Codegen"
 #    env:
