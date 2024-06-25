@@ -6,7 +6,7 @@ steps:
   - name: "Docs build and push :books:"
     command: ".buildkite/scripts/docs_push.sh"
     agents:
-      queue: workers
+      queue: "buildkite-gcp"
     timeout_in_minutes: 20
     # Don't let doc failures block other steps (like docker builds)
     soft_fail:
