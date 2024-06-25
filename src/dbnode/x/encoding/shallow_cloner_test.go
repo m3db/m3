@@ -1,3 +1,4 @@
+//nolint:lll
 // Copyright (c) 2024 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -25,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	enc "github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -37,6 +37,7 @@ import (
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -65,9 +66,9 @@ func TestCloneMultiReaderIterator(t *testing.T) {
 	}
 
 	testBlocks := [][]xio.BlockReader{
-		[]xio.BlockReader{testBlock(0, 0)},
-		[]xio.BlockReader{testBlock(1, 0), testBlock(1, 1)},
-		[]xio.BlockReader{testBlock(2, 0), testBlock(2, 1), testBlock(2, 2)},
+		{testBlock(0, 0)},
+		{testBlock(1, 0), testBlock(1, 1)},
+		{testBlock(2, 0), testBlock(2, 1), testBlock(2, 2)},
 	}
 
 	mockIter := enc.NewMockMultiReaderIterator(f.ctrl)

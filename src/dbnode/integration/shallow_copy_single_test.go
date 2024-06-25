@@ -71,7 +71,7 @@ func TestShallowCopySingleSeries(t *testing.T) {
 	require.NoError(t, err)
 	session, err := c.NewSession()
 	require.NoError(t, err)
-	defer session.Close()
+	defer session.Close() //nolint:errcheck
 
 	now := xtime.ToUnixNano(nodes[0].DB().Options().ClockOptions().NowFn()())
 	start := time.Now()
