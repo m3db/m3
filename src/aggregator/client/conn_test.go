@@ -495,7 +495,8 @@ func testTLSConnectionOptions() ConnectionOptions {
 		SetInsecureSkipVerify(true).
 		SetCAFile("./testdata/rootCA.crt").
 		SetCertFile("./testdata/client.crt").
-		SetKeyFile("./testdata/client.key")
+		SetKeyFile("./testdata/client.key").
+		SetCertificatesTTL(time.Second)
 	return testConnectionOptions().SetTLSOptions(tlsOptions)
 }
 

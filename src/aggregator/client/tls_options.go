@@ -20,6 +20,8 @@
 
 package client
 
+import "time"
+
 type TLSOptions interface {
 	// SetEnabled sets the TLS enabled option
 	SetEnabled(value bool) TLSOptions
@@ -56,6 +58,12 @@ type TLSOptions interface {
 
 	// KeyFile returns the key file path
 	KeyFile() string
+
+	// SetCertificatesTTL sets the certificates TTL
+	SetCertificatesTTL(value time.Duration) TLSOptions
+
+	// CertificatesTTL returns the certificates TTL
+	CertificatesTTL() time.Duration
 }
 
 type tlsOptions struct {
@@ -65,6 +73,7 @@ type tlsOptions struct {
 	caFile             string
 	certFile           string
 	keyFile            string
+	certificatesTTL    time.Duration
 }
 
 // NewTLSOptions creates new TLS options
@@ -133,4 +142,14 @@ func (o *tlsOptions) SetKeyFile(value string) TLSOptions {
 
 func (o *tlsOptions) KeyFile() string {
 	return o.keyFile
+}
+
+func (o *tlsOptions) SetCertificatesTTL(value time.Duration) TLSOptions {
+	opts := *o
+	opts.certificatesTTL = value
+	return &opts
+}
+
+func (o *tlsOptions) CertificatesTTL() time.Duration {
+	return o.certificatesTTL
 }

@@ -83,10 +83,17 @@ type connection struct {
 	dialer                  xnet.ContextDialerFn
 	tls                     TLSOptions
 	certPool                *x509.CertPool
+	tlsConfigCache          *tls.Config
+	certsTTLTicker          *time.Ticker
 }
 
 // newConnection creates a new connection.
 func newConnection(addr string, opts ConnectionOptions) *connection {
+	var certsTTLTicker *time.Ticker
+	if opts.TLSOptions().CertificatesTTL() > 0 {
+		certsTTLTicker = time.NewTicker(opts.TLSOptions().CertificatesTTL())
+	}
+
 	c := &connection{
 		addr:           addr,
 		connTimeout:    opts.ConnectionTimeout(),
@@ -106,9 +113,10 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 			uninitWriter,
 			xio.ResettableWriterOptions{WriteBufferSize: 0},
 		),
-		metrics:  newConnectionMetrics(opts.InstrumentOptions().MetricsScope()),
-		tls:      opts.TLSOptions(),
-		certPool: x509.NewCertPool(),
+		metrics:        newConnectionMetrics(opts.InstrumentOptions().MetricsScope()),
+		tls:            opts.TLSOptions(),
+		certPool:       x509.NewCertPool(),
+		certsTTLTicker: certsTTLTicker,
 	}
 	c.connectWithLockFn = c.connectWithLock
 	c.writeWithLockFn = c.writeWithLock
@@ -160,14 +168,29 @@ func (c *connection) Close() {
 	c.mtx.Unlock()
 }
 
-func (c *connection) upgradeToTLS(conn net.Conn) (net.Conn, error) {
+func (c *connection) isTLSConfigCacheValid() bool {
+	if c.tlsConfigCache == nil || c.certsTTLTicker == nil {
+		return false
+	}
+	select {
+	case <-c.certsTTLTicker.C:
+		return false
+	default:
+		return true
+	}
+}
+
+func (c *connection) getTLSConfig() (*tls.Config, error) {
+	if c.isTLSConfigCacheValid() {
+		return c.tlsConfigCache, nil
+	}
 	if c.tls.CAFile() != "" {
 		certs, err := os.ReadFile(c.tls.CAFile())
 		if err != nil {
-			return conn, fmt.Errorf("read bundle error: %w", err)
+			return nil, fmt.Errorf("read bundle error: %w", err)
 		}
 		if ok := c.certPool.AppendCertsFromPEM(certs); !ok {
-			return conn, fmt.Errorf("cannot append cert to cert pool")
+			return nil, fmt.Errorf("cannot append cert to cert pool")
 		}
 	}
 	tlsConfig := &tls.Config{
@@ -176,13 +199,20 @@ func (c *connection) upgradeToTLS(conn net.Conn) (net.Conn, error) {
 		ServerName:         c.tls.ServerName(),
 	}
 	if c.tls.CertFile() != "" && c.tls.KeyFile() != "" {
-		tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
-			cert, err := tls.LoadX509KeyPair(c.tls.CertFile(), c.tls.KeyFile())
-			if err != nil {
-				return nil, fmt.Errorf("load x509 key pair error: %w", err)
-			}
-			return &cert, nil
+		cert, err := tls.LoadX509KeyPair(c.tls.CertFile(), c.tls.KeyFile())
+		if err != nil {
+			return nil, fmt.Errorf("load x509 key pair error: %w", err)
 		}
+		tlsConfig.Certificates = []tls.Certificate{cert}
+	}
+	c.tlsConfigCache = tlsConfig
+	return tlsConfig, nil
+}
+
+func (c *connection) upgradeToTLS(conn net.Conn) (net.Conn, error) {
+	tlsConfig, err := c.getTLSConfig()
+	if err != nil {
+		return nil, err
 	}
 	return tls.Client(conn, tlsConfig), nil
 }
@@ -228,12 +258,13 @@ func (c *connection) connectWithLock() error {
 	}
 
 	if c.tls.Enabled() {
-		conn, err = c.upgradeToTLS(conn)
+		securedConn, err := c.upgradeToTLS(conn)
 		if err != nil {
 			c.metrics.connectError.Inc(1)
 			conn.Close()
 			return err
 		}
+		conn = securedConn
 	}
 
 	if c.conn != nil {
