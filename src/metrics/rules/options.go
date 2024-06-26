@@ -44,12 +44,19 @@ type Options interface {
 
 	// IsRollupIDFn returns the function that determines whether an id is a rollup id.
 	IsRollupIDFn() id.MatchIDFn
+
+	// SetIncludeTagKeys sets the tags to include in the rollup id.
+	SetIncludeTagKeys(value map[uint64]struct{}) Options
+
+	// IncludeTagKeys returns the tags to include in the rollup id.
+	IncludeTagKeys() map[uint64]struct{}
 }
 
 type options struct {
 	tagsFilterOpts filters.TagsFilterOptions
 	newRollupIDFn  id.NewIDFn
 	isRollupIDFn   id.MatchIDFn
+	includeTagKeys map[uint64]struct{}
 }
 
 // NewOptions creates a new set of options.
@@ -85,4 +92,14 @@ func (o *options) SetIsRollupIDFn(value id.MatchIDFn) Options {
 
 func (o *options) IsRollupIDFn() id.MatchIDFn {
 	return o.isRollupIDFn
+}
+
+func (o *options) SetIncludeTagKeys(value map[uint64]struct{}) Options {
+	opts := *o
+	opts.includeTagKeys = value
+	return &opts
+}
+
+func (o *options) IncludeTagKeys() map[uint64]struct{} {
+	return o.includeTagKeys
 }

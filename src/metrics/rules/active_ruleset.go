@@ -47,6 +47,7 @@ type activeRuleSet struct {
 	tagsFilterOpts  filters.TagsFilterOptions
 	newRollupIDFn   metricid.NewIDFn
 	isRollupIDFn    metricid.MatchIDFn
+	includeTagKeys  map[uint64]struct{}
 }
 
 func newActiveRuleSet(
@@ -56,6 +57,7 @@ func newActiveRuleSet(
 	tagsFilterOpts filters.TagsFilterOptions,
 	newRollupIDFn metricid.NewIDFn,
 	isRollupIDFn metricid.MatchIDFn,
+	includeTagKeys map[uint64]struct{},
 ) *activeRuleSet {
 	uniqueCutoverTimes := make(map[int64]struct{})
 	for _, mappingRule := range mappingRules {
@@ -83,6 +85,7 @@ func newActiveRuleSet(
 		tagsFilterOpts:  tagsFilterOpts,
 		newRollupIDFn:   newRollupIDFn,
 		isRollupIDFn:    isRollupIDFn,
+		includeTagKeys:  includeTagKeys,
 	}
 }
 
@@ -529,7 +532,7 @@ func (as *activeRuleSet) matchRollupTarget(
 		matchTagIdx     = 0
 		nameTagName     = as.tagsFilterOpts.NameTagKey
 		nameTagValue    []byte
-		includeTagNames = as.tagsFilterOpts.IncludeTagKeys
+		includeTagNames = as.includeTagKeys
 	)
 
 	switch rollupOp.Type {

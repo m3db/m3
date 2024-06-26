@@ -114,7 +114,6 @@ func (cfg *Configuration) NewOptions(
 	}
 	tagsFilterOptions := filters.TagsFilterOptions{
 		NameTagKey:          []byte(cfg.NameTagKey),
-		IncludeTagKeys:      createIncludeTagKeysMap(cfg.IncludeTagKeys),
 		NameAndTagsFn:       m3.NameAndTags,
 		SortedTagIteratorFn: sortedTagIteratorFn,
 	}
@@ -123,10 +122,13 @@ func (cfg *Configuration) NewOptions(
 		return m3.IsRollupID(name, tags, sortedTagIteratorPool)
 	}
 
+	includeTagKeys := createIncludeTagKeysMap(cfg.IncludeTagKeys)
+
 	ruleSetOpts := rules.NewOptions().
 		SetTagsFilterOptions(tagsFilterOptions).
 		SetNewRollupIDFn(m3.NewRollupID).
-		SetIsRollupIDFn(isRollupIDFn)
+		SetIsRollupIDFn(isRollupIDFn).
+		SetIncludeTagKeys(includeTagKeys)
 
 	// Configure ruleset key function.
 	ruleSetKeyFn := func(namespace []byte) string {
