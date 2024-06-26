@@ -118,7 +118,7 @@ type TagsFilterOptions struct {
 	// Name of the name tag.
 	NameTagKey []byte
 
-	//Function to extract name and tags from an id.
+	// Function to extract name and tags from an id.
 	NameAndTagsFn id.NameAndTagsFn
 
 	// Function to create a new sorted tag iterator from id tags.
