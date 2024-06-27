@@ -180,6 +180,7 @@ type ruleSet struct {
 	tagsFilterOpts     filters.TagsFilterOptions
 	newRollupIDFn      metricid.NewIDFn
 	isRollupIDFn       metricid.MatchIDFn
+	includeTagKeys     map[uint64]struct{}
 }
 
 // NewRuleSetFromProto creates a new RuleSet from a proto object.
@@ -218,6 +219,7 @@ func NewRuleSetFromProto(version int, rs *rulepb.RuleSet, opts Options) (RuleSet
 		tagsFilterOpts:     tagsFilterOpts,
 		newRollupIDFn:      opts.NewRollupIDFn(),
 		isRollupIDFn:       opts.IsRollupIDFn(),
+		includeTagKeys:     opts.IncludeTagKeys(),
 	}, nil
 }
 
@@ -261,6 +263,7 @@ func (rs *ruleSet) ActiveSet(timeNanos int64) ActiveSet {
 		rs.tagsFilterOpts,
 		rs.newRollupIDFn,
 		rs.isRollupIDFn,
+		rs.includeTagKeys,
 	)
 }
 
