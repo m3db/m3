@@ -21,14 +21,12 @@
 package test
 
 import (
-	"testing"
-
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
 // NewLogger returns a new test logger.
-func NewLogger(t *testing.T) *zap.Logger {
+func NewLogger(t require.TestingT) *zap.Logger {
 	zc := zap.NewDevelopmentConfig()
 	zc.DisableCaller = true
 	zl, err := zc.Build()
