@@ -18,33 +18,25 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package server implements a network server.
-package server
+package tls
 
-import "fmt"
+import (
+	"testing"
 
-const (
-	// TLSDisabled allows plaintext connections only
-	TLSDisabled TLSMode = iota
-	// TLSPermissive allows both TLS and plaintext connections
-	TLSPermissive
-	// TLSEnforced allows TLS connections only
-	TLSEnforced
+	"github.com/stretchr/testify/require"
 )
 
-// TLSMode represents the TLS mode
-type TLSMode uint16
+func TestTLSModeUnmarshal(t *testing.T) {
+	var tlsMode ServerMode
 
-func (t *TLSMode) UnmarshalText(mode []byte) error {
-	switch string(mode) {
-	case "disabled":
-		*t = TLSDisabled
-	case "permissive":
-		*t = TLSPermissive
-	case "enforced":
-		*t = TLSEnforced
-	default:
-		return fmt.Errorf("unknown tls mode: %s", mode)
-	}
-	return nil
+	require.NoError(t, tlsMode.UnmarshalText([]byte("disabled")))
+	require.Equal(t, Disabled, tlsMode)
+
+	require.NoError(t, tlsMode.UnmarshalText([]byte("permissive")))
+	require.Equal(t, Permissive, tlsMode)
+
+	require.NoError(t, tlsMode.UnmarshalText([]byte("enforced")))
+	require.Equal(t, Enforced, tlsMode)
+
+	require.Error(t, tlsMode.UnmarshalText([]byte("unknown")))
 }

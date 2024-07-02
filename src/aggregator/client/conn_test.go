@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/x/clock"
+	xtls "github.com/m3db/m3/src/x/tls"
 
 	"github.com/golang/mock/gomock"
 	"github.com/leanovate/gopter"
@@ -490,8 +491,8 @@ func testConnectionOptions() ConnectionOptions {
 }
 
 func testTLSConnectionOptions() ConnectionOptions {
-	tlsOptions := NewTLSOptions().
-		SetEnabled(true).
+	tlsOptions := xtls.NewOptions().
+		SetClientEnabled(true).
 		SetInsecureSkipVerify(true).
 		SetCAFile("./testdata/rootCA.crt").
 		SetCertFile("./testdata/client.crt").

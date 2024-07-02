@@ -23,12 +23,9 @@ package client
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"errors"
-	"fmt"
 	"math/rand"
 	"net"
-	"os"
 	"sync"
 	"time"
 
@@ -36,6 +33,7 @@ import (
 	xio "github.com/m3db/m3/src/x/io"
 	xnet "github.com/m3db/m3/src/x/net"
 	"github.com/m3db/m3/src/x/retry"
+	xtls "github.com/m3db/m3/src/x/tls"
 
 	"github.com/uber-go/tally"
 )
@@ -81,19 +79,11 @@ type connection struct {
 	mtx                     sync.Mutex
 	keepAlive               bool
 	dialer                  xnet.ContextDialerFn
-	tls                     TLSOptions
-	certPool                *x509.CertPool
-	tlsConfigCache          *tls.Config
-	certsTTLTicker          *time.Ticker
+	tlsConfigManager        xtls.ConfigManager
 }
 
 // newConnection creates a new connection.
 func newConnection(addr string, opts ConnectionOptions) *connection {
-	var certsTTLTicker *time.Ticker
-	if opts.TLSOptions().CertificatesTTL() > 0 {
-		certsTTLTicker = time.NewTicker(opts.TLSOptions().CertificatesTTL())
-	}
-
 	c := &connection{
 		addr:           addr,
 		connTimeout:    opts.ConnectionTimeout(),
@@ -113,10 +103,8 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 			uninitWriter,
 			xio.ResettableWriterOptions{WriteBufferSize: 0},
 		),
-		metrics:        newConnectionMetrics(opts.InstrumentOptions().MetricsScope()),
-		tls:            opts.TLSOptions(),
-		certPool:       x509.NewCertPool(),
-		certsTTLTicker: certsTTLTicker,
+		metrics:          newConnectionMetrics(opts.InstrumentOptions().MetricsScope()),
+		tlsConfigManager: xtls.NewConfigManager(opts.TLSOptions(), opts.InstrumentOptions()),
 	}
 	c.connectWithLockFn = c.connectWithLock
 	c.writeWithLockFn = c.writeWithLock
@@ -168,49 +156,8 @@ func (c *connection) Close() {
 	c.mtx.Unlock()
 }
 
-func (c *connection) isTLSConfigCacheValid() bool {
-	if c.tlsConfigCache == nil || c.certsTTLTicker == nil {
-		return false
-	}
-	select {
-	case <-c.certsTTLTicker.C:
-		return false
-	default:
-		return true
-	}
-}
-
-func (c *connection) getTLSConfig() (*tls.Config, error) {
-	if c.isTLSConfigCacheValid() {
-		return c.tlsConfigCache, nil
-	}
-	if c.tls.CAFile() != "" {
-		certs, err := os.ReadFile(c.tls.CAFile())
-		if err != nil {
-			return nil, fmt.Errorf("read bundle error: %w", err)
-		}
-		if ok := c.certPool.AppendCertsFromPEM(certs); !ok {
-			return nil, fmt.Errorf("cannot append cert to cert pool")
-		}
-	}
-	tlsConfig := &tls.Config{
-		RootCAs:            c.certPool,
-		InsecureSkipVerify: c.tls.InsecureSkipVerify(),
-		ServerName:         c.tls.ServerName(),
-	}
-	if c.tls.CertFile() != "" && c.tls.KeyFile() != "" {
-		cert, err := tls.LoadX509KeyPair(c.tls.CertFile(), c.tls.KeyFile())
-		if err != nil {
-			return nil, fmt.Errorf("load x509 key pair error: %w", err)
-		}
-		tlsConfig.Certificates = []tls.Certificate{cert}
-	}
-	c.tlsConfigCache = tlsConfig
-	return tlsConfig, nil
-}
-
 func (c *connection) upgradeToTLS(conn net.Conn) (net.Conn, error) {
-	tlsConfig, err := c.getTLSConfig()
+	tlsConfig, err := c.tlsConfigManager.TLSConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -257,7 +204,7 @@ func (c *connection) connectWithLock() error {
 		}
 	}
 
-	if c.tls.Enabled() {
+	if c.tlsConfigManager.ClientEnabled() {
 		securedConn, err := c.upgradeToTLS(conn)
 		if err != nil {
 			c.metrics.connectError.Inc(1)

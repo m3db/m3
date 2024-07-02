@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/x/retry"
+	xtls "github.com/m3db/m3/src/x/tls"
 
 	"github.com/stretchr/testify/require"
 )
@@ -40,20 +41,20 @@ const (
 )
 
 func testPlainTCPServer(addr string) (*server, *mockHandler, *int32, *int32) {
-	return testServer(addr, TLSDisabled, false)
+	return testServer(addr, xtls.Disabled, false)
 }
 
 // nolint: unparam
-func testServer(addr string, tlsMode TLSMode, mTLSEnabled bool) (*server, *mockHandler, *int32, *int32) {
+func testServer(addr string, tlsMode xtls.ServerMode, mTLSEnabled bool) (*server, *mockHandler, *int32, *int32) {
 	var (
 		numAdded   int32
 		numRemoved int32
 	)
 
-	tlsOpts := NewTLSOptions().
-		SetMode(tlsMode).
+	tlsOpts := xtls.NewOptions().
+		SetServerMode(tlsMode).
 		SetMutualTLSEnabled(mTLSEnabled).
-		SetClientCAFile("./testdata/rootCA.crt").
+		SetCAFile("./testdata/rootCA.crt").
 		SetCertFile("./testdata/server.crt").
 		SetKeyFile("./testdata/server.key")
 
@@ -130,7 +131,7 @@ func TestServe(t *testing.T) {
 }
 
 func TestTLSPermissiveServerListenAndClose(t *testing.T) {
-	s, h, numAdded, numRemoved := testServer(testListenAddress, TLSPermissive, false)
+	s, h, numAdded, numRemoved := testServer(testListenAddress, xtls.Permissive, false)
 
 	var (
 		numClients  = 9
@@ -176,7 +177,7 @@ func TestTLSPermissiveServerListenAndClose(t *testing.T) {
 }
 
 func TestTLSEnforcedServerListenAndClose(t *testing.T) {
-	s, h, numAdded, numRemoved := testServer(testListenAddress, TLSEnforced, false)
+	s, h, numAdded, numRemoved := testServer(testListenAddress, xtls.Enforced, false)
 
 	var (
 		numClients  = 10
@@ -222,7 +223,7 @@ func TestTLSEnforcedServerListenAndClose(t *testing.T) {
 }
 
 func TestMutualTLSServerListenAndClose(t *testing.T) {
-	s, h, numAdded, numRemoved := testServer(testListenAddress, TLSEnforced, true)
+	s, h, numAdded, numRemoved := testServer(testListenAddress, xtls.Enforced, true)
 
 	var (
 		numClients  = 9

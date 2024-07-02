@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/x/instrument"
+	xtls "github.com/m3db/m3/src/x/tls"
 
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
@@ -61,11 +62,11 @@ tls:
 	require.Equal(t, 5*time.Second, opts.TCPConnectionKeepAlivePeriod())
 	require.True(t, opts.TCPConnectionKeepAlive())
 
-	require.Equal(t, TLSEnforced, opts.TLSOptions().Mode())
+	require.Equal(t, xtls.Enforced, opts.TLSOptions().ServerMode())
 	require.True(t, opts.TLSOptions().MutualTLSEnabled())
 	require.Equal(t, "/tmp/cert", opts.TLSOptions().CertFile())
 	require.Equal(t, "/tmp/key", opts.TLSOptions().KeyFile())
-	require.Equal(t, "/tmp/ca", opts.TLSOptions().ClientCAFile())
+	require.Equal(t, "/tmp/ca", opts.TLSOptions().CAFile())
 	require.Equal(t, 10*time.Minute, opts.TLSOptions().CertificatesTTL())
 
 	require.NotNil(t, cfg.NewServer(nil, instrument.NewOptions()))

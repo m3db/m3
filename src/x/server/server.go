@@ -22,17 +22,15 @@
 package server
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"net"
-	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	xnet "github.com/m3db/m3/src/x/net"
 	"github.com/m3db/m3/src/x/retry"
+	xtls "github.com/m3db/m3/src/x/tls"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -87,18 +85,15 @@ type server struct {
 	tcpConnectionKeepAlive       bool
 	tcpConnectionKeepAlivePeriod time.Duration
 
-	closed         bool
-	closedChan     chan struct{}
-	numConns       int32
-	conns          []net.Conn
-	wgConns        sync.WaitGroup
-	metrics        serverMetrics
-	handler        Handler
-	listenerOpts   xnet.ListenerOptions
-	tlsOpts        TLSOptions
-	certPool       *x509.CertPool
-	tlsConfigCache *tls.Config
-	certsTTLTicker *time.Ticker
+	closed           bool
+	closedChan       chan struct{}
+	numConns         int32
+	conns            []net.Conn
+	wgConns          sync.WaitGroup
+	metrics          serverMetrics
+	handler          Handler
+	listenerOpts     xnet.ListenerOptions
+	tlsConfigManager xtls.ConfigManager
 
 	addConnectionFn    addConnectionFn
 	removeConnectionFn removeConnectionFn
@@ -108,11 +103,6 @@ type server struct {
 func NewServer(address string, handler Handler, opts Options) Server {
 	instrumentOpts := opts.InstrumentOptions()
 	scope := instrumentOpts.MetricsScope()
-
-	var certsTTLTicker *time.Ticker
-	if opts.TLSOptions().CertificatesTTL() > 0 {
-		certsTTLTicker = time.NewTicker(opts.TLSOptions().CertificatesTTL())
-	}
 
 	s := &server{
 		address:                      address,
@@ -125,9 +115,7 @@ func NewServer(address string, handler Handler, opts Options) Server {
 		metrics:                      newServerMetrics(scope),
 		handler:                      handler,
 		listenerOpts:                 opts.ListenerOptions(),
-		tlsOpts:                      opts.TLSOptions(),
-		certPool:                     x509.NewCertPool(),
-		certsTTLTicker:               certsTTLTicker,
+		tlsConfigManager:             xtls.NewConfigManager(opts.TLSOptions(), instrumentOpts),
 	}
 
 	// Set up the connection functions.
@@ -156,52 +144,8 @@ func (s *server) Serve(l net.Listener) error {
 	return nil
 }
 
-func (s *server) isTLSConfigCacheValid() bool {
-	if s.tlsConfigCache == nil || s.certsTTLTicker == nil {
-		return false
-	}
-	select {
-	case <-s.certsTTLTicker.C:
-		return false
-	default:
-		return true
-	}
-}
-
-func (s *server) getTLSConfig() (*tls.Config, error) {
-	s.Lock()
-	defer s.Unlock()
-	if s.isTLSConfigCacheValid() {
-		return s.tlsConfigCache, nil
-	}
-	if s.tlsOpts.ClientCAFile() != "" {
-		certs, err := os.ReadFile(s.tlsOpts.ClientCAFile())
-		if err != nil {
-			return nil, fmt.Errorf("read bundle error: %w", err)
-		}
-		if ok := s.certPool.AppendCertsFromPEM(certs); !ok {
-			return nil, fmt.Errorf("cannot append cert to cert pool")
-		}
-	}
-	clientAuthType := tls.NoClientCert
-	if s.tlsOpts.MutualTLSEnabled() {
-		clientAuthType = tls.RequireAndVerifyClientCert
-	}
-	cert, err := tls.LoadX509KeyPair(s.tlsOpts.CertFile(), s.tlsOpts.KeyFile())
-	if err != nil {
-		return nil, fmt.Errorf("load x509 key pair error: %w", err)
-	}
-	tlsConfig := &tls.Config{
-		ClientCAs:    s.certPool,
-		Certificates: []tls.Certificate{cert},
-		ClientAuth:   clientAuthType,
-	}
-	s.tlsConfigCache = tlsConfig
-	return tlsConfig, nil
-}
-
 func (s *server) maybeUpgradeToTLS(conn SecuredConn) (SecuredConn, error) {
-	if s.tlsOpts.Mode() == TLSDisabled {
+	if s.tlsConfigManager.ServerMode() == xtls.Disabled {
 		return conn, nil
 	}
 	isTLSConnection, err := conn.IsTLS()
@@ -209,7 +153,7 @@ func (s *server) maybeUpgradeToTLS(conn SecuredConn) (SecuredConn, error) {
 		return nil, err
 	}
 	if isTLSConnection {
-		tlsConfig, err := s.getTLSConfig()
+		tlsConfig, err := s.tlsConfigManager.TLSConfig()
 		if err != nil {
 			return nil, err
 		}
@@ -217,7 +161,7 @@ func (s *server) maybeUpgradeToTLS(conn SecuredConn) (SecuredConn, error) {
 		if err != nil {
 			return nil, err
 		}
-	} else if s.tlsOpts.Mode() == TLSEnforced {
+	} else if s.tlsConfigManager.ServerMode() == xtls.Enforced {
 		return nil, fmt.Errorf("not a tls connection")
 	}
 	return conn, nil

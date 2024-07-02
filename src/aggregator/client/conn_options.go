@@ -28,6 +28,7 @@ import (
 	xio "github.com/m3db/m3/src/x/io"
 	xnet "github.com/m3db/m3/src/x/net"
 	"github.com/m3db/m3/src/x/retry"
+	xtls "github.com/m3db/m3/src/x/tls"
 )
 
 const (
@@ -114,10 +115,10 @@ type ConnectionOptions interface {
 	RWOptions() xio.Options
 
 	// SetTLSOptions sets TLS options
-	SetTLSOptions(value TLSOptions) ConnectionOptions
+	SetTLSOptions(value xtls.Options) ConnectionOptions
 
 	// TLSOptions returns the TLS options
-	TLSOptions() TLSOptions
+	TLSOptions() xtls.Options
 
 	// ContextDialer allows customizing the way an aggregator client the aggregator, at the TCP layer.
 	// By default, this is:
@@ -143,7 +144,7 @@ type connectionOptions struct {
 	maxThreshold   int
 	multiplier     int
 	connKeepAlive  bool
-	tlsOptions     TLSOptions
+	tlsOptions     xtls.Options
 	dialer         xnet.ContextDialerFn
 }
 
@@ -166,7 +167,7 @@ func NewConnectionOptions() ConnectionOptions {
 		multiplier:     defaultReconnectThresholdMultiplier,
 		maxDuration:    defaultMaxReconnectDuration,
 		writeRetryOpts: defaultWriteRetryOpts,
-		tlsOptions:     NewTLSOptions(),
+		tlsOptions:     xtls.NewOptions(),
 		rwOpts:         xio.NewOptions(),
 		dialer:         nil, // Will default to net.Dialer{}.DialContext
 	}
@@ -282,13 +283,13 @@ func (o *connectionOptions) RWOptions() xio.Options {
 	return o.rwOpts
 }
 
-func (o *connectionOptions) SetTLSOptions(value TLSOptions) ConnectionOptions {
+func (o *connectionOptions) SetTLSOptions(value xtls.Options) ConnectionOptions {
 	opts := *o
 	opts.tlsOptions = value
 	return &opts
 }
 
-func (o *connectionOptions) TLSOptions() TLSOptions {
+func (o *connectionOptions) TLSOptions() xtls.Options {
 	return o.tlsOptions
 }
 

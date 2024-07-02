@@ -36,6 +36,7 @@ import (
 	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
+	xtls "github.com/m3db/m3/src/x/tls"
 
 	"github.com/uber-go/tally"
 )
@@ -219,9 +220,9 @@ type TLSConfiguration struct {
 }
 
 // NewTLSOptions creates new TLS options
-func (c *TLSConfiguration) NewTLSOptions() TLSOptions {
-	return NewTLSOptions().
-		SetEnabled(c.Enabled).
+func (c *TLSConfiguration) NewTLSOptions() xtls.Options {
+	return xtls.NewOptions().
+		SetClientEnabled(c.Enabled).
 		SetInsecureSkipVerify(c.InsecureSkipVerify).
 		SetServerName(c.ServerName).
 		SetCAFile(c.CAFile).

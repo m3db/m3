@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
+	xtls "github.com/m3db/m3/src/x/tls"
 )
 
 // Configuration configs a server.
@@ -92,16 +93,16 @@ type TLSConfiguration struct {
 }
 
 // NewOptions creates TLS options
-func (c TLSConfiguration) NewOptions() TLSOptions {
-	opts := NewTLSOptions().
+func (c TLSConfiguration) NewOptions() xtls.Options {
+	opts := xtls.NewOptions().
 		SetMutualTLSEnabled(c.MutualTLSEnabled).
 		SetCertFile(c.CertFile).
 		SetKeyFile(c.KeyFile).
-		SetClientCAFile(c.ClientCAFile).
+		SetCAFile(c.ClientCAFile).
 		SetCertificatesTTL(c.CertificatesTTL)
-	var tlsMode TLSMode
+	var tlsMode xtls.ServerMode
 	if err := tlsMode.UnmarshalText([]byte(c.Mode)); err == nil {
-		opts = opts.SetMode(tlsMode)
+		opts = opts.SetServerMode(tlsMode)
 	}
 	return opts
 }

@@ -184,7 +184,7 @@ func TestNewClientOptions(t *testing.T) {
 	require.Equal(t, 2, opts.ConnectionOptions().WriteRetryOptions().MaxRetries())
 	require.Equal(t, true, opts.ConnectionOptions().WriteRetryOptions().Jitter())
 	require.Equal(t, false, opts.ConnectionOptions().WriteRetryOptions().Forever())
-	require.True(t, opts.ConnectionOptions().TLSOptions().Enabled())
+	require.True(t, opts.ConnectionOptions().TLSOptions().ClientEnabled())
 	require.True(t, opts.ConnectionOptions().TLSOptions().InsecureSkipVerify())
 	require.Equal(t, "TestServer", opts.ConnectionOptions().TLSOptions().ServerName())
 	require.Equal(t, "/tmp/ca", opts.ConnectionOptions().TLSOptions().CAFile())
