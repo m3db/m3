@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -34,7 +35,6 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
-
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -81,6 +81,7 @@ func NewEtcd(
 }
 
 // EtcdNode is a single etcd node, running via a docker container.
+//
 //nolint:maligned
 type EtcdNode struct {
 	instrumentOpts instrument.Options
@@ -164,6 +165,16 @@ func (c *EtcdNode) Setup(ctx context.Context) (closeErr error) {
 		return fmt.Errorf("starting etcd container: %w", err)
 	}
 
+	defer func() {
+		// If we errored somewhere in here, make sure to close the etcd client (callers won't necessarily do it).
+		if closeErr != nil {
+			closeErr = xerrors.NewMultiError().
+				Add(closeErr).
+				Add(resource.Close()).
+				FinalError()
+		}
+	}()
+
 	container := resource.Resource().Container
 	c.logger.Info("etcd container started",
 		zap.String("containerID", container.ID),
@@ -173,19 +184,12 @@ func (c *EtcdNode) Setup(ctx context.Context) (closeErr error) {
 	)
 	// Extract the port on which we are listening.
 	// This is coming from the equivalent of docker inspect <container_id>
-	portBinds := container.NetworkSettings.Ports["2379/tcp"]
-
-	ipAddr := "127.0.0.1"
-	_, err = net.ResolveIPAddr("ip4", "host.docker.internal")
-	if err == nil {
-		c.logger.Info("Running tests within a docker container (e.g. for buildkite. " +
-			"Using host.docker.internal to talk to etcd")
-		ipAddr = "host.docker.internal"
-	}
 
 	c.resource = resource
-	c.address = fmt.Sprintf("%s:%s", ipAddr, portBinds[0].HostPort)
 
+	c.address = c.containerClientHostPort()
+
+	c.logger.Info("Connecting to etcd on address", zap.String("address", c.address))
 	etcdCli, err := clientv3.New(
 		clientv3.Config{
 			Endpoints:   []string{c.address},
@@ -211,10 +215,25 @@ func (c *EtcdNode) Setup(ctx context.Context) (closeErr error) {
 	return c.waitForHealth(ctx, etcdCli)
 }
 
-func (c *EtcdNode) containerHostPort() string {
+func (c *EtcdNode) containerClientHostPort() string {
 	portBinds := c.resource.Resource().Container.NetworkSettings.Ports["2379/tcp"]
+	port := portBinds[0].HostPort
 
-	return fmt.Sprintf("127.0.0.1:%s", portBinds[0].HostPort)
+	var ipAddress string
+	_, err := net.ResolveIPAddr("ip4", "host.docker.internal")
+	if err == nil && runtime.GOOS == "darwin" {
+		c.logger.Info("Running on Mac; using 127.0.0.1 to talk to etcd")
+		ipAddress = "127.0.0.1"
+	} else if err == nil {
+		c.logger.Info("Running tests within a docker container (e.g. for buildkite. " +
+			"Using host.docker.internal to talk to etcd")
+		ipAddress = "host.docker.internal"
+	} else {
+		c.logger.Info("Running tests in environment without host.docker.internal set. Using 127.0.0.1 to talk to etcd")
+		ipAddress = "127.0.0.1"
+	}
+
+	return fmt.Sprintf("%s:%s", ipAddress, port)
 }
 
 func (c *EtcdNode) waitForHealth(ctx context.Context, memberCli memberClient) error {
