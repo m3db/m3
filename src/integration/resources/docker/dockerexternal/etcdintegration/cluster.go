@@ -35,12 +35,12 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest"
 	"google.golang.org/grpc"
 )
 
@@ -78,7 +78,13 @@ func NewCluster(t testingT, cfg *ClusterConfig) *Cluster {
 		return nil
 	}
 
-	logger := zaptest.NewLogger(t)
+	// N.B.: this used to use zaptest, but that introduces a hard dependency on t.Log. t.Log can't be run after
+	// a test finishes, which means that any goroutines that still access this logger after a test has finished will
+	// cause it to panic. This led to flakes for some time, which we mostly were able to ignore because of auto
+	// retries in buildkite.
+	// Ideally, all tests cleanup all goroutines, but in practice for integration tests, that's a bit of a tall order.
+	// TestMultiServerForwardingPipelineDiscardNaNAggregatedValues fails fairly  consistently with zaptest here.
+	logger := xtest.NewLogger(t)
 
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
@@ -259,7 +265,6 @@ func (d dialer) Dial() (net.Conn, error) {
 
 // testingT wraps *testing.T. Allows us to not directly depend on *testing package.
 type testingT interface {
-	zaptest.TestingT
 	require.TestingT
 
 	Cleanup(func())

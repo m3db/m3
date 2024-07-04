@@ -45,34 +45,37 @@ const numStdProcessFiles = 5
 const allowedMarginOfError = 2
 
 func TestNumFDs(t *testing.T) {
+	selfPID := os.Getpid()
+	stdProcessFiles, err := numFDsSlow(selfPID)
+	require.NoError(t, err)
 	for i := 0; i <= 8; i++ {
-		var numFiles int
+		var numFilesToCreate int
 		if i == 0 {
-			numFiles = 0
+			numFilesToCreate = 0
 		} else {
-			numFiles = int(math.Pow(float64(2), float64(i)))
+			numFilesToCreate = int(math.Pow(float64(2), float64(i)))
 		}
 
 		func() {
-			numExpectedFds := numFiles + numStdProcessFiles
-			cleanupFn := createTempFiles(numFiles)
+			numExpectedFds := numFilesToCreate + stdProcessFiles
+			cleanupFn := createTempFiles(numFilesToCreate)
 			defer cleanupFn()
 
 			selfPID := os.Getpid()
 
-			t.Run(fmt.Sprintf("func: %s, numFiles: %d", "numFDsSlow", numFiles), func(t *testing.T) {
+			t.Run(fmt.Sprintf("func: %s, numFiles: %d", "numFDsSlow", numFilesToCreate), func(t *testing.T) {
 				numFDs, err := numFDsSlow(selfPID)
 				require.NoError(t, err)
 				verifyNumFDsWithinMarginOfError(t, numExpectedFds, numFDs)
 			})
 
-			t.Run(fmt.Sprintf("func: %s, numFiles: %d", "NumFDs", numFiles), func(t *testing.T) {
+			t.Run(fmt.Sprintf("func: %s, numFiles: %d", "NumFDs", numFilesToCreate), func(t *testing.T) {
 				numFDs, err := NumFDs(selfPID)
 				require.NoError(t, err)
 				verifyNumFDsWithinMarginOfError(t, numExpectedFds, numFDs)
 			})
 
-			t.Run(fmt.Sprintf("func: %s, numFiles: %d", "NumFDsWithDefaultBatchSleep", numFiles), func(t *testing.T) {
+			t.Run(fmt.Sprintf("func: %s, numFiles: %d", "NumFDsWithDefaultBatchSleep", numFilesToCreate), func(t *testing.T) {
 				numFDs, err := NumFDsWithDefaultBatchSleep(selfPID)
 				require.NoError(t, err)
 				verifyNumFDsWithinMarginOfError(t, numExpectedFds, numFDs)
