@@ -188,8 +188,7 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 			origin                                              topology.Host
 			instanceOpts                                        = newMultiAddrTestOptions(opts, instance)
 			adminClientCustomOpts                               = setupOpts[i].AdminClientCustomOpts
-			shardsLeavingAndInitializingCountTowardsConsistency = setupOpts[i].
-										ShardsLeavingAndInitializingCountTowardsConsistency
+			shardsLeavingAndInitializingCountTowardsConsistency = setupOpts[i].ShardsLeavingAndInitializingCountTowardsConsistency
 		)
 
 		if finalBootstrapperToUse == "" {

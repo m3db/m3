@@ -494,7 +494,6 @@ func (s *session) recordWriteMetrics(consistencyResultErr error, state *writeSta
 		}
 	}
 	if consistencyResultErr == nil {
-
 		if state.leavingAndInitializingPairCounted {
 			s.metrics.writeSuccessForCountLeavingAndInitializingAsPair.Inc(1)
 		} else {
@@ -1323,6 +1322,7 @@ func (s *session) writeAttempt(
 		enqueued-state.pending, int32(len(state.errors)), state.errors)
 
 	s.recordWriteMetrics(err, state, startWriteAttempt)
+
 	// must Unlock before decRef'ing, as the latter releases the writeState back into a
 	// pool if ref count == 0.
 	state.Unlock()

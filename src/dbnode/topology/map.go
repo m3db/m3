@@ -71,6 +71,7 @@ func NewStaticMap(opts StaticOptions) Map {
 				append(topoMap.orderedShardHostsByShard[id], elem)
 		}
 	}
+
 	for _, hostShardSet := range hostShardSets {
 		host := hostShardSet.Host()
 		var shardToInitializingHost map[uint32]string
@@ -87,6 +88,7 @@ func NewStaticMap(opts StaticOptions) Map {
 			}
 		}
 	}
+
 	return &topoMap
 }
 

@@ -39,7 +39,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 )
 
 const testBaseConfig = `
@@ -414,7 +414,7 @@ func TestConfiguration(t *testing.T) {
     fetchSeriesBlocksBatchSize: null
     writeShardsInitializing: null
     shardsLeavingCountTowardsConsistency: null
-    shardsLeavingAndInitializingCountTowardsConsistency: null
+	shardsLeavingAndInitializingCountTowardsConsistency: null
     iterateEqualTimestampStrategy: null
   gcPercentage: 100
   tick: null
