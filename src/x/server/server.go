@@ -62,12 +62,14 @@ type Handler interface {
 }
 
 type serverMetrics struct {
-	openConnections tally.Gauge
+	openConnections    tally.Gauge
+	upgradeToTLSErrors tally.Counter
 }
 
 func newServerMetrics(scope tally.Scope) serverMetrics {
 	return serverMetrics{
-		openConnections: scope.Gauge("open-connections"),
+		openConnections:    scope.Gauge("open-connections"),
+		upgradeToTLSErrors: scope.Counter("upgrade-to-tls-errors"),
 	}
 }
 
@@ -188,6 +190,8 @@ func (s *server) serve() {
 
 				securedConn, err := s.maybeUpgradeToTLS(conn)
 				if err != nil {
+					s.metrics.upgradeToTLSErrors.Inc(1)
+					s.log.Error("unable to upgrade connection to TLS", zap.Error(err))
 					return
 				}
 				s.handler.Handle(securedConn)
