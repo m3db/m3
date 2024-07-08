@@ -601,13 +601,13 @@ func (m unionMarshaler) OpUnion() (OpUnion, error) {
 
 // Pipeline is a pipeline of operations.
 type Pipeline struct {
-	// a list of pipeline operations.
-	operations []OpUnion
+	// a list of pipeline Operations.
+	Operations []OpUnion
 }
 
 // NewPipeline creates a new pipeline.
 func NewPipeline(ops []OpUnion) Pipeline {
-	return Pipeline{operations: ops}
+	return Pipeline{Operations: ops}
 }
 
 // NewPipelineFromProto creates a new pipeline from proto.
@@ -623,25 +623,25 @@ func NewPipelineFromProto(pb *pipelinepb.Pipeline) (Pipeline, error) {
 		}
 		operations = append(operations, operation)
 	}
-	return Pipeline{operations: operations}, nil
+	return Pipeline{Operations: operations}, nil
 }
 
 // Len returns the number of steps in a pipeline.
-func (p Pipeline) Len() int { return len(p.operations) }
+func (p Pipeline) Len() int { return len(p.Operations) }
 
 // IsEmpty determines whether a pipeline is empty.
 func (p Pipeline) IsEmpty() bool { return p.Len() == 0 }
 
 // At returns the operation at a given step.
-func (p Pipeline) At(i int) OpUnion { return p.operations[i] }
+func (p Pipeline) At(i int) OpUnion { return p.Operations[i] }
 
 // Equal determines whether two pipelines are equal.
 func (p Pipeline) Equal(other Pipeline) bool {
-	if len(p.operations) != len(other.operations) {
+	if len(p.Operations) != len(other.Operations) {
 		return false
 	}
-	for i := 0; i < len(p.operations); i++ {
-		if !p.operations[i].Equal(other.operations[i]) {
+	for i := 0; i < len(p.Operations); i++ {
+		if !p.Operations[i].Equal(other.Operations[i]) {
 			return false
 		}
 	}
@@ -651,22 +651,22 @@ func (p Pipeline) Equal(other Pipeline) bool {
 // SubPipeline returns a sub-pipeline containing operations between step `startInclusive`
 // and step `endExclusive` of the current pipeline.
 func (p Pipeline) SubPipeline(startInclusive int, endExclusive int) Pipeline {
-	return Pipeline{operations: p.operations[startInclusive:endExclusive]}
+	return Pipeline{Operations: p.Operations[startInclusive:endExclusive]}
 }
 
 // Clone clones the pipeline.
 func (p Pipeline) Clone() Pipeline {
-	clone := make([]OpUnion, len(p.operations))
-	for i, op := range p.operations {
+	clone := make([]OpUnion, len(p.Operations))
+	for i, op := range p.Operations {
 		clone[i] = op.Clone()
 	}
-	return Pipeline{operations: clone}
+	return Pipeline{Operations: clone}
 }
 
 // Proto returns the proto message for a given pipeline.
 func (p Pipeline) Proto() (*pipelinepb.Pipeline, error) {
-	pbOps := make([]pipelinepb.PipelineOp, 0, len(p.operations))
-	for _, op := range p.operations {
+	pbOps := make([]pipelinepb.PipelineOp, 0, len(p.Operations))
+	for _, op := range p.Operations {
 		pbOp, err := op.Proto()
 		if err != nil {
 			return nil, err
@@ -679,9 +679,9 @@ func (p Pipeline) Proto() (*pipelinepb.Pipeline, error) {
 func (p Pipeline) String() string {
 	var b bytes.Buffer
 	b.WriteString("{operations: [")
-	for i, op := range p.operations {
+	for i, op := range p.Operations {
 		b.WriteString(op.String())
-		if i < len(p.operations)-1 {
+		if i < len(p.Operations)-1 {
 			b.WriteString(", ")
 		}
 	}
@@ -691,7 +691,7 @@ func (p Pipeline) String() string {
 
 // MarshalJSON returns the JSON encoding of a pipeline.
 func (p Pipeline) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.operations)
+	return json.Marshal(p.Operations)
 }
 
 // UnmarshalJSON unmarshals JSON-encoded data into a pipeline.
@@ -700,7 +700,7 @@ func (p *Pipeline) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &operations); err != nil {
 		return err
 	}
-	p.operations = operations
+	p.Operations = operations
 	return nil
 }
 
@@ -710,11 +710,11 @@ func (p *Pipeline) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal(&operations); err != nil {
 		return err
 	}
-	p.operations = operations
+	p.Operations = operations
 	return nil
 }
 
 // MarshalYAML returns the YAML representation.
 func (p Pipeline) MarshalYAML() (interface{}, error) {
-	return p.operations, nil
+	return p.Operations, nil
 }
