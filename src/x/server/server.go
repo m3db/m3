@@ -160,9 +160,6 @@ func (s *server) maybeUpgradeToTLS(conn SecuredConn) (SecuredConn, error) {
 			return nil, err
 		}
 		conn = conn.UpgradeToTLS(tlsConfig)
-		if err != nil {
-			return nil, err
-		}
 	} else if s.tlsConfigManager.ServerMode() == xtls.Enforced {
 		return nil, fmt.Errorf("not a tls connection")
 	}
