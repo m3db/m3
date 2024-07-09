@@ -44,7 +44,7 @@ type ConfigManager interface {
 }
 
 type configManager struct {
-	sync.RWMutex
+	mu sync.RWMutex
 
 	log       *zap.Logger
 	metrics   configManagerMetrics
@@ -89,9 +89,9 @@ func (c *configManager) updateCertificates() {
 			sleepFn(c.options.CertificatesTTL())
 			continue
 		}
-		c.Lock()
+		c.mu.Lock()
 		c.tlsConfig = tlsConfig
-		c.Unlock()
+		c.mu.Unlock()
 		c.metrics.getTLSConfigSuccess.Inc(1)
 		sleepFn(c.options.CertificatesTTL())
 	}
@@ -148,8 +148,8 @@ func (c *configManager) TLSConfig() (*tls.Config, error) {
 	if c.options.CertificatesTTL() == 0 || c.tlsConfig == nil {
 		return c.loadTLSConfig()
 	}
-	c.RLock()
-	defer c.RUnlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.tlsConfig, nil
 }
 
