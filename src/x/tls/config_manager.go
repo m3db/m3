@@ -58,7 +58,7 @@ type configManagerMetrics struct {
 	getTLSConfigErrors  tally.Counter
 }
 
-func newConfigManagerScope(scope tally.Scope) configManagerMetrics {
+func newConfigManagerMetrics(scope tally.Scope) configManagerMetrics {
 	return configManagerMetrics{
 		getTLSConfigSuccess: scope.Tagged(map[string]string{"success": "true"}).Counter(getConfigMetricName),
 		getTLSConfigErrors:  scope.Tagged(map[string]string{"success": "false"}).Counter(getConfigMetricName),
@@ -69,7 +69,7 @@ func NewConfigManager(opts Options, instrumentOpts instrument.Options) ConfigMan
 	scope := instrumentOpts.MetricsScope()
 	c := &configManager{
 		log:      instrumentOpts.Logger(),
-		metrics:  newConfigManagerScope(scope),
+		metrics:  newConfigManagerMetrics(scope),
 		options:  opts,
 		certPool: x509.NewCertPool(),
 	}
