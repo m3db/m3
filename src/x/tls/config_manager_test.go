@@ -29,17 +29,11 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/tallytest"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
-
-type counterMock struct {
-	incCallback func()
-}
-
-func (c *counterMock) Inc(_ int64) {
-	c.incCallback()
-}
 
 func appendCA(filename string, certPool *x509.CertPool) error {
 	certs, err := os.ReadFile(filename)
@@ -165,17 +159,12 @@ func TestLoadTLSConfig(t *testing.T) {
 func TestUpdateCertificate(t *testing.T) {
 	var waitCh = make(chan bool)
 	var waitCalledCh = make(chan bool)
-	var readConfigSuccess = 0
-	successCounterMock := &counterMock{
-		incCallback: func() { readConfigSuccess++ },
-	}
-	var readConfigErrors = 0
-	errorCounterMock := &counterMock{
-		incCallback: func() { readConfigErrors++ },
-	}
+	const successMetricName = "success"
+	const errorMetricName = "error"
+	testScope := tally.NewTestScope("", map[string]string{})
 	cmm := configManagerMetrics{
-		getTLSConfigSuccess: successCounterMock,
-		getTLSConfigErrors:  errorCounterMock,
+		getTLSConfigSuccess: testScope.Counter(successMetricName),
+		getTLSConfigErrors:  testScope.Counter(errorMetricName),
 	}
 	originalSleepFn := sleepFn
 	sleepFn = func(d time.Duration) {
@@ -191,8 +180,8 @@ func TestUpdateCertificate(t *testing.T) {
 	cm := cmInterface.(*configManager)
 	cm.metrics = cmm
 	require.Nil(t, cm.tlsConfig)
-	require.Equal(t, 0, readConfigSuccess)
-	require.Equal(t, 0, readConfigErrors)
+	tallytest.AssertCounterValue(t, 0, testScope.Snapshot(), successMetricName, map[string]string{})
+	tallytest.AssertCounterValue(t, 0, testScope.Snapshot(), errorMetricName, map[string]string{})
 
 	opts = opts.
 		SetCertificatesTTL(time.Second).
@@ -207,13 +196,13 @@ func TestUpdateCertificate(t *testing.T) {
 	cm.metrics = cmm
 	<-waitCalledCh
 	require.NotNil(t, cm.tlsConfig)
-	require.Equal(t, 1, readConfigSuccess)
-	require.Equal(t, 0, readConfigErrors)
+	tallytest.AssertCounterValue(t, 1, testScope.Snapshot(), successMetricName, map[string]string{})
+	tallytest.AssertCounterValue(t, 0, testScope.Snapshot(), errorMetricName, map[string]string{})
 
 	opts = opts.SetCAFile("wrong/path")
 	cm.options = opts
 	waitCh <- true
 	<-waitCalledCh
-	require.Equal(t, 1, readConfigSuccess)
-	require.Equal(t, 1, readConfigErrors)
+	tallytest.AssertCounterValue(t, 1, testScope.Snapshot(), successMetricName, map[string]string{})
+	tallytest.AssertCounterValue(t, 1, testScope.Snapshot(), errorMetricName, map[string]string{})
 }
