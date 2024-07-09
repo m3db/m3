@@ -40,6 +40,14 @@ const (
 	testListenAddress = "127.0.0.1:0"
 )
 
+func waitForHandler(h *mockHandler, numCalls int, numChecks int, waitTime time.Duration) {
+	checks := 0
+	for h.called() < numCalls && checks < numChecks {
+		time.Sleep(waitTime)
+		checks++
+	}
+}
+
 func testPlainTCPServer(addr string) (*server, *mockHandler, *int32, *int32) {
 	return testServer(addr, xtls.Disabled, false)
 }
@@ -104,6 +112,7 @@ func TestServerListenAndClose(t *testing.T) {
 	for h.called() < numClients {
 		time.Sleep(100 * time.Millisecond)
 	}
+	waitForHandler(h, numClients, 5, 100*time.Millisecond)
 
 	require.False(t, h.isClosed())
 
@@ -160,10 +169,7 @@ func TestTLSPermissiveServerListenAndClose(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	numChecks := 0
-	for h.called() < numClients && numChecks < 5 {
-		time.Sleep(100 * time.Millisecond)
-	}
+	waitForHandler(h, numClients, 5, 100*time.Millisecond)
 
 	require.False(t, h.isClosed())
 
@@ -205,11 +211,7 @@ func TestTLSEnforcedServerListenAndClose(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	numChecks := 0
-	for h.called() < numClients/2 && numChecks < 5 {
-		time.Sleep(100 * time.Millisecond)
-		numChecks++
-	}
+	waitForHandler(h, numClients/2, 5, 100*time.Millisecond)
 
 	require.False(t, h.isClosed())
 
@@ -249,11 +251,7 @@ func TestMutualTLSServerListenAndClose(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	numChecks := 0
-	for h.called() < numClients && numChecks < 5 {
-		time.Sleep(100 * time.Millisecond)
-		numChecks++
-	}
+	waitForHandler(h, numClients, 5, 100*time.Millisecond)
 
 	require.False(t, h.isClosed())
 
