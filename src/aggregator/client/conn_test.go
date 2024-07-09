@@ -427,6 +427,7 @@ func TestTLSConnectWriteToServer(t *testing.T) {
 		ClientCAs:    certPool,
 		ClientAuth:   tls.RequireAndVerifyClientCert,
 	})
+	t.Cleanup(func() { l.Close() })
 	require.NoError(t, err)
 	serverAddr := l.Addr().String()
 
@@ -470,8 +471,6 @@ func TestTLSConnectWriteToServer(t *testing.T) {
 	require.Equal(t, 0, conn.numFailures)
 	require.NotNil(t, conn.conn)
 
-	// Stop the server.
-	l.Close() // nolint: errcheck
 	wg.Wait()
 
 	// Close the connection
