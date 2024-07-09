@@ -29,24 +29,41 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testTCPServer(connCh chan net.Conn, errCh chan error) (net.Listener, error) {
+func testTCPServer(connCh chan SecuredConn, errCh chan error) (net.Listener, error) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, err
 	}
-	go func(net.Listener, chan net.Conn, chan error) {
+	go func(net.Listener, chan SecuredConn, chan error) {
 		conn, err := listener.Accept()
 		if err != nil {
 			errCh <- err
 		} else {
-			connCh <- conn
+			securedConn := newSecuredConn(conn)
+			isTLS, err := securedConn.IsTLS()
+			if err != nil {
+				errCh <- err
+				return
+			}
+			if isTLS {
+				certs, err := tls.LoadX509KeyPair("testdata/server.crt", "testdata/server.key")
+				if err != nil {
+					errCh <- err
+					return
+				}
+				tlsConfig := tls.Config{Certificates: []tls.Certificate{certs}}
+				securedConn = securedConn.UpgradeToTLS(&tlsConfig)
+				tlsConn := securedConn.GetConn().(*tls.Conn)
+				tlsConn.Handshake()
+			}
+			connCh <- securedConn
 		}
 	}(listener, connCh, errCh)
 	return listener, nil
 }
 
 func TestPlainTCPConnection(t *testing.T) {
-	connCh := make(chan net.Conn)
+	connCh := make(chan SecuredConn)
 	errCh := make(chan error)
 	listener, err := testTCPServer(connCh, errCh)
 	require.NoError(t, err)
@@ -54,7 +71,8 @@ func TestPlainTCPConnection(t *testing.T) {
 
 	clientConn, err := net.Dial("tcp", listener.Addr().String())
 	require.NoError(t, err)
-	_, err = clientConn.Write([]byte("not a tls connection"))
+	data := []byte("not a tls connection")
+	_, err = clientConn.Write(data)
 	require.NoError(t, err)
 
 	var conn SecuredConn
@@ -70,32 +88,43 @@ func TestPlainTCPConnection(t *testing.T) {
 	isTLS, err := conn.IsTLS()
 	require.NoError(t, err)
 	require.False(t, isTLS)
+	result := make([]byte, len(data))
+	_, err = conn.Read(result)
+	require.NoError(t, err)
+	require.Equal(t, data, result)
 }
 
 func TestTLSConnection(t *testing.T) {
-	connCh := make(chan net.Conn)
+	connCh := make(chan SecuredConn)
 	errCh := make(chan error)
 	listener, err := testTCPServer(connCh, errCh)
 	require.NoError(t, err)
 	defer listener.Close()
 
-	tcpConn, err := net.Dial("tcp", listener.Addr().String())
+	clientConn, err := tls.Dial("tcp", listener.Addr().String(), &tls.Config{InsecureSkipVerify: true})
 	require.NoError(t, err)
-	tlsConn := tls.Client(tcpConn, &tls.Config{InsecureSkipVerify: true})
-	defer tlsConn.Close()
-	go tlsConn.Handshake()
+	defer clientConn.Close()
 
-	var conn SecuredConn
+	data := []byte("tls connection")
+	_, err = clientConn.Write(data)
+	require.NoError(t, err)
+
+	var serverConn SecuredConn
 	select {
 	case newConn := <-connCh:
-		conn = newSecuredConn(newConn)
+		serverConn = newConn
 	case newErr := <-errCh:
 		err = newErr
 	}
 	require.NoError(t, err)
-	defer conn.Close()
+	defer serverConn.Close()
 
-	isTLS, err := conn.IsTLS()
+	isTLS, err := serverConn.IsTLS()
 	require.NoError(t, err)
 	require.True(t, isTLS)
+
+	result := make([]byte, len(data))
+	_, err = serverConn.Read(result)
+	require.NoError(t, err)
+	require.Equal(t, data, result)
 }
