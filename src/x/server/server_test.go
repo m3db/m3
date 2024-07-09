@@ -139,129 +139,96 @@ func TestServe(t *testing.T) {
 	s.Close()
 }
 
-func TestTLSPermissiveServerListenAndClose(t *testing.T) {
-	s, h, numAdded, numRemoved := testServer(testListenAddress, xtls.Permissive, false)
-
-	var (
-		numClients  = 9
-		expectedRes []string
-	)
-
-	err := s.ListenAndServe()
-	require.NoError(t, err)
-	listenAddr := s.listener.Addr().String()
-
-	for i := 0; i < numClients; i++ {
-		var conn net.Conn
-		var err error
-		if i%2 == 0 {
-			conn, err = net.Dial("tcp", listenAddr)
-		} else {
-			conn, err = tls.Dial("tcp", listenAddr, &tls.Config{InsecureSkipVerify: true})
-
-		}
-		require.NoError(t, err)
-
-		msg := fmt.Sprintf("msg%d", i)
-		expectedRes = append(expectedRes, msg)
-
-		_, err = conn.Write([]byte(msg))
-		require.NoError(t, err)
+func TestTLS(t *testing.T) {
+	tests := []struct {
+		name                   string
+		tlsMode                xtls.ServerMode
+		numClients             int
+		expectedServerCalls    int
+		dialFn                 func(i int, listenAddr string) (net.Conn, error)
+		appendExpectedResultFn func(expecteResult []string, i int, msg string) []string
+	}{
+		{
+			name:                "TLS permissive mode",
+			tlsMode:             xtls.Permissive,
+			numClients:          9,
+			expectedServerCalls: 9,
+			dialFn: func(i int, listenAddr string) (net.Conn, error) {
+				if i%2 == 0 {
+					return net.Dial("tcp", listenAddr)
+				} else {
+					return tls.Dial("tcp", listenAddr, &tls.Config{InsecureSkipVerify: true})
+				}
+			},
+			appendExpectedResultFn: func(expectedResult []string, i int, msg string) []string {
+				return append(expectedResult, msg)
+			},
+		},
+		{
+			name:                "TLS enforced mode",
+			tlsMode:             xtls.Enforced,
+			numClients:          10,
+			expectedServerCalls: 5,
+			dialFn: func(i int, listenAddr string) (net.Conn, error) {
+				if i%2 == 0 {
+					return net.Dial("tcp", listenAddr)
+				} else {
+					return tls.Dial("tcp", listenAddr, &tls.Config{InsecureSkipVerify: true})
+				}
+			},
+			appendExpectedResultFn: func(expectedResult []string, i int, msg string) []string {
+				if i%2 == 1 {
+					return append(expectedResult, msg)
+				} else {
+					return expectedResult
+				}
+			},
+		},
+		{
+			name:                "Mutual TLS",
+			tlsMode:             xtls.Enforced,
+			numClients:          9,
+			expectedServerCalls: 9,
+			dialFn: func(i int, listenAddr string) (net.Conn, error) {
+				cert, err := tls.LoadX509KeyPair("./testdata/client.crt", "./testdata/client.key")
+				require.NoError(t, err)
+				return tls.Dial("tcp", listenAddr, &tls.Config{InsecureSkipVerify: true, Certificates: []tls.Certificate{cert}})
+			},
+			appendExpectedResultFn: func(expecteResult []string, i int, msg string) []string {
+				return append(expecteResult, msg)
+			},
+		},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, h, numAdded, numRemoved := testServer(testListenAddress, tt.tlsMode, false)
+			var expectedRes []string
+			err := s.ListenAndServe()
+			require.NoError(t, err)
+			listenAddr := s.listener.Addr().String()
+			for i := 0; i < tt.numClients; i++ {
+				conn, err := tt.dialFn(i, listenAddr)
+				require.NoError(t, err)
 
-	waitForHandler(h, numClients, 5, 100*time.Millisecond)
+				msg := fmt.Sprintf("msg%d", i)
+				expectedRes = tt.appendExpectedResultFn(expectedRes, i, msg)
 
-	require.False(t, h.isClosed())
+				_, err = conn.Write([]byte(msg))
+				require.NoError(t, err)
+			}
+			waitForHandler(h, tt.expectedServerCalls, 5, 100*time.Millisecond)
 
-	s.Close()
+			require.False(t, h.isClosed())
 
-	require.True(t, h.isClosed())
-	require.Equal(t, int32(numClients), atomic.LoadInt32(numAdded))
-	require.Equal(t, int32(numClients), atomic.LoadInt32(numRemoved))
-	require.Equal(t, numClients, h.called())
-	require.Equal(t, expectedRes, h.res())
-}
+			s.Close()
 
-func TestTLSEnforcedServerListenAndClose(t *testing.T) {
-	s, h, numAdded, numRemoved := testServer(testListenAddress, xtls.Enforced, false)
-
-	var (
-		numClients  = 10
-		expectedRes []string
-	)
-
-	err := s.ListenAndServe()
-	require.NoError(t, err)
-	listenAddr := s.listener.Addr().String()
-
-	for i := 0; i < numClients; i++ {
-		var conn net.Conn
-		var err error
-		msg := fmt.Sprintf("msg%d", i)
-
-		if i%2 == 0 {
-			conn, err = net.Dial("tcp", listenAddr)
-		} else {
-			conn, err = tls.Dial("tcp", listenAddr, &tls.Config{InsecureSkipVerify: true})
-			expectedRes = append(expectedRes, msg)
-		}
-		require.NoError(t, err)
-
-		_, err = conn.Write([]byte(msg))
-		require.NoError(t, err)
+			require.True(t, h.isClosed())
+			require.Equal(t, int32(tt.numClients), atomic.LoadInt32(numAdded))
+			require.Equal(t, int32(tt.numClients), atomic.LoadInt32(numRemoved))
+			require.Equal(t, tt.expectedServerCalls, h.called())
+			require.Equal(t, expectedRes, h.res())
+		})
 	}
-
-	waitForHandler(h, numClients/2, 5, 100*time.Millisecond)
-
-	require.False(t, h.isClosed())
-
-	s.Close()
-
-	require.True(t, h.isClosed())
-	require.Equal(t, int32(numClients), atomic.LoadInt32(numAdded))
-	require.Equal(t, int32(numClients), atomic.LoadInt32(numRemoved))
-	require.Equal(t, numClients/2, h.called())
-	require.Equal(t, expectedRes, h.res())
-}
-
-func TestMutualTLSServerListenAndClose(t *testing.T) {
-	s, h, numAdded, numRemoved := testServer(testListenAddress, xtls.Enforced, true)
-
-	var (
-		numClients  = 9
-		expectedRes []string
-	)
-
-	err := s.ListenAndServe()
-	require.NoError(t, err)
-	listenAddr := s.listener.Addr().String()
-	cert, err := tls.LoadX509KeyPair("./testdata/client.crt", "./testdata/client.key")
-	require.NoError(t, err)
-
-	for i := 0; i < numClients; i++ {
-		var conn net.Conn
-		var err error
-		conn, err = tls.Dial("tcp", listenAddr, &tls.Config{InsecureSkipVerify: true, Certificates: []tls.Certificate{cert}})
-		require.NoError(t, err)
-
-		msg := fmt.Sprintf("msg%d", i)
-		expectedRes = append(expectedRes, msg)
-
-		_, err = conn.Write([]byte(msg))
-		require.NoError(t, err)
-	}
-
-	waitForHandler(h, numClients, 5, 100*time.Millisecond)
-
-	require.False(t, h.isClosed())
-
-	s.Close()
-
-	require.True(t, h.isClosed())
-	require.Equal(t, int32(numClients), atomic.LoadInt32(numAdded))
-	require.Equal(t, int32(numClients), atomic.LoadInt32(numRemoved))
-	require.Equal(t, numClients, h.called())
-	require.Equal(t, expectedRes, h.res())
 }
 
 type mockHandler struct {
