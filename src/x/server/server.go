@@ -154,15 +154,16 @@ func (s *server) maybeUpgradeToTLS(conn SecuredConn) (SecuredConn, error) {
 	if err != nil {
 		return nil, err
 	}
-	if isTLSConnection {
-		tlsConfig, err := s.tlsConfigManager.TLSConfig()
-		if err != nil {
-			return nil, err
-		}
-		conn = conn.UpgradeToTLS(tlsConfig)
-	} else if s.tlsConfigManager.ServerMode() == xtls.Enforced {
+	if !isTLSConnection && s.tlsConfigManager.ServerMode() == xtls.Enforced {
 		return nil, fmt.Errorf("not a tls connection")
+	} else if !isTLSConnection {
+		return conn, nil
 	}
+	tlsConfig, err := s.tlsConfigManager.TLSConfig()
+	if err != nil {
+		return nil, err
+	}
+	conn = conn.UpgradeToTLS(tlsConfig)
 	return conn, nil
 }
 

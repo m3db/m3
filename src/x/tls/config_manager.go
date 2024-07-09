@@ -98,14 +98,15 @@ func (c *configManager) updateCertificates() {
 }
 
 func (c *configManager) loadCertPool() (*x509.CertPool, error) {
-	if c.options.CAFile() != "" {
-		certs, err := os.ReadFile(c.options.CAFile())
-		if err != nil {
-			return nil, fmt.Errorf("read bundle error: %w", err)
-		}
-		if ok := c.certPool.AppendCertsFromPEM(certs); !ok {
-			return nil, fmt.Errorf("cannot append cert to cert pool")
-		}
+	if c.options.CAFile() == "" {
+		return c.certPool, nil
+	}
+	certs, err := os.ReadFile(c.options.CAFile())
+	if err != nil {
+		return nil, fmt.Errorf("read bundle error: %w", err)
+	}
+	if ok := c.certPool.AppendCertsFromPEM(certs); !ok {
+		return nil, fmt.Errorf("cannot append cert to cert pool")
 	}
 	return c.certPool, nil
 }
