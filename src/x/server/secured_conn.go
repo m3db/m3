@@ -22,77 +22,87 @@
 package server
 
 import (
-	"bufio"
 	"crypto/tls"
 	"net"
+	"sync"
 )
 
 // TLSHandshakeFirstByte is the first byte of a tls connection handshake
 const TLSHandshakeFirstByte = 0x16
 
-func newSecuredConn(conn net.Conn) SecuredConn {
+func newSecuredConn(conn net.Conn) *securedConn {
 	return &securedConn{
-		r:     bufio.NewReader(conn),
-		Conn:  conn,
-		isTLS: nil,
+		Conn: conn,
 	}
-}
-
-// SecuredConn represents the secured connection
-type SecuredConn interface {
-	net.Conn
-	IsTLS() (bool, error)
-	GetConn() net.Conn
-	UpgradeToTLS(*tls.Config) SecuredConn
 }
 
 type securedConn struct {
 	net.Conn
-	r     *bufio.Reader
-	isTLS *bool
+	mu         sync.Mutex
+	isTLS      *bool
+	peekedByte *byte
 }
 
 // IsTLS returns is the connection is TLS or not.
 // It peeks at the first byte and checks
 // if it is equal to the TLS handshake first byte
 // https://www.rfc-editor.org/rfc/rfc5246#appendix-A.1
-func (b *securedConn) IsTLS() (bool, error) {
-	if b.isTLS != nil {
-		return *b.isTLS, nil
+func (s *securedConn) IsTLS() (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.isTLS != nil {
+		return *s.isTLS, nil
 	}
-	connBytes, err := b.r.Peek(1)
+	firstByte, err := s.peek()
 	if err != nil {
 		return false, err
 	}
-	isTLS := len(connBytes) > 0 && connBytes[0] == TLSHandshakeFirstByte
-	b.isTLS = &isTLS
+	isTLS := firstByte == TLSHandshakeFirstByte
+	s.isTLS = &isTLS
+
 	return isTLS, nil
 }
 
-func (b *securedConn) UpgradeToTLS(tlsConfig *tls.Config) SecuredConn {
-	tlsConn := tls.Server(b, tlsConfig)
+func (s *securedConn) UpgradeToTLS(tlsConfig *tls.Config) *securedConn {
+	tlsConn := tls.Server(s, tlsConfig)
 	t := true
 	return &securedConn{
-		r:     bufio.NewReader(tlsConn),
 		Conn:  tlsConn,
 		isTLS: &t,
 	}
 }
 
 // Read reads n bytes
-func (b *securedConn) Read(n []byte) (int, error) {
+func (s *securedConn) Read(n []byte) (int, error) {
 	// Before reading we need to ensure if we know the type of the connection.
 	// After reading data it will be impossible to determine
 	// if the connection has the TLS layer or not.
-	if b.isTLS == nil {
-		if _, err := b.IsTLS(); err != nil {
+	if s.isTLS == nil {
+		if _, err := s.IsTLS(); err != nil {
 			return 0, err
 		}
 	}
-	return b.r.Read(n)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.peekedByte != nil {
+		n[0] = *s.peekedByte
+		s.peekedByte = nil
+		n, err := s.Conn.Read(n[1:])
+		return n + 1, err
+	}
+	return s.Conn.Read(n)
 }
 
-// GetConn returns net.Conn connection
-func (b *securedConn) GetConn() net.Conn {
-	return b.Conn
+func (s *securedConn) peek() (byte, error) {
+	if s.peekedByte != nil {
+		return *s.peekedByte, nil
+	}
+
+	var buf [1]byte
+	_, err := s.Conn.Read(buf[:])
+	if err != nil {
+		return 0, err
+	}
+	s.peekedByte = &buf[0]
+	return buf[0], nil
 }

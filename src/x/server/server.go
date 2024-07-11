@@ -146,7 +146,7 @@ func (s *server) Serve(l net.Listener) error {
 	return nil
 }
 
-func (s *server) maybeUpgradeToTLS(conn SecuredConn) (SecuredConn, error) {
+func (s *server) maybeUpgradeToTLS(conn *securedConn) (*securedConn, error) {
 	if s.tlsConfigManager.ServerMode() == xtls.Disabled {
 		return conn, nil
 	}
@@ -171,7 +171,7 @@ func (s *server) serve() {
 	connCh, errCh := xnet.StartForeverAcceptLoop(s.listener, s.retryOpts)
 	for conn := range connCh {
 		conn := newSecuredConn(conn)
-		if tcpConn, ok := conn.GetConn().(*net.TCPConn); ok {
+		if tcpConn, ok := conn.Conn.(*net.TCPConn); ok {
 			tcpConn.SetKeepAlive(s.tcpConnectionKeepAlive)
 			if s.tcpConnectionKeepAlivePeriod != 0 {
 				tcpConn.SetKeepAlivePeriod(s.tcpConnectionKeepAlivePeriod)

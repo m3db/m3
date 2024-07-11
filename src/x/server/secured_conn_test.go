@@ -29,12 +29,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testTCPServer(connCh chan SecuredConn, errCh chan error) (net.Listener, error) {
+func testTCPServer(connCh chan *securedConn, errCh chan error) (net.Listener, error) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, err
 	}
-	go func(net.Listener, chan SecuredConn, chan error) {
+	go func(net.Listener, chan *securedConn, chan error) {
 		conn, err := listener.Accept()
 		if err != nil {
 			errCh <- err
@@ -53,7 +53,7 @@ func testTCPServer(connCh chan SecuredConn, errCh chan error) (net.Listener, err
 				}
 				tlsConfig := tls.Config{Certificates: []tls.Certificate{certs}}
 				securedConn = securedConn.UpgradeToTLS(&tlsConfig)
-				tlsConn := securedConn.GetConn().(*tls.Conn)
+				tlsConn := securedConn.Conn.(*tls.Conn)
 				tlsConn.Handshake()
 			}
 			connCh <- securedConn
@@ -63,7 +63,7 @@ func testTCPServer(connCh chan SecuredConn, errCh chan error) (net.Listener, err
 }
 
 func TestPlainTCPConnection(t *testing.T) {
-	connCh := make(chan SecuredConn)
+	connCh := make(chan *securedConn)
 	errCh := make(chan error)
 	listener, err := testTCPServer(connCh, errCh)
 	require.NoError(t, err)
@@ -75,10 +75,10 @@ func TestPlainTCPConnection(t *testing.T) {
 	_, err = clientConn.Write(data)
 	require.NoError(t, err)
 
-	var conn SecuredConn
+	var conn *securedConn
 	select {
 	case newConn := <-connCh:
-		conn = newSecuredConn(newConn)
+		conn = newConn
 	case newErr := <-errCh:
 		err = newErr
 	}
@@ -95,7 +95,7 @@ func TestPlainTCPConnection(t *testing.T) {
 }
 
 func TestTLSConnection(t *testing.T) {
-	connCh := make(chan SecuredConn)
+	connCh := make(chan *securedConn)
 	errCh := make(chan error)
 	listener, err := testTCPServer(connCh, errCh)
 	require.NoError(t, err)
@@ -109,7 +109,7 @@ func TestTLSConnection(t *testing.T) {
 	_, err = clientConn.Write(data)
 	require.NoError(t, err)
 
-	var serverConn SecuredConn
+	var serverConn *securedConn
 	select {
 	case newConn := <-connCh:
 		serverConn = newConn
