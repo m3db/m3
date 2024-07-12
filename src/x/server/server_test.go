@@ -27,6 +27,7 @@ import (
 	"sort"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -40,9 +41,32 @@ const (
 	testListenAddress = "127.0.0.1:0"
 )
 
-func waitForHandler(h *mockHandler, numCalls int, numChecks int, waitTime time.Duration) {
+func isKeepAlive(conn net.Conn) (bool, error) {
+	tcpConn, ok := conn.(*net.TCPConn)
+	if !ok {
+		return false, nil
+	}
+	file, err := tcpConn.File()
+	if err != nil {
+		return false, err
+	}
+	defer file.Close()
+
+	fd := int(file.Fd())
+
+	value, err := syscall.GetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_KEEPALIVE)
+	if err != nil {
+		return false, err
+	}
+	if value == 1 {
+		return true, nil
+	}
+	return false, nil
+}
+
+func waitFor(checkFn func() bool, numChecks int, waitTime time.Duration) {
 	checks := 0
-	for h.called() < numCalls && checks < numChecks {
+	for !checkFn() && checks < numChecks {
 		time.Sleep(waitTime)
 		checks++
 	}
@@ -66,7 +90,10 @@ func testServer(addr string, tlsMode xtls.ServerMode, mTLSEnabled bool) (*server
 		SetCertFile("./testdata/server.crt").
 		SetKeyFile("./testdata/server.key")
 
-	opts := NewOptions().SetRetryOptions(retry.NewOptions().SetMaxRetries(2))
+	opts := NewOptions().
+		SetRetryOptions(retry.NewOptions().SetMaxRetries(2)).
+		SetTCPConnectionKeepAlive(true).
+		SetTCPConnectionKeepAlivePeriod(time.Hour)
 	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().SetReportInterval(time.Second)).SetTLSOptions(tlsOpts)
 
 	h := newMockHandler()
@@ -112,7 +139,7 @@ func TestServerListenAndClose(t *testing.T) {
 	for h.called() < numClients {
 		time.Sleep(100 * time.Millisecond)
 	}
-	waitForHandler(h, numClients, 5, 100*time.Millisecond)
+	waitFor(func() bool { return h.called() == numClients }, 5, 100*time.Millisecond)
 
 	require.False(t, h.isClosed())
 
@@ -209,6 +236,9 @@ func TestTLS(t *testing.T) {
 			for i := 0; i < tt.numClients; i++ {
 				conn, err := tt.dialFn(i, listenAddr)
 				require.NoError(t, err)
+				waitFor(func() bool { return len(s.conns) == 1 }, 5, 100*time.Millisecond)
+				keepAlive, err := isKeepAlive(s.conns[0].(*securedConn).Conn)
+				require.True(t, keepAlive)
 
 				msg := fmt.Sprintf("msg%d", i)
 				expectedRes = tt.appendExpectedResultFn(expectedRes, i, msg)
@@ -216,8 +246,7 @@ func TestTLS(t *testing.T) {
 				_, err = conn.Write([]byte(msg))
 				require.NoError(t, err)
 			}
-			waitForHandler(h, tt.expectedServerCalls, 5, 100*time.Millisecond)
-
+			waitFor(func() bool { return h.called() == tt.expectedServerCalls }, 5, 100*time.Millisecond)
 			require.False(t, h.isClosed())
 
 			s.Close()

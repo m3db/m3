@@ -107,7 +107,7 @@ func benchmarkServer(tlsMode xtls.ServerMode, mTLSEnabled bool, b *testing.B) {
 		msg := fmt.Sprintf("msg%d", n)
 		conn.Write([]byte(msg))
 	}
-	waitForHandler(handler, b.N, 5, 100*time.Millisecond)
+	waitFor(func() bool { return handler.called() == b.N }, 5, 100*time.Millisecond)
 	require.Equal(b, b.N, handler.called())
 }
 
