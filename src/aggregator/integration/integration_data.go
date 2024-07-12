@@ -35,8 +35,11 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	metricid "github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
+	"github.com/m3db/m3/src/metrics/pipeline"
+	mpipeline "github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/metrics/transformation"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/google/go-cmp/cmp"
@@ -121,6 +124,57 @@ var (
 							policy.NewStoragePolicy(2*time.Second, xtime.Second, 2*time.Hour),
 						},
 					},
+				},
+			},
+		},
+	}
+	testCustomPipelineMetadata = metadata.PipelineMetadata{
+		AggregationID: maggregation.MustCompressTypes(maggregation.Sum),
+		StoragePolicies: policy.StoragePolicies{
+			policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+		},
+		Pipeline: applied.Pipeline{
+			Operations: []applied.OpUnion{
+				{
+					Type: mpipeline.TransformationOpType,
+					Transformation: pipeline.TransformationOp{
+						Type: transformation.Absolute,
+					},
+				},
+				{
+					Type: mpipeline.RollupOpType,
+					Rollup: applied.RollupOp{
+						ID: []byte("m3+bar1+fooTag1=fooValue1"),
+					},
+				},
+			},
+		},
+	}
+	testDefaultPipelineMetadata = metadata.PipelineMetadata{
+		AggregationID: maggregation.DefaultID,
+		StoragePolicies: policy.StoragePolicies{
+			policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+		},
+	}
+	testCustomStagedMetadatasWithDefaultPipeline = metadata.StagedMetadatas{
+		{
+			CutoverNanos: 0,
+			Tombstoned:   false,
+			Metadata: metadata.Metadata{
+				Pipelines: []metadata.PipelineMetadata{
+					testDefaultPipelineMetadata,
+					testCustomPipelineMetadata,
+				},
+			},
+		},
+	}
+	testCustomStagedMetadatasWithoutDefaultPipeline = metadata.StagedMetadatas{
+		{
+			CutoverNanos: 0,
+			Tombstoned:   false,
+			Metadata: metadata.Metadata{
+				Pipelines: []metadata.PipelineMetadata{
+					testCustomPipelineMetadata,
 				},
 			},
 		},
