@@ -157,10 +157,8 @@ func TestOneClientKeepOriginalFalse(t *testing.T) {
 	}
 
 	for _, m := range metricsWithExpectations {
-		if m.expectedInOutput {
-			found := isMetricFound(m.inputMetric.ID.String(), actual)
-			require.True(t, found, "expected metric %s to be in the output", m.inputMetric.ID.String())
-		}
+		found := isMetricFound(m.inputMetric.ID.String(), actual)
+		require.Equal(t, m.expectedInOutput, found, "expectation not met for metric %s", m.inputMetric.ID.String())
 
 		if m.expectedRollupInOutput {
 			found := isMetricFound(m.expectedRollupMetricName, actual)
