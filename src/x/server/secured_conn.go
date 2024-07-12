@@ -24,7 +24,6 @@ package server
 import (
 	"crypto/tls"
 	"net"
-	"sync"
 )
 
 // TLSHandshakeFirstByte is the first byte of a tls connection handshake
@@ -38,9 +37,9 @@ func newSecuredConn(conn net.Conn) *securedConn {
 
 type securedConn struct {
 	net.Conn
-	mu         sync.Mutex
-	isTLS      *bool
-	peekedByte *byte
+	isTLS           *bool
+	peekedByte      byte
+	peekedByteIsSet bool
 }
 
 // IsTLS returns is the connection is TLS or not.
@@ -48,8 +47,6 @@ type securedConn struct {
 // if it is equal to the TLS handshake first byte
 // https://www.rfc-editor.org/rfc/rfc5246#appendix-A.1
 func (s *securedConn) IsTLS() (bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.isTLS != nil {
 		return *s.isTLS, nil
 	}
@@ -82,11 +79,9 @@ func (s *securedConn) Read(n []byte) (int, error) {
 			return 0, err
 		}
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.peekedByte != nil {
-		n[0] = *s.peekedByte
-		s.peekedByte = nil
+	if s.peekedByteIsSet && len(n) > 0 {
+		n[0] = s.peekedByte
+		s.peekedByteIsSet = false
 		n, err := s.Conn.Read(n[1:])
 		return n + 1, err
 	}
@@ -94,8 +89,8 @@ func (s *securedConn) Read(n []byte) (int, error) {
 }
 
 func (s *securedConn) peek() (byte, error) {
-	if s.peekedByte != nil {
-		return *s.peekedByte, nil
+	if s.peekedByteIsSet {
+		return s.peekedByte, nil
 	}
 
 	var buf [1]byte
@@ -103,6 +98,7 @@ func (s *securedConn) peek() (byte, error) {
 	if err != nil {
 		return 0, err
 	}
-	s.peekedByte = &buf[0]
+	s.peekedByte = buf[0]
+	s.peekedByteIsSet = true
 	return buf[0], nil
 }
