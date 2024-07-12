@@ -144,7 +144,7 @@ var (
 				{
 					Type: mpipeline.RollupOpType,
 					Rollup: applied.RollupOp{
-						ID: []byte("m3+bar1+fooTag1=fooValue1"),
+						ID: []byte("m3+rollup1+fooTag1=fooValue1"),
 					},
 				},
 			},
@@ -156,7 +156,7 @@ var (
 			policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
 		},
 	}
-	testCustomStagedMetadatasWithDefaultPipeline = metadata.StagedMetadatas{
+	testStagedMetadatasWithDefaultPipeline = metadata.StagedMetadatas{
 		{
 			CutoverNanos: 0,
 			Tombstoned:   false,
@@ -168,7 +168,7 @@ var (
 			},
 		},
 	}
-	testCustomStagedMetadatasWithoutDefaultPipeline = metadata.StagedMetadatas{
+	testStagedMetadatasWithoutDefaultPipeline = metadata.StagedMetadatas{
 		{
 			CutoverNanos: 0,
 			Tombstoned:   false,
