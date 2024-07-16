@@ -16,12 +16,17 @@ type Tag struct {
 	Values []string
 }
 
+type Annotateable[T any] interface {
+	// Annotate annotates the data with the resolved variable map.
+	Annotate(varMap map[string]string) T
+}
+
 // Tree is a tree data structure for tag filters.
-type Tree[T any] struct {
+type Tree[T Annotateable[T]] struct {
 	Nodes map[string]*node[T]
 }
 
-type node[T any] struct {
+type node[T Annotateable[T]] struct {
 	Name string
 	// key=tagValue
 	Values map[string]*Tree[T]
@@ -29,7 +34,7 @@ type node[T any] struct {
 }
 
 // New creates a new tree.
-func New[T any]() *Tree[T] {
+func New[T Annotateable[T]]() *Tree[T] {
 	return &Tree[T]{
 		Nodes: make(map[string]*node[T]),
 	}
@@ -49,7 +54,7 @@ func (n *node[T]) addValue(value string) *Tree[T] {
 	return n.Values[value]
 }
 
-func addNode[T any](t *Tree[T], tags []Tag, idx int, data T) {
+func addNode[T Annotateable[T]](t *Tree[T], tags []Tag, idx int, data T) {
 	if idx >= len(tags) {
 		return
 	}
@@ -82,27 +87,43 @@ func addNode[T any](t *Tree[T], tags []Tag, idx int, data T) {
 
 // Match returns the data for the given tags.
 func (t *Tree[T]) Match(tags map[string]string) []T {
-	return match(t, tags)
+	varMap := make(map[string]string, 0)
+	return match(t, tags, varMap)
 }
 
-func match[T any](t *Tree[T], tags map[string]string) []T {
+func match[T Annotateable[T]](
+	t *Tree[T],
+	tags map[string]string,
+	varMap map[string]string,
+) []T {
 	if len(tags) == 0 || t == nil {
 		return nil
 	}
 
 	data := make([]T, 0)
 	for name, node := range t.Nodes {
-		if value, tagNameFound := tags[name]; tagNameFound {
-			if tree, matchAllFound := node.Values[_matchall]; matchAllFound {
-				// gather data from this node and recurse.
-				data = append(data, node.Data...)
-				data = append(data, match(tree, tags)...)
-			}
+		if tagValue, tagNameFound := tags[name]; tagNameFound {
+			// for each of the nodes values, recurse if:
+			// - the tag value matches the node value
+			// - the node value is a variable
+			// - the node value is a matchall
+			for nodeValue, subTree := range node.Values {
+				isVar := isVarTagValue(nodeValue)
+				if tagValue == nodeValue || nodeValue == _matchall || isVar {
+					// gather data from this node and recurse.
+					// create copy of varMap to avoid modifying the original.
+					newVarMap := varMap
+					if isVar {
+						newVarMap = make(map[string]string, len(varMap))
+						newVarMap[nodeValue] = tagValue
+					}
 
-			if tree, tagValueFound := node.Values[value]; tagValueFound {
-				// gather data from this node and recurse.
-				data = append(data, node.Data...)
-				data = append(data, match(tree, tags)...)
+					// annotate all data in this node with the variable map.
+					for _, d := range node.Data {
+						data = append(data, d.Annotate(newVarMap))
+					}
+					data = append(data, match(subTree, tags, newVarMap)...)
+				}
 			}
 		}
 	}
@@ -110,6 +131,10 @@ func match[T any](t *Tree[T], tags map[string]string) []T {
 	return data
 }
 
+// TagsFromTagFilter creates tags from a tag filter.
+// The tag values can be of the format:
+// "foo" OR "{foo,bar,baz}" OR "{{Variable}}"
+// There cannot be a mix of value formats like "simpleValue, {foo,bar}" etc.
 func TagsFromTagFilter(tf string) ([]Tag, error) {
 	tagFilterMap, err := filters.ParseTagFilterValueMap(tf)
 	if err != nil {
@@ -126,9 +151,14 @@ func TagsFromTagFilter(tf string) ([]Tag, error) {
 		// They can be of the format:
 		// - simpleValue
 		// - {foo,bar,baz}
-		// - {{.Variable}}
+		// - {{Variable}}
 		// There cannot be a mix of value formats like "simpleValue, {foo,bar}" etc.
-		tags = append(tags, Tag{Name: name, Values: []string{value.Pattern}})
+		tagValues, err := parseTagValue(value.Pattern)
+		if err != nil {
+			return nil, err
+		}
+
+		tags = append(tags, Tag{Name: name, Values: tagValues})
 	}
 
 	return tags, nil
@@ -207,5 +237,20 @@ func parseVarTagValue(value string) ([]string, error) {
 		return nil, errors.New("cannot have empty variable tag value")
 	}
 
-	return parseSimpleTagValue(value)
+	res, err := parseSimpleTagValue(value)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(res) != 1 {
+		return nil, errors.New("variable tag value cannot have multiple values")
+	}
+
+	return []string{"{{" + res[0] + "}}"}, nil
+}
+
+func isVarTagValue(value string) bool {
+	return len(value) > 4 &&
+		strings.Contains(value, "{{") &&
+		strings.Contains(value, "}}")
 }

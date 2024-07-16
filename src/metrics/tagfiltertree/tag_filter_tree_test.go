@@ -11,8 +11,20 @@ import (
 )
 
 type Rule struct {
-	TagFilters [][]Tag
+	TagFilters []string
 	Namespace  string
+}
+
+type ResolvedRule struct {
+	*Rule
+	VarMap map[string]string
+}
+
+func (rr *ResolvedRule) Annotate(varMap map[string]string) *ResolvedRule {
+	return &ResolvedRule{
+		Rule:   rr.Rule,
+		VarMap: varMap,
+	}
 }
 
 func TestTreeGetData(t *testing.T) {
@@ -33,41 +45,27 @@ func TestTreeGetData(t *testing.T) {
 			},
 			rules: []Rule{
 				{
-					TagFilters: [][]Tag{
-						{
-							{Name: "tag1", Values: []string{"value1"}},
-							{Name: "tag2", Values: []string{"value2"}},
-						},
+					TagFilters: []string{
+						"tag1:value1 tag2:value2",
 					},
 					Namespace: "namespace1",
 				},
 				{
-					TagFilters: [][]Tag{
-						{
-							{Name: "tag4", Values: []string{"value4"}},
-							{Name: "tag5", Values: []string{"value5"}},
-						},
+					TagFilters: []string{
+						"tag4:value4 tag5:value5",
 					},
 					Namespace: "namespace2",
 				},
 				{
-					TagFilters: [][]Tag{
-						{
-							{Name: "tag5", Values: []string{"*"}},
-						},
+					TagFilters: []string{
+						"tag5:*",
 					},
 					Namespace: "namespace3",
 				},
 				{
-					TagFilters: [][]Tag{
-						{
-							{Name: "tag8", Values: []string{"value8"}},
-							{Name: "tag9", Values: []string{"value9"}},
-						},
-						{
-							{Name: "tag5", Values: []string{"value5"}},
-							{Name: "tag6", Values: []string{"value6"}},
-						},
+					TagFilters: []string{
+						"tag8:value8 tag9:value9",
+						"tag5:value5 tag6:value6",
 					},
 					Namespace: "namespace4",
 				},
@@ -81,10 +79,8 @@ func TestTreeGetData(t *testing.T) {
 			},
 			rules: []Rule{
 				{
-					TagFilters: [][]Tag{
-						{
-							{Name: "tag1", Values: []string{"value1"}},
-						},
+					TagFilters: []string{
+						"tag1:value1",
 					},
 					Namespace: "namespace1",
 				},
@@ -100,10 +96,8 @@ func TestTreeGetData(t *testing.T) {
 			},
 			rules: []Rule{
 				{
-					TagFilters: [][]Tag{
-						{
-							{Name: "tag1", Values: []string{"value1"}},
-						},
+					TagFilters: []string{
+						"tag1:value1",
 					},
 					Namespace: "namespace1",
 				},
@@ -117,13 +111,9 @@ func TestTreeGetData(t *testing.T) {
 			},
 			rules: []Rule{
 				{
-					TagFilters: [][]Tag{
-						{
-							{Name: "tag1", Values: []string{"value1"}},
-						},
-						{
-							{Name: "tag2", Values: []string{"value2"}},
-						},
+					TagFilters: []string{
+						"tag1:value1",
+						"tag2:value2",
 					},
 					Namespace: "namespace1",
 				},
@@ -137,13 +127,9 @@ func TestTreeGetData(t *testing.T) {
 			},
 			rules: []Rule{
 				{
-					TagFilters: [][]Tag{
-						{
-							{Name: "tag3", Values: []string{"value1"}},
-						},
-						{
-							{Name: "tag2", Values: []string{"value2"}},
-						},
+					TagFilters: []string{
+						"tag3:value1",
+						"tag2:value2",
 					},
 					Namespace: "namespace1",
 				},
@@ -159,15 +145,9 @@ func TestTreeGetData(t *testing.T) {
 			},
 			rules: []Rule{
 				{
-					TagFilters: [][]Tag{
-						{
-							{Name: "tag1", Values: []string{"value1"}},
-							{Name: "tag2", Values: []string{"value2"}},
-						},
-						{
-							{Name: "tag4", Values: []string{"value2"}},
-							{Name: "tag5", Values: []string{"value2"}},
-						},
+					TagFilters: []string{
+						"tag1:value1 tag2:value2",
+						"tag4:value2 tag5:value2",
 					},
 					Namespace: "namespace1",
 				},
@@ -182,38 +162,52 @@ func TestTreeGetData(t *testing.T) {
 			},
 			rules: []Rule{
 				{
-					TagFilters: [][]Tag{
-						{
-							{Name: "tag1", Values: []string{"value1"}},
-							{Name: "tag2", Values: []string{"value2"}},
-						},
-						{
-							{Name: "tag5", Values: []string{"value5"}},
-							{Name: "tag6", Values: []string{"value6"}},
-						},
+					TagFilters: []string{
+						"tag1:value1 tag2:value2",
+						"tag5:value5 tag6:value6",
 					},
 					Namespace: "namespace1",
 				},
 				{
-					TagFilters: [][]Tag{
-						{
-							{Name: "tag7", Values: []string{"*"}},
-						},
+					TagFilters: []string{
+						"tag7:*",
 					},
 					Namespace: "namespace2",
 				},
 			},
 			expected: nil,
 		},
+		{
+			name: "multiple input tags, composite tag value, match",
+			inputTags: map[string]string{
+				"tag3": "apple",
+				"tag4": "banana",
+			},
+			rules: []Rule{
+				{
+					TagFilters: []string{
+						"tag3:{value3,apple} tag4:{value4,banana}",
+						"tag5:value5 tag6:value6",
+					},
+					Namespace: "namespace1",
+				},
+			},
+			expected: []string{"namespace1"},
+		},
 	}
 
 	less := func(a, b string) bool { return a < b }
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tree := New[string]()
+			tree := New[*ResolvedRule]()
 			for _, rule := range tt.rules {
 				for _, tagFilter := range rule.TagFilters {
-					tree.AddTagFilter(tagFilter, rule.Namespace)
+					tags, err := TagsFromTagFilter(tagFilter)
+					require.NoError(t, err)
+					localRule := rule
+					tree.AddTagFilter(tags, &ResolvedRule{
+						Rule: &localRule,
+					})
 				}
 			}
 
@@ -223,8 +217,8 @@ func TestTreeGetData(t *testing.T) {
 				return
 			}
 
-			actual = uniquify(actual)
-			require.Equal(t, "", cmp.Diff(tt.expected, actual, cmpopts.SortSlices(less)))
+			actualNamespaces := uniqueNamespaces(actual)
+			require.Equal(t, "", cmp.Diff(tt.expected, actualNamespaces, cmpopts.SortSlices(less)))
 		})
 	}
 }
@@ -263,7 +257,7 @@ func TestParseTagValue(t *testing.T) {
 		{
 			name:      "var tag value",
 			input:     "  {{foo}}",
-			expected:  []string{"foo"},
+			expected:  []string{"{{foo}}"},
 			shouldErr: false,
 		},
 		{
@@ -307,15 +301,15 @@ func TestParseTagValue(t *testing.T) {
 	}
 }
 
-func uniquify(input []string) []string {
-	unique := make(map[string]struct{})
+func uniqueNamespaces(input []*ResolvedRule) []string {
+	unique := make(map[string]*ResolvedRule)
 	for _, s := range input {
-		unique[s] = struct{}{}
+		unique[s.Namespace] = s
 	}
 
 	output := make([]string, 0, len(unique))
-	for s := range unique {
-		output = append(output, s)
+	for _, a := range unique {
+		output = append(output, a.Namespace)
 	}
 	return output
 }
