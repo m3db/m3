@@ -59,10 +59,7 @@ func TestFdWithDigestWriterReset(t *testing.T) {
 
 func TestFdWithDigestWriteBytesFileWriteError(t *testing.T) {
 	writer, fd, _ := createTestFdWithDigestWriter(t)
-	defer func() {
-		fd.Close()
-		os.Remove(fd.Name())
-	}()
+	defer cleanup(fd)
 
 	writer.Reset(nil)
 	_, err := writer.Write([]byte{0x1, 0x2, 0x3})
@@ -71,22 +68,16 @@ func TestFdWithDigestWriteBytesFileWriteError(t *testing.T) {
 
 func TestFdWithDigestWriteBytesDigestWriteError(t *testing.T) {
 	writer, fd, md := createTestFdWithDigestWriter(t)
-	defer func() {
-		fd.Close()
-		os.Remove(fd.Name())
-	}()
+	defer cleanup(fd)
 
 	md.err = errors.New("foo")
 	_, err := writer.Write([]byte{0x1, 0x2, 0x3})
-	require.Equal(t, "foo", err.Error())
+	require.EqualError(t, err, "foo")
 }
 
 func TestFdWithDigestWriteBytesSuccess(t *testing.T) {
 	writer, fd, md := createTestFdWithDigestWriter(t)
-	defer func() {
-		fd.Close()
-		os.Remove(fd.Name())
-	}()
+	defer cleanup(fd)
 
 	md.digest = 123
 	data := []byte{0x1, 0x2, 0x3}
@@ -98,10 +89,7 @@ func TestFdWithDigestWriteBytesSuccess(t *testing.T) {
 
 func TestFdWithDigestWriterCloseSuccess(t *testing.T) {
 	writer, fd, _ := createTestFdWithDigestWriter(t)
-	defer func() {
-		fd.Close()
-		os.Remove(fd.Name())
-	}()
+	defer cleanup(fd)
 
 	require.NotNil(t, writer.Fd())
 	require.NoError(t, writer.Close())
@@ -110,10 +98,7 @@ func TestFdWithDigestWriterCloseSuccess(t *testing.T) {
 
 func TestFdWithDigestWriteDigestsError(t *testing.T) {
 	writer, fd, _ := createTestFdWithDigestContentsWriter(t)
-	defer func() {
-		fd.Close()
-		os.Remove(fd.Name())
-	}()
+	defer cleanup(fd)
 
 	writer.Reset(nil)
 	require.Error(t, writer.WriteDigests(1, 2))
@@ -121,10 +106,7 @@ func TestFdWithDigestWriteDigestsError(t *testing.T) {
 
 func TestFdWithDigestWriteDigestsSuccess(t *testing.T) {
 	writer, fd, md := createTestFdWithDigestContentsWriter(t)
-	defer func() {
-		fd.Close()
-		os.Remove(fd.Name())
-	}()
+	defer cleanup(fd)
 
 	expected := []byte{0x1, 0x0, 0x0, 0x0, 0x2, 0x0, 0x0, 0x0}
 	require.NoError(t, writer.WriteDigests(1, 2))
@@ -135,4 +117,41 @@ func TestFdWithDigestWriteDigestsSuccess(t *testing.T) {
 	b, err := ioutil.ReadAll(fd)
 	require.NoError(t, err)
 	require.Equal(t, expected, b)
+}
+
+func TestCloseAll(t *testing.T) {
+	writer, fd, _ := createTestFdWithDigestContentsWriter(t)
+	defer os.Remove(fd.Name()) // nolint:errcheck
+
+	require.NoError(t, CloseAll(writer))
+	require.Error(t, fd.Close(), "already closed")
+}
+
+func TestCloseAllFails(t *testing.T) {
+	writer, fd, _ := createTestFdWithDigestContentsWriter(t)
+	defer os.Remove(fd.Name()) // nolint:errcheck
+
+	require.NoError(t, fd.Close())
+	require.Error(t, CloseAll(writer), "already closed")
+}
+
+func TestSyncAll(t *testing.T) {
+	writer, fd, _ := createTestFdWithDigestContentsWriter(t)
+	defer os.Remove(fd.Name()) // nolint:errcheck
+
+	require.NoError(t, SyncAll(writer))
+	require.NoError(t, fd.Close())
+}
+
+func TestSyncAllFails(t *testing.T) {
+	writer, fd, _ := createTestFdWithDigestContentsWriter(t)
+	defer os.Remove(fd.Name()) // nolint:errcheck
+
+	require.NoError(t, fd.Close())
+	require.Error(t, SyncAll(writer), "already closed")
+}
+
+func cleanup(fd *os.File) {
+	_ = fd.Close()
+	_ = os.Remove(fd.Name())
 }
