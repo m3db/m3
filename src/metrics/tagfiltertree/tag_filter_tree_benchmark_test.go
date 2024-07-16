@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/m3db/m3/src/metrics/filters"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -121,43 +121,26 @@ const (
 
 func BenchmarkTreeGetData(b *testing.B) {
 	// create a new tree
-	tree := New[*Rule]()
+	tree := New[*ResolvedRule]()
 
 	// add multiple tag filters to the tree
 	for _, rule := range generateRules() {
 		for _, tf := range rule.TagFilters {
-			tree.AddTagFilter(tf, &rule)
+			tags, err := TagsFromTagFilter(tf)
+			require.NoError(b, err)
+			tree.AddTagFilter(tags, &ResolvedRule{
+				Rule: &rule,
+			})
 		}
 	}
-}
-
-func parseTagFilter(filter string) ([]Tag, error) {
-	// parse filter into tags.
-	tagFilter, err := filters.ParseTagFilterValueMap(filter)
-	if err != nil {
-		return nil, err
-	}
-
-	tags := make([]Tag, 0, len(tagFilter))
-	for tag, value := range tagFilter {
-		tags = append(tags, Tag{
-			Name:   tag,
-			Values: []string{value.Pattern},
-		})
-	}
-
-	return tags, nil
 }
 
 func generateRules() []Rule {
 	scanner := bufio.NewScanner(strings.NewReader(_tagFilters))
 	rules := make([]Rule, 0)
 	for scanner.Scan() {
-		tf, err := parseTagFilter(scanner.Text())
-		if err != nil {
-			panic(err)
-		}
-		tfs := make([][]Tag, 0)
+		tf := scanner.Text()
+		tfs := make([]string, 0)
 		tfs = append(tfs, tf)
 		rules = append(rules, Rule{
 			TagFilters: tfs,

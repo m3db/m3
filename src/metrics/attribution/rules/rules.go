@@ -258,3 +258,18 @@ func NewRuleFromProto(rpb *attributionpb.Rule) (*Rule, error) {
 		SetTagFilters(rpb.GetTagFilters()).
 		SetUOwnID(rpb.GetUownId()), nil
 }
+
+// ResolvedRule represents the result of a rule match with any
+// variables in the tag filter resolved.
+type ResolvedRule struct {
+	*Rule
+	VarMap map[string]string
+}
+
+// Annotate annotates the Rule with the resolved variable map.
+func (rr *ResolvedRule) Annotate(varMap map[string]string) *ResolvedRule {
+	return &ResolvedRule{
+		Rule:   rr.Rule,
+		VarMap: varMap,
+	}
+}

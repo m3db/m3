@@ -436,11 +436,13 @@ func newTestAttributorWithRuleSet(
 type testDefaultRuleMatcher struct {
 }
 
-func (m *testDefaultRuleMatcher) Match(id []byte) []*rules.Rule {
-	return []*rules.Rule{
-		rules.NewRule().
-			SetName("global").
-			SetPrimaryNS("global"),
+func (m *testDefaultRuleMatcher) Match(_ []byte) []*rules.ResolvedRule {
+	return []*rules.ResolvedRule{
+		{
+			Rule: rules.NewRule().
+				SetName("global").
+				SetPrimaryNS("global"),
+		},
 	}
 }
 

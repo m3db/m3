@@ -12,7 +12,7 @@ import (
 type Attributor interface {
 	// Match return a list of namespaces that the metricID should
 	// be attributed to.
-	Match(metricID []byte) ([]*rules.Rule, error)
+	Match(metricID []byte) ([]*rules.ResolvedRule, error)
 
 	// Update updates the attributor with new namespaces and their tag filters.
 	Update(ruleSet rules.RuleSet) error
@@ -45,9 +45,9 @@ func NewAttributor(opts Options) Attributor {
 	return a
 }
 
-func (a *attributor) Match(metricID []byte) ([]*rules.Rule, error) {
+func (a *attributor) Match(metricID []byte) ([]*rules.ResolvedRule, error) {
 	var (
-		ruleMap map[string]*rules.Rule
+		ruleMap map[string]*rules.ResolvedRule
 	)
 
 	var customMatcher RuleMatcher
@@ -57,7 +57,7 @@ func (a *attributor) Match(metricID []byte) ([]*rules.Rule, error) {
 		a.matcherLock.RUnlock()
 	}
 
-	ruleMap = make(map[string]*rules.Rule)
+	ruleMap = make(map[string]*rules.ResolvedRule)
 	for _, rule := range customMatcher.Match(metricID) {
 		ruleMap[rule.Name()] = rule
 	}
@@ -66,7 +66,7 @@ func (a *attributor) Match(metricID []byte) ([]*rules.Rule, error) {
 		ruleMap[rule.Name()] = rule
 	}
 
-	rules := make([]*rules.Rule, 0, len(ruleMap))
+	rules := make([]*rules.ResolvedRule, 0, len(ruleMap))
 	for _, rule := range ruleMap {
 		rules = append(rules, rule)
 	}
