@@ -92,6 +92,14 @@ func TestOriginalMetricIsPreservedOnlyWithDefaultPipeline(t *testing.T) {
 	log.Info("server is now the leader")
 
 	client := testServer.newClient(t)
+	log.Info(
+		"created aggregator client",
+		zap.String(
+			"client_type",
+			serverOpts.AggregatorClientType().String(),
+		),
+	)
+
 	require.NoError(t, client.connect())
 
 	ts := time.Now().Truncate(time.Hour)
@@ -188,4 +196,9 @@ func waitForMetricEmissions(clock *testClock, now time.Time) {
 	time.Sleep(2 * time.Second)
 	now = now.Add(2 * time.Second)
 	clock.SetNow(now)
+
+	// Wait additional time for FlushTask to be
+	// prepared and executed to flush the final
+	// rolled up metrics.
+	time.Sleep(2 * time.Second)
 }
