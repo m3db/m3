@@ -35,6 +35,8 @@ import (
 	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/query/models"
 	xerrors "github.com/m3db/m3/src/x/errors"
+
+	murmur3 "github.com/m3db/stackmurmur3/v2"
 )
 
 type activeRuleSet struct {
@@ -45,6 +47,7 @@ type activeRuleSet struct {
 	tagsFilterOpts  filters.TagsFilterOptions
 	newRollupIDFn   metricid.NewIDFn
 	isRollupIDFn    metricid.MatchIDFn
+	includeTagKeys  map[uint64]struct{}
 }
 
 func newActiveRuleSet(
@@ -54,6 +57,7 @@ func newActiveRuleSet(
 	tagsFilterOpts filters.TagsFilterOptions,
 	newRollupIDFn metricid.NewIDFn,
 	isRollupIDFn metricid.MatchIDFn,
+	includeTagKeys map[uint64]struct{},
 ) *activeRuleSet {
 	uniqueCutoverTimes := make(map[int64]struct{})
 	for _, mappingRule := range mappingRules {
@@ -81,6 +85,7 @@ func newActiveRuleSet(
 		tagsFilterOpts:  tagsFilterOpts,
 		newRollupIDFn:   newRollupIDFn,
 		isRollupIDFn:    isRollupIDFn,
+		includeTagKeys:  includeTagKeys,
 	}
 }
 
@@ -522,11 +527,12 @@ func (as *activeRuleSet) matchRollupTarget(
 	}
 
 	var (
-		rollupTags    = rollupOp.Tags
-		sortedTagIter = matchOpts.SortedTagIteratorFn(sortedTagPairBytes)
-		matchTagIdx   = 0
-		nameTagName   = as.tagsFilterOpts.NameTagKey
-		nameTagValue  []byte
+		rollupTags      = rollupOp.Tags
+		sortedTagIter   = matchOpts.SortedTagIteratorFn(sortedTagPairBytes)
+		matchTagIdx     = 0
+		nameTagName     = as.tagsFilterOpts.NameTagKey
+		nameTagValue    []byte
+		includeTagNames = as.includeTagKeys
 	)
 
 	switch rollupOp.Type {
@@ -543,9 +549,15 @@ func (as *activeRuleSet) matchRollupTarget(
 				nameTagValue = tagVal
 			}
 
-			// If we've matched all tags, no need to process.
+			_, matchedIncludeTag := includeTagNames[murmur3.Sum64(tagName)]
+
+			// If we've matched all tags, no need to process the rollup rules.
 			// We don't break out of the for loop, because we may still need to find the name tag.
+			// We also still need to add any remaining include tags.
 			if matchTagIdx >= len(rollupTags) {
+				if targetOpts.generateRollupID && matchedIncludeTag {
+					tagPairs = append(tagPairs, metricid.TagPair{Name: tagName, Value: tagVal})
+				}
 				continue
 			}
 
@@ -556,6 +568,12 @@ func (as *activeRuleSet) matchRollupTarget(
 					tagPairs = append(tagPairs, metricid.TagPair{Name: tagName, Value: tagVal})
 				}
 				matchTagIdx++
+				continue
+			}
+
+			// The current tag didn't match the rollup tag, but we still want to add the include tag to the rollup id.
+			if targetOpts.generateRollupID && matchedIncludeTag {
+				tagPairs = append(tagPairs, metricid.TagPair{Name: tagName, Value: tagVal})
 				continue
 			}
 

@@ -50,6 +50,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
+	"github.com/twmb/murmur3"
 )
 
 var (
@@ -203,6 +204,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 			rs.tagsFilterOpts,
 			rs.newRollupIDFn,
 			rs.isRollupIDFn,
+			rs.includeTagKeys,
 		)
 		require.True(t, cmp.Equal(expected, as, testActiveRuleSetCmpOpts...))
 	}
@@ -2217,6 +2219,13 @@ func testTagsFilterOptions() filters.TagsFilterOptions {
 			return b[:idx], b[idx+1:], nil
 		},
 		SortedTagIteratorFn: filters.NewMockSortedTagIterator,
+	}
+}
+
+func testIncludeTagKeys() map[uint64]struct{} {
+	return map[uint64]struct{}{
+		murmur3.Sum64([]byte("includeThisTag1")): {},
+		murmur3.Sum64([]byte("includeThisTag2")): {},
 	}
 }
 
