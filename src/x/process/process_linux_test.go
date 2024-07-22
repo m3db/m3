@@ -58,8 +58,8 @@ func TestNumFDs(t *testing.T) {
 
 		func() {
 			numExpectedFds := numFilesToCreate + stdProcessFiles
-			cleanupFn := createTempFiles(numFilesToCreate)
-			defer cleanupFn()
+			cleanupFnFromFiles := createTempFiles(numFilesToCreate)
+			defer cleanupFnFromFiles()
 
 			selfPID := os.Getpid()
 

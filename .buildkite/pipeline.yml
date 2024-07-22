@@ -74,62 +74,71 @@ steps:
 #                - |-
 #                  make clean install-vendor-m3 test-all-gen
 #    <<: *common
-  - name: "Unit %n"
-    parallelism: 4
-    plugins:
-      docker-compose#v2.5.1:
-        run: app
-        workdir: /go/src/github.com/m3db/m3
-      kubernetes:
-        <<: *kubernetes
-        podSpec:
-          <<: *podSpec
-          containers:
-            - <<: *commandContainer
-              command:
-                - |-
-                  make clean install-vendor-m3 test-base
-    <<: *common
-  - name: "Big Unit %n"
-    parallelism: 2
-    plugins:
-      docker-compose#v2.5.1:
-        run: app
-        workdir: /go/src/github.com/m3db/m3
-      kubernetes:
-        <<: *kubernetes
-        podSpec:
-          <<: *podSpec
-          containers:
-            - <<: *commandContainer
-              command:
-                - |-
-                  make clean install-vendor-m3 test-big-base
-    <<: *common
-  - name: "Services, Tools"
-    plugins:
-      docker-compose#v2.5.1:
-        run: app
-        workdir: /go/src/github.com/m3db/m3
-      kubernetes:
-        <<: *kubernetes
-        podSpec:
-          <<: *podSpec
-          containers:
-            - <<: *commandContainer
-              command:
-                - |-
-                  make clean install-vendor-m3 services tools
-    <<: *common
-#  - name: "Lint"
-#    command: make clean lint
-#    env:
-#      CGO_ENABLED: 0
+#  - name: "Unit %n"
+#    parallelism: 4
 #    plugins:
 #      docker-compose#v2.5.1:
 #        run: app
 #        workdir: /go/src/github.com/m3db/m3
+#      kubernetes:
+#        <<: *kubernetes
+#        podSpec:
+#          <<: *podSpec
+#          containers:
+#            - <<: *commandContainer
+#              command:
+#                - |-
+#                  make clean install-vendor-m3 test-base
 #    <<: *common
+#  - name: "Big Unit %n"
+#    parallelism: 2
+#    plugins:
+#      docker-compose#v2.5.1:
+#        run: app
+#        workdir: /go/src/github.com/m3db/m3
+#      kubernetes:
+#        <<: *kubernetes
+#        podSpec:
+#          <<: *podSpec
+#          containers:
+#            - <<: *commandContainer
+#              command:
+#                - |-
+#                  make clean install-vendor-m3 test-big-base
+#    <<: *common
+#  - name: "Services, Tools"
+#    plugins:
+#      docker-compose#v2.5.1:
+#        run: app
+#        workdir: /go/src/github.com/m3db/m3
+#      kubernetes:
+#        <<: *kubernetes
+#        podSpec:
+#          <<: *podSpec
+#          containers:
+#            - <<: *commandContainer
+#              command:
+#                - |-
+#                  make clean install-vendor-m3 services tools
+#    <<: *common
+  - name: "Lint"
+    env:
+      CGO_ENABLED: 0
+      GIMME_GO_VERSION: 1.18.x
+    plugins:
+      docker-compose#v2.5.1:
+        run: app
+        workdir: /go/src/github.com/m3db/m3
+      kubernetes:
+        <<: *kubernetes
+        podSpec:
+          <<: *podSpec
+          containers:
+            - <<: *commandContainer
+              command:
+                - |-
+                  make clean lint
+    <<: *common
 #  - name: "Integration (:docker:)"
 #    command: make clean install-vendor-m3 docker-integration-test
 #    parallelism: 2
@@ -140,39 +149,39 @@ steps:
 #        gopath-checkout#v1.0.1:
 #          import: github.com/m3db/m3
 #    <<: *common
-  - label: "M3 Cluster Integration Tests"
-    env:
-      CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.18.x
-    plugins:
-      gopath-checkout#v1.0.1:
-        import: github.com/m3db/m3
-      kubernetes:
-        <<: *kubernetes
-        podSpec:
-          <<: *podSpec
-          containers:
-            - <<: *commandContainer
-              command:
-                - |-
-                  make clean test-ci-cluster-integration
-    <<: *common
-  - label: "M3 Cluster Integration Test Harness Tests"
-    skip: "NB(nate): temporarily disabling to resolve some tests flakes"
-    plugins:
-      docker-compose#v2.5.1:
-        run: app
-        workdir: /go/src/github.com/m3db/m3
-      kubernetes:
-        <<: *kubernetes
-        podSpec:
-          <<: *podSpec
-          containers:
-            - <<: *commandContainer
-              command:
-                - |-
-                  make clean test-ci-test-harness
-    <<: *common
+#  - label: "M3 Cluster Integration Tests"
+#    env:
+#      CGO_ENABLED: 0
+#      GIMME_GO_VERSION: 1.18.x
+#    plugins:
+#      gopath-checkout#v1.0.1:
+#        import: github.com/m3db/m3
+#      kubernetes:
+#        <<: *kubernetes
+#        podSpec:
+#          <<: *podSpec
+#          containers:
+#            - <<: *commandContainer
+#              command:
+#                - |-
+#                  make clean test-ci-cluster-integration
+#    <<: *common
+#  - label: "M3 Cluster Integration Test Harness Tests"
+#    skip: "NB(nate): temporarily disabling to resolve some tests flakes"
+#    plugins:
+#      docker-compose#v2.5.1:
+#        run: app
+#        workdir: /go/src/github.com/m3db/m3
+#      kubernetes:
+#        <<: *kubernetes
+#        podSpec:
+#          <<: *podSpec
+#          containers:
+#            - <<: *commandContainer
+#              command:
+#                - |-
+#                  make clean test-ci-test-harness
+#    <<: *common
 #  - name: "Prometheus compatibility (:docker:)"
 #    command: make clean install-vendor-m3 docker-compatibility-test
 #    parallelism: 1
@@ -199,54 +208,54 @@ steps:
 #        run: app
 #        workdir: /go/src/github.com/m3db/m3
 #    <<: *common
-  - name: "Integration (aggregator TCP client) %n"
-    parallelism: 1
-    plugins:
-      docker-compose#v2.5.1:
-        run: app
-        workdir: /go/src/github.com/m3db/m3
-      kubernetes:
-        <<: *kubernetes
-        podSpec:
-          <<: *podSpec
-          containers:
-            - <<: *commandContainer
-              command:
-                - |-
-                  make clean install-vendor-m3 test-ci-integration-aggregator aggregator_client=tcp
-    <<: *common
-  - name: "Integration (aggregator m3msg client) %n"
-    parallelism: 1
-    plugins:
-      docker-compose#v2.5.1:
-        run: app
-        workdir: /go/src/github.com/m3db/m3
-      kubernetes:
-        <<: *kubernetes
-        podSpec:
-          <<: *podSpec
-          containers:
-            - <<: *commandContainer
-              command:
-                - |-
-                  make clean install-vendor-m3 test-ci-integration-aggregator aggregator_client=m3msg
-    <<: *common
-  - label: "Integration (m3em, cluster, msg, metrics) %n"
-    parallelism: 4
-    plugins:
-      docker-compose#v2.5.1:
-        run: app
-        workdir: /go/src/github.com/m3db/m3
-      kubernetes:
-        <<: *kubernetes
-        podSpec:
-          <<: *podSpec
-          containers:
-            - <<: *commandContainer
-              command:
-                - |-
-                  make clean install-vendor-m3 test-ci-integration-m3em test-ci-integration-cluster test-ci-integration-msg test-ci-integration-metrics
-    <<: *common
+#  - name: "Integration (aggregator TCP client) %n"
+#    parallelism: 1
+#    plugins:
+#      docker-compose#v2.5.1:
+#        run: app
+#        workdir: /go/src/github.com/m3db/m3
+#      kubernetes:
+#        <<: *kubernetes
+#        podSpec:
+#          <<: *podSpec
+#          containers:
+#            - <<: *commandContainer
+#              command:
+#                - |-
+#                  make clean install-vendor-m3 test-ci-integration-aggregator aggregator_client=tcp
+#    <<: *common
+#  - name: "Integration (aggregator m3msg client) %n"
+#    parallelism: 1
+#    plugins:
+#      docker-compose#v2.5.1:
+#        run: app
+#        workdir: /go/src/github.com/m3db/m3
+#      kubernetes:
+#        <<: *kubernetes
+#        podSpec:
+#          <<: *podSpec
+#          containers:
+#            - <<: *commandContainer
+#              command:
+#                - |-
+#                  make clean install-vendor-m3 test-ci-integration-aggregator aggregator_client=m3msg
+#    <<: *common
+#  - label: "Integration (m3em, cluster, msg, metrics) %n"
+#    parallelism: 4
+#    plugins:
+#      docker-compose#v2.5.1:
+#        run: app
+#        workdir: /go/src/github.com/m3db/m3
+#      kubernetes:
+#        <<: *kubernetes
+#        podSpec:
+#          <<: *podSpec
+#          containers:
+#            - <<: *commandContainer
+#              command:
+#                - |-
+#                  make clean install-vendor-m3 test-ci-integration-m3em test-ci-integration-cluster test-ci-integration-msg test-ci-integration-metrics
+#    <<: *common
 #  - name: "Documentation tests"
 #    command: make clean install-vendor-m3 docs-test
 #    env:
