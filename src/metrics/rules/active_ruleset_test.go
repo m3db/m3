@@ -1529,6 +1529,7 @@ func TestActiveRuleSetForwardMatchWithRollupRulesWithIncludeTags(t *testing.T) {
 									},
 								}),
 							},
+							//nolint:dupl
 							{
 								AggregationID: aggregation.MustCompressTypes(aggregation.Last),
 								StoragePolicies: policy.StoragePolicies{
@@ -1598,7 +1599,6 @@ func TestActiveRuleSetForwardMatchWithRollupRulesWithIncludeTags(t *testing.T) {
 				},
 			},
 		},
-		//nolint:dupl
 		// Test case that has two include tags in the metric id
 		{
 			id:            "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2",
