@@ -1613,6 +1613,7 @@ func TestActiveRuleSetForwardMatchWithRollupRulesWithIncludeTags(t *testing.T) {
 					Metadata: metadata.Metadata{
 						Pipelines: []metadata.PipelineMetadata{
 							metadata.DefaultPipelineMetadata,
+							//nolint:dupl
 							{
 								AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
 								StoragePolicies: policy.StoragePolicies{
