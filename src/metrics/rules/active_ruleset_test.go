@@ -1530,6 +1530,7 @@ func TestActiveRuleSetForwardMatchWithRollupRulesWithIncludeTags(t *testing.T) {
 									},
 								}),
 							},
+							//nolint:dupl
 							{
 								AggregationID: aggregation.MustCompressTypes(aggregation.Last),
 								StoragePolicies: policy.StoragePolicies{
@@ -1631,6 +1632,7 @@ func TestActiveRuleSetForwardMatchWithRollupRulesWithIncludeTags(t *testing.T) {
 									},
 								}),
 							},
+							//nolint:dupl
 							{
 								AggregationID: aggregation.MustCompressTypes(aggregation.Last),
 								StoragePolicies: policy.StoragePolicies{
@@ -1785,6 +1787,7 @@ func TestActiveRuleSetForwardMatchWithRollupRulesWithIncludeTags(t *testing.T) {
 					Metadata: metadata.Metadata{
 						Pipelines: []metadata.PipelineMetadata{
 							metadata.DefaultPipelineMetadata,
+							//nolint:dupl
 							{
 								AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
 								StoragePolicies: policy.StoragePolicies{
@@ -1811,6 +1814,7 @@ func TestActiveRuleSetForwardMatchWithRollupRulesWithIncludeTags(t *testing.T) {
 					Metadata: metadata.Metadata{
 						Pipelines: []metadata.PipelineMetadata{
 							metadata.DefaultPipelineMetadata,
+							//nolint:dupl
 							{
 								AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
 								StoragePolicies: policy.StoragePolicies{
@@ -1828,6 +1832,7 @@ func TestActiveRuleSetForwardMatchWithRollupRulesWithIncludeTags(t *testing.T) {
 									},
 								}),
 							},
+							//nolint:dupl
 							{
 								AggregationID: aggregation.MustCompressTypes(aggregation.Last),
 								StoragePolicies: policy.StoragePolicies{
@@ -1859,6 +1864,7 @@ func TestActiveRuleSetForwardMatchWithRollupRulesWithIncludeTags(t *testing.T) {
 					Metadata: metadata.Metadata{
 						Pipelines: []metadata.PipelineMetadata{
 							metadata.DefaultPipelineMetadata,
+							//nolint:dupl
 							{
 								AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
 								StoragePolicies: policy.StoragePolicies{
