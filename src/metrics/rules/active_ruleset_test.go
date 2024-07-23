@@ -1496,6 +1496,7 @@ func TestActiveRuleSetForwardMatchWithRollupRules(t *testing.T) {
 	}
 }
 
+//nolint:dupl
 func TestActiveRuleSetForwardMatchWithRollupRulesWithIncludeTags(t *testing.T) {
 	inputs := []testMatchInput{
 		// Test case that has one include tag in the metric id
