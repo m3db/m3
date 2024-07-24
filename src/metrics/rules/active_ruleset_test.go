@@ -1498,9 +1498,9 @@ func TestActiveRuleSetForwardMatchWithRollupRules(t *testing.T) {
 }
 
 //nolint:dupl
-//nolint:lll
 func TestActiveRuleSetForwardMatchWithRollupRulesWithIncludeTags(t *testing.T) {
 	inputs := []testMatchInput{
+		//nolint:lll
 		// Test case that has one include tag in the metric id
 		{
 			id:            "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3,includeThisTag1=includeValue1",
@@ -1603,6 +1603,7 @@ func TestActiveRuleSetForwardMatchWithRollupRulesWithIncludeTags(t *testing.T) {
 				},
 			},
 		},
+		//nolint:lll
 		// Test case that has two include tags in the metric id
 		{
 			id:            "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2",
@@ -1705,6 +1706,7 @@ func TestActiveRuleSetForwardMatchWithRollupRulesWithIncludeTags(t *testing.T) {
 				},
 			},
 		},
+		//nolint:lll
 		{
 			id:            "rtagName1=rtagValue2,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2",
 			matchFrom:     25000,
@@ -1767,6 +1769,7 @@ func TestActiveRuleSetForwardMatchWithRollupRulesWithIncludeTags(t *testing.T) {
 			keepOriginal:        false,
 			forExistingIDResult: metadata.DefaultStagedMetadatas,
 		},
+		//nolint:lll
 		{
 			id:            "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2",
 			matchFrom:     10000,
@@ -2362,6 +2365,7 @@ func TestActiveRuleSetForwardMatchWithRollupRulesWithIncludeTags(t *testing.T) {
 				},
 			},
 		},
+		//nolint:lll
 		//nolint:dupl
 		{
 			id:            "rtagName1=rtagValue3,rtagName2=rtagValue2,rtagName3=rtagValue3,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2",
