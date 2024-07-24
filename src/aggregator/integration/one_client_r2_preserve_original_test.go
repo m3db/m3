@@ -33,7 +33,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	metricid "github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
-	require "github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
