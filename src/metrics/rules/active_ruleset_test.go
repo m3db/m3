@@ -629,6 +629,7 @@ func TestActiveRuleSetForwardMatchWithAnyKeepOriginal(t *testing.T) {
 	}
 }
 
+//nolint:dupl
 func TestActiveRuleSetForwardMatchWithRollupRules(t *testing.T) {
 	inputs := []testMatchInput{
 		{
