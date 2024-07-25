@@ -1,3 +1,3 @@
 FROM golang:1.18-bullseye
 
-RUN apt-get update && apt-get install -y lsof
+RUN apt-get update && apt-get install -y lsof netcat-openbsd docker.io jq

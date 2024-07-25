@@ -17,29 +17,6 @@ TESTS=(
 	scripts/docker-integration-tests/prom_remote_write_backend/test.sh
 )
 
-# Some systems, including our default Buildkite hosts, don't come with netcat
-# installed and we may not have perms to install it. "Install" it in the worst
-# possible way.
-if ! command -v nc && [[ "$BUILDKITE" == "true" ]]; then
-	echo "installing netcat"
-	NCDIR="$(mktemp -d)"
-
-	yumdownloader -y --destdir "$NCDIR" --resolve nc
-	(
-		cd "$NCDIR"
-		RPM=$(find . -maxdepth 1 -name '*.rpm' | tail -n1)
-		rpm2cpio "$RPM" | cpio -id
-	)
-
-	export PATH="$PATH:$NCDIR/usr/bin"
-
-	function cleanup_nc() {
-		rm -rf "$NCDIR"
-	}
-
-	trap cleanup_nc EXIT
-fi
-
 if [[ -z "$SKIP_SETUP" ]] || [[ "$SKIP_SETUP" == "false" ]]; then
 	scripts/docker-integration-tests/setup.sh
 fi
