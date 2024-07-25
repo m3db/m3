@@ -45,9 +45,10 @@ func TestCloneMultiReaderIterator(t *testing.T) {
 	f := newFixture(t)
 	defer f.ctrl.Finish()
 
-	f.shallowCloner.cloneBlockReaderFn = func(b xio.BlockReader, _ xtime.UnixNano, _ time.Duration) (xio.BlockReader, error) {
-		return b, nil
-	}
+	f.shallowCloner.cloneBlockReaderFn =
+		func(b xio.BlockReader, _ xtime.UnixNano, _ time.Duration) (xio.BlockReader, error) {
+			return b, nil
+		}
 
 	testBlockSize := time.Hour
 	now := time.Now()

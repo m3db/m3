@@ -35,6 +35,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
+
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -221,14 +222,15 @@ func (c *EtcdNode) containerClientHostPort() string {
 
 	var ipAddress string
 	_, err := net.ResolveIPAddr("ip4", "host.docker.internal")
-	if err == nil && runtime.GOOS == "darwin" {
+	switch {
+	case err == nil && runtime.GOOS == "darwin":
 		c.logger.Info("Running on Mac; using 127.0.0.1 to talk to etcd")
 		ipAddress = "127.0.0.1"
-	} else if err == nil {
+	case err == nil:
 		c.logger.Info("Running tests within a docker container (e.g. for buildkite. " +
 			"Using host.docker.internal to talk to etcd")
 		ipAddress = "host.docker.internal"
-	} else {
+	default:
 		c.logger.Info("Running tests in environment without host.docker.internal set. Using 127.0.0.1 to talk to etcd")
 		ipAddress = "127.0.0.1"
 	}

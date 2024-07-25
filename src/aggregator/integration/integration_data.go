@@ -35,7 +35,6 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	metricid "github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
-	"github.com/m3db/m3/src/metrics/pipeline"
 	mpipeline "github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
@@ -137,7 +136,7 @@ var (
 			Operations: []applied.OpUnion{
 				{
 					Type: mpipeline.TransformationOpType,
-					Transformation: pipeline.TransformationOp{
+					Transformation: mpipeline.TransformationOp{
 						Type: transformation.Absolute,
 					},
 				},
