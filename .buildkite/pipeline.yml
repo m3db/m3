@@ -130,7 +130,7 @@ steps:
 #        run: app
 #        workdir: /go/src/github.com/m3db/m3
 #    <<: *common
-  - name: "Integration (:docker:)"
+  - label: "Integration (:docker:)"
     env:
       CGO_ENABLED: 0
       GIMME_GO_VERSION: 1.18.x
