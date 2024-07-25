@@ -20,7 +20,8 @@
 
 package tls
 
-import "fmt"
+// ServerMode represents the TLS mode
+type ServerMode uint16
 
 const (
 	// Disabled allows plaintext connections only
@@ -30,20 +31,3 @@ const (
 	// Enforced allows TLS connections only
 	Enforced
 )
-
-// ServerMode represents the TLS mode
-type ServerMode uint16
-
-func (t *ServerMode) UnmarshalText(mode []byte) error {
-	switch string(mode) {
-	case "disabled":
-		*t = Disabled
-	case "permissive":
-		*t = Permissive
-	case "enforced":
-		*t = Enforced
-	default:
-		return fmt.Errorf("unknown tls mode: %s", mode)
-	}
-	return nil
-}
