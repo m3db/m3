@@ -147,7 +147,7 @@ steps:
               command:
                 - |-
                   make clean install-vendor-m3 docker-integration-test
-      <<: *common
+    <<: *common
   - label: "M3 Cluster Integration Tests"
     env:
       CGO_ENABLED: 0
