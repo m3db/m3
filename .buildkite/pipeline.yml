@@ -121,15 +121,24 @@ steps:
                 - |-
                   make clean install-vendor-m3 services tools
     <<: *common
-#  - name: "Lint"
-#    command: make clean lint
-#    env:
-#      CGO_ENABLED: 0
-#    plugins:
-#      docker-compose#v2.5.1:
-#        run: app
-#        workdir: /go/src/github.com/m3db/m3
-#    <<: *common
+  - name: "Lint"
+    env:
+      CGO_ENABLED: 0
+      GIMME_GO_VERSION: 1.18.x
+    plugins:
+      docker-compose#v2.5.1:
+        run: app
+        workdir: /go/src/github.com/m3db/m3
+      kubernetes:
+        <<: *kubernetes
+        podSpec:
+          <<: *podSpec
+          containers:
+            - <<: *commandContainer
+              command:
+                - |-
+                  make clean lint
+    <<: *common
   - label: "Integration (:docker:)"
     env:
       CGO_ENABLED: 0
