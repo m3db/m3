@@ -291,6 +291,7 @@ steps:
           containers:
             - <<: *commandContainer
               command:
-                - ".buildkite/scripts/check_do_docs.sh"
-                - ".ci/docker/check_do_docker.sh"
+                - |-
+                  .buildkite/scripts/check_do_docs.sh
+                  .ci/docker/check_do_docker.sh
     <<: *common
