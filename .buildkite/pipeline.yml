@@ -293,10 +293,4 @@ steps:
               command:
                 - ".ci/docker/check_do_docker.sh"
                 #- ".buildkite/scripts/check_do_docs.sh"
-    agents:
-      queue: init
-    timeout_in_minutes: 10
-    retry:
-      automatic:
-        limit: 1
-      manual: true
+    <<: *common
