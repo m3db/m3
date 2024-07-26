@@ -70,19 +70,19 @@ type testGraphiteFindOptions struct {
 	checkLimit       bool
 }
 
-//func TestGraphiteFindSequential(t *testing.T) {
-//	// NB(rob): We need to investigate why using high concurrency (and hence
-//	// need to use small dataset size since otherwise verification takes
-//	// forever) encounters errors running on CI.
-//	testGraphiteFind(t, testGraphiteFindOptions{
-//		checkConcurrency: 1,
-//		datasetSize:      mediumDatasetSize,
-//	})
-//}
+func TestGraphiteFindSequential(t *testing.T) {
+	// NB(rob): We need to investigate why using high concurrency (and hence
+	// need to use small dataset size since otherwise verification takes
+	// forever) encounters errors running on CI.
+	t.SkipNow()
+	testGraphiteFind(t, testGraphiteFindOptions{
+		checkConcurrency: 1,
+		datasetSize:      mediumDatasetSize,
+	})
+}
 
 func TestGraphiteFindParallel(t *testing.T) {
 	// Skip until investigation of why check concurrency encounters errors on CI.
-	t.SkipNow()
 	testGraphiteFind(t, testGraphiteFindOptions{
 		checkConcurrency: runtime.NumCPU(),
 		datasetSize:      largeDatasetSize,
