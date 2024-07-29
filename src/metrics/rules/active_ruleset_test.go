@@ -60,6 +60,7 @@ func TestActiveRuleSetCutoverTimesWithMappingRules(t *testing.T) {
 		testTagsFilterOptions(),
 		mockNewID,
 		nil,
+		testIncludeTagKeys(),
 	)
 	expectedCutovers := []int64{5000, 8000, 10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 100000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
@@ -73,6 +74,7 @@ func TestActiveRuleSetCutoverTimesWithRollupRules(t *testing.T) {
 		testTagsFilterOptions(),
 		mockNewID,
 		nil,
+		testIncludeTagKeys(),
 	)
 	expectedCutovers := []int64{10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 38000, 90000, 100000, 120000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
@@ -87,6 +89,7 @@ func TestActiveRuleSetLatestRollupRules(t *testing.T) {
 		testTagsFilterOptions(),
 		mockNewID,
 		nil,
+		testIncludeTagKeys(),
 	)
 	timeNanos := int64(95000)
 	rollupView, err := as.LatestRollupRules(nil, timeNanos)
@@ -109,6 +112,7 @@ func TestActiveRuleSetCutoverTimesWithMappingRulesAndRollupRules(t *testing.T) {
 		testTagsFilterOptions(),
 		mockNewID,
 		nil,
+		testIncludeTagKeys(),
 	)
 	expectedCutovers := []int64{5000, 8000, 10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 38000, 90000, 100000, 120000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
@@ -580,6 +584,7 @@ func TestActiveRuleSetForwardMatchWithMappingRules(t *testing.T) {
 		testTagsFilterOptions(),
 		mockNewID,
 		nil,
+		testIncludeTagKeys(),
 	)
 	for i, input := range inputs {
 		input := input
@@ -610,6 +615,7 @@ func TestActiveRuleSetForwardMatchWithAnyKeepOriginal(t *testing.T) {
 		testTagsFilterOptions(),
 		mockNewID,
 		nil,
+		testIncludeTagKeys(),
 	)
 
 	for i, input := range inputs {
@@ -623,6 +629,7 @@ func TestActiveRuleSetForwardMatchWithAnyKeepOriginal(t *testing.T) {
 	}
 }
 
+//nolint:dupl
 func TestActiveRuleSetForwardMatchWithRollupRules(t *testing.T) {
 	inputs := []testMatchInput{
 		{
@@ -1470,6 +1477,989 @@ func TestActiveRuleSetForwardMatchWithRollupRules(t *testing.T) {
 		testTagsFilterOptions(),
 		mockNewID,
 		nil,
+		testIncludeTagKeys(),
+	)
+
+	for i, input := range inputs {
+		input := input
+		t.Run(fmt.Sprintf("input %d", i), func(t *testing.T) {
+			res, err := as.ForwardMatch(input.ID(), input.matchFrom, input.matchTo, testMatchOptions())
+			require.NoError(t, err)
+			require.Equal(t, input.expireAtNanos, res.expireAtNanos)
+			require.True(t, cmp.Equal(input.forExistingIDResult, res.ForExistingIDAt(0), testStagedMetadatasCmptOpts...))
+			require.Equal(t, len(input.forNewRollupIDsResult), res.NumNewRollupIDs())
+			require.Equal(t, input.keepOriginal, res.KeepOriginal())
+			for i := 0; i < len(input.forNewRollupIDsResult); i++ {
+				rollup := res.ForNewRollupIDsAt(i, 0)
+				require.True(t, cmp.Equal(input.forNewRollupIDsResult[i], rollup, testIDWithMetadatasCmpOpts...))
+			}
+		})
+	}
+}
+
+//nolint:dupl
+func TestActiveRuleSetForwardMatchWithRollupRulesWithIncludeTags(t *testing.T) {
+	inputs := []testMatchInput{
+		//nolint:lll
+		// Test case that has one include tag in the metric id
+		{
+			id:            "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3,includeThisTag1=includeValue1",
+			matchFrom:     25000,
+			matchTo:       25001,
+			expireAtNanos: 30000,
+			keepOriginal:  true,
+			forExistingIDResult: metadata.StagedMetadatas{
+				metadata.StagedMetadata{
+					CutoverNanos: 22000,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							metadata.DefaultPipelineMetadata,
+							//nolint:dupl
+							{
+								AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour),
+									policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+									policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
+								},
+								Pipeline: applied.NewPipeline([]applied.OpUnion{
+									{
+										Type: pipeline.RollupOpType,
+										Rollup: applied.RollupOp{
+											ID:            b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2,includeThisTag1=includeValue1"),
+											AggregationID: aggregation.DefaultID,
+										},
+									},
+								}),
+							},
+							//nolint:dupl
+							{
+								AggregationID: aggregation.MustCompressTypes(aggregation.Last),
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour),
+									policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+								},
+								Pipeline: applied.NewPipeline([]applied.OpUnion{
+									{
+										Type: pipeline.TransformationOpType,
+										Transformation: pipeline.TransformationOp{
+											Type: transformation.PerSecond,
+										},
+									},
+									{
+										Type: pipeline.RollupOpType,
+										Rollup: applied.RollupOp{
+											ID:            b("rName2|rtagName1=rtagValue1,rtagName2=rtagValue2,includeThisTag1=includeValue1"),
+											AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+										},
+									},
+								}),
+							},
+						},
+					},
+				},
+			},
+			forNewRollupIDsResult: []IDWithMetadatas{
+				{
+					ID: b("rName3|rtagName1=rtagValue1,includeThisTag1=includeValue1"),
+					Metadatas: metadata.StagedMetadatas{
+						metadata.StagedMetadata{
+							CutoverNanos: 22000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.DefaultID,
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					ID: b("rName3|rtagName1=rtagValue1,rtagName2=rtagValue2,includeThisTag1=includeValue1"),
+					Metadatas: metadata.StagedMetadatas{
+						metadata.StagedMetadata{
+							CutoverNanos: 22000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.DefaultID,
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+											policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+											policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		//nolint:lll
+		// Test case that has two include tags in the metric id
+		{
+			id:            "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2",
+			matchFrom:     25000,
+			matchTo:       25001,
+			expireAtNanos: 30000,
+			keepOriginal:  true,
+			forExistingIDResult: metadata.StagedMetadatas{
+				metadata.StagedMetadata{
+					CutoverNanos: 22000,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							metadata.DefaultPipelineMetadata,
+							//nolint:dupl
+							{
+								AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour),
+									policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+									policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
+								},
+								Pipeline: applied.NewPipeline([]applied.OpUnion{
+									{
+										Type: pipeline.RollupOpType,
+										Rollup: applied.RollupOp{
+											ID:            b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2"),
+											AggregationID: aggregation.DefaultID,
+										},
+									},
+								}),
+							},
+							//nolint:dupl
+							{
+								AggregationID: aggregation.MustCompressTypes(aggregation.Last),
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour),
+									policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+								},
+								Pipeline: applied.NewPipeline([]applied.OpUnion{
+									{
+										Type: pipeline.TransformationOpType,
+										Transformation: pipeline.TransformationOp{
+											Type: transformation.PerSecond,
+										},
+									},
+									{
+										Type: pipeline.RollupOpType,
+										Rollup: applied.RollupOp{
+											ID:            b("rName2|rtagName1=rtagValue1,rtagName2=rtagValue2,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2"),
+											AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+										},
+									},
+								}),
+							},
+						},
+					},
+				},
+			},
+			forNewRollupIDsResult: []IDWithMetadatas{
+				{
+					ID: b("rName3|rtagName1=rtagValue1,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2"),
+					Metadatas: metadata.StagedMetadatas{
+						metadata.StagedMetadata{
+							CutoverNanos: 22000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.DefaultID,
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					ID: b("rName3|rtagName1=rtagValue1,rtagName2=rtagValue2,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2"),
+					Metadatas: metadata.StagedMetadatas{
+						metadata.StagedMetadata{
+							CutoverNanos: 22000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.DefaultID,
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+											policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+											policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		//nolint:lll
+		{
+			id:            "rtagName1=rtagValue2,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2",
+			matchFrom:     25000,
+			matchTo:       25001,
+			expireAtNanos: 30000,
+			keepOriginal:  false,
+			forExistingIDResult: metadata.StagedMetadatas{
+				{
+					CutoverNanos: 24000,
+					Tombstoned:   false,
+					Metadata:     metadata.DefaultMetadata,
+				},
+			},
+			forNewRollupIDsResult: []IDWithMetadatas{
+				{
+					ID: b("rName4|rtagName1=rtagValue2,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2"),
+					Metadatas: metadata.StagedMetadatas{
+						metadata.StagedMetadata{
+							CutoverNanos: 24000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.DefaultID,
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					ID: b("rName5|rtagName1=rtagValue2,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2"),
+					Metadatas: metadata.StagedMetadatas{
+						metadata.StagedMetadata{
+							CutoverNanos: 24000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.DefaultID,
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			id:                  "rtagName5=rtagValue5,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2",
+			matchFrom:           25000,
+			matchTo:             25001,
+			expireAtNanos:       30000,
+			keepOriginal:        false,
+			forExistingIDResult: metadata.DefaultStagedMetadatas,
+		},
+		//nolint:lll
+		{
+			id:            "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2",
+			matchFrom:     10000,
+			matchTo:       40000,
+			expireAtNanos: 90000,
+			keepOriginal:  false,
+			forExistingIDResult: metadata.StagedMetadatas{
+				{
+					CutoverNanos: 10000,
+					Tombstoned:   false,
+					Metadata:     metadata.DefaultMetadata,
+				},
+				{
+					CutoverNanos: 15000,
+					Tombstoned:   false,
+					Metadata:     metadata.DefaultMetadata,
+				},
+				{
+					CutoverNanos: 20000,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							metadata.DefaultPipelineMetadata,
+							//nolint:dupl
+							{
+								AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour),
+									policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+									policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
+								},
+								Pipeline: applied.NewPipeline([]applied.OpUnion{
+									{
+										Type: pipeline.RollupOpType,
+										Rollup: applied.RollupOp{
+											ID:            b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2"),
+											AggregationID: aggregation.DefaultID,
+										},
+									},
+								}),
+							},
+						},
+					},
+				},
+				{
+					CutoverNanos: 22000,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							metadata.DefaultPipelineMetadata,
+							//nolint:dupl
+							{
+								AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour),
+									policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+									policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
+								},
+								Pipeline: applied.NewPipeline([]applied.OpUnion{
+									{
+										Type: pipeline.RollupOpType,
+										Rollup: applied.RollupOp{
+											ID:            b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2"),
+											AggregationID: aggregation.DefaultID,
+										},
+									},
+								}),
+							},
+							//nolint:dupl
+							{
+								AggregationID: aggregation.MustCompressTypes(aggregation.Last),
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour),
+									policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+								},
+								Pipeline: applied.NewPipeline([]applied.OpUnion{
+									{
+										Type: pipeline.TransformationOpType,
+										Transformation: pipeline.TransformationOp{
+											Type: transformation.PerSecond,
+										},
+									},
+									{
+										Type: pipeline.RollupOpType,
+										Rollup: applied.RollupOp{
+											ID:            b("rName2|rtagName1=rtagValue1,rtagName2=rtagValue2,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2"),
+											AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+										},
+									},
+								}),
+							},
+						},
+					},
+				},
+				{
+					CutoverNanos: 22000,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							metadata.DefaultPipelineMetadata,
+							//nolint:dupl
+							{
+								AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour),
+									policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+									policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
+								},
+								Pipeline: applied.NewPipeline([]applied.OpUnion{
+									{
+										Type: pipeline.RollupOpType,
+										Rollup: applied.RollupOp{
+											ID:            b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2"),
+											AggregationID: aggregation.DefaultID,
+										},
+									},
+								}),
+							},
+							{
+								AggregationID: aggregation.MustCompressTypes(aggregation.Last),
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour),
+									policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+								},
+								Pipeline: applied.NewPipeline([]applied.OpUnion{
+									{
+										Type: pipeline.TransformationOpType,
+										Transformation: pipeline.TransformationOp{
+											Type: transformation.PerSecond,
+										},
+									},
+									{
+										Type: pipeline.RollupOpType,
+										Rollup: applied.RollupOp{
+											ID:            b("rName2|rtagName1=rtagValue1,rtagName2=rtagValue2,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2"),
+											AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+										},
+									},
+								}),
+							},
+						},
+					},
+				},
+				{
+					CutoverNanos: 30000,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							metadata.DefaultPipelineMetadata,
+							{
+								AggregationID: aggregation.DefaultID,
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour),
+								},
+								Pipeline: applied.NewPipeline([]applied.OpUnion{
+									{
+										Type: pipeline.TransformationOpType,
+										Transformation: pipeline.TransformationOp{
+											Type: transformation.PerSecond,
+										},
+									},
+									{
+										Type: pipeline.RollupOpType,
+										Rollup: applied.RollupOp{
+											ID:            b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2"),
+											AggregationID: aggregation.DefaultID,
+										},
+									},
+								}),
+							},
+							{
+								AggregationID: aggregation.MustCompressTypes(aggregation.Last),
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour),
+									policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+								},
+								Pipeline: applied.NewPipeline([]applied.OpUnion{
+									{
+										Type: pipeline.TransformationOpType,
+										Transformation: pipeline.TransformationOp{
+											Type: transformation.PerSecond,
+										},
+									},
+									{
+										Type: pipeline.RollupOpType,
+										Rollup: applied.RollupOp{
+											ID:            b("rName2|rtagName1=rtagValue1,rtagName2=rtagValue2,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2"),
+											AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+										},
+									},
+								}),
+							},
+						},
+					},
+				},
+				{
+					CutoverNanos: 34000,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							metadata.DefaultPipelineMetadata,
+							{
+								AggregationID: aggregation.DefaultID,
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour),
+								},
+								Pipeline: applied.NewPipeline([]applied.OpUnion{
+									{
+										Type: pipeline.TransformationOpType,
+										Transformation: pipeline.TransformationOp{
+											Type: transformation.PerSecond,
+										},
+									},
+									{
+										Type: pipeline.RollupOpType,
+										Rollup: applied.RollupOp{
+											ID:            b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2"),
+											AggregationID: aggregation.DefaultID,
+										},
+									},
+								}),
+							},
+							{
+								AggregationID: aggregation.MustCompressTypes(aggregation.Last),
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour),
+									policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+								},
+								Pipeline: applied.NewPipeline([]applied.OpUnion{
+									{
+										Type: pipeline.TransformationOpType,
+										Transformation: pipeline.TransformationOp{
+											Type: transformation.PerSecond,
+										},
+									},
+									{
+										Type: pipeline.RollupOpType,
+										Rollup: applied.RollupOp{
+											ID:            b("rName2|rtagName1=rtagValue1,rtagName2=rtagValue2,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2"),
+											AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+										},
+									},
+								}),
+							},
+						},
+					},
+				},
+				{
+					CutoverNanos: 35000,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							metadata.DefaultPipelineMetadata,
+							{
+								AggregationID: aggregation.DefaultID,
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour),
+								},
+								Pipeline: applied.NewPipeline([]applied.OpUnion{
+									{
+										Type: pipeline.TransformationOpType,
+										Transformation: pipeline.TransformationOp{
+											Type: transformation.PerSecond,
+										},
+									},
+									{
+										Type: pipeline.RollupOpType,
+										Rollup: applied.RollupOp{
+											ID:            b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2"),
+											AggregationID: aggregation.DefaultID,
+										},
+									},
+								}),
+							},
+						},
+					},
+				},
+				{
+					CutoverNanos: 38000,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							metadata.DefaultPipelineMetadata,
+							{
+								AggregationID: aggregation.DefaultID,
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour),
+								},
+								Pipeline: applied.NewPipeline([]applied.OpUnion{
+									{
+										Type: pipeline.TransformationOpType,
+										Transformation: pipeline.TransformationOp{
+											Type: transformation.PerSecond,
+										},
+									},
+									{
+										Type: pipeline.RollupOpType,
+										Rollup: applied.RollupOp{
+											ID:            b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2"),
+											AggregationID: aggregation.DefaultID,
+										},
+									},
+								}),
+							},
+						},
+					},
+				},
+			},
+			forNewRollupIDsResult: []IDWithMetadatas{
+				{
+					ID: b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2"),
+					Metadatas: metadata.StagedMetadatas{
+						{
+							CutoverNanos: 10000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.DefaultID,
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+										},
+									},
+								},
+							},
+						},
+						{
+							CutoverNanos: 15000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.DefaultID,
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+										},
+									},
+								},
+							},
+						},
+						{
+							CutoverNanos: 20000,
+							Tombstoned:   true,
+						},
+						{
+							CutoverNanos: 22000,
+							Tombstoned:   true,
+						},
+						{
+							CutoverNanos: 24000,
+							Tombstoned:   true,
+						},
+						{
+							CutoverNanos: 30000,
+							Tombstoned:   true,
+						},
+						{
+							CutoverNanos: 34000,
+							Tombstoned:   true,
+						},
+						{
+							CutoverNanos: 35000,
+							Tombstoned:   true,
+						},
+						{
+							CutoverNanos: 38000,
+							Tombstoned:   true,
+						},
+					},
+				},
+				{
+					ID: b("rName2|rtagName1=rtagValue1,rtagName2=rtagValue2,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2"),
+					Metadatas: metadata.StagedMetadatas{
+						{
+							CutoverNanos: 15000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.DefaultID,
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+										},
+									},
+								},
+							},
+						},
+						{
+							CutoverNanos: 20000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.DefaultID,
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+										},
+									},
+								},
+							},
+						},
+						{
+							CutoverNanos: 22000,
+							Tombstoned:   true,
+						},
+						{
+							CutoverNanos: 24000,
+							Tombstoned:   true,
+						},
+						{
+							CutoverNanos: 30000,
+							Tombstoned:   true,
+						},
+						{
+							CutoverNanos: 34000,
+							Tombstoned:   true,
+						},
+						{
+							CutoverNanos: 35000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.DefaultID,
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(45*time.Second, xtime.Second, 12*time.Hour),
+										},
+									},
+								},
+							},
+						},
+						{
+							CutoverNanos: 38000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.DefaultID,
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(45*time.Second, xtime.Second, 12*time.Hour),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					ID: b("rName3|rtagName1=rtagValue1,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2"),
+					Metadatas: metadata.StagedMetadatas{
+						{
+							CutoverNanos: 22000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.DefaultID,
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+										},
+									},
+								},
+							},
+						},
+						{
+							CutoverNanos: 22000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.DefaultID,
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+										},
+									},
+								},
+							},
+						},
+						{
+							CutoverNanos: 30000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.DefaultID,
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+										},
+									},
+								},
+							},
+						},
+						{
+							CutoverNanos: 34000,
+							Tombstoned:   true,
+						},
+						{
+							CutoverNanos: 35000,
+							Tombstoned:   true,
+						},
+						{
+							CutoverNanos: 38000,
+							Tombstoned:   true,
+						},
+					},
+				},
+				{
+					ID: b("rName3|rtagName1=rtagValue1,rtagName2=rtagValue2,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2"),
+					Metadatas: metadata.StagedMetadatas{
+						{
+							CutoverNanos: 22000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.DefaultID,
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+											policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+											policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+										},
+									},
+								},
+							},
+						},
+						{
+							CutoverNanos: 22000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.DefaultID,
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+											policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+											policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+										},
+									},
+								},
+							},
+						},
+						{
+							CutoverNanos: 30000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.DefaultID,
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+											policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+											policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+										},
+									},
+								},
+							},
+						},
+						{
+							CutoverNanos: 34000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.DefaultID,
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour),
+											policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+										},
+									},
+								},
+							},
+						},
+						{
+							CutoverNanos: 35000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.DefaultID,
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour),
+											policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+										},
+									},
+								},
+							},
+						},
+						{
+							CutoverNanos: 38000,
+							Tombstoned:   true,
+						},
+					},
+				},
+			},
+		},
+		//nolint:lll
+		//nolint:dupl
+		{
+			id:            "rtagName1=rtagValue3,rtagName2=rtagValue2,rtagName3=rtagValue3,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2",
+			matchFrom:     100000,
+			matchTo:       110000,
+			expireAtNanos: 120000,
+			keepOriginal:  false,
+			forExistingIDResult: metadata.StagedMetadatas{
+				{
+					CutoverNanos: 100000,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							metadata.DefaultPipelineMetadata,
+						},
+					},
+				},
+			},
+			forNewRollupIDsResult: []IDWithMetadatas{
+				{
+					ID: b("rName9A|rtagName2=rtagValue2,rtagName3=rtagValue3,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2"), // rtagName1 is excluded away.
+					Metadatas: metadata.StagedMetadatas{
+						{
+							CutoverNanos: 100000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.MustCompressTypes(aggregation.Last),
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+											policy.NewStoragePolicy(time.Minute, xtime.Second, 10*time.Hour),
+										},
+										Pipeline: applied.Pipeline{Operations: []applied.OpUnion{}},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					ID: b("rName9B|rtagName2=rtagValue2,rtagName3=rtagValue3,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2"), // rtagName1 is excluded away.
+					Metadatas: metadata.StagedMetadatas{
+						{
+							CutoverNanos: 100000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.MustCompressTypes(aggregation.Last),
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+											policy.NewStoragePolicy(time.Minute, xtime.Second, 10*time.Hour),
+										},
+										Pipeline: applied.Pipeline{Operations: []applied.OpUnion{}},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					ID: b("rName9C|rtagName2=rtagValue2,includeThisTag1=includeValue1,includeThisTag2=includeThisValue2"), // rtagName1 and rtagName3 are excluded away.
+					Metadatas: metadata.StagedMetadatas{
+						{
+							CutoverNanos: 100000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.MustCompressTypes(aggregation.Last),
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+											policy.NewStoragePolicy(time.Minute, xtime.Second, 10*time.Hour),
+										},
+										Pipeline: applied.Pipeline{Operations: []applied.OpUnion{}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	as := newActiveRuleSet(
+		0,
+		nil,
+		testRollupRules(t),
+		testTagsFilterOptions(),
+		mockNewID,
+		nil,
+		testIncludeTagKeys(),
 	)
 
 	for i, input := range inputs {
@@ -2712,6 +3702,7 @@ func TestActiveRuleSetForwardMatchWithMappingRulesAndRollupRules(t *testing.T) {
 		testTagsFilterOptions(),
 		mockNewID,
 		nil,
+		testIncludeTagKeys(),
 	)
 	for i, input := range inputs {
 		input := input
@@ -3206,6 +4197,7 @@ func TestActiveRuleSetReverseMatchWithMappingRulesForNonRollupID(t *testing.T) {
 		testTagsFilterOptions(),
 		mockNewID,
 		func([]byte, []byte) bool { return false },
+		testIncludeTagKeys(),
 	)
 	for i, input := range inputs {
 		input := input
@@ -3413,6 +4405,7 @@ func TestActiveRuleSetReverseMatchWithRollupRulesForRollupID(t *testing.T) {
 		testTagsFilterOptions(),
 		mockNewID,
 		func([]byte, []byte) bool { return true },
+		testIncludeTagKeys(),
 	)
 	for _, input := range inputs {
 		res, err := as.ReverseMatch(input.ID(), input.matchFrom, input.matchTo, input.metricType, input.aggregationType,
@@ -3493,6 +4486,7 @@ func TestMatchedKeepOriginal(t *testing.T) {
 			testTagsFilterOptions(),
 			mockNewID,
 			func([]byte, []byte) bool { return true },
+			testIncludeTagKeys(),
 		)
 	)
 
