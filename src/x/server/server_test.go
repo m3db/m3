@@ -50,7 +50,7 @@ func isKeepAlive(conn net.Conn) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer file.Close() // nolint: errcheck
+	defer file.Close() // nolint: errcheck,gosec
 
 	fd := int(file.Fd())
 
@@ -216,7 +216,12 @@ func TestTLS(t *testing.T) {
 			dialFn: func(i int, listenAddr string) (net.Conn, error) {
 				cert, err := tls.LoadX509KeyPair("./testdata/client.crt", "./testdata/client.key")
 				require.NoError(t, err)
-				return tls.Dial("tcp", listenAddr, &tls.Config{InsecureSkipVerify: true, Certificates: []tls.Certificate{cert}}) // #nosec G402
+				// #nosec G402
+				return tls.Dial(
+					"tcp",
+					listenAddr,
+					&tls.Config{InsecureSkipVerify: true, Certificates: []tls.Certificate{cert}},
+				)
 			},
 			appendExpectedResultFn: func(expecteResult []string, i int, msg string) []string {
 				return append(expecteResult, msg)

@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/x/instrument"
+
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
@@ -37,6 +38,7 @@ const getConfigMetricName = "get-tls-config"
 
 var sleepFn = time.Sleep
 
+// ConfigManager is a tls config manager capable of certificate rotation
 type ConfigManager interface {
 	TLSConfig() (*tls.Config, error)
 	ServerMode() ServerMode
@@ -65,6 +67,7 @@ func newConfigManagerMetrics(scope tally.Scope) configManagerMetrics {
 	}
 }
 
+// NewConfigManager creates a new config manager
 func NewConfigManager(opts Options, instrumentOpts instrument.Options) ConfigManager {
 	scope := instrumentOpts.MetricsScope()
 	c := &configManager{
@@ -135,6 +138,7 @@ func (c *configManager) loadTLSConfig() (*tls.Config, error) {
 	if c.options.MutualTLSEnabled() {
 		clientAuthType = tls.RequireAndVerifyClientCert
 	}
+	// #nosec G402
 	return &tls.Config{
 		RootCAs:            certPool,
 		ClientCAs:          certPool,

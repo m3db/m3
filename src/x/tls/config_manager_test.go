@@ -30,13 +30,14 @@ import (
 
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/tallytest"
-	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
+
+	"github.com/stretchr/testify/require"
 )
 
 func appendCA(filename string, certPool *x509.CertPool) error {
-	certs, err := os.ReadFile(filename)
+	certs, err := os.ReadFile(filename) // #nosec G304
 	if err != nil {
 		return fmt.Errorf("read bundle error: %w", err)
 	}
@@ -112,6 +113,7 @@ func TestLoadX509KeyPair(t *testing.T) {
 	cm.options = opts
 	certificates, err = cm.loadX509KeyPair()
 	require.Error(t, err)
+	require.Len(t, certificates, 0)
 
 	opts = opts.SetCertFile("testdata/1.crt").SetKeyFile("testdata/1.key")
 	cm.options = opts
@@ -130,13 +132,13 @@ func TestLoadTLSConfig(t *testing.T) {
 
 	opts = opts.SetCAFile("wrong/path")
 	cm.options = opts
-	tlsConfig, err := cm.loadTLSConfig()
+	_, err := cm.loadTLSConfig()
 	require.Error(t, err)
 
 	opts = opts.SetCAFile("testdata/1.crt")
 	opts = opts.SetCertFile("wrong/path").SetKeyFile("wrong/path")
 	cm.options = opts
-	tlsConfig, err = cm.loadTLSConfig()
+	_, err = cm.loadTLSConfig()
 	require.Error(t, err)
 
 	opts = opts.
@@ -146,7 +148,7 @@ func TestLoadTLSConfig(t *testing.T) {
 		SetInsecureSkipVerify(true).
 		SetServerName("server name")
 	cm.options = opts
-	tlsConfig, err = cm.loadTLSConfig()
+	tlsConfig, err := cm.loadTLSConfig()
 	require.NoError(t, err)
 	require.NotNil(t, tlsConfig.RootCAs)
 	require.NotNil(t, tlsConfig.ClientCAs)

@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/x/retry"
 	xtls "github.com/m3db/m3/src/x/tls"
+
 	"github.com/stretchr/testify/require"
 )
 
