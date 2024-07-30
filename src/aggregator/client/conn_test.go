@@ -426,8 +426,9 @@ func TestTLSConnectWriteToServer(t *testing.T) {
 		Certificates: []tls.Certificate{serverCert},
 		ClientCAs:    certPool,
 		ClientAuth:   tls.RequireAndVerifyClientCert,
+		MinVersion:   tls.VersionTLS13,
 	})
-	t.Cleanup(func() { l.Close() })
+	t.Cleanup(func() { l.Close() }) // nolint: errcheck
 	require.NoError(t, err)
 	serverAddr := l.Addr().String()
 
@@ -436,9 +437,10 @@ func TestTLSConnectWriteToServer(t *testing.T) {
 
 		// Ignore the first testing connection.
 		conn, err := l.Accept()
+		require.NoError(t, err)
 		tlsConn, ok := conn.(*tls.Conn)
 		require.True(t, ok)
-		tlsConn.Handshake()
+		err = tlsConn.Handshake()
 		require.NoError(t, err)
 		require.NoError(t, conn.Close())
 
@@ -456,6 +458,7 @@ func TestTLSConnectWriteToServer(t *testing.T) {
 	require.NoError(t, err)
 	// Wait until the server starts up.
 	dialer := net.Dialer{Timeout: time.Minute}
+	// #nosec G402
 	testConn, err := tls.DialWithDialer(&dialer, tcpProtocol, serverAddr, &tls.Config{
 		InsecureSkipVerify: true,
 		Certificates:       []tls.Certificate{clientCert},

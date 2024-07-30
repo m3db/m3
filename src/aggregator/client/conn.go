@@ -208,7 +208,7 @@ func (c *connection) connectWithLock() error {
 		securedConn, err := c.upgradeToTLS(conn)
 		if err != nil {
 			c.metrics.connectError.Inc(1)
-			conn.Close()
+			conn.Close() // nolint: errcheck
 			return err
 		}
 		conn = securedConn

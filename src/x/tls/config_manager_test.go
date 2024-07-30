@@ -58,7 +58,7 @@ func TestLoadCertPool(t *testing.T) {
 	cm.options = opts
 	certPool, err := cm.loadCertPool()
 	require.NoError(t, err)
-	require.True(t, expectedCertPool.Equal(certPool))
+	require.Equal(t, expectedCertPool.Subjects(), certPool.Subjects())
 
 	opts = opts.SetCAFile("testdata/1.crt")
 	cm.options = opts
@@ -66,8 +66,8 @@ func TestLoadCertPool(t *testing.T) {
 	require.NoError(t, err)
 	err = appendCA("testdata/1.crt", expectedCertPool)
 	require.NoError(t, err)
-	require.True(t, expectedCertPool.Equal(certPool))
-	require.True(t, expectedCertPool.Equal(cm.certPool))
+	require.Equal(t, expectedCertPool.Subjects(), certPool.Subjects())
+	require.Equal(t, expectedCertPool.Subjects(), cm.certPool.Subjects())
 
 	opts = opts.SetCAFile("testdata/2.crt")
 	cm.options = opts
@@ -75,14 +75,14 @@ func TestLoadCertPool(t *testing.T) {
 	require.NoError(t, err)
 	err = appendCA("testdata/2.crt", expectedCertPool)
 	require.NoError(t, err)
-	require.True(t, expectedCertPool.Equal(certPool))
-	require.True(t, expectedCertPool.Equal(cm.certPool))
+	require.Equal(t, expectedCertPool.Subjects(), certPool.Subjects())
+	require.Equal(t, expectedCertPool.Subjects(), cm.certPool.Subjects())
 
 	opts = opts.SetCAFile("testdata/3.crt")
 	cm.options = opts
 	certPool, err = cm.loadCertPool()
 	require.Error(t, err)
-	require.True(t, expectedCertPool.Equal(cm.certPool))
+	require.Equal(t, expectedCertPool.Subjects(), cm.certPool.Subjects())
 
 	opts = opts.SetCAFile("wrong/path")
 	cm.options = opts

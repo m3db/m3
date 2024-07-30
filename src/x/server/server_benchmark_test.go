@@ -44,7 +44,7 @@ type mockKeepAliveHandler struct {
 }
 
 func (h *mockKeepAliveHandler) Handle(conn net.Conn) {
-	defer conn.Close()
+	defer conn.Close() // nolint: errcheck
 
 	reader := bufio.NewReader(conn)
 
@@ -90,7 +90,7 @@ func dial(listenAddr string, tlsMode xtls.ServerMode, certs []tls.Certificate, b
 	if tlsMode == xtls.Disabled {
 		return net.Dial("tcp", listenAddr)
 	}
-	return tls.Dial("tcp", listenAddr, &tls.Config{InsecureSkipVerify: true, Certificates: certs})
+	return tls.Dial("tcp", listenAddr, &tls.Config{InsecureSkipVerify: true, Certificates: certs}) // #nosec G402
 }
 
 func benchmarkServer(tlsMode xtls.ServerMode, mTLSEnabled bool, b *testing.B) {
@@ -105,7 +105,8 @@ func benchmarkServer(tlsMode xtls.ServerMode, mTLSEnabled bool, b *testing.B) {
 		conn, err := dial(server.listener.Addr().String(), tlsMode, []tls.Certificate{cert}, b)
 		require.NoError(b, err)
 		msg := fmt.Sprintf("msg%d", n)
-		conn.Write([]byte(msg))
+		_, err = conn.Write([]byte(msg))
+		require.NoError(b, err)
 	}
 	waitFor(func() bool { return handler.called() == b.N }, 5, 100*time.Millisecond)
 	require.Equal(b, b.N, handler.called())
@@ -135,7 +136,8 @@ func benchmarkKeepAliveServer(tlsMode xtls.ServerMode, mTLSEnabled bool, b *test
 	require.NoError(b, err)
 	for n := 0; n < b.N; n++ {
 		msg := fmt.Sprintf("msg%d", n)
-		conn.Write([]byte(msg))
+		_, err = conn.Write([]byte(msg))
+		require.NoError(b, err)
 	}
 }
 

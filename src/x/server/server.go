@@ -182,7 +182,7 @@ func (s *server) serve() {
 		} else {
 			s.wgConns.Add(1)
 			go func() {
-				defer conn.Close()
+				defer conn.Close() // nolint: errcheck
 				defer s.removeConnectionFn(conn)
 				defer s.wgConns.Done()
 

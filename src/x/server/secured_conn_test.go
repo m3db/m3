@@ -51,10 +51,12 @@ func testTCPServer(connCh chan *securedConn, errCh chan error) (net.Listener, er
 					errCh <- err
 					return
 				}
-				tlsConfig := tls.Config{Certificates: []tls.Certificate{certs}}
+				tlsConfig := tls.Config{Certificates: []tls.Certificate{certs}, MinVersion: tls.VersionTLS13}
 				securedConn = securedConn.UpgradeToTLS(&tlsConfig)
 				tlsConn := securedConn.Conn.(*tls.Conn)
-				tlsConn.Handshake()
+				if err = tlsConn.Handshake(); err != nil {
+					errCh <- err
+				}
 			}
 			connCh <- securedConn
 		}
@@ -67,7 +69,7 @@ func TestPlainTCPConnection(t *testing.T) {
 	errCh := make(chan error)
 	listener, err := testTCPServer(connCh, errCh)
 	require.NoError(t, err)
-	defer listener.Close()
+	defer listener.Close() // nolint: errcheck
 
 	clientConn, err := net.Dial("tcp", listener.Addr().String())
 	require.NoError(t, err)
@@ -83,7 +85,7 @@ func TestPlainTCPConnection(t *testing.T) {
 		err = newErr
 	}
 	require.NoError(t, err)
-	defer conn.Close()
+	defer conn.Close() // nolint: errcheck
 
 	isTLS, err := conn.IsTLS()
 	require.NoError(t, err)
@@ -99,11 +101,11 @@ func TestTLSConnection(t *testing.T) {
 	errCh := make(chan error)
 	listener, err := testTCPServer(connCh, errCh)
 	require.NoError(t, err)
-	defer listener.Close()
+	defer listener.Close() // nolint: errcheck
 
-	clientConn, err := tls.Dial("tcp", listener.Addr().String(), &tls.Config{InsecureSkipVerify: true})
+	clientConn, err := tls.Dial("tcp", listener.Addr().String(), &tls.Config{InsecureSkipVerify: true}) // #nosec G402
 	require.NoError(t, err)
-	defer clientConn.Close()
+	defer clientConn.Close() // nolint: errcheck
 
 	data := []byte("tls connection")
 	_, err = clientConn.Write(data)
@@ -117,7 +119,7 @@ func TestTLSConnection(t *testing.T) {
 		err = newErr
 	}
 	require.NoError(t, err)
-	defer serverConn.Close()
+	defer serverConn.Close() // nolint: errcheck
 
 	isTLS, err := serverConn.IsTLS()
 	require.NoError(t, err)

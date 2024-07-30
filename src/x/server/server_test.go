@@ -50,7 +50,7 @@ func isKeepAlive(conn net.Conn) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer file.Close()
+	defer file.Close() // nolint: errcheck
 
 	fd := int(file.Fd())
 
@@ -183,9 +183,8 @@ func TestTLS(t *testing.T) {
 			dialFn: func(i int, listenAddr string) (net.Conn, error) {
 				if i%2 == 0 {
 					return net.Dial("tcp", listenAddr)
-				} else {
-					return tls.Dial("tcp", listenAddr, &tls.Config{InsecureSkipVerify: true})
 				}
+				return tls.Dial("tcp", listenAddr, &tls.Config{InsecureSkipVerify: true}) // #nosec G402
 			},
 			appendExpectedResultFn: func(expectedResult []string, i int, msg string) []string {
 				return append(expectedResult, msg)
@@ -199,16 +198,14 @@ func TestTLS(t *testing.T) {
 			dialFn: func(i int, listenAddr string) (net.Conn, error) {
 				if i%2 == 0 {
 					return net.Dial("tcp", listenAddr)
-				} else {
-					return tls.Dial("tcp", listenAddr, &tls.Config{InsecureSkipVerify: true})
 				}
+				return tls.Dial("tcp", listenAddr, &tls.Config{InsecureSkipVerify: true}) // #nosec G402
 			},
 			appendExpectedResultFn: func(expectedResult []string, i int, msg string) []string {
 				if i%2 == 1 {
 					return append(expectedResult, msg)
-				} else {
-					return expectedResult
 				}
+				return expectedResult
 			},
 		},
 		{
@@ -219,7 +216,7 @@ func TestTLS(t *testing.T) {
 			dialFn: func(i int, listenAddr string) (net.Conn, error) {
 				cert, err := tls.LoadX509KeyPair("./testdata/client.crt", "./testdata/client.key")
 				require.NoError(t, err)
-				return tls.Dial("tcp", listenAddr, &tls.Config{InsecureSkipVerify: true, Certificates: []tls.Certificate{cert}})
+				return tls.Dial("tcp", listenAddr, &tls.Config{InsecureSkipVerify: true, Certificates: []tls.Certificate{cert}}) // #nosec G402
 			},
 			appendExpectedResultFn: func(expecteResult []string, i int, msg string) []string {
 				return append(expecteResult, msg)
@@ -239,6 +236,7 @@ func TestTLS(t *testing.T) {
 				waitFor(func() bool { return len(s.conns) == 1 }, 5, 100*time.Millisecond)
 				keepAlive, err := isKeepAlive(s.conns[0].(*securedConn).Conn)
 				require.True(t, keepAlive)
+				require.NoError(t, err)
 
 				msg := fmt.Sprintf("msg%d", i)
 				expectedRes = tt.appendExpectedResultFn(expectedRes, i, msg)
