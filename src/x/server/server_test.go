@@ -238,7 +238,11 @@ func TestTLS(t *testing.T) {
 			for i := 0; i < tt.numClients; i++ {
 				conn, err := tt.dialFn(i, listenAddr)
 				require.NoError(t, err)
-				waitFor(func() bool { return len(s.conns) == 1 }, 5, 100*time.Millisecond)
+				waitFor(func() bool {
+					s.Lock()
+					defer s.Unlock()
+					return len(s.conns) == 1
+				}, 5, 100*time.Millisecond)
 				s.Lock()
 				c := s.conns[0]
 				s.Unlock()
