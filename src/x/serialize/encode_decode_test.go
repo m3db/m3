@@ -24,9 +24,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/m3db/m3/src/x/ident"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestRoundTripLiteralsOfMaximumLength(t *testing.T) {

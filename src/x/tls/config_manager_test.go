@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/tallytest"
+
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 

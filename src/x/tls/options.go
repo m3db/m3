@@ -71,15 +71,15 @@ type Options interface {
 }
 
 type options struct {
-	clientEnabled      bool
-	insecureSkipVerify bool
 	serverName         string
-	serverMode         ServerMode
-	mTLSEnabled        bool
 	certFile           string
 	keyFile            string
 	caFile             string
 	certificatesTTL    time.Duration
+	serverMode         ServerMode
+	clientEnabled      bool
+	insecureSkipVerify bool
+	mTLSEnabled        bool
 }
 
 // NewOptions creates a new set of tls options
