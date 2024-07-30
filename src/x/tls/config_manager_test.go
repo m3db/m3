@@ -31,10 +31,10 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/tallytest"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
-
-	"github.com/stretchr/testify/require"
 )
 
 func appendCA(filename string, certPool *x509.CertPool) error {
