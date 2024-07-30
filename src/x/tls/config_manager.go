@@ -108,6 +108,8 @@ func (c *configManager) loadCertPool() (*x509.CertPool, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read bundle error: %w", err)
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if ok := c.certPool.AppendCertsFromPEM(certs); !ok {
 		return nil, fmt.Errorf("cannot append cert to cert pool")
 	}
