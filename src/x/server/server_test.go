@@ -239,7 +239,10 @@ func TestTLS(t *testing.T) {
 				conn, err := tt.dialFn(i, listenAddr)
 				require.NoError(t, err)
 				waitFor(func() bool { return len(s.conns) == 1 }, 5, 100*time.Millisecond)
-				keepAlive, err := isKeepAlive(s.conns[0].(*securedConn).Conn)
+				s.Lock()
+				c := s.conns[0]
+				s.Unlock()
+				keepAlive, err := isKeepAlive(c.(*securedConn).Conn)
 				require.True(t, keepAlive)
 				require.NoError(t, err)
 

@@ -195,7 +195,9 @@ func TestUpdateCertificate(t *testing.T) {
 		SetServerName("server name")
 	cmInterface = NewConfigManager(opts, instrumentOpts)
 	cm = cmInterface.(*configManager)
+	cm.mu.Lock()
 	cm.metrics = cmm
+	cm.mu.Unlock()
 	<-waitCalledCh
 	require.NotNil(t, cm.tlsConfig)
 	tallytest.AssertCounterValue(t, 1, testScope.Snapshot(), successMetricName, map[string]string{})
