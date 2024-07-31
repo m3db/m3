@@ -200,22 +200,38 @@ steps:
 #        gopath-checkout#v1.0.1:
 #          import: github.com/m3db/m3
 #    <<: *common
-#  - name: "Integration (dbnode Recently Read) %n"
-#    parallelism: 2
-#    command: make clean install-vendor-m3 test-ci-integration-dbnode cache_policy=recently_read
-#    plugins:
-#      docker-compose#v2.5.1:
-#        run: app
-#        workdir: /go/src/github.com/m3db/m3
-#    <<: *common
-#  - name: "Integration (dbnode LRU) %n"
-#    parallelism: 2
-#    command: make clean install-vendor-m3 test-ci-integration-dbnode cache_policy=lru
-#    plugins:
-#      docker-compose#v2.5.1:
-#        run: app
-#        workdir: /go/src/github.com/m3db/m3
-#    <<: *common
+  - name: "Integration (dbnode Recently Read) %n"
+    parallelism: 2
+    plugins:
+      docker-compose#v2.5.1:
+        run: app
+        workdir: /go/src/github.com/m3db/m3
+      kubernetes:
+        <<: *kubernetes
+        podSpec:
+          <<: *podSpec
+          containers:
+            - <<: *commandContainer
+              command:
+                - |-
+                  make clean install-vendor-m3 test-ci-integration-dbnode cache_policy=recently_read
+    <<: *common
+  - name: "Integration (dbnode LRU) %n"
+    parallelism: 2
+    plugins:
+      docker-compose#v2.5.1:
+        run: app
+        workdir: /go/src/github.com/m3db/m3
+      kubernetes:
+        <<: *kubernetes
+        podSpec:
+          <<: *podSpec
+          containers:
+            - <<: *commandContainer
+              command:
+                - |-
+                  make clean install-vendor-m3 test-ci-integration-dbnode cache_policy=lru
+    <<: *common
   - name: "Integration (aggregator TCP client) %n"
     parallelism: 1
     plugins:
