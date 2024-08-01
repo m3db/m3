@@ -280,6 +280,8 @@ steps:
                 - |-
                   make clean install-vendor-m3 test-ci-integration-m3em test-ci-integration-cluster test-ci-integration-msg test-ci-integration-metrics
     <<: *common
+# Commenting out Documentation test for now because of issue with access tokens. Also a low priority test, as it checks
+# for broken links in the documentation.
 #  - name: "Documentation tests"
 #    command: make clean install-vendor-m3 docs-test
 #    env:
