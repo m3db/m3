@@ -1,4 +1,4 @@
-// Copyright (c) 2021 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,24 +18,16 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package serialize
+package tls
 
-import (
-	"strings"
-	"testing"
+// ServerMode represents the TLS mode
+type ServerMode uint16
 
-	"github.com/m3db/m3/src/x/ident"
-
-	"github.com/stretchr/testify/require"
+const (
+	// Disabled allows plaintext connections only
+	Disabled ServerMode = iota
+	// Permissive allows both TLS and plaintext connections
+	Permissive
+	// Enforced allows TLS connections only
+	Enforced
 )
-
-func TestRoundTripLiteralsOfMaximumLength(t *testing.T) {
-	name := strings.Repeat("n", int(DefaultMaxTagLiteralLength))
-	value := strings.Repeat("v", int(DefaultMaxTagLiteralLength))
-	tags := ident.NewTagsIterator(ident.NewTags(ident.StringTag(name, value)))
-	newTags, err := encodeAndDecode(tags)
-	require.NoError(t, err)
-	ok, err := tagItersAreEqual(tags, newTags)
-	require.NoError(t, err)
-	require.True(t, ok)
-}
