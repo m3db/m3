@@ -289,15 +289,6 @@ steps:
 #        gopath-checkout#v1.0.1:
 #          import: github.com/m3db/m3
 #    <<: *common
-#  - label: "FOSSA license scan"
-#    command: make clean install-vendor-m3 fossa
-#    plugins:
-#      docker-compose#v2.5.1:
-#        run: app
-#        workdir: /go/src/github.com/m3db/m3
-#        env:
-#          - FOSSA_API_KEY
-#    <<: *common
   - name: "Check for docker and docs builds :docker: :books:"
     plugins:
       kubernetes:
