@@ -926,6 +926,11 @@ func writeShardAndVerify(
 	assert.Equal(t, expectedIdx, seriesWrite.Series.UniqueIndex)
 }
 
+func runTick(shard *dbShard, nowTs xtime.UnixNano) (tickResult, error) {
+	return shard.Tick(context.NewNoOpCanncellable(), nowTs, namespace.Context{},
+		TickOptions{})
+}
+
 func TestShardTick(t *testing.T) {
 	dir, err := ioutil.TempDir("", "testdir")
 	require.NoError(t, err)
@@ -1016,7 +1021,7 @@ func TestShardTick(t *testing.T) {
 	// same time, same value should not write, regardless of being out of order
 	writeShardAndVerify(ctx, t, shard, "foo", nowFn(), 2.0, false, 0)
 
-	r, err := shard.Tick(context.NewNoOpCanncellable(), nowFn(), namespace.Context{})
+	r, err := runTick(shard, nowFn())
 	require.NoError(t, err)
 	require.Equal(t, 3, r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)
@@ -1190,7 +1195,7 @@ func testShardWriteAsync(t *testing.T, writes []testWrite) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	r, err := shard.Tick(context.NewNoOpCanncellable(), xtime.ToUnixNano(nowFn()), namespace.Context{})
+	r, err := runTick(shard, xtime.ToUnixNano(nowFn()))
 	require.NoError(t, err)
 	require.Equal(t, len(writes), r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)
@@ -1232,12 +1237,12 @@ func TestShardTickRace(t *testing.T) {
 
 	wg.Add(2)
 	go func() {
-		shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{}) // nolint
+		runTick(shard, xtime.Now()) // nolint
 		wg.Done()
 	}()
 
 	go func() {
-		shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{}) // nolint
+		runTick(shard, xtime.Now()) // nolint
 		wg.Done()
 	}()
 
@@ -1263,7 +1268,7 @@ func TestShardTickCleanupSmallBatchSize(t *testing.T) {
 	shard.Bootstrap(ctx, nsCtx)
 
 	addTestSeries(shard, ident.StringID("foo"))
-	_, err := shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
+	_, err := runTick(shard, xtime.Now())
 	require.NoError(t, err)
 	require.Equal(t, 0, shard.lookup.Len())
 }
@@ -1311,7 +1316,7 @@ func TestShardReturnsErrorForConcurrentTicks(t *testing.T) {
 	}).Return(series.TickResult{}, nil)
 
 	go func() {
-		_, err := shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
+		_, err := runTick(shard, xtime.Now())
 		if err != nil {
 			panic(err)
 		}
@@ -1320,7 +1325,7 @@ func TestShardReturnsErrorForConcurrentTicks(t *testing.T) {
 
 	go func() {
 		tick1Wg.Wait()
-		_, err := shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
+		_, err := runTick(shard, xtime.Now())
 		require.Error(t, err)
 		tick2Wg.Done()
 		closeWg.Done()
@@ -1384,7 +1389,7 @@ func TestShardTicksStopWhenClosing(t *testing.T) {
 
 	closeWg.Add(2)
 	go func() {
-		shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{}) // nolint
+		runTick(shard, xtime.Now()) // nolint
 		closeWg.Done()
 	}()
 
@@ -1405,7 +1410,7 @@ func TestPurgeExpiredSeriesEmptySeries(t *testing.T) {
 
 	addTestSeries(shard, ident.StringID("foo"))
 
-	_, err := shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
+	_, err := runTick(shard, xtime.Now())
 	require.NoError(t, err)
 
 	shard.RLock()
@@ -1430,7 +1435,7 @@ func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
 		1.0, xtime.Second, nil, series.WriteOptions{})
 	require.NoError(t, err)
 
-	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular, namespace.Context{})
+	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular, namespace.Context{}, TickOptions{})
 	require.NoError(t, err)
 	require.Equal(t, 1, r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)
@@ -1462,7 +1467,7 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 		require.NoError(t, err)
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
-	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular, namespace.Context{})
+	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular, namespace.Context{}, TickOptions{})
 	require.NoError(t, err)
 	require.Equal(t, 0, r.activeSeries)
 	require.Equal(t, 1, r.expiredSeries)
@@ -1490,7 +1495,7 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 		require.NoError(t, err)
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
-	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular, namespace.Context{})
+	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular, namespace.Context{}, TickOptions{})
 	require.NoError(t, err)
 	require.Equal(t, 0, r.activeSeries)
 	require.Equal(t, 1, r.expiredSeries)

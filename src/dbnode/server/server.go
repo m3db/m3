@@ -582,9 +582,23 @@ func Run(runOpts RunOptions) {
 
 	if tick := cfg.Tick; tick != nil {
 		runtimeOpts = runtimeOpts.
-			SetTickSeriesBatchSize(tick.SeriesBatchSize).
-			SetTickPerSeriesSleepDuration(tick.PerSeriesSleepDuration).
 			SetTickMinimumInterval(tick.MinimumInterval)
+		if tick.SeriesBatchSize > 0 {
+			runtimeOpts = runtimeOpts.SetTickSeriesBatchSize(tick.SeriesBatchSize)
+		}
+		if tick.PerSeriesSleepDuration > 0 {
+			runtimeOpts = runtimeOpts.SetTickPerSeriesSleepDuration(tick.PerSeriesSleepDuration)
+		}
+
+		logger.Info("Setting up tick configuration", zap.Int("TopMetricsToTrack", cfg.Tick.TopMetricsToTrack))
+		opts = opts.SetTickOptions(
+			storage.TickOptions{
+				TopMetricsToTrack:       tick.TopMetricsToTrack,
+				MinCardinalityToTrack:   tick.MinCardinalityToTrack,
+				MaxMapLenForTracking:    tick.MaxMapLenForTracking,
+				TopMetricsTrackingTicks: tick.TopMetricsTrackingTicks,
+			},
+		)
 	}
 
 	runtimeOptsMgr := m3dbruntime.NewOptionsManager()
