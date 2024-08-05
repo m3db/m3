@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 	xio "github.com/m3db/m3/src/x/io"
+	"github.com/m3db/m3/src/x/net"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
 
@@ -217,6 +218,7 @@ type ConnectionConfiguration struct {
 	ReconnectThresholdMultiplier int                  `yaml:"reconnectThresholdMultiplier"`
 	MaxReconnectDuration         *time.Duration       `yaml:"maxReconnectDuration"`
 	WriteRetries                 *retry.Configuration `yaml:"writeRetries"`
+	ContextDialerFn              net.ContextDialerFn  `yaml:"-"`
 }
 
 // NewConnectionOptions creates new connection options.
@@ -246,6 +248,9 @@ func (c *ConnectionConfiguration) NewConnectionOptions(scope tally.Scope) Connec
 	if c.WriteRetries != nil {
 		retryOpts := c.WriteRetries.NewOptions(scope)
 		opts = opts.SetWriteRetryOptions(retryOpts)
+	}
+	if c.ContextDialerFn != nil {
+		opts = opts.SetContextDialer(c.ContextDialerFn)
 	}
 	return opts
 }
