@@ -109,10 +109,13 @@ func match[T any](
 				isVar := isVarTagValue(nodeValue)
 				if tagValue == nodeValue || nodeValue == _matchall || isVar {
 					// gather data from this node and recurse.
-					// create copy of varMap to avoid modifying the original.
 					newVarMap := varMap
 					if isVar {
-						newVarMap = make(map[string]string, len(varMap))
+						// create copy of varMap to avoid modifying the original.
+						newVarMap = make(map[string]string)
+						for k, v := range varMap {
+							newVarMap[k] = v
+						}
 						newVarMap[nodeValue] = tagValue
 					}
 

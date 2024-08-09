@@ -11,8 +11,9 @@ import (
 )
 
 type Rule struct {
-	TagFilters []string
-	Namespace  string
+	TagFilters     []string
+	Namespace      string
+	ExpectedVarMap map[string]string
 }
 
 func TestTreeGetData(t *testing.T) {
@@ -182,6 +183,62 @@ func TestTreeGetData(t *testing.T) {
 			},
 			expected: []string{"namespace1"},
 		},
+		{
+			name: "multiple input tags, var tag value, single rule match",
+			inputTags: map[string]string{
+				"tag3": "apple",
+				"tag4": "banana",
+			},
+			rules: []Rule{
+				{
+					TagFilters: []string{
+						"tag3:{{VAR1}} tag4:{{VAR2}}",
+						"tag5:value5 tag6:value6",
+					},
+					Namespace: "namespace1",
+					ExpectedVarMap: map[string]string{
+						"{{VAR1}}": "apple",
+						"{{VAR2}}": "banana",
+					},
+				},
+			},
+			expected: []string{"namespace1"},
+		},
+		{
+			name: "multiple input tags, var tag value, multi rule match",
+			inputTags: map[string]string{
+				"tag3": "apple",
+				"tag4": "banana",
+				"tag5": "train",
+				"tag6": "car",
+			},
+			rules: []Rule{
+				{
+					TagFilters: []string{
+						"tag3:{{VAR1}} tag4:{{VAR2}}",
+						"tag5:value5 tag6:value6",
+					},
+					Namespace: "namespace1",
+					ExpectedVarMap: map[string]string{
+						"{{VAR1}}": "apple",
+						"{{VAR2}}": "banana",
+					},
+				},
+				{
+					TagFilters: []string{
+						"tag4:{{VAR5}} tag5:{{VAR6}} tag6:{{VAR2}}",
+						"tag5:value5 tag7:value7",
+					},
+					Namespace: "namespace2",
+					ExpectedVarMap: map[string]string{
+						"{{VAR5}}": "banana",
+						"{{VAR2}}": "car",
+						"{{VAR6}}": "train",
+					},
+				},
+			},
+			expected: []string{"namespace1", "namespace2"},
+		},
 	}
 
 	less := func(a, b string) bool { return a < b }
@@ -205,6 +262,27 @@ func TestTreeGetData(t *testing.T) {
 
 			actualNamespaces := uniqueNamespaces(actual)
 			require.Equal(t, "", cmp.Diff(tt.expected, actualNamespaces, cmpopts.SortSlices(less)))
+
+			// validate var tag value type.
+			for r, varMap := range actual {
+				matchedRule, ok := r.(*Rule)
+				require.True(t, ok, "typecast failed")
+				if matchedRule.ExpectedVarMap == nil {
+					require.Empty(t, varMap)
+					continue
+				}
+
+				expectedVarMap := make(VarMap)
+				for k, v := range matchedRule.ExpectedVarMap {
+					expectedVarMap[k] = v
+				}
+
+				require.True(
+					t,
+					reflect.DeepEqual(expectedVarMap, varMap),
+					"var maps not equal",
+				)
+			}
 		})
 	}
 }
