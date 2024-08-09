@@ -352,7 +352,7 @@ func (m *flushManager) namespaceSnapshotTimes(ns databaseNamespace, curr xtime.U
 	})
 }
 
-// flushWithTime flushes in-memory data for a given namespace, at a given
+// flushNamespaceWithTimes flushes in-memory data for a given namespace, at a given
 // time, returning any error encountered during flushing
 func (m *flushManager) flushNamespaceWithTimes(
 	ns databaseNamespace,

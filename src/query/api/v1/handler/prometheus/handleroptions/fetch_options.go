@@ -116,7 +116,7 @@ func NewFetchOptionsBuilder(
 	return fetchOptionsBuilder{opts: opts}, nil
 }
 
-// ParseLimit parses request limit from either header or query string.
+// ParseValue parses request limit from either header or query string.
 func ParseValue(req *http.Request, header, formValue string, defaultValue int) (int, error) {
 	if str := req.Header.Get(header); str != "" {
 		n, err := strconv.Atoi(str)

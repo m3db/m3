@@ -545,7 +545,7 @@ func (u *OpUnion) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// MarshalJSON returns the JSON encoding of an operation union.
+// MarshalYAML returns the YAML encoding of an operation union.
 func (u OpUnion) MarshalYAML() (interface{}, error) {
 	return newUnionMarshaler(u)
 }

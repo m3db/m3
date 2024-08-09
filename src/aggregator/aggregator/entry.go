@@ -184,6 +184,7 @@ type entryMetrics struct {
 }
 
 // NewEntryMetrics creates new entry metrics.
+//
 //nolint:golint,revive
 func NewEntryMetrics(scope tally.Scope) *entryMetrics {
 	scope = scope.SubScope("entry")
@@ -605,7 +606,7 @@ func (e *Entry) maybeCopyIDWithLock(id metricid.RawID) metricid.RawID {
 	return elemID
 }
 
-// addAggregationKey adds a new aggregation key to the list of new aggregations.
+// addNewAggregationKeyWithLock adds a new aggregation key to the list of new aggregations.
 func (e *Entry) addNewAggregationKeyWithLock(
 	metricType metric.Type,
 	metricID metricid.RawID,
