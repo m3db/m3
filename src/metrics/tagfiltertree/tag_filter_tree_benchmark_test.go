@@ -121,16 +121,15 @@ const (
 
 func BenchmarkTreeGetData(b *testing.B) {
 	// create a new tree
-	tree := New[*ResolvedRule]()
+	tree := New[*Rule]()
 
 	// add multiple tag filters to the tree
 	for _, rule := range generateRules() {
+		rule := rule
 		for _, tf := range rule.TagFilters {
 			tags, err := TagsFromTagFilter(tf)
 			require.NoError(b, err)
-			tree.AddTagFilter(tags, &ResolvedRule{
-				Rule: &rule,
-			})
+			tree.AddTagFilter(tags, &rule)
 		}
 	}
 }

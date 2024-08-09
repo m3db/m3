@@ -2,6 +2,7 @@ package tagfiltertree
 
 import (
 	"errors"
+	"maps"
 	"strings"
 
 	"github.com/m3db/m3/src/metrics/filters"
@@ -16,17 +17,14 @@ type Tag struct {
 	Values []string
 }
 
-type Annotateable[T any] interface {
-	// Annotate annotates the data with the resolved variable map.
-	Annotate(varMap map[string]string) T
-}
+type VarMap map[string]string
 
 // Tree is a tree data structure for tag filters.
-type Tree[T Annotateable[T]] struct {
+type Tree[T any] struct {
 	Nodes map[string]*node[T]
 }
 
-type node[T Annotateable[T]] struct {
+type node[T any] struct {
 	Name string
 	// key=tagValue
 	Values map[string]*Tree[T]
@@ -34,7 +32,7 @@ type node[T Annotateable[T]] struct {
 }
 
 // New creates a new tree.
-func New[T Annotateable[T]]() *Tree[T] {
+func New[T any]() *Tree[T] {
 	return &Tree[T]{
 		Nodes: make(map[string]*node[T]),
 	}
@@ -54,7 +52,7 @@ func (n *node[T]) addValue(value string) *Tree[T] {
 	return n.Values[value]
 }
 
-func addNode[T Annotateable[T]](t *Tree[T], tags []Tag, idx int, data T) {
+func addNode[T any](t *Tree[T], tags []Tag, idx int, data T) {
 	if idx >= len(tags) {
 		return
 	}
@@ -86,21 +84,21 @@ func addNode[T Annotateable[T]](t *Tree[T], tags []Tag, idx int, data T) {
 }
 
 // Match returns the data for the given tags.
-func (t *Tree[T]) Match(tags map[string]string) []T {
+func (t *Tree[T]) Match(tags map[string]string) map[any]VarMap {
 	varMap := make(map[string]string, 0)
 	return match(t, tags, varMap)
 }
 
-func match[T Annotateable[T]](
+func match[T any](
 	t *Tree[T],
 	tags map[string]string,
 	varMap map[string]string,
-) []T {
+) map[any]VarMap {
 	if len(tags) == 0 || t == nil {
 		return nil
 	}
 
-	data := make([]T, 0)
+	data := make(map[any]VarMap, 0)
 	for name, node := range t.Nodes {
 		if tagValue, tagNameFound := tags[name]; tagNameFound {
 			// for each of the nodes values, recurse if:
@@ -120,9 +118,9 @@ func match[T Annotateable[T]](
 
 					// annotate all data in this node with the variable map.
 					for _, d := range node.Data {
-						data = append(data, d.Annotate(newVarMap))
+						data[d] = newVarMap
 					}
-					data = append(data, match(subTree, tags, newVarMap)...)
+					maps.Copy(data, match(subTree, tags, newVarMap))
 				}
 			}
 		}

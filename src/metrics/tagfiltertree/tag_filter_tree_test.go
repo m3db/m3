@@ -15,18 +15,6 @@ type Rule struct {
 	Namespace  string
 }
 
-type ResolvedRule struct {
-	*Rule
-	VarMap map[string]string
-}
-
-func (rr *ResolvedRule) Annotate(varMap map[string]string) *ResolvedRule {
-	return &ResolvedRule{
-		Rule:   rr.Rule,
-		VarMap: varMap,
-	}
-}
-
 func TestTreeGetData(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -199,15 +187,13 @@ func TestTreeGetData(t *testing.T) {
 	less := func(a, b string) bool { return a < b }
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tree := New[*ResolvedRule]()
+			tree := New[*Rule]()
 			for _, rule := range tt.rules {
+				localRule := rule
 				for _, tagFilter := range rule.TagFilters {
 					tags, err := TagsFromTagFilter(tagFilter)
 					require.NoError(t, err)
-					localRule := rule
-					tree.AddTagFilter(tags, &ResolvedRule{
-						Rule: &localRule,
-					})
+					tree.AddTagFilter(tags, &localRule)
 				}
 			}
 
@@ -301,15 +287,16 @@ func TestParseTagValue(t *testing.T) {
 	}
 }
 
-func uniqueNamespaces(input []*ResolvedRule) []string {
-	unique := make(map[string]*ResolvedRule)
-	for _, s := range input {
-		unique[s.Namespace] = s
+func uniqueNamespaces(input map[any]VarMap) []string {
+	unique := make(map[string]*Rule)
+	for r := range input {
+		rule := r.(*Rule)
+		unique[rule.Namespace] = rule
 	}
 
 	output := make([]string, 0, len(unique))
-	for _, a := range unique {
-		output = append(output, a.Namespace)
+	for ns := range unique {
+		output = append(output, ns)
 	}
 	return output
 }
