@@ -156,6 +156,7 @@ linters-settings:
       # as a general rule of thumb.
       - hugeParam
       - rangeValCopy
+      - ifElseChain
     enabled-checks:
       # temp disabled, something wrong on go 1.18
       # - ruleguard
@@ -253,6 +254,20 @@ linters:
     - gomoddirectives
     - gofumpt
     - ifshort
+    - wastedassign
+    - usestdlibvars
+    - testifylint
+    - inamedparam
+    - exhaustruct
+    - depguard
+    - revive
+    - protogetter
+    - gosec 
+    - mirror
+    - interfacebloat
+    - musttag
+    - nonamedreturns
+    - stylecheck
   disable-all: false
   presets:
     # bodyclose, errcheck, gosec, govet, scopelint, staticcheck, typecheck
