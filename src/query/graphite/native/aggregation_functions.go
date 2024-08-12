@@ -678,8 +678,13 @@ func getMetaSeriesGrouping(seriesList singlePathSpec, nodes []int) (map[string][
 // Would return multiple series which are each the result of applying the “sum” aggregation to groups joined on the
 // nodes’ list (0 indexed) resulting in a list of targets like
 //
-//	sumSeries(ganglia.server1.*.cpu.load5),sumSeries(ganglia.server1.*.cpu.load10),sumSeries(ganglia.server1.*.cpu.load15),
-//	sumSeries(ganglia.server2.*.cpu.load5),sumSeries(ganglia.server2.*.cpu.load10),sumSeries(ganglia.server2.*.cpu.load15),...
+//		sumSeries(ganglia.server1.*.cpu.load5),
+//		sumSeries(ganglia.server1.*.cpu.load10),
+//		sumSeries(ganglia.server1.*.cpu.load15),
+//
+//		sumSeries(ganglia.server2.*.cpu.load5),
+//		sumSeries(ganglia.server2.*.cpu.load10),
+//	    sumSeries(ganglia.server2.*.cpu.load15),...
 //
 // NOTE: if len(nodes) = 0, aggregate all series into 1 series.
 func groupByNodes(ctx *common.Context, seriesList singlePathSpec, fname string, nodes ...int) (ts.SeriesList, error) {
