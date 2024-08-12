@@ -268,6 +268,12 @@ linters:
     - musttag
     - nonamedreturns
     - stylecheck
+    - contextcheck
+    - tagalign
+    - gosmopolitan
+    - nilerr
+    - whitespace
+    - bodyclose
   disable-all: false
   presets:
     # bodyclose, errcheck, gosec, govet, scopelint, staticcheck, typecheck
