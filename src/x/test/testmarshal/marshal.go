@@ -134,7 +134,6 @@ func (sm simpleMarshaler) ID() string {
 // }
 //
 // with:
-
 //	func TestMyTypeRoundtrips(t *testing.T) {
 //		type MyType struct{}
 //		testmarshal.AssertMarshalingRoundtrips(t, testmarshal.JSONMarshaler, MyType{})

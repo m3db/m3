@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// package validators contains validation logics for the api.
+// Package validators contains validation logics for the api.
 package validators
 
 import (
