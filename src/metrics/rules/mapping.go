@@ -26,6 +26,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/pborman/uuid"
+
 	"github.com/m3db/m3/src/metrics/aggregation"
 	merrors "github.com/m3db/m3/src/metrics/errors"
 	"github.com/m3db/m3/src/metrics/filters"
@@ -36,8 +38,6 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/query/models"
-
-	"github.com/pborman/uuid"
 )
 
 const (

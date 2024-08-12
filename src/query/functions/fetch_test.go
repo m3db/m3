@@ -25,6 +25,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
@@ -37,11 +42,6 @@ import (
 	"github.com/m3db/m3/src/query/test/executor"
 	"github.com/m3db/m3/src/query/test/transformtest"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 func TestFetch(t *testing.T) {

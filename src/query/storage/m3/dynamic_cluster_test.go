@@ -26,6 +26,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/client"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -36,10 +40,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 	xwatch "github.com/m3db/m3/src/x/watch"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 var (

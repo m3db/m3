@@ -25,12 +25,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/policy"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestMatchResultProperties(t *testing.T) {

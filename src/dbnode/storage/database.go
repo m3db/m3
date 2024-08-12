@@ -28,6 +28,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	opentracinglog "github.com/opentracing/opentracing-go/log"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
@@ -50,10 +54,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	opentracinglog "github.com/opentracing/opentracing-go/log"
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 const (
@@ -1155,13 +1155,13 @@ func (d *db) IsBootstrapped() bool {
 }
 
 // IsBootstrappedAndDurable should only return true if the following conditions are met:
-//    1. The database is bootstrapped.
-//    2. The last successful snapshot began AFTER the last bootstrap completed.
+//  1. The database is bootstrapped.
+//  2. The last successful snapshot began AFTER the last bootstrap completed.
 //
 // Those two conditions should be sufficient to ensure that after a placement change the
 // node will be able to bootstrap any and all data from its local disk, however, for posterity
 // we also perform the following check:
-//     3. The last bootstrap completed AFTER the shardset was last assigned.
+//  3. The last bootstrap completed AFTER the shardset was last assigned.
 func (d *db) IsBootstrappedAndDurable() bool {
 	isBootstrapped := d.mediator.IsBootstrapped()
 	if !isBootstrapped {

@@ -23,10 +23,10 @@ package msgpack
 import (
 	"bytes"
 
+	"gopkg.in/vmihailenco/msgpack.v2"
+
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
-
-	"gopkg.in/vmihailenco/msgpack.v2"
 )
 
 type encodeVersionFn func(value int)

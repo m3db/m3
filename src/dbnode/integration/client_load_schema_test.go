@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 // Copyright (c) 2019 Uber Technologies, Inc.
@@ -28,13 +29,13 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/ident"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
 )
 
 const (

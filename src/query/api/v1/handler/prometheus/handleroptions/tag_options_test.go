@@ -24,11 +24,11 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/storage"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage"
 )
 
 func toStrip(strs ...string) [][]byte {

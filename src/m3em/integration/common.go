@@ -31,9 +31,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/m3em/agent"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/m3em/agent"
 )
 
 const (

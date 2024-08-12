@@ -23,6 +23,8 @@ package series
 import (
 	"time"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -35,8 +37,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/uber-go/tally"
 )
 
 // DatabaseSeriesOptions is a set of options for creating a database series.

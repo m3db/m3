@@ -319,6 +319,7 @@ func newMessage(pool *messagePool) *message {
 }
 
 // Encode encodes a m3msg payload
+//
 //nolint:gocyclo,gocritic
 func (m *message) Encode(
 	shard uint32,

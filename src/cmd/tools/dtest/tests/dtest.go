@@ -24,10 +24,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/m3db/m3/src/cmd/tools/dtest/config"
-
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/cmd/tools/dtest/config"
 )
 
 var (

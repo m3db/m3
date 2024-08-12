@@ -27,6 +27,10 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/prometheus/prometheus/model/labels"
+	promstorage "github.com/prometheus/prometheus/storage"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -34,11 +38,6 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
-
-	"github.com/prometheus/prometheus/model/labels"
-	promstorage "github.com/prometheus/prometheus/storage"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSelectWithMetaInContext(t *testing.T) {

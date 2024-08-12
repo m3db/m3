@@ -27,6 +27,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/prometheus/prometheus/promql"
+	"google.golang.org/protobuf/runtime/protoiface"
+
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	placementhandleroptions "github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
@@ -45,9 +48,6 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/prometheus/prometheus/promql"
-	"google.golang.org/protobuf/runtime/protoiface"
 )
 
 // QueryEngine is a type of query engine.
@@ -64,7 +64,8 @@ const (
 // a fixed lookback, so we have to create multiple engines for different lookback values.
 //
 // TODO(vilius): there's a conversation at Prometheus mailing list about making lookback dynamic
-//   https://groups.google.com/g/prometheus-developers/c/9wzuobfLMV8
+//
+//	https://groups.google.com/g/prometheus-developers/c/9wzuobfLMV8
 type PromQLEngineFn func(lookbackDuration time.Duration) (*promql.Engine, error)
 
 // OptionTransformFn transforms given handler options.

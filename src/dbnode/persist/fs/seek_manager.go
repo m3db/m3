@@ -27,6 +27,8 @@ import (
 	"syscall"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -36,8 +38,6 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"go.uber.org/zap"
 )
 
 const (
@@ -496,18 +496,18 @@ func (m *seekerManager) markBorrowedSeekerAsReturned(
 // The bulk of the complexity of this function is caused by the desire to avoid the hot-swap from
 // causing any latency spikes. To accomplish this, the following is performed:
 //
-//   1. Open the new seeker outside the context of any locks.
-//   2. Acquire a lock on the seekers that need to be swapped and rotate the existing "active" seekers
-//      to be "inactive" and set the newly opened seekers as "active". This operation is extremely cheap
-//      and ensures that all subsequent reads will use the seekers for the latest volume instead of the
-//      previous. In addition, this phase also creates a waitgroup for the inactive seekers that will be
-//      be used to "wait" for all of the existing seekers that are currently borrowed to be returned.
-//   3. Release the lock so that reads can continue uninterrupted and call waitgroup.Wait() to wait for all
-//      the currently borrowed "inactive" seekers (if any) to be returned.
-//   4. Every call to Return() for an "inactive" seeker will check if it's the last borrowed inactive seeker,
-//      and if so, will close all the inactive seekers and call wg.Done() which will notify the goroutine
-//      running the UpdateOpenLease() function that all inactive seekers have been returned and closed at
-//      which point the function will return successfully.
+//  1. Open the new seeker outside the context of any locks.
+//  2. Acquire a lock on the seekers that need to be swapped and rotate the existing "active" seekers
+//     to be "inactive" and set the newly opened seekers as "active". This operation is extremely cheap
+//     and ensures that all subsequent reads will use the seekers for the latest volume instead of the
+//     previous. In addition, this phase also creates a waitgroup for the inactive seekers that will be
+//     be used to "wait" for all of the existing seekers that are currently borrowed to be returned.
+//  3. Release the lock so that reads can continue uninterrupted and call waitgroup.Wait() to wait for all
+//     the currently borrowed "inactive" seekers (if any) to be returned.
+//  4. Every call to Return() for an "inactive" seeker will check if it's the last borrowed inactive seeker,
+//     and if so, will close all the inactive seekers and call wg.Done() which will notify the goroutine
+//     running the UpdateOpenLease() function that all inactive seekers have been returned and closed at
+//     which point the function will return successfully.
 func (m *seekerManager) UpdateOpenLease(
 	descriptor block.LeaseDescriptor,
 	state block.LeaseState,

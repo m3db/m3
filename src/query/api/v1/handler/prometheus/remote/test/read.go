@@ -26,12 +26,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/generated/proto/prompb"
-
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/query/generated/proto/prompb"
 )
 
 // GeneratePromReadRequest generates a Prometheus remote

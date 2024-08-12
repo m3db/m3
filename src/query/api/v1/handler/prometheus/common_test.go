@@ -29,14 +29,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/test"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestPromCompressedReadSuccess(t *testing.T) {

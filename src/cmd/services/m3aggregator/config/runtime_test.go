@@ -24,6 +24,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/runtime"
 	"github.com/m3db/m3/src/cluster/client"
@@ -31,10 +35,6 @@ import (
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/cluster/placement"
 	xtest "github.com/m3db/m3/src/x/test"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v2"
 )
 
 func TestRuntimeOptionsConfigurationNewRuntimeOptionsManager(t *testing.T) {

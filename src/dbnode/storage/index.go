@@ -32,6 +32,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/bitset"
+	"github.com/opentracing/opentracing-go"
+	opentracinglog "github.com/opentracing/opentracing-go/log"
+	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -64,13 +71,6 @@ import (
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 	xresource "github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/m3db/bitset"
-	"github.com/opentracing/opentracing-go"
-	opentracinglog "github.com/opentracing/opentracing-go/log"
-	"github.com/uber-go/tally"
-	"go.uber.org/atomic"
-	"go.uber.org/zap"
 )
 
 var (
@@ -1854,7 +1854,7 @@ func (i *nsIndex) newBlockQueryIterFn(
 	return block.QueryIter(ctx, query)
 }
 
-//nolint: dupl
+// nolint: dupl
 func (i *nsIndex) execBlockQueryFn(
 	ctx context.Context,
 	block index.Block,

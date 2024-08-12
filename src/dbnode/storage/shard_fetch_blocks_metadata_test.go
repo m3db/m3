@@ -28,6 +28,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/generated/proto/pagetoken"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -38,11 +43,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/gogo/protobuf/proto"
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyCacheAll(t *testing.T) {

@@ -33,7 +33,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fortytw2/leaktest"
 	"github.com/m3db/bitset"
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -44,10 +47,6 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/fortytw2/leaktest"
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 type mockTime struct {

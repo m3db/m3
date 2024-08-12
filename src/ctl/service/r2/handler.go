@@ -24,10 +24,10 @@ import (
 	"fmt"
 	"net/http"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/ctl/auth"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	"go.uber.org/zap"
 )
 
 type r2HandlerFunc func(http.ResponseWriter, *http.Request) error

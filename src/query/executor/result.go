@@ -23,11 +23,12 @@ package executor
 import (
 	"sync"
 
+	"github.com/pkg/errors"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
-	"github.com/pkg/errors"
 )
 
 type sink interface {

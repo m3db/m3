@@ -23,9 +23,9 @@ package index
 import (
 	"fmt"
 
-	"github.com/m3db/m3/src/m3ninx/idx"
-
 	"github.com/golang/mock/gomock"
+
+	"github.com/m3db/m3/src/m3ninx/idx"
 )
 
 // QueryMatcher is a gomock.Matcher that matches index.Query

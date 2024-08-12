@@ -28,6 +28,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leanovate/gopter"
+	"github.com/leanovate/gopter/gen"
+	"github.com/leanovate/gopter/prop"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
@@ -36,11 +41,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
-
-	"github.com/leanovate/gopter"
-	"github.com/leanovate/gopter/gen"
-	"github.com/leanovate/gopter/prop"
-	"github.com/stretchr/testify/require"
 )
 
 func TestFetchTaggedResultsAccumulatorClearResetsState(t *testing.T) {

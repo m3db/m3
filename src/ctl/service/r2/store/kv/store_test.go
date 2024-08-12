@@ -24,6 +24,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/ctl/service/r2"
 	r2store "github.com/m3db/m3/src/ctl/service/r2/store"
 	"github.com/m3db/m3/src/metrics/aggregation"
@@ -34,9 +37,6 @@ import (
 	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/metrics/rules/view/changes"
 	"github.com/m3db/m3/src/x/clock"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
 )
 
 func TestUpdateRuleSet(t *testing.T) {

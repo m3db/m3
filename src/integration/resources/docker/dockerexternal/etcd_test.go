@@ -28,14 +28,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/x/instrument"
-
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 const (

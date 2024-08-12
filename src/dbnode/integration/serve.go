@@ -26,6 +26,8 @@ import (
 	"net/http"
 	"strings"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
 	hjcluster "github.com/m3db/m3/src/dbnode/network/server/httpjson/cluster"
@@ -38,8 +40,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xretry "github.com/m3db/m3/src/x/retry"
-
-	"go.uber.org/zap"
 )
 
 // TestShardSetOptions is a set of test shard set options.

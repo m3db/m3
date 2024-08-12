@@ -29,12 +29,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/metrics/matcher/namespace"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3/src/x/clock"
-
-	"github.com/stretchr/testify/require"
 )
 
 var (

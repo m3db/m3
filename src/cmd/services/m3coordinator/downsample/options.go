@@ -27,6 +27,9 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/pborman/uuid"
+	"github.com/prometheus/common/model"
+
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
 	"github.com/m3db/m3/src/aggregator/client"
@@ -69,9 +72,6 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/pborman/uuid"
-	"github.com/prometheus/common/model"
 )
 
 const (

@@ -24,14 +24,14 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/golang/protobuf/proto"
+
 	"github.com/m3db/m3/src/m3ninx/generated/proto/fswriter"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/pilosa"
 	"github.com/m3db/m3/src/m3ninx/x"
-
-	"github.com/golang/protobuf/proto"
 )
 
 var (

@@ -24,12 +24,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
+
 	"github.com/m3db/m3/src/msg/producer/buffer"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
-
-	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
 )
 
 func TestBufferConfiguration(t *testing.T) {

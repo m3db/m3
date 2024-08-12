@@ -23,6 +23,10 @@ package native
 import (
 	"net/http"
 
+	opentracingext "github.com/opentracing/opentracing-go/ext"
+	opentracinglog "github.com/opentracing/opentracing-go/log"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/api/v1/route"
@@ -31,10 +35,6 @@ import (
 	"github.com/m3db/m3/src/query/util/logging"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
-
-	opentracingext "github.com/opentracing/opentracing-go/ext"
-	opentracinglog "github.com/opentracing/opentracing-go/log"
-	"go.uber.org/zap"
 )
 
 const (

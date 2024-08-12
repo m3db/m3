@@ -23,11 +23,11 @@ package consolidators
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/x/ident"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 type tag struct {

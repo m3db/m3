@@ -1,4 +1,6 @@
+//go:build test_harness
 // +build test_harness
+
 // Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -25,9 +27,10 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/integration/resources"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNewCluster(t *testing.T) {

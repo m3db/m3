@@ -27,6 +27,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
@@ -37,8 +39,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/server"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/stretchr/testify/require"
 )
 
 var (

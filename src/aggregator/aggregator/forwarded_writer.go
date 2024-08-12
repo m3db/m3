@@ -24,6 +24,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
+
 	"github.com/m3db/m3/src/aggregator/aggregation"
 	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/aggregator/hash"
@@ -34,9 +37,6 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/uber-go/tally"
-	"go.uber.org/atomic"
 )
 
 var (

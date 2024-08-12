@@ -25,15 +25,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/cluster/kv"
-	"github.com/m3db/m3/src/cluster/services"
-	integration "github.com/m3db/m3/src/integration/resources/docker/dockerexternal/etcdintegration"
-	"github.com/m3db/m3/src/x/retry"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
+
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/services"
+	integration "github.com/m3db/m3/src/integration/resources/docker/dockerexternal/etcdintegration"
+	"github.com/m3db/m3/src/x/retry"
 )
 
 func TestETCDClientGen(t *testing.T) {

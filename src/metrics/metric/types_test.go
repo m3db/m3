@@ -23,10 +23,10 @@ package metric
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
-
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
+
+	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 )
 
 func TestTypeUnmarshalYAML(t *testing.T) {

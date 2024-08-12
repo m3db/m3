@@ -24,6 +24,8 @@ import (
 	"context"
 	"fmt"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/plan"
@@ -31,8 +33,6 @@ import (
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/opentracing"
-
-	"go.uber.org/zap"
 )
 
 // State is the request state.

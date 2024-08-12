@@ -26,11 +26,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/x/ident"
-	xtime "github.com/m3db/m3/src/x/time"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 func TestSortFetchBlockResultByTimeAscending(t *testing.T) {

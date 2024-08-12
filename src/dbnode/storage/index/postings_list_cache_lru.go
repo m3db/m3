@@ -34,12 +34,12 @@ import (
 // that were resolved by running a given query against a particular segment for a given
 // field and pattern type (term vs regexp). Normally a key in the LRU would look like:
 //
-// type key struct {
-//    segmentUUID uuid.UUID
-//    field       string
-//    pattern     string
-//    patternType PatternType
-// }
+//	type key struct {
+//	   segmentUUID uuid.UUID
+//	   field       string
+//	   pattern     string
+//	   patternType PatternType
+//	}
 //
 // However, some of the postings lists that we will store in the LRU have a fixed lifecycle
 // because they reference mmap'd byte slices which will eventually be unmap'd. To prevent

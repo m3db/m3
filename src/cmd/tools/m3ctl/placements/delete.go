@@ -23,9 +23,9 @@ package placements
 import (
 	"fmt"
 
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/client"
-
 	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/client"
 )
 
 // DoDelete does the delete api calls for placements

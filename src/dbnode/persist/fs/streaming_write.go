@@ -27,12 +27,12 @@ import (
 	"math"
 	"time"
 
+	"github.com/m3db/bloom/v4"
+
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/m3db/bloom/v4"
 )
 
 // StreamingWriter writes into data fileset without intermediate buffering.

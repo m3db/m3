@@ -25,12 +25,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/stretchr/testify/require"
 )
 
 func getTestReaderIterator(rawBytes []byte) *readerIterator {

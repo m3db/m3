@@ -64,7 +64,7 @@ type valueAndMeta struct {
 	seriesMeta block.SeriesMeta
 }
 
-type lessFn func (i, j float64) bool
+type lessFn func(i, j float64) bool
 
 // Node creates an execution node
 func (o sortOp) Node(

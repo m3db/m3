@@ -27,13 +27,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+	protobuftypes "github.com/gogo/protobuf/types"
+
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/gogo/protobuf/proto"
-	protobuftypes "github.com/gogo/protobuf/types"
 )
 
 var (

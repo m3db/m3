@@ -1,4 +1,6 @@
+//go:build integration
 // +build integration
+
 //
 // Copyright (c) 2016 Uber Technologies, Inc.
 //
@@ -29,16 +31,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xclock "github.com/m3db/m3/src/x/clock"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func TestIndexMultipleNodeHighConcurrency(t *testing.T) {

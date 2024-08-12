@@ -27,10 +27,10 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/cespare/xxhash/v2"
+
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	xerrors "github.com/m3db/m3/src/x/errors"
-
-	"github.com/cespare/xxhash/v2"
 )
 
 var (

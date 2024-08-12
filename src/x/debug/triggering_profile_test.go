@@ -30,10 +30,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/x/instrument"
-
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 func TestContinuousFileProfile(t *testing.T) {

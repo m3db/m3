@@ -27,6 +27,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/dbnode/client"
@@ -38,9 +41,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xjson "github.com/m3db/m3/src/x/json"
 	xtest "github.com/m3db/m3/src/x/test"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNamespaceReadyHandler(t *testing.T) {

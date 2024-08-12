@@ -23,9 +23,9 @@ package config
 import (
 	"fmt"
 
-	xerrors "github.com/m3db/m3/src/x/errors"
-
 	"github.com/spf13/cobra"
+
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 // Args represents the CLI arguments to be set during a dtest

@@ -520,7 +520,7 @@ given by nodeNum, then fill them into the template function provided (replacing 
 
 Additional Examples:
 
-Given keys of
+# Given keys of
 
 - `stats.counts.haproxy.web.2XX`
 - `stats.counts.haproxy.web.3XX`
@@ -620,12 +620,12 @@ func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, te
 
 // groupByNode takes a serieslist and maps a callback to subgroups within as defined by a common node
 //
-//    &target=groupByNode(foo.by-function.*.*.cpu.load5,2,"sumSeries")
+//	  &target=groupByNode(foo.by-function.*.*.cpu.load5,2,"sumSeries")
 //
-//  Would return multiple series which are each the result of applying the "sumSeries" function
-//  to groups joined on the second node (0 indexed) resulting in a list of targets like
+//	Would return multiple series which are each the result of applying the "sumSeries" function
+//	to groups joined on the second node (0 indexed) resulting in a list of targets like
 //
-//    sumSeries(foo.by-function.server1.*.cpu.load5),sumSeries(foo.by-function.server2.*.cpu.load5),...
+//	  sumSeries(foo.by-function.server1.*.cpu.load5),sumSeries(foo.by-function.server2.*.cpu.load5),...
 func groupByNode(ctx *common.Context, series singlePathSpec, node int, fname string) (ts.SeriesList, error) {
 	return groupByNodes(ctx, series, fname, []int{node}...)
 }
@@ -673,13 +673,13 @@ func getMetaSeriesGrouping(seriesList singlePathSpec, nodes []int) (map[string][
 
 // Takes a serieslist and maps a callback to subgroups within as defined by multiple nodes
 //
-//      &target=groupByNodes(ganglia.server*.*.cpu.load*,"sum",1,4)
+//	&target=groupByNodes(ganglia.server*.*.cpu.load*,"sum",1,4)
 //
 // Would return multiple series which are each the result of applying the “sum” aggregation to groups joined on the
 // nodes’ list (0 indexed) resulting in a list of targets like
 //
-// 		sumSeries(ganglia.server1.*.cpu.load5),sumSeries(ganglia.server1.*.cpu.load10),sumSeries(ganglia.server1.*.cpu.load15),
-// 		sumSeries(ganglia.server2.*.cpu.load5),sumSeries(ganglia.server2.*.cpu.load10),sumSeries(ganglia.server2.*.cpu.load15),...
+//	sumSeries(ganglia.server1.*.cpu.load5),sumSeries(ganglia.server1.*.cpu.load10),sumSeries(ganglia.server1.*.cpu.load15),
+//	sumSeries(ganglia.server2.*.cpu.load5),sumSeries(ganglia.server2.*.cpu.load10),sumSeries(ganglia.server2.*.cpu.load15),...
 //
 // NOTE: if len(nodes) = 0, aggregate all series into 1 series.
 func groupByNodes(ctx *common.Context, seriesList singlePathSpec, fname string, nodes ...int) (ts.SeriesList, error) {

@@ -24,12 +24,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	xtest "github.com/m3db/m3/src/x/test"
 	xhash "github.com/m3db/m3/src/x/test/hash"
-
-	"github.com/stretchr/testify/require"
 )
 
 var (

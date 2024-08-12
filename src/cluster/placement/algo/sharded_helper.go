@@ -26,10 +26,10 @@ import (
 	"fmt"
 	"math"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/shard"
-
-	"go.uber.org/zap"
 )
 
 var (

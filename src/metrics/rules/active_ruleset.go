@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"sort"
 
+	murmur3 "github.com/m3db/stackmurmur3/v2"
+
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/filters"
 	"github.com/m3db/m3/src/metrics/metadata"
@@ -35,8 +37,6 @@ import (
 	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/query/models"
 	xerrors "github.com/m3db/m3/src/x/errors"
-
-	murmur3 "github.com/m3db/stackmurmur3/v2"
 )
 
 type activeRuleSet struct {

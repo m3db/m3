@@ -25,13 +25,13 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/metrics/transformation"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestSortRollupRuleChanges(t *testing.T) {

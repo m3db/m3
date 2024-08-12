@@ -28,11 +28,11 @@ import (
 	"sync/atomic"
 	"testing"
 
-	httpserver "github.com/m3db/m3/src/aggregator/server/http"
-	xtest "github.com/m3db/m3/src/x/test"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	httpserver "github.com/m3db/m3/src/aggregator/server/http"
+	xtest "github.com/m3db/m3/src/x/test"
 )
 
 func TestMultiServerFollowerHealthInit(t *testing.T) {

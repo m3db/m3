@@ -28,6 +28,13 @@ import (
 	"net/http"
 	"sync"
 
+	errs "github.com/pkg/errors"
+	"github.com/prometheus/prometheus/promql"
+	"github.com/prometheus/prometheus/promql/parser"
+	promstorage "github.com/prometheus/prometheus/storage"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/options"
@@ -38,13 +45,6 @@ import (
 	"github.com/m3db/m3/src/query/storage/prometheus"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	errs "github.com/pkg/errors"
-	"github.com/prometheus/prometheus/promql"
-	"github.com/prometheus/prometheus/promql/parser"
-	promstorage "github.com/prometheus/prometheus/storage"
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 // NewQueryFn creates a new promql Query.

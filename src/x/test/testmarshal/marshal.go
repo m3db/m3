@@ -22,18 +22,19 @@
 // (serialization/deserialization) behavior for types. It is intended to reduce
 // boilerplate in tests of the form:
 //
-// func TestMyTypeUnmarshals(t *testing.T) {
-// 		type MyType struct{}
-// 		var mt MyType
-// 		require.NoError(t, json.Unmarshal([]byte("{}"), &mt))
-// 		assert.Equal(t, MyType{}, mt)
-// }
+//	func TestMyTypeUnmarshals(t *testing.T) {
+//			type MyType struct{}
+//			var mt MyType
+//			require.NoError(t, json.Unmarshal([]byte("{}"), &mt))
+//			assert.Equal(t, MyType{}, mt)
+//	}
 //
 // with assertion calls:
-// func TestMyTypeUnmarshals(t *testing.T) {
-// 		type MyType struct{}
-//      testmarshal.AssertUnmarshals(t, testmarshal.JSONMarshaler, MyType{}, []byte("{}"))
-// }
+//
+//	func TestMyTypeUnmarshals(t *testing.T) {
+//			type MyType struct{}
+//	     testmarshal.AssertUnmarshals(t, testmarshal.JSONMarshaler, MyType{}, []byte("{}"))
+//	}
 package testmarshal
 
 import (
@@ -134,10 +135,10 @@ func (sm simpleMarshaler) ID() string {
 //
 // with:
 
-// func TestMyTypeRoundtrips(t *testing.T) {
-// 	type MyType struct{}
-// 	testmarshal.AssertMarshalingRoundtrips(t, testmarshal.JSONMarshaler, MyType{})
-// }
+//	func TestMyTypeRoundtrips(t *testing.T) {
+//		type MyType struct{}
+//		testmarshal.AssertMarshalingRoundtrips(t, testmarshal.JSONMarshaler, MyType{})
+//	}
 func AssertMarshalingRoundtrips(t *testing.T, marshaller Marshaler, example interface{}) bool {
 	d, err := marshaller.Marshal(example)
 	if !assert.NoError(t, err) {
@@ -180,22 +181,23 @@ func AssertUnmarshals(t *testing.T, marshaller Marshaler, expected interface{}, 
 
 // AssertMarshals checks that the given value marshals into data equal
 // to expectedData.
-//  It is intended to replace tests of the form:
 //
-// func TestMyTypeMarshals(t *testing.T) {
-// 	type MyType struct{}
-//    mt := MyType{}
-//    d, err := json.Marshal(mt)
-//    require.NoError(t, err)
-//    assert.Equal(t, d, []byte("{}"))
-// }
+//	It is intended to replace tests of the form:
+//
+//	func TestMyTypeMarshals(t *testing.T) {
+//		type MyType struct{}
+//	   mt := MyType{}
+//	   d, err := json.Marshal(mt)
+//	   require.NoError(t, err)
+//	   assert.Equal(t, d, []byte("{}"))
+//	}
 //
 // with:
 //
-// func TestMyTypeUnmarshals(t *testing.T) {
-// 	 type MyType struct{}
-// 	 testmarshal.AssertMarshals(t, testmarshal.JSONMarshaler, MyType{}, []byte("{}"))
-// }
+//	func TestMyTypeUnmarshals(t *testing.T) {
+//		 type MyType struct{}
+//		 testmarshal.AssertMarshals(t, testmarshal.JSONMarshaler, MyType{}, []byte("{}"))
+//	}
 func AssertMarshals(t *testing.T, marshaller Marshaler, toMarshal interface{}, expectedData []byte) bool {
 	marshalled, err := marshaller.Marshal(toMarshal)
 	if !assert.NoError(t, err) {

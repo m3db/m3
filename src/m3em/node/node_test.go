@@ -28,14 +28,14 @@ import (
 	"os"
 	"testing"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/m3em/build"
 	"github.com/m3db/m3/src/m3em/generated/proto/m3em"
 	mockfs "github.com/m3db/m3/src/m3em/os/fs/mocks"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
 )
 
 const defaultRandSeed = 1234567890

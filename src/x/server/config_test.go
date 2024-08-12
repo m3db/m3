@@ -24,10 +24,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/x/instrument"
-
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
+
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 func TestServerConfiguration(t *testing.T) {

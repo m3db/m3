@@ -25,11 +25,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/test/compare"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/test/compare"
 )
 
 var scalarResolverTests = []struct {
@@ -114,4 +114,3 @@ func TestResolveStringWhenExprIsNil(t *testing.T) {
 	_, err := resolveStringArgument(nil)
 	require.Error(t, err)
 }
-

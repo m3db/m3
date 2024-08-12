@@ -26,6 +26,9 @@ import (
 	"path"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
@@ -34,9 +37,6 @@ import (
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	"github.com/gogo/protobuf/jsonpb"
-	"go.uber.org/zap"
 )
 
 const (

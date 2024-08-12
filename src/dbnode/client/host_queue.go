@@ -29,15 +29,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber-go/tally"
+	"github.com/uber/tchannel-go/thrift"
+
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
-
-	"github.com/uber-go/tally"
-	"github.com/uber/tchannel-go/thrift"
 )
 
 const _defaultHostQueueOpsArraySize = 8

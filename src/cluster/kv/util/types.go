@@ -21,9 +21,9 @@
 package util
 
 import (
-	"github.com/m3db/m3/src/cluster/kv"
-
 	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/cluster/kv"
 )
 
 // ValidateFn validates an update from KV.

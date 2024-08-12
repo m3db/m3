@@ -30,17 +30,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/cluster/generated/proto/kvtest"
-	"github.com/m3db/m3/src/cluster/kv"
-	xclock "github.com/m3db/m3/src/x/clock"
-	"github.com/m3db/m3/src/x/retry"
-
 	"github.com/golang/protobuf/proto"
-	integration "github.com/m3db/m3/src/integration/resources/docker/dockerexternal/etcdintegration"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"golang.org/x/net/context"
+
+	"github.com/m3db/m3/src/cluster/generated/proto/kvtest"
+	"github.com/m3db/m3/src/cluster/kv"
+	integration "github.com/m3db/m3/src/integration/resources/docker/dockerexternal/etcdintegration"
+	xclock "github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/retry"
 )
 
 func TestValue(t *testing.T) {

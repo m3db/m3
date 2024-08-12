@@ -24,13 +24,13 @@ package dockerm3
 import (
 	"time"
 
+	"github.com/ory/dockertest/v3"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/integration/resources"
 	xdockertest "github.com/m3db/m3/src/x/dockertest"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/ory/dockertest/v3"
-	"go.uber.org/zap"
 )
 
 const timeout = time.Second * 60

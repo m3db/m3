@@ -23,12 +23,12 @@ package client
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/topology/testutil"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/stretchr/testify/require"
 )
 
 var (

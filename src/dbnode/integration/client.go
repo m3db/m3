@@ -25,6 +25,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber/tchannel-go"
+	"github.com/uber/tchannel-go/thrift"
+
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
@@ -36,9 +39,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/uber/tchannel-go"
-	"github.com/uber/tchannel-go/thrift"
 )
 
 // TestTChannelClient is a test only TChannel client that exposes db methods.

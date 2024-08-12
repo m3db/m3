@@ -29,6 +29,11 @@ import (
 	"sync"
 	"time"
 
+	opentracinglog "github.com/opentracing/opentracing-go/log"
+	"github.com/uber-go/tally"
+	"github.com/uber/tchannel-go/thrift"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -60,11 +65,6 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	tbinarypool "github.com/m3db/m3/src/x/thrift"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	opentracinglog "github.com/opentracing/opentracing-go/log"
-	"github.com/uber-go/tally"
-	"github.com/uber/tchannel-go/thrift"
-	"go.uber.org/zap"
 )
 
 var (
@@ -440,9 +440,10 @@ func (s *service) Bootstrapped(ctx thrift.Context) (*rpc.NodeBootstrappedResult_
 // BootstrappedInPlacementOrNoPlacement is designed to be used with cluster
 // management tools like k8s that expected an endpoint that will return
 // success if the node either:
-// 1) Has no cluster placement set yet.
-// 2) Is bootstrapped and durable, meaning it is bootstrapped and is able
-//    to bootstrap the shards it owns from it's own local disk.
+//  1. Has no cluster placement set yet.
+//  2. Is bootstrapped and durable, meaning it is bootstrapped and is able
+//     to bootstrap the shards it owns from it's own local disk.
+//
 // This is useful in addition to the Bootstrapped RPC method as it helps
 // progress node addition/removal/modifications when no placement is set
 // at all and therefore the node has not been able to bootstrap yet.

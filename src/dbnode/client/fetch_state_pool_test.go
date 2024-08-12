@@ -23,11 +23,11 @@ package client
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/x/sampler"
-
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/sampler"
 )
 
 func TestFetchStatePool(t *testing.T) {

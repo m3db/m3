@@ -23,13 +23,13 @@ package storage
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/ts"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestNewWriteQueryValidateTags(t *testing.T) {

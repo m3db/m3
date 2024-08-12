@@ -24,11 +24,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/m3db/m3/src/dbnode/ts"
 	xts "github.com/m3db/m3/src/query/ts"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestAccumulator(t *testing.T) {

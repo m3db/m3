@@ -1,4 +1,6 @@
+//go:build big
 // +build big
+
 //
 // Copyright (c) 2019 Uber Technologies, Inc.
 //
@@ -31,12 +33,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3/src/x/context"
-	xtime "github.com/m3db/m3/src/x/time"
-
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/desc/builder"
@@ -45,6 +41,12 @@ import (
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/x/context"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (

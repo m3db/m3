@@ -24,11 +24,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/models"
-	xtime "github.com/m3db/m3/src/x/time"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/query/models"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 func generateDatapoints(t xtime.UnixNano, times []int) Datapoints {

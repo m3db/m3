@@ -24,9 +24,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestDatabaseIsBootstrappedAndDurable(t *testing.T) {

@@ -26,14 +26,14 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/fortytw2/leaktest"
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/x/server"
 	xtest "github.com/m3db/m3/src/x/test"
-
-	"github.com/fortytw2/leaktest"
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
 )
 
 func TestServerWithSingletonMessageProcessor(t *testing.T) {

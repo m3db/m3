@@ -24,13 +24,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	schema "github.com/m3db/m3/src/aggregator/generated/proto/flush"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/x/clock"
 	xsync "github.com/m3db/m3/src/x/sync"
-
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 const (

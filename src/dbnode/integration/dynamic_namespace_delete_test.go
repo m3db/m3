@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 // Copyright (c) 2016 Uber Technologies, Inc.
@@ -26,16 +27,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/protobuf/proto"
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/cluster/integration/etcd"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/golang/protobuf/proto"
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 func TestDynamicNamespaceDelete(t *testing.T) {

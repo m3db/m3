@@ -25,9 +25,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/graphite/context"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/query/graphite/context"
 )
 
 func TestLTTB(t *testing.T) {

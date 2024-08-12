@@ -32,6 +32,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
+	"github.com/pkg/profile"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -40,10 +44,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/davecgh/go-spew/spew"
-	"github.com/pkg/profile"
-	"github.com/stretchr/testify/require"
 )
 
 // BenchmarkBootstrapIndex allows for testing indexing bootstrap time with the

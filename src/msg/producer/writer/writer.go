@@ -25,14 +25,14 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/topic"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/watch"
-
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 var (

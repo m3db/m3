@@ -25,11 +25,11 @@ import (
 	"testing"
 	"time"
 
-	hb "github.com/m3db/m3/src/m3em/generated/proto/heartbeat"
-	"github.com/m3db/m3/src/x/instrument"
-
 	"github.com/stretchr/testify/require"
 	context "golang.org/x/net/context"
+
+	hb "github.com/m3db/m3/src/m3em/generated/proto/heartbeat"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 var (

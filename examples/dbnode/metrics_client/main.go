@@ -27,13 +27,13 @@ import (
 	"log"
 	"time"
 
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	yaml "gopkg.in/yaml.v2"
 )
 
 const (
@@ -84,8 +84,8 @@ func main() {
 // runTaggedExample demonstrates how to write "tagged" (indexed) metrics data
 // and then read it back out again by either:
 //
-//   1. Querying for a set of time series using an inverted index query
-//   2. Querying for a specific time series by its ID directly
+//  1. Querying for a set of time series using an inverted index query
+//  2. Querying for a specific time series by its ID directly
 func runTaggedExample(session client.Session) {
 	log.Printf("------ run tagged example ------")
 	var (

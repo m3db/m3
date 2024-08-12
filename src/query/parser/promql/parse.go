@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"time"
 
+	pql "github.com/prometheus/prometheus/promql/parser"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/functions/binary"
 	"github.com/m3db/m3/src/query/functions/lazy"
@@ -31,8 +33,6 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	pql "github.com/prometheus/prometheus/promql/parser"
 )
 
 type promParser struct {

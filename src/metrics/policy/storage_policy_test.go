@@ -26,12 +26,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/m3db/m3/src/metrics/generated/proto/policypb"
 	"github.com/m3db/m3/src/x/test/testmarshal"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v2"
 )
 
 var (

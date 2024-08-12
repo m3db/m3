@@ -23,15 +23,15 @@ package kv
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/cluster/client"
-	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
-	"github.com/m3db/m3/src/cluster/kv"
-	"github.com/m3db/m3/src/cluster/kv/mem"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	gvalidator "gopkg.in/validator.v2"
 	yaml "gopkg.in/yaml.v2"
+
+	"github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/kv/mem"
 )
 
 func TestNamespaceValidatorConfiguration(t *testing.T) {

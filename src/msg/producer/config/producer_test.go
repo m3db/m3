@@ -23,13 +23,13 @@ package config
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/cluster/client"
-	"github.com/m3db/m3/src/x/instrument"
-	xio "github.com/m3db/m3/src/x/io"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
+
+	"github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/x/instrument"
+	xio "github.com/m3db/m3/src/x/io"
 )
 
 func TestProducerConfiguration(t *testing.T) {

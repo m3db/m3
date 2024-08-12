@@ -25,6 +25,10 @@ import (
 	"io/ioutil"
 	"time"
 
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cluster/placement"
 	m3emnode "github.com/m3db/m3/src/dbnode/x/m3em/node"
@@ -33,10 +37,6 @@ import (
 	"github.com/m3db/m3/src/m3em/node"
 	"github.com/m3db/m3/src/m3em/x/grpc"
 	xconfig "github.com/m3db/m3/src/x/config"
-
-	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 // Configuration is a collection of knobs to control test behavior

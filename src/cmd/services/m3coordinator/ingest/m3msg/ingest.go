@@ -24,6 +24,9 @@ import (
 	"bytes"
 	"context"
 
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
 	"github.com/m3db/m3/src/metrics/metric/id"
@@ -41,9 +44,6 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 // Options configures the ingester.

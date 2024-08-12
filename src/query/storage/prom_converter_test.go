@@ -25,6 +25,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	dts "github.com/m3db/m3/src/dbnode/ts"
@@ -38,10 +42,6 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func buildFetchOpts() *FetchOptions {

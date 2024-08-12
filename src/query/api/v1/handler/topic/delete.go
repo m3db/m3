@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"go.uber.org/zap"
+
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
@@ -33,8 +35,6 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	"go.uber.org/zap"
 )
 
 const (

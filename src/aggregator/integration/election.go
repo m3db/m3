@@ -23,12 +23,12 @@ package integration
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/cluster/services"
-	"github.com/m3db/m3/src/cluster/services/leader"
-
-	integration "github.com/m3db/m3/src/integration/resources/docker/dockerexternal/etcdintegration"
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
+
+	"github.com/m3db/m3/src/cluster/services"
+	"github.com/m3db/m3/src/cluster/services/leader"
+	integration "github.com/m3db/m3/src/integration/resources/docker/dockerexternal/etcdintegration"
 )
 
 var (

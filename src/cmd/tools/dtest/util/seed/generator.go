@@ -24,14 +24,14 @@ import (
 	"fmt"
 	"math/rand"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	ns "github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"go.uber.org/zap"
 )
 
 // specific to data generation

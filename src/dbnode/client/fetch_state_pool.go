@@ -23,11 +23,11 @@ package client
 import (
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/sampler"
-
-	"go.uber.org/zap"
 )
 
 type fetchStatePool interface {

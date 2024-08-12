@@ -23,14 +23,14 @@ package storage
 import (
 	"sync"
 
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
 	"github.com/m3db/m3/src/dbnode/persist"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 type coldFlushManager struct {

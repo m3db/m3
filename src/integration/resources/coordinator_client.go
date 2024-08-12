@@ -33,6 +33,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
+	"github.com/golang/snappy"
+	"github.com/prometheus/common/model"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/placementhandler"
 	"github.com/m3db/m3/src/query/api/v1/handler/graphite"
@@ -44,13 +51,6 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/x/headers"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	"github.com/gogo/protobuf/jsonpb"
-	"github.com/gogo/protobuf/proto"
-	"github.com/golang/snappy"
-	"github.com/prometheus/common/model"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 var errUnknownServiceType = errors.New("unknown service type")
@@ -454,8 +454,9 @@ func (c *CoordinatorClient) DeleteNamespace(namespaceID string) error {
 	return nil
 }
 
-//nolint:dupl
 // InitM3msgTopic initializes an m3msg topic
+//
+//nolint:dupl
 func (c *CoordinatorClient) InitM3msgTopic(
 	topicOpts M3msgTopicOptions,
 	initRequest admin.TopicInitRequest,
@@ -508,8 +509,9 @@ func (c *CoordinatorClient) GetM3msgTopic(
 	return response, nil
 }
 
-//nolint:dupl
 // AddM3msgTopicConsumer adds a consumer service to an m3msg topic
+//
+//nolint:dupl
 func (c *CoordinatorClient) AddM3msgTopicConsumer(
 	topicOpts M3msgTopicOptions,
 	addRequest admin.TopicAddRequest,

@@ -21,9 +21,9 @@
 package test
 
 import (
-	"github.com/m3db/m3/src/x/ident"
-
 	"github.com/google/go-cmp/cmp"
+
+	"github.com/m3db/m3/src/x/ident"
 )
 
 // IdentTransformer transforms any ident.ID into ident.BytesID to make it easier for comparison.

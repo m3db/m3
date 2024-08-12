@@ -24,11 +24,11 @@ import (
 	"net/http"
 	"sync"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	"go.uber.org/zap"
 )
 
 type seriesLoadHandler interface {

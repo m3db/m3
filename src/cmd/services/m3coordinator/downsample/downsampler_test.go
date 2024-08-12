@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-//nolint: dupl
+// nolint: dupl
 package downsample
 
 import (
@@ -28,6 +28,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/aggregator/client"
 	clusterclient "github.com/m3db/m3/src/cluster/client"
@@ -60,11 +65,6 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 var (

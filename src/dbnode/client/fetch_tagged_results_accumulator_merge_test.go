@@ -26,6 +26,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
@@ -38,9 +41,6 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -374,7 +374,7 @@ func (ts testSerieses) nsplit(n int) []testSerieses {
 	return groups
 }
 
-//nolint: unparam
+// nolint: unparam
 func (ts testSerieses) addDatapoints(numPerSeries int, start, end xtime.UnixNano) {
 	dps := newTestDatapoints(numPerSeries, start, end)
 	for i := range ts {

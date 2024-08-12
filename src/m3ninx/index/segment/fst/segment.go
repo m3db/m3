@@ -26,6 +26,9 @@ import (
 	"io"
 	"sync"
 
+	pilosaroaring "github.com/m3dbx/pilosa/roaring"
+	"github.com/m3dbx/vellum"
+
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/generated/proto/fswriter"
 	"github.com/m3db/m3/src/m3ninx/index"
@@ -40,9 +43,6 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/mmap"
-
-	pilosaroaring "github.com/m3dbx/pilosa/roaring"
-	"github.com/m3dbx/vellum"
 )
 
 var (

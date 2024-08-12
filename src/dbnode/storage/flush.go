@@ -25,17 +25,17 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/pborman/uuid"
+	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/pborman/uuid"
-	"github.com/uber-go/tally"
-	"go.uber.org/atomic"
-	"go.uber.org/zap"
 )
 
 var errFlushOperationsInProgress = errors.New("flush operations already in progress")

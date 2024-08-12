@@ -26,6 +26,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mauricelam/genny/generic"
+	"github.com/willf/bitset"
+	"go.uber.org/zap"
+
 	raggregation "github.com/m3db/m3/src/aggregator/aggregation"
 	maggregation "github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/metadata"
@@ -35,10 +39,6 @@ import (
 	"github.com/m3db/m3/src/metrics/transformation"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/mauricelam/genny/generic"
-	"github.com/willf/bitset"
-	"go.uber.org/zap"
 )
 
 type typeSpecificAggregation interface {
@@ -237,7 +237,7 @@ func (e *GenericElem) AddValue(timestamp time.Time, value float64, annotation []
 // AddUnique adds a metric value from a given source at a given timestamp.
 // If previous values from the same source have already been added to the
 // same aggregation, the incoming value is discarded.
-//nolint: dupl
+// nolint: dupl
 func (e *GenericElem) AddUnique(
 	timestamp time.Time,
 	metric aggregated.ForwardedMetric,
@@ -682,7 +682,7 @@ func (e *GenericElem) insertDirty(alignedStart xtime.UnixNano) {
 }
 
 // find finds the aggregation for a given time, or returns nil.
-//nolint: dupl
+// nolint: dupl
 func (e *GenericElem) find(alignedStartNanos xtime.UnixNano) (timedAggregation, error) {
 	e.RLock()
 	if e.closed {
@@ -700,7 +700,7 @@ func (e *GenericElem) find(alignedStartNanos xtime.UnixNano) (timedAggregation, 
 
 // findOrCreate finds the aggregation for a given time, or creates one
 // if it doesn't exist.
-//nolint: dupl
+// nolint: dupl
 func (e *GenericElem) findOrCreate(
 	alignedStartNanos int64,
 	createOpts createAggregationOptions,

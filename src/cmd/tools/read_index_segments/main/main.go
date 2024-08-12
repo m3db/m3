@@ -31,15 +31,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pborman/getopt"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/query/util/json"
 	"github.com/m3db/m3/src/x/ident"
 	xsync "github.com/m3db/m3/src/x/sync"
 	"github.com/m3db/m3/src/x/unsafe"
-
-	"github.com/pborman/getopt"
-	"go.uber.org/zap"
 )
 
 var (

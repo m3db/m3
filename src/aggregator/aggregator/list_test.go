@@ -28,6 +28,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3/src/aggregator/client"
@@ -40,9 +43,6 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/x/clock"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
 )
 
 func TestBaseMetricListPushBackElemWithDefaultPipeline(t *testing.T) {

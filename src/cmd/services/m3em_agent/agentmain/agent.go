@@ -28,6 +28,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pborman/getopt"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+	"google.golang.org/grpc/credentials"
+
 	m3emconfig "github.com/m3db/m3/src/cmd/services/m3em_agent/config"
 	"github.com/m3db/m3/src/m3em/agent"
 	"github.com/m3db/m3/src/m3em/generated/proto/m3em"
@@ -36,11 +41,6 @@ import (
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/instrument"
 	xtcp "github.com/m3db/m3/src/x/tcp"
-
-	"github.com/pborman/getopt"
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
-	"google.golang.org/grpc/credentials"
 )
 
 // Run runs a m3em_agent process

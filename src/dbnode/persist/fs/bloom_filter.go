@@ -24,6 +24,7 @@ import (
 	"os"
 
 	"github.com/m3db/bloom/v4"
+
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/x/mmap"
 )

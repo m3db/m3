@@ -1,3 +1,4 @@
+//go:build big
 // +build big
 
 // Copyright (c) 2017 Uber Technologies, Inc.
@@ -30,6 +31,11 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/leanovate/gopter"
+	"github.com/leanovate/gopter/gen"
+	"github.com/leanovate/gopter/prop"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
@@ -37,11 +43,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/mmap"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/leanovate/gopter"
-	"github.com/leanovate/gopter/gen"
-	"github.com/leanovate/gopter/prop"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestIndexLookupWriteRead(t *testing.T) {

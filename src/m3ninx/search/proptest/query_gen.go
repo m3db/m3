@@ -24,12 +24,12 @@ import (
 	"bytes"
 	"reflect"
 
+	"github.com/leanovate/gopter"
+	"github.com/leanovate/gopter/gen"
+
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/query"
-
-	"github.com/leanovate/gopter"
-	"github.com/leanovate/gopter/gen"
 )
 
 // GenAllQuery generates an all query.

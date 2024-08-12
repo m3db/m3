@@ -23,9 +23,9 @@ package aggregation
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/metrics/aggregation"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/metrics/aggregation"
 )
 
 func TestStdev(t *testing.T) {

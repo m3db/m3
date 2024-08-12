@@ -24,6 +24,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
@@ -36,8 +38,6 @@ import (
 	xnet "github.com/m3db/m3/src/x/net"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
-
-	"github.com/uber-go/tally"
 )
 
 // ConnectionConfiguration configs the connection options.

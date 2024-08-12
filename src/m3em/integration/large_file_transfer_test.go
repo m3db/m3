@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+//go:build integration
 // +build integration
 
 package integration
@@ -28,9 +29,9 @@ import (
 	"path"
 	"testing"
 
-	"github.com/m3db/m3/src/m3em/build"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/m3em/build"
 )
 
 func TestLargeFileTransfer(t *testing.T) {

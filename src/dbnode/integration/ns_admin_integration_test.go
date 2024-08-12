@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 // Copyright (c) 2019 Uber Technologies, Inc.
@@ -25,12 +26,13 @@ package integration
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/cluster/integration/etcd"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace/kvadmin"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -71,7 +73,7 @@ func deployNamespace(t *testing.T) (kv.Store, kvadmin.NamespaceMetadataAdminServ
 	require.NoError(t, err)
 	// Must start the embedded server before closing.
 	require.NoError(t, kv.Start())
-	cleanup := func() {require.NoError(t, kv.Close())}
+	cleanup := func() { require.NoError(t, kv.Close()) }
 
 	c, err := kv.ConfigServiceClient()
 	require.NoError(t, err)
@@ -126,4 +128,3 @@ func TestNamespaceAdmin_LoadSchemaFromEtcd(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, deployID, actualDesc.DeployId())
 }
-

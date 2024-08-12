@@ -30,14 +30,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/x/clock"
-
 	"github.com/golang/mock/gomock"
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/x/clock"
 )
 
 const (

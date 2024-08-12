@@ -21,9 +21,9 @@
 package handler
 
 import (
-	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
-
 	"github.com/uber-go/tally"
+
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
 )
 
 // Handler handles aggregated metrics alongside their policies.

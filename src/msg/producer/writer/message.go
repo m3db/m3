@@ -21,11 +21,11 @@
 package writer
 
 import (
+	"go.uber.org/atomic"
+
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/protocol/proto"
-
-	"go.uber.org/atomic"
 )
 
 type message struct {

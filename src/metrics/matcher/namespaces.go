@@ -25,6 +25,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/util/runtime"
 	"github.com/m3db/m3/src/metrics/aggregation"
@@ -38,9 +41,6 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xos "github.com/m3db/m3/src/x/os"
 	"github.com/m3db/m3/src/x/watch"
-
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 var (

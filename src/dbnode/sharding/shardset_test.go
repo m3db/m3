@@ -23,9 +23,10 @@ package sharding
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/stretchr/testify/require"
 )
 
 func TestShardSet(t *testing.T) {

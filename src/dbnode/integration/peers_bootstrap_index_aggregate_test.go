@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 // Copyright (c) 2019 Uber Technologies, Inc.
@@ -26,6 +27,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
@@ -34,8 +37,6 @@ import (
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {

@@ -24,11 +24,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/m3db/m3/src/cluster/generated/proto/changesetpb"
-	"github.com/m3db/m3/src/cluster/kv"
-
 	"github.com/golang/protobuf/proto"
 	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/cluster/generated/proto/changesetpb"
+	"github.com/m3db/m3/src/cluster/kv"
 )
 
 var (

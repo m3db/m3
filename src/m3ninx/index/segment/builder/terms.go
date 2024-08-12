@@ -23,8 +23,9 @@ package builder
 import (
 	"bytes"
 
-	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/twotwotwo/sorts"
+
+	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
 type terms struct {

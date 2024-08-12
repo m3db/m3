@@ -24,9 +24,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/m3db/m3/src/m3em/checksum"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/m3em/checksum"
 )
 
 func TestIterChecksumLargeBuffer(t *testing.T) {

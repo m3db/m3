@@ -24,10 +24,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestWatcherConfiguration(t *testing.T) {

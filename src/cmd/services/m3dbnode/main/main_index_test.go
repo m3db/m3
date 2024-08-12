@@ -1,4 +1,6 @@
+//go:build big
 // +build big
+
 //
 // Copyright (c) 2017 Uber Technologies, Inc.
 //
@@ -33,6 +35,10 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/integration/etcd"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
@@ -47,10 +53,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 // TestIndexEnabledServer tests booting a server using file based configuration.

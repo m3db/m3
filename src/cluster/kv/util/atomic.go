@@ -21,9 +21,9 @@
 package util
 
 import (
-	"github.com/m3db/m3/src/cluster/kv"
-
 	"go.uber.org/atomic"
+
+	"github.com/m3db/m3/src/cluster/kv"
 )
 
 // WatchAndUpdateAtomicBool sets up a watch with validation for an atomic bool

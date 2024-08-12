@@ -26,15 +26,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/cluster/services"
-	"github.com/m3db/m3/src/cluster/services/leader/campaign"
-	"github.com/m3db/m3/src/cluster/services/leader/election"
-
-	integration "github.com/m3db/m3/src/integration/resources/docker/dockerexternal/etcdintegration"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"golang.org/x/net/context"
+
+	"github.com/m3db/m3/src/cluster/services"
+	"github.com/m3db/m3/src/cluster/services/leader/campaign"
+	"github.com/m3db/m3/src/cluster/services/leader/election"
+	integration "github.com/m3db/m3/src/integration/resources/docker/dockerexternal/etcdintegration"
 )
 
 var (

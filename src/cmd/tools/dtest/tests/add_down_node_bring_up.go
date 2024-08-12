@@ -21,10 +21,10 @@
 package dtests
 
 import (
+	"github.com/spf13/cobra"
+
 	"github.com/m3db/m3/src/cmd/tools/dtest/harness"
 	"github.com/m3db/m3/src/m3em/node"
-
-	"github.com/spf13/cobra"
 )
 
 var (

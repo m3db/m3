@@ -25,10 +25,10 @@ import (
 	"fmt"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/cluster/kv"
-
-	"go.uber.org/zap"
 )
 
 var (

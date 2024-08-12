@@ -24,10 +24,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/m3db/m3/src/metrics/metric/aggregated"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/metrics/metric/aggregated"
 )
 
 func TestMultiWriterWriteNoError(t *testing.T) {

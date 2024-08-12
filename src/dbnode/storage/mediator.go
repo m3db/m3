@@ -25,14 +25,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 type (
@@ -218,8 +218,8 @@ func (m *mediator) Close() error {
 // The mediator mediates the relationship between ticks and warm flushes/snapshots.
 //
 // For example, the requirements to perform a flush are:
-// 		1) currentTime > blockStart.Add(blockSize).Add(bufferPast)
-// 		2) node is not bootstrapping (technically shard is not bootstrapping)
+//  1. currentTime > blockStart.Add(blockSize).Add(bufferPast)
+//  2. node is not bootstrapping (technically shard is not bootstrapping)
 //
 // Similarly, there is logic in the Tick flow for removing shard flush states from a map so that it doesn't
 // grow infinitely for nodes that are not restarted. If the Tick path measured the current time when it made that
@@ -357,7 +357,8 @@ func (m *mediator) IsOpen() bool {
 // with a consistent view of time as the tick it is on. They don't necessarily need to start on the same tick. See the
 // diagram below for an example case.
 //
-//  ____________       ___________          _________________
+//	____________       ___________          _________________
+//
 // | Flush (t0) |     | Tick (t0) |        | Cold Flush (t0) |
 // |            |     |           |        |                 |
 // |            |     |___________|        |                 |
@@ -367,11 +368,13 @@ func (m *mediator) IsOpen() bool {
 // |            |     |___________|        |                 |
 // |            |      ___________         |                 |
 // |____________|     | Tick (t0) |        |                 |
-//  barrier.wait()    |           |        |                 |
-//                    |___________|        |                 |
-//                    mediatorTime = t1    |                 |
-//                    barrier.release()    |                 |
-//  ____________       ___________         |                 |
+//
+//	barrier.wait()    |           |        |                 |
+//	                  |___________|        |                 |
+//	                  mediatorTime = t1    |                 |
+//	                  barrier.release()    |                 |
+//	____________       ___________         |                 |
+//
 // | Flush (t1) |     | Tick (t1) |        |_________________|
 // |            |     |           |         barrier.wait()
 // |            |     |___________|
@@ -380,26 +383,28 @@ func (m *mediator) IsOpen() bool {
 // |            |       ___________         _________________
 // |            |      | Tick (t2) |       | Cold Flush (t2) |
 // |____________|      |           |       |                 |
-//  barrier.wait()     |___________|       |                 |
-//                     mediatorTime = t3   |                 |
-//                     barrier.release()   |                 |
-//   ____________       ___________        |                 |
-//  | Flush (t3) |     | Tick (t3) |       |                 |
-//  |            |     |           |       |                 |
-//  |            |     |___________|       |                 |
-//  |            |      ___________        |                 |
-//  |            |     | Tick (t3) |       |                 |
-//  |            |     |           |       |                 |
-//  |            |     |___________|       |                 |
-//  |            |      ___________        |                 |
-//  |____________|     | Tick (t3) |       |_________________|
-//   barrier.wait()    |           |        barrier.wait()
-//                     |___________|
-//                     mediatorTime = t4
-//                     barrier.release()
-//   ____________       ___________         _________________
-//  | Flush (t4) |     | Tick (t4) |       | Cold Flush (t4) |
-//  |            |     |           |       |                 |
+//
+//	barrier.wait()     |___________|       |                 |
+//	                   mediatorTime = t3   |                 |
+//	                   barrier.release()   |                 |
+//	 ____________       ___________        |                 |
+//	| Flush (t3) |     | Tick (t3) |       |                 |
+//	|            |     |           |       |                 |
+//	|            |     |___________|       |                 |
+//	|            |      ___________        |                 |
+//	|            |     | Tick (t3) |       |                 |
+//	|            |     |           |       |                 |
+//	|            |     |___________|       |                 |
+//	|            |      ___________        |                 |
+//	|____________|     | Tick (t3) |       |_________________|
+//	 barrier.wait()    |           |        barrier.wait()
+//	                   |___________|
+//	                   mediatorTime = t4
+//	                   barrier.release()
+//	 ____________       ___________         _________________
+//	| Flush (t4) |     | Tick (t4) |       | Cold Flush (t4) |
+//	|            |     |           |       |                 |
+//
 // ------------------------------------------------------------
 type mediatorTimeBarrier struct {
 	sync.Mutex

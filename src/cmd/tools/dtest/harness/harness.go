@@ -33,6 +33,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+	"go.uber.org/zap"
+
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
@@ -56,9 +59,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtcp "github.com/m3db/m3/src/x/tcp"
-
-	"github.com/gogo/protobuf/proto"
-	"go.uber.org/zap"
 )
 
 const (

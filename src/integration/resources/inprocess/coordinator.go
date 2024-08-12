@@ -32,6 +32,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/prometheus/common/model"
+	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
+
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/integration/resources"
 	nettest "github.com/m3db/m3/src/integration/resources/net"
@@ -42,10 +46,6 @@ import (
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/headers"
 	xos "github.com/m3db/m3/src/x/os"
-
-	"github.com/prometheus/common/model"
-	"go.uber.org/zap"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -53,9 +53,10 @@ const (
 	shutdownTimeout  = time.Minute
 )
 
-//nolint:maligned
 // Coordinator is an in-process implementation of resources.Coordinator for use
 // in integration tests.
+//
+//nolint:maligned
 type Coordinator struct {
 	cfg      config.Configuration
 	client   resources.CoordinatorClient
@@ -69,8 +70,9 @@ type Coordinator struct {
 	shutdownCh  <-chan struct{}
 }
 
-//nolint:maligned
 // CoordinatorOptions are options for starting a coordinator server.
+//
+//nolint:maligned
 type CoordinatorOptions struct {
 	// GeneratePorts will automatically update the config to use open ports
 	// if set to true. If false, configuration is used as-is re: ports.
@@ -115,10 +117,10 @@ func NewCoordinatorFromYAML(yamlCfg string, opts CoordinatorOptions) (resources.
 // some behavior. For example, assuming we have a running DB node already, we could
 // do the following to create a new namespace and write to it (note: ignoring error checking):
 //
-//    coord, _ := NewCoordinatorFromYAML(defaultCoordConfig, CoordinatorOptions{})
-//    coord.AddNamespace(admin.NamespaceAddRequest{...})
-//    coord.WaitForNamespace(namespaceName)
-//    coord.WriteProm("cpu", map[string]string{"host", host}, samples)
+//	coord, _ := NewCoordinatorFromYAML(defaultCoordConfig, CoordinatorOptions{})
+//	coord.AddNamespace(admin.NamespaceAddRequest{...})
+//	coord.WaitForNamespace(namespaceName)
+//	coord.WriteProm("cpu", map[string]string{"host", host}, samples)
 //
 // The coordinator will start up as you specify in your config. However, there is some
 // helper logic to avoid port and filesystem collisions when spinning up multiple components
@@ -215,6 +217,7 @@ func NewEmbeddedCoordinator(d *DBNode) (resources.Coordinator, error) {
 }
 
 // Start is the start method for the coordinator.
+//
 //nolint:dupl
 func (c *Coordinator) Start() {
 	if c.started {

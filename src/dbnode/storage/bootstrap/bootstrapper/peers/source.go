@@ -391,10 +391,11 @@ type seriesBlocks struct {
 
 // fetchBootstrapBlocksFromPeers loops through all the provided ranges for a given shard and
 // fetches all the bootstrap blocks from the appropriate peers.
-// 		Persistence enabled case: Immediately add the results to the bootstrap result
-// 		Persistence disabled case: Don't add the results yet, but push a flush into the
-// 						  persistenceQueue. The persistenceQueue worker will eventually
-// 						  add the results once its performed the flush.
+//
+//	Persistence enabled case: Immediately add the results to the bootstrap result
+//	Persistence disabled case: Don't add the results yet, but push a flush into the
+//					  persistenceQueue. The persistenceQueue worker will eventually
+//					  add the results once its performed the flush.
 func (s *peersSource) fetchBootstrapBlocksFromPeers(
 	shard uint32,
 	ranges xtime.Ranges,

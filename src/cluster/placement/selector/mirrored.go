@@ -26,9 +26,9 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/m3db/m3/src/cluster/placement"
-
 	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/cluster/placement"
 )
 
 var (

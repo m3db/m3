@@ -29,15 +29,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+
 	schema "github.com/m3db/m3/src/aggregator/generated/proto/flush"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/services/leader/campaign"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/x/retry"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
 )
 
 func TestElectionStateJSONMarshal(t *testing.T) {

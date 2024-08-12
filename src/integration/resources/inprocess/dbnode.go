@@ -31,6 +31,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
+
 	"github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3dbnode/server"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
@@ -41,10 +45,6 @@ import (
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/config/hostid"
 	xos "github.com/m3db/m3/src/x/os"
-
-	"github.com/google/uuid"
-	"go.uber.org/zap"
-	"gopkg.in/yaml.v2"
 )
 
 // TODO(nate): make configurable
@@ -64,8 +64,9 @@ type DBNode struct {
 	tchanClient *integration.TestTChannelClient
 }
 
-//nolint:maligned
 // DBNodeOptions are options for starting a DB node server.
+//
+//nolint:maligned
 type DBNodeOptions struct {
 	// GeneratePorts will automatically update the config to use open ports
 	// if set to true. If false, configuration is used as-is re: ports.
@@ -113,10 +114,10 @@ func NewDBNodeFromYAML(yamlCfg string, opts DBNodeOptions) (resources.Node, erro
 // some behavior. For example, assuming we have a valid placement available already we
 // could do the following to read and write to a namespace (note: ignoring error checking):
 //
-//    dbnode, _ := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{})
-//    dbnode.WaitForBootstrap()
-//    dbnode.WriteTaggedPoint(&rpc.WriteTaggedRequest{...}))
-//    res, _ = dbnode.FetchTagged(&rpc.FetchTaggedRequest{...})
+//	dbnode, _ := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{})
+//	dbnode.WaitForBootstrap()
+//	dbnode.WriteTaggedPoint(&rpc.WriteTaggedRequest{...}))
+//	res, _ = dbnode.FetchTagged(&rpc.FetchTaggedRequest{...})
 //
 // The dbnode will start up as you specify in your config. However, there is some
 // helper logic to avoid port and filesystem collisions when spinning up multiple components

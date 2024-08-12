@@ -23,10 +23,10 @@ package repair
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/x/pool"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestReplicaMetadataSlicePoolResetOnPut(t *testing.T) {

@@ -21,10 +21,10 @@
 package client
 
 import (
+	"github.com/cespare/xxhash/v2"
+
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
-
-	"github.com/cespare/xxhash/v2"
 )
 
 func newReceivedBlocksMap(pool pool.BytesPool) *receivedBlocksMap {

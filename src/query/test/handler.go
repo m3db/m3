@@ -27,10 +27,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/generated/proto/prompb"
-
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/snappy"
+
+	"github.com/m3db/m3/src/query/generated/proto/prompb"
 )
 
 // SlowHandler slows down a request by delay

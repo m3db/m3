@@ -25,10 +25,10 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/rules/view"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestSortMappingRuleChanges(t *testing.T) {

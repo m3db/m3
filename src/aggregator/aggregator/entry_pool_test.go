@@ -23,10 +23,10 @@ package aggregator
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/aggregator/runtime"
 	"github.com/m3db/m3/src/x/pool"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestEntryPool(t *testing.T) {

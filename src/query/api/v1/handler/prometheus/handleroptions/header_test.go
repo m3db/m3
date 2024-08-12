@@ -28,12 +28,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/headers"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestAddDBResultResponseHeaders(t *testing.T) {

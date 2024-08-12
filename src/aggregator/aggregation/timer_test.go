@@ -27,12 +27,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
-
-	"github.com/stretchr/testify/require"
 )
 
 var (

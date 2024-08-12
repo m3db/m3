@@ -26,12 +26,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m3db/m3/src/x/instrument"
-
 	"github.com/uber-go/tally"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 var (

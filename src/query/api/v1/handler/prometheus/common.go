@@ -28,6 +28,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/golang/snappy"
+
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	xpromql "github.com/m3db/m3/src/query/parser/promql"
@@ -38,8 +40,6 @@ import (
 	"github.com/m3db/m3/src/query/util/json"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/golang/snappy"
 )
 
 const (

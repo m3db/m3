@@ -26,10 +26,10 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/m3db/m3/src/x/unsafe"
-
 	"github.com/uber-go/tally"
 	"golang.org/x/sys/cpu"
+
+	"github.com/m3db/m3/src/x/unsafe"
 )
 
 var (

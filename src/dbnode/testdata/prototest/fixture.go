@@ -30,8 +30,9 @@ import (
 
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 const (

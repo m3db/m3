@@ -25,6 +25,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/checked"
@@ -33,8 +35,6 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/sampler"
 	"github.com/m3db/m3/src/x/serialize"
-
-	"go.uber.org/zap"
 )
 
 type countTowardsConsistency int64

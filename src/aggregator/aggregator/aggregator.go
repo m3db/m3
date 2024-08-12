@@ -28,6 +28,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3/src/aggregator/client"
@@ -43,10 +47,6 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/uber-go/tally"
-	"go.uber.org/atomic"
-	"go.uber.org/zap"
 )
 
 const (

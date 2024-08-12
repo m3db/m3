@@ -1,3 +1,4 @@
+//go:build big
 // +build big
 
 // Copyright (c) 2018 Uber Technologies, Inc.
@@ -28,16 +29,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/x/context"
+	"github.com/leanovate/gopter"
+	"github.com/leanovate/gopter/prop"
+	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/executor"
-
-	"github.com/leanovate/gopter"
-	"github.com/leanovate/gopter/prop"
-	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/x/context"
 )
 
 func TestSegmentDistributionDoesNotAffectQuery(t *testing.T) {

@@ -23,6 +23,8 @@ package migrator
 import (
 	"sync"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -32,8 +34,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"go.uber.org/zap"
 )
 
 type worker struct {

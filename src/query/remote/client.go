@@ -28,6 +28,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
@@ -41,11 +46,6 @@ import (
 	"github.com/m3db/m3/src/query/util/logging"
 	xgrpc "github.com/m3db/m3/src/x/grpc"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/keepalive"
 )
 
 const (

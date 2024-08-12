@@ -25,15 +25,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fortytw2/leaktest"
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/watch"
-
-	"github.com/fortytw2/leaktest"
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
 )
 
 const (

@@ -21,9 +21,9 @@
 package dtests
 
 import (
-	"github.com/m3db/m3/src/cmd/tools/dtest/harness"
-
 	"github.com/spf13/cobra"
+
+	"github.com/m3db/m3/src/cmd/tools/dtest/harness"
 )
 
 var simpleBootstrapTestCmd = &cobra.Command{

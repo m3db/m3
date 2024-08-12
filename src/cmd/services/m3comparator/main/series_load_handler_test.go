@@ -27,11 +27,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
-	"github.com/m3db/m3/src/dbnode/encoding"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
+	"github.com/m3db/m3/src/dbnode/encoding"
 )
 
 // NB: this is regression test data that used to cause issues.

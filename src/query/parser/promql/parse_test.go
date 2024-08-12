@@ -25,6 +25,10 @@ import (
 	"testing"
 	"time"
 
+	pql "github.com/prometheus/prometheus/promql/parser"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/query/functions"
 	"github.com/m3db/m3/src/query/functions/aggregation"
 	"github.com/m3db/m3/src/query/functions/binary"
@@ -35,10 +39,6 @@ import (
 	"github.com/m3db/m3/src/query/functions/temporal"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
-
-	pql "github.com/prometheus/prometheus/promql/parser"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDAGWithCountOp(t *testing.T) {

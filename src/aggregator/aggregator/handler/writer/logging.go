@@ -21,9 +21,9 @@
 package writer
 
 import (
-	"github.com/m3db/m3/src/metrics/metric/aggregated"
-
 	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/metrics/metric/aggregated"
 )
 
 type loggingWriter struct {

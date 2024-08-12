@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/aggregator/sharding"
 	m3clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
@@ -37,8 +39,6 @@ import (
 	"github.com/m3db/m3/src/x/net"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
-
-	"github.com/uber-go/tally"
 )
 
 var errNoM3MsgOptions = errors.New("m3msg aggregator client: missing m3msg options")

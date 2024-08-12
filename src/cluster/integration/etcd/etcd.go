@@ -28,13 +28,13 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/ory/dockertest/v3"
+
 	"github.com/m3db/m3/src/cluster/client"
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/integration/resources/docker/dockerexternal"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/ory/dockertest/v3"
 )
 
 type embeddedKV struct {

@@ -32,6 +32,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/common/model"
+
 	"github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -41,8 +43,6 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/prometheus/common/model"
 )
 
 var _ m3.Querier = (*querier)(nil)

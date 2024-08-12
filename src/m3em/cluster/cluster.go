@@ -24,12 +24,12 @@ import (
 	"fmt"
 	"sync"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/m3em/node"
 	xerrors "github.com/m3db/m3/src/x/errors"
-
-	"go.uber.org/zap"
 )
 
 var (

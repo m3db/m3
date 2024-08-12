@@ -26,6 +26,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fortytw2/leaktest"
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/dbnode/namespace"
 	m3dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
@@ -40,12 +46,6 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/fortytw2/leaktest"
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 func testNamespaceIndexOptions() index.Options {

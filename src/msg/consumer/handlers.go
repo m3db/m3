@@ -25,9 +25,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/m3db/m3/src/x/server"
-
 	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/x/server"
 )
 
 type messageHandler struct {

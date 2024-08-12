@@ -25,6 +25,11 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/metrics/metadata"
@@ -36,11 +41,6 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {

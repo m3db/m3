@@ -24,11 +24,11 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/x/mmap"
 	xtest "github.com/m3db/m3/src/x/test"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestReaderValidateType(t *testing.T) {

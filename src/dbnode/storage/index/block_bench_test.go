@@ -28,14 +28,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/pkg/profile"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/golang/mock/gomock"
-	"github.com/pkg/profile"
-	"github.com/stretchr/testify/require"
 )
 
 func BenchmarkBlockWrite(b *testing.B) {

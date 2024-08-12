@@ -23,13 +23,13 @@ package writer
 import (
 	"errors"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/producer"
-
-	"github.com/uber-go/tally"
 )
 
 var (

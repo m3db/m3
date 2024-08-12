@@ -24,14 +24,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+
 	schema "github.com/m3db/m3/src/aggregator/generated/proto/flush"
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/watch"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 func TestFollowerFlushManagerOpen(t *testing.T) {

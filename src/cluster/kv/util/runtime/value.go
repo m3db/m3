@@ -23,10 +23,10 @@ package runtime
 import (
 	"fmt"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/x/watch"
-
-	"go.uber.org/zap"
 )
 
 // Value is a value that can be updated during runtime.

@@ -23,9 +23,9 @@ package ts
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/query/graphite/context"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/query/graphite/context"
 )
 
 func TestValuesClose(t *testing.T) {

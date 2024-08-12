@@ -24,10 +24,10 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/cluster/generated/proto/kvtest"
 	"github.com/m3db/m3/src/cluster/kv"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestValue(t *testing.T) {

@@ -24,10 +24,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/m3db/m3/src/x/instrument"
-
 	"github.com/ory/dockertest/v3"
 	dc "github.com/ory/dockertest/v3/docker"
+
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 var (
@@ -50,6 +50,7 @@ type GoalStateVerifier func(output string, err error) error
 
 // ResourceOptions returns options for creating
 // a Resource.
+//
 //nolint:maligned
 type ResourceOptions struct {
 	OverrideDefaults bool

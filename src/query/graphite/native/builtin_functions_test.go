@@ -28,6 +28,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/common"
 	xctx "github.com/m3db/m3/src/query/graphite/context"
@@ -37,10 +41,6 @@ import (
 	querystorage "github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	xgomock "github.com/m3db/m3/src/x/test"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 var (

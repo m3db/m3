@@ -26,11 +26,12 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/stretchr/testify/require"
 )
 
 func TestColdFlushManagerFlushAlreadyInProgress(t *testing.T) {
