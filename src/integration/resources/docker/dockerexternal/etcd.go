@@ -247,7 +247,7 @@ func (c *EtcdNode) waitForHealth(ctx context.Context, memberCli memberClient) er
 	var timeout time.Duration
 	deadline, ok := ctx.Deadline()
 	if ok {
-		timeout = deadline.Sub(time.Now())
+		timeout = time.Until(deadline)
 	}
 	c.logger.Info(
 		"Waiting for etcd to report healthy (via member list)",

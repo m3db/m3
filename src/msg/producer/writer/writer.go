@@ -266,11 +266,7 @@ func (w *writer) RegisterFilter(sid services.ServiceID, filter producer.FilterFu
 	defer w.Unlock()
 
 	key := sid.String()
-	if _, ok := w.filterRegistry[key]; ok {
-		w.filterRegistry[key] = append(w.filterRegistry[key], filter)
-	} else {
-		w.filterRegistry[key] = []producer.FilterFunc{filter}
-	}
+	w.filterRegistry[key] = append(w.filterRegistry[key], filter)
 
 	csw, ok := w.consumerServiceWriters[key]
 	if ok {
