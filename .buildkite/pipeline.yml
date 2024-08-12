@@ -48,6 +48,8 @@ common: &common
 # Temporarily disable codecov while we investigate issues with uploading.
 env:
   SKIP_CODECOV: "true"
+  CGO_ENABLED: 0
+  GIMME_GO_VERSION: 1.22.x
 
 # Buildkite pipeline is currently broken, and we are working on fixing it. In the meantime, we are temporarily
 # disabling steps until it is fixed. ISSUE: https://github.com/m3db/m3/issues/4274
@@ -75,8 +77,6 @@ steps:
 #                  make clean install-vendor-m3 test-all-gen
 #    <<: *common
   - name: "Unit %n"
-    env:
-      GIMME_GO_VERSION: 1.22.x
     parallelism: 4
     plugins:
       docker-compose#v2.5.1:
@@ -93,8 +93,6 @@ steps:
                   make clean install-vendor-m3 test-base
     <<: *common
   - name: "Big Unit %n"
-    env:
-      GIMME_GO_VERSION: 1.22.x
     parallelism: 2
     plugins:
       docker-compose#v2.5.1:
@@ -111,8 +109,6 @@ steps:
                   make clean install-vendor-m3 test-big-base
     <<: *common
   - name: "Services, Tools"
-    env:
-      GIMME_GO_VERSION: 1.22.x
     plugins:
       docker-compose#v2.5.1:
         run: app
@@ -128,9 +124,6 @@ steps:
                   make clean install-vendor-m3 services tools
     <<: *common
   - name: "Lint"
-    env:
-      CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.22.x
     plugins:
       docker-compose#v2.5.1:
         run: app
@@ -146,9 +139,6 @@ steps:
                   make clean lint
     <<: *common
   - label: "Integration (:docker:)"
-    env:
-      CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.22.x
     plugins:
       docker-compose#v2.5.1:
         run: app
@@ -164,9 +154,6 @@ steps:
                   make clean install-vendor-m3 docker-integration-test
     <<: *common
   - label: "M3 Cluster Integration Tests"
-    env:
-      CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.22.x
     plugins:
       gopath-checkout#v1.0.1:
         import: github.com/m3db/m3
@@ -181,8 +168,6 @@ steps:
                   make clean test-ci-cluster-integration
     <<: *common
   - label: "M3 Cluster Integration Test Harness Tests"
-    env:
-      GIMME_GO_VERSION: 1.22.x
     skip: "NB(nate): temporarily disabling to resolve some tests flakes"
     plugins:
       docker-compose#v2.5.1:
@@ -209,8 +194,6 @@ steps:
 #          import: github.com/m3db/m3
 #    <<: *common
   - name: "Integration (dbnode Recently Read) %n"
-    env:
-      GIMME_GO_VERSION: 1.22.x
     parallelism: 2
     plugins:
       docker-compose#v2.5.1:
@@ -227,8 +210,6 @@ steps:
                   make clean install-vendor-m3 test-ci-integration-dbnode cache_policy=recently_read
     <<: *common
   - name: "Integration (dbnode LRU) %n"
-    env:
-      GIMME_GO_VERSION: 1.22.x
     parallelism: 2
     plugins:
       docker-compose#v2.5.1:
@@ -245,8 +226,6 @@ steps:
                   make clean install-vendor-m3 test-ci-integration-dbnode cache_policy=lru
     <<: *common
   - name: "Integration (aggregator TCP client) %n"
-    env:
-      GIMME_GO_VERSION: 1.22.x
     parallelism: 1
     plugins:
       docker-compose#v2.5.1:
@@ -263,8 +242,6 @@ steps:
                   make clean install-vendor-m3 test-ci-integration-aggregator aggregator_client=tcp
     <<: *common
   - name: "Integration (aggregator m3msg client) %n"
-    env:
-      GIMME_GO_VERSION: 1.22.x
     parallelism: 1
     plugins:
       docker-compose#v2.5.1:
@@ -281,8 +258,6 @@ steps:
                   make clean install-vendor-m3 test-ci-integration-aggregator aggregator_client=m3msg
     <<: *common
   - label: "Integration (m3em, cluster, msg, metrics) %n"
-    env:
-      GIMME_GO_VERSION: 1.22.x
     parallelism: 4
     plugins:
       docker-compose#v2.5.1:
