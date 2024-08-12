@@ -245,7 +245,7 @@ func NewClusterFromSpecification(
 		if err := etcd.Setup(context.TODO()); err != nil {
 			return nil, err
 		}
-		etcdEndpoints = []string{fmt.Sprintf(etcd.Address())}
+		etcdEndpoints = []string{fmt.Sprint(etcd.Address())}
 	}
 
 	updateEtcdEndpoints := func(etcdCfg *etcdclient.Configuration) {
