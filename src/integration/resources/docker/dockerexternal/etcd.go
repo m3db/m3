@@ -30,7 +30,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/m3db/m3/src/integration/resources/docker/dockerexternal/etcdintegration/bridge"
 	xdockertest "github.com/m3db/m3/src/x/dockertest"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
@@ -97,8 +96,6 @@ type EtcdNode struct {
 	// initialized by Setup
 	address  string
 	resource *xdockertest.Resource
-	etcdCli  *clientv3.Client
-	bridge   *bridge.Bridge
 
 	stopped bool
 }

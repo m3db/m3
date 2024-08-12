@@ -171,6 +171,9 @@ linters-settings:
       - standard
       - prefix(github.com/m3db/m3)
       - default
+  staticcheck:
+    # disable pkg deprecation checks.
+    checks: ["all", "-SA1019"]
 
 linters:
   enable:

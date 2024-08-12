@@ -124,7 +124,7 @@ func TestCluster(t *testing.T) {
 		testPrefix := "cleanup-test-"
 		deps.Etcd.namePrefix = testPrefix
 
-		findContainers := func(namePrefix string, pool *dockertest.Pool) ([]docker.APIContainers, error) {
+		findContainers := func(namePrefix string, _ *dockertest.Pool) ([]docker.APIContainers, error) {
 			containers, err := deps.Pool.Client.ListContainers(docker.ListContainersOptions{})
 			if err != nil {
 				return nil, err
