@@ -81,6 +81,8 @@ linters-settings:
     min-len: 3
     # minimal occurrences count to trigger, 3 by default
     min-occurrences: 3
+    # ignore tests
+    ignore-tests: true 
   depguard:
     list-type: blacklist
     include-go-root: false
@@ -327,9 +329,6 @@ issues:
 
   # Excluding configuration per-path, per-linter, per-text and per-source
   exclude-rules:
-    - linters:
-        - goconst
-      path: '(.+)_test\.go'
     # Exclude lll issues for long lines with go:generate
     - linters:
         - lll
