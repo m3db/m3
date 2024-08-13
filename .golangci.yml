@@ -265,7 +265,7 @@ linters:
     - depguard
     - revive
     - protogetter
-    - gosec 
+    - gosec
     - mirror
     - interfacebloat
     - musttag
@@ -327,6 +327,9 @@ issues:
 
   # Excluding configuration per-path, per-linter, per-text and per-source
   exclude-rules:
+    - linters:
+        - goconst
+      path: '(.+)_test\.go'
     # Exclude lll issues for long lines with go:generate
     - linters:
         - lll

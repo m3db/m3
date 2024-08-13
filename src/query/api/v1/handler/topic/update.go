@@ -39,7 +39,7 @@ import (
 
 const (
 	// UpdateURL is the url for the topic update handler (with the PUT method).
-	UpdateURL = route.Prefix + "/topic"
+	UpdateURL = route.Prefix + _topic
 
 	// UpdateHTTPMethod is the HTTP method used with this resource.
 	UpdateHTTPMethod = http.MethodPut

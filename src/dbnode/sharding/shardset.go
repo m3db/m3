@@ -24,9 +24,10 @@ import (
 	"errors"
 	"math"
 
+	murmur3 "github.com/m3db/stackmurmur3/v2"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/x/ident"
-	murmur3 "github.com/m3db/stackmurmur3/v2"
 )
 
 var (

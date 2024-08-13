@@ -42,6 +42,8 @@ const (
 	DefaultTopicName = "aggregated_metrics"
 	// HeaderTopicName is the header used to specify the topic name.
 	HeaderTopicName = "topic-name"
+
+	_topic = "/topic"
 )
 
 type serviceFn func(clusterClient clusterclient.Client, opts handleroptions.ServiceOptions) (topic.Service, error)

@@ -38,7 +38,7 @@ import (
 
 const (
 	// GetURL is the url for the topic get handler (with the GET method).
-	GetURL = route.Prefix + "/topic"
+	GetURL = route.Prefix + _topic
 
 	// GetHTTPMethod is the HTTP method used with this resource.
 	GetHTTPMethod = http.MethodGet
