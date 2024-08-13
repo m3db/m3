@@ -257,8 +257,8 @@ func (a *Aggregator) Close() error {
 	select {
 	case <-a.shutdownCh:
 	case <-time.After(shutdownTimeout):
-		return errors.New("timeout waiting for shutdown notification. server closing may" +
-			" not be completely graceful")
+		return errors.New("timeout waiting for shutdown notification. server closing " +
+			" may not be completely graceful")
 	}
 
 	return nil

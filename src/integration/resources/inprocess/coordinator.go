@@ -388,8 +388,8 @@ func (c *Coordinator) Close() error {
 	select {
 	case <-c.shutdownCh:
 	case <-time.After(shutdownTimeout):
-		return errors.New("timeout waiting for shutdown notification. coordinator closing may" +
-			" not be completely graceful")
+		return errors.New("timeout waiting for shutdown notification. coordinator " +
+			" closing may not be completely graceful")
 	}
 
 	c.started = false

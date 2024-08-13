@@ -358,8 +358,8 @@ func (d *DBNode) Close() error {
 		select {
 		case <-d.shutdownCh:
 		case <-time.After(shutdownTimeout):
-			return errors.New("timeout waiting for shutdown notification. server closing may" +
-				" not be completely graceful")
+			return errors.New("timeout waiting for shutdown notification. " +
+				" server closing may not be completely graceful")
 		}
 	}
 	d.started = false
