@@ -30,13 +30,13 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/m3db/m3/src/integration/resources"
-	"github.com/m3db/m3/src/integration/resources/docker/dockerexternal"
-	"github.com/m3db/m3/src/integration/resources/inprocess"
-
 	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/integration/resources"
+	"github.com/m3db/m3/src/integration/resources/docker/dockerexternal"
+	"github.com/m3db/m3/src/integration/resources/inprocess"
 )
 
 func TestPrometheus(t *testing.T) {

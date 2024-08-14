@@ -25,12 +25,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/msg/producer"
-	"github.com/m3db/m3/src/x/retry"
-
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/msg/producer"
+	"github.com/m3db/m3/src/x/retry"
 )
 
 func TestOptionsValidation(t *testing.T) {

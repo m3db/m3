@@ -27,12 +27,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/placement"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/retry"
 	xsync "github.com/m3db/m3/src/x/sync"
-
-	"go.uber.org/zap"
 )
 
 var (

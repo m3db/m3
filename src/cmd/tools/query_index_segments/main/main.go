@@ -29,6 +29,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pborman/getopt"
+	"github.com/prometheus/prometheus/model/labels"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/m3ninx/index"
@@ -40,10 +44,6 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xsync "github.com/m3db/m3/src/x/sync"
-
-	"github.com/pborman/getopt"
-	"github.com/prometheus/prometheus/model/labels"
-	"go.uber.org/zap"
 )
 
 var (

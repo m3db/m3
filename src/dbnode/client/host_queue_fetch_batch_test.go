@@ -25,11 +25,11 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/uber/tchannel-go/thrift"
+
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 )
 
 func TestHostQueueFetchBatches(t *testing.T) {

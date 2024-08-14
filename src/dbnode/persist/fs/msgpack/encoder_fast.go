@@ -23,9 +23,9 @@ package msgpack
 import (
 	"math"
 
-	"github.com/m3db/m3/src/dbnode/persist/schema"
-
 	"gopkg.in/vmihailenco/msgpack.v2/codes"
+
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 )
 
 // EncodeLogEntryFast encodes a commit log entry with no buffering and using optimized helper
@@ -44,7 +44,6 @@ import (
 //
 // Before modifying this function, please run the BenchmarkLogEntryEncoderFast benchmark as a small
 // degradation in this functions performance can have a substantial impact on M3DB.
-//
 //
 // Also note that there are extensive prop tests for this function in the encoder_decoder_prop_test.go
 // file which verify its correctness.

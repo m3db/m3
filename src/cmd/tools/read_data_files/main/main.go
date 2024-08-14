@@ -31,6 +31,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pborman/getopt"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -40,9 +43,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/pborman/getopt"
-	"go.uber.org/zap"
 )
 
 const (

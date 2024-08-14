@@ -24,10 +24,10 @@ import (
 	"reflect"
 	"sort"
 
-	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
-
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
+
+	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 )
 
 // Schema represents a schema for a protobuf message.

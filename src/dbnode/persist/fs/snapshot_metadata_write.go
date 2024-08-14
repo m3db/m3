@@ -24,12 +24,12 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/gogo/protobuf/proto"
+
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/generated/proto/snapshot"
 	"github.com/m3db/m3/src/dbnode/persist"
 	xerrors "github.com/m3db/m3/src/x/errors"
-
-	"github.com/gogo/protobuf/proto"
 )
 
 type cleanupFn func() error

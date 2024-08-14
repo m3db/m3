@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/uber/tchannel-go/thrift"
+
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
@@ -37,8 +39,6 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/uber/tchannel-go/thrift"
 )
 
 type service struct {

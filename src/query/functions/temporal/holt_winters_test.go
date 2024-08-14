@@ -24,10 +24,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/test/compare"
-
-	"github.com/stretchr/testify/require"
 )
 
 var holtWintersTestCases = []testCase{

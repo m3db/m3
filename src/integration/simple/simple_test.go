@@ -1,4 +1,6 @@
+//go:build cluster_integration
 // +build cluster_integration
+
 //
 // Copyright (c) 2021  Uber Technologies, Inc.
 //

@@ -25,13 +25,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/uber-go/tally"
 )
 
 const (

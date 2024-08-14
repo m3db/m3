@@ -25,15 +25,15 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	schema "github.com/m3db/m3/src/aggregator/generated/proto/flush"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/watch"
-
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 type getFlushTimesByResolutionFn func(*schema.ShardFlushTimes) map[int64]int64

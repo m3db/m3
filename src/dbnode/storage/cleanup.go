@@ -25,6 +25,10 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/pborman/uuid"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
@@ -33,10 +37,6 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/pborman/uuid"
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 type (
@@ -381,30 +381,30 @@ func (m *cleanupManager) cleanupCompactedNamespaceDataFiles(shards []databaseSha
 // According to the snapshotting / commitlog rotation logic, the files that are required for a complete
 // recovery are:
 //
-//     1. The most recent (highest index) snapshot metadata files.
-//     2. All snapshot files whose associated snapshot ID matches the snapshot ID of the most recent snapshot
-//        metadata file.
-//     3. All commitlog files whose index is larger than or equal to the index of the commitlog identifier stored
-//        in the most recent snapshot metadata file. This is because the snapshotting and commitlog rotation process
-//        guarantees that the most recent snapshot contains all data stored in commitlogs that were created before
-//        the rotation / snapshot process began.
+//  1. The most recent (highest index) snapshot metadata files.
+//  2. All snapshot files whose associated snapshot ID matches the snapshot ID of the most recent snapshot
+//     metadata file.
+//  3. All commitlog files whose index is larger than or equal to the index of the commitlog identifier stored
+//     in the most recent snapshot metadata file. This is because the snapshotting and commitlog rotation process
+//     guarantees that the most recent snapshot contains all data stored in commitlogs that were created before
+//     the rotation / snapshot process began.
 //
 // cleanupSnapshotsAndCommitlogs accomplishes this goal by performing the following steps:
 //
-//     1. List all the snapshot metadata files on disk.
-//     2. Identify the most recent one (highest index).
-//     3. For every namespace/shard/block combination, delete all snapshot
-//        files that match one of the following criteria:
-//         1. Snapshot files whose associated snapshot ID does not match the snapshot ID of the most recent
-//            snapshot metadata file.
-//         2. Snapshot files that are corrupt.
-//     4. Delete all snapshot metadata files prior to the most recent once.
-//     5. Delete corrupt snapshot metadata files.
-//     6. List all the commitlog files on disk.
-//     7. List all the commitlog files that are being actively written to.
-//     8. Delete all commitlog files whose index is lower than the index of the commitlog file referenced in the
-//        most recent snapshot metadata file (ignoring any commitlog files being actively written to.)
-//     9. Delete all corrupt commitlog files (ignoring any commitlog files being actively written to.)
+//  1. List all the snapshot metadata files on disk.
+//  2. Identify the most recent one (highest index).
+//  3. For every namespace/shard/block combination, delete all snapshot
+//     files that match one of the following criteria:
+//  1. Snapshot files whose associated snapshot ID does not match the snapshot ID of the most recent
+//     snapshot metadata file.
+//  2. Snapshot files that are corrupt.
+//  4. Delete all snapshot metadata files prior to the most recent once.
+//  5. Delete corrupt snapshot metadata files.
+//  6. List all the commitlog files on disk.
+//  7. List all the commitlog files that are being actively written to.
+//  8. Delete all commitlog files whose index is lower than the index of the commitlog file referenced in the
+//     most recent snapshot metadata file (ignoring any commitlog files being actively written to.)
+//  9. Delete all corrupt commitlog files (ignoring any commitlog files being actively written to.)
 //
 // This process is also modeled formally in TLA+ in the file `SnapshotsSpec.tla`.
 func (m *cleanupManager) cleanupSnapshotsAndCommitlogs(namespaces []databaseNamespace) (finalErr error) {

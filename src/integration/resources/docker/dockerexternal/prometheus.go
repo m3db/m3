@@ -29,12 +29,12 @@ import (
 	"net/http"
 	"time"
 
-	xdockertest "github.com/m3db/m3/src/x/dockertest"
-	"github.com/m3db/m3/src/x/instrument"
-
 	"github.com/cenkalti/backoff/v3"
 	"github.com/ory/dockertest/v3"
 	"github.com/prometheus/common/model"
+
+	xdockertest "github.com/m3db/m3/src/x/dockertest"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 // Prometheus is a docker-backed instantiation of Prometheus.

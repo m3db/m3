@@ -23,10 +23,10 @@ package agentmain
 import (
 	"io/ioutil"
 
-	xgrpc "github.com/m3db/m3/src/m3em/x/grpc"
-
 	tallym3 "github.com/uber-go/tally/m3"
 	"google.golang.org/grpc/credentials"
+
+	xgrpc "github.com/m3db/m3/src/m3em/x/grpc"
 )
 
 // Configuration is a collection of knobs to configure m3em_agent processes

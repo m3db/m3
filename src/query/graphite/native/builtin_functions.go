@@ -144,6 +144,7 @@ func sortByMaxima(ctx *common.Context, series singlePathSpec) (ts.SeriesList, er
 // the response time metric will be plotted only when the maximum value of the
 // corresponding request/s metric is > 10
 // Example: useSeriesAbove(ganglia.metric1.reqs,10,"reqs","time")
+//
 //nolint:govet,gocritic
 func useSeriesAbove(
 	ctx *common.Context,
@@ -961,9 +962,13 @@ func parseWindowSize(windowSizeValue genericInterface, input singlePathSpec) (wi
 
 // exponentialMovingAverage takes a series of values and a window size and produces
 // an exponential moving average utilizing the following formula:
-// 		ema(current) = constant * (Current Value) + (1 - constant) * ema(previous)
+//
+//	ema(current) = constant * (Current Value) + (1 - constant) * ema(previous)
+//
 // The `constant` is calculated as:
-// 		constant = 2 / (windowSize + 1)
+//
+//	constant = 2 / (windowSize + 1)
+//
 // the first period EMA uses a simple moving average for its value.
 func exponentialMovingAverage(
 	ctx *common.Context,
@@ -1455,7 +1460,8 @@ func derivativeTemplate(ctx *common.Context, input singlePathSpec, nameTemplate 
 }
 
 // integral shows the sum over time, sort of like a continuous addition function.
-//  Useful for finding totals or trends in metrics that are collected per minute.
+//
+//	Useful for finding totals or trends in metrics that are collected per minute.
 func integral(ctx *common.Context, input singlePathSpec) (ts.SeriesList, error) {
 	results := make([]*ts.Series, 0, len(input.Values))
 	for _, series := range input.Values {

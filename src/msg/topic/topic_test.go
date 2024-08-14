@@ -24,9 +24,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/cluster/services"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/cluster/services"
 )
 
 func TestTopicAddConsumer(t *testing.T) {

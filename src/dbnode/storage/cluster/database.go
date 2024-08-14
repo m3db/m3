@@ -26,12 +26,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 var (
@@ -167,8 +168,8 @@ func (d *clusterDB) Close() error {
 // it is safe to continue a deploy or performing topology changes. In that case,
 // we only need to determine two things:
 //
-//     1. Is the node bootstrapped?
-//     2. Are all of its shards available?
+//  1. Is the node bootstrapped?
+//  2. Are all of its shards available?
 //
 // If so, then the node has finished bootstrapping and will be able to recover
 // all of its data (assuming the default bootstrapper configuration of

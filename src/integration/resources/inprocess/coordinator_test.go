@@ -27,6 +27,11 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ory/dockertest/v3"
+	"github.com/prometheus/common/model"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/integration/resources"
@@ -38,11 +43,6 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/ory/dockertest/v3"
-
-	"github.com/prometheus/common/model"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNewCoordinator(t *testing.T) {

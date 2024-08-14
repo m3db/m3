@@ -27,6 +27,8 @@ import (
 	"io"
 	"os"
 
+	"go.uber.org/atomic"
+
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -35,8 +37,6 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"go.uber.org/atomic"
 )
 
 var (

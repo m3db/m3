@@ -36,6 +36,10 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/uber/tchannel-go"
+	"github.com/uber/tchannel-go/thrift"
+	"golang.org/x/exp/slices"
+
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
@@ -44,10 +48,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
-
-	"github.com/uber/tchannel-go"
-	"github.com/uber/tchannel-go/thrift"
-	"golang.org/x/exp/slices"
 )
 
 const (

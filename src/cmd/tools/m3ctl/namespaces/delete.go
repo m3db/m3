@@ -23,8 +23,9 @@ package namespaces
 import (
 	"fmt"
 
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/client"
 	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/client"
 )
 
 // DoDelete calls the delete namespaces api on the backend

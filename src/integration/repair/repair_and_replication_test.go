@@ -28,14 +28,14 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ory/dockertest/v3"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/integration/resources"
 	"github.com/m3db/m3/src/integration/resources/docker/dockerexternal"
 	"github.com/m3db/m3/src/integration/resources/inprocess"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/ory/dockertest/v3"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestRepairAndReplication(t *testing.T) {

@@ -28,6 +28,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pkg/profile"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -43,10 +47,6 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/pkg/profile"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func withPool(t testing.TB, options Options) Options {
@@ -664,40 +664,40 @@ var (
 )
 
 /*
-	$ go test -v -run none -bench BenchmarkNextIteration
-	goos: darwin
-	goarch: amd64
-	pkg: github.com/m3db/m3/src/query/ts/m3db
+$ go test -v -run none -bench BenchmarkNextIteration
+goos: darwin
+goarch: amd64
+pkg: github.com/m3db/m3/src/query/ts/m3db
 
-	BenchmarkNextIteration/sequential_10-12      4112  282491 ns/op
-	BenchmarkNextIteration/parallel_10-12        4214  249335 ns/op
-	BenchmarkNextIteration/series_10-12          4515  248946 ns/op
-	BenchmarkNextIteration/series_batch_10-12    4434  269776 ns/op
+BenchmarkNextIteration/sequential_10-12      4112  282491 ns/op
+BenchmarkNextIteration/parallel_10-12        4214  249335 ns/op
+BenchmarkNextIteration/series_10-12          4515  248946 ns/op
+BenchmarkNextIteration/series_batch_10-12    4434  269776 ns/op
 
-	BenchmarkNextIteration/sequential_100-12     4069  267836 ns/op
-	BenchmarkNextIteration/parallel_100-12       4126  283069 ns/op
-	BenchmarkNextIteration/series_100-12         4146  266928 ns/op
-	BenchmarkNextIteration/series_batch_100-12   4399  255991 ns/op
+BenchmarkNextIteration/sequential_100-12     4069  267836 ns/op
+BenchmarkNextIteration/parallel_100-12       4126  283069 ns/op
+BenchmarkNextIteration/series_100-12         4146  266928 ns/op
+BenchmarkNextIteration/series_batch_100-12   4399  255991 ns/op
 
-	BenchmarkNextIteration/sequential_200-12     4267  245249 ns/op
-	BenchmarkNextIteration/parallel_200-12       4233  239597 ns/op
-	BenchmarkNextIteration/series_200-12         4365  245924 ns/op
-	BenchmarkNextIteration/series_batch_200-12   4485  235055 ns/op
+BenchmarkNextIteration/sequential_200-12     4267  245249 ns/op
+BenchmarkNextIteration/parallel_200-12       4233  239597 ns/op
+BenchmarkNextIteration/series_200-12         4365  245924 ns/op
+BenchmarkNextIteration/series_batch_200-12   4485  235055 ns/op
 
-	BenchmarkNextIteration/sequential_500-12     5108  230085 ns/op
-	BenchmarkNextIteration/parallel_500-12       4802  230694 ns/op
-	BenchmarkNextIteration/series_500-12         4831  229797 ns/op
-	BenchmarkNextIteration/series_batch_500-12   4880  246588 ns/op
+BenchmarkNextIteration/sequential_500-12     5108  230085 ns/op
+BenchmarkNextIteration/parallel_500-12       4802  230694 ns/op
+BenchmarkNextIteration/series_500-12         4831  229797 ns/op
+BenchmarkNextIteration/series_batch_500-12   4880  246588 ns/op
 
-	BenchmarkNextIteration/sequential_1000-12    3807  265449 ns/op
-	BenchmarkNextIteration/parallel_1000-12      5062  254942 ns/op
-	BenchmarkNextIteration/series_1000-12        4423  236796 ns/op
-	BenchmarkNextIteration/series_batch_1000-12  4772  251977 ns/op
+BenchmarkNextIteration/sequential_1000-12    3807  265449 ns/op
+BenchmarkNextIteration/parallel_1000-12      5062  254942 ns/op
+BenchmarkNextIteration/series_1000-12        4423  236796 ns/op
+BenchmarkNextIteration/series_batch_1000-12  4772  251977 ns/op
 
-	BenchmarkNextIteration/sequential_2000-12    4916  243593 ns/op
-	BenchmarkNextIteration/parallel_2000-12      4743  253677 ns/op
-	BenchmarkNextIteration/series_2000-12        4078  256375 ns/op
-	BenchmarkNextIteration/series_batch_2000-12  4465  242323 ns/op
+BenchmarkNextIteration/sequential_2000-12    4916  243593 ns/op
+BenchmarkNextIteration/parallel_2000-12      4743  253677 ns/op
+BenchmarkNextIteration/series_2000-12        4078  256375 ns/op
+BenchmarkNextIteration/series_batch_2000-12  4465  242323 ns/op
 */
 func BenchmarkNextIteration(b *testing.B) {
 	iterTypes := []iterType{

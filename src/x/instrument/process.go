@@ -24,9 +24,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/m3db/m3/src/x/process"
-
 	"github.com/uber-go/tally"
+
+	"github.com/m3db/m3/src/x/process"
 )
 
 type processReporter struct {

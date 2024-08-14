@@ -27,6 +27,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/aggregator/hash"
 	"github.com/m3db/m3/src/aggregator/rate"
 	"github.com/m3db/m3/src/aggregator/runtime"
@@ -36,8 +38,6 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	xresource "github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/uber-go/tally"
 )
 
 const (

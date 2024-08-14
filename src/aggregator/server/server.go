@@ -28,6 +28,8 @@ import (
 	"syscall"
 	"time"
 
+	"go.uber.org/zap"
+
 	m3aggregator "github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/config"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
@@ -35,8 +37,6 @@ import (
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/instrument"
 	xos "github.com/m3db/m3/src/x/os"
-
-	"go.uber.org/zap"
 )
 
 const (

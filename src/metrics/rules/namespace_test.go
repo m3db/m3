@@ -23,10 +23,10 @@ package rules
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/rules/view"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestNewNamespaceSnapshotFromNilProto(t *testing.T) {

@@ -23,11 +23,11 @@ package config
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/query/storage"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
+
+	"github.com/m3db/m3/src/query/storage"
 )
 
 func TestMakeRemote(t *testing.T) {

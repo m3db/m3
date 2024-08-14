@@ -18,14 +18,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+//go:build integration
 // +build integration
 
 package resources
 
 import (
-	xgrpc "github.com/m3db/m3/src/m3em/x/grpc"
-
 	"google.golang.org/grpc/credentials"
+
+	xgrpc "github.com/m3db/m3/src/m3em/x/grpc"
 )
 
 const (

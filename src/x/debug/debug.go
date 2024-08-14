@@ -28,11 +28,11 @@ import (
 	"net/http"
 	"time"
 
+	"go.uber.org/zap"
+
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	"go.uber.org/zap"
 )
 
 const (

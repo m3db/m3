@@ -23,8 +23,9 @@ package msgpack
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/dbnode/digest"
 )
 
 func testGenEncodeNumObjectFieldsForFn(

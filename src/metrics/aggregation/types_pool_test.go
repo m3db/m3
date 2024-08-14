@@ -23,9 +23,9 @@ package aggregation
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/x/pool"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/x/pool"
 )
 
 func TestTypesPool(t *testing.T) {

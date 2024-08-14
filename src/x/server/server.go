@@ -27,11 +27,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	xnet "github.com/m3db/m3/src/x/net"
-	"github.com/m3db/m3/src/x/retry"
-
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
+
+	xnet "github.com/m3db/m3/src/x/net"
+	"github.com/m3db/m3/src/x/retry"
 )
 
 // Server is a server capable of listening to incoming traffic and closing itself

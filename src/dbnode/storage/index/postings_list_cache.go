@@ -25,14 +25,14 @@ import (
 	"math"
 	"time"
 
+	"github.com/pborman/uuid"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/m3ninx/generated/proto/querypb"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/pborman/uuid"
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 var errInstrumentOptions = errors.New("no instrument options set")

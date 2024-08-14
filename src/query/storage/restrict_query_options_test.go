@@ -23,11 +23,11 @@ package storage
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestGetRestrict(t *testing.T) {

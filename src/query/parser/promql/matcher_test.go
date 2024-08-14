@@ -25,11 +25,11 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/m3db/m3/src/query/models"
-
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/query/models"
 )
 
 func TestLabelMatchesToModelMatcher(t *testing.T) {

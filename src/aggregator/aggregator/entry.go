@@ -27,6 +27,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
+
 	"github.com/m3db/m3/src/aggregator/bitset"
 	"github.com/m3db/m3/src/aggregator/rate"
 	"github.com/m3db/m3/src/aggregator/runtime"
@@ -40,9 +43,6 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/uber-go/tally"
-	"go.uber.org/atomic"
 )
 
 const (
@@ -184,6 +184,7 @@ type entryMetrics struct {
 }
 
 // NewEntryMetrics creates new entry metrics.
+//
 //nolint:golint,revive
 func NewEntryMetrics(scope tally.Scope) *entryMetrics {
 	scope = scope.SubScope("entry")

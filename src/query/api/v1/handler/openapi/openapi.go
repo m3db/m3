@@ -23,13 +23,13 @@ package openapi
 import (
 	"net/http"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/query/api/v1/route"
 	assets "github.com/m3db/m3/src/query/generated/assets/openapi"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	"go.uber.org/zap"
 )
 
 const (

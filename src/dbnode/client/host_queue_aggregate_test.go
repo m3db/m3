@@ -26,13 +26,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
-	xtest "github.com/m3db/m3/src/x/test"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/tchannel-go/thrift"
+
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	xtest "github.com/m3db/m3/src/x/test"
 )
 
 func TestHostQueueDrainOnCloseAggregate(t *testing.T) {

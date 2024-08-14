@@ -33,24 +33,26 @@ import (
 // Status indicates the different states a Cluster can be in. Refer to the
 // state diagram below to understand transitions. Note, all states can transition
 // to `ClusterStatusError`, these edges are skipped below.
-//              ╔══════════════════╗
-//              ║                  ║
-//              ║  Uninitialized   ║────────────Setup()────┐
-//              ║                  ║                       │
-//              ╚══════════════════╝                       │
-//                        ▲                                │
-//                        │                                │
-//                        │                                │
-//                        │   Teardown()                   │
-//                        ├────────────────────────┐       │
-//                        │                        │       │
-//                ┌───────┘                        │       │
-//                │                                │       ▼
-//          ╔═════╩════════════╗◀────Start()─────╦═╩════════════════╗
-//          ║                  ║                 ║                  ║
-//       ┌──║     Running      ║                 ║      Setup       ║──┐
-//       │  ║                  ║                 ║                  ║  │
-//       │  ╚══════════════════╝──────Stop()────▶╚══════════════════╝  │
+//
+//	       ╔══════════════════╗
+//	       ║                  ║
+//	       ║  Uninitialized   ║────────────Setup()────┐
+//	       ║                  ║                       │
+//	       ╚══════════════════╝                       │
+//	                 ▲                                │
+//	                 │                                │
+//	                 │                                │
+//	                 │   Teardown()                   │
+//	                 ├────────────────────────┐       │
+//	                 │                        │       │
+//	         ┌───────┘                        │       │
+//	         │                                │       ▼
+//	   ╔═════╩════════════╗◀────Start()─────╦═╩════════════════╗
+//	   ║                  ║                 ║                  ║
+//	┌──║     Running      ║                 ║      Setup       ║──┐
+//	│  ║                  ║                 ║                  ║  │
+//	│  ╚══════════════════╝──────Stop()────▶╚══════════════════╝  │
+//
 // AddInstance()      ▲                                    ▲    AddInstance()
 // RemoveInstance()   │                                    │    RemoveInstance()
 // ReplaceInstance()──┘                                    └────ReplaceInstance()

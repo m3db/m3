@@ -28,9 +28,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/m3db/m3/src/x/retry"
-
 	"github.com/stretchr/testify/assert"
+
+	"github.com/m3db/m3/src/x/retry"
 )
 
 func TestStartAcceptLoop(t *testing.T) {

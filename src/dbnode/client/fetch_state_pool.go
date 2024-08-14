@@ -23,12 +23,11 @@ package client
 import (
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/sampler"
-
-	"go.uber.org/zap"
 )
 
 type fetchStatePool interface {
@@ -41,7 +40,6 @@ type fetchStatePool interface {
 type fetchStatePoolImpl struct {
 	pool pool.ObjectPool
 
-	instrumentOpts      instrument.Options
 	logger              *zap.Logger
 	logHostErrorSampler *sampler.Sampler
 }

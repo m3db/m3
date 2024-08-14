@@ -24,12 +24,12 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
-	"github.com/m3db/m3/src/metrics/metric/aggregated"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
+	"github.com/m3db/m3/src/metrics/metric/aggregated"
 )
 
 func TestBroadcastHandlerNewWriterSingleHandler(t *testing.T) {

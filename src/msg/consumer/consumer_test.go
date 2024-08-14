@@ -27,13 +27,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
-	"github.com/m3db/m3/src/msg/protocol/proto"
-	"github.com/m3db/m3/src/x/pool"
-
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
+	"github.com/m3db/m3/src/msg/protocol/proto"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 var (

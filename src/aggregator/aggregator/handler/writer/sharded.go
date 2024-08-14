@@ -23,12 +23,12 @@ package writer
 import (
 	"sync"
 
+	"github.com/pkg/errors"
+
 	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/pkg/errors"
 )
 
 var (

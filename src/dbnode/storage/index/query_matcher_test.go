@@ -23,10 +23,10 @@ package index_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestQueryMatcherTermQuery(t *testing.T) {

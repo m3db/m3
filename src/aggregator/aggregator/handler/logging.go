@@ -21,10 +21,10 @@
 package handler
 
 import (
-	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
-
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
 )
 
 type loggingHandler struct {

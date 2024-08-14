@@ -25,11 +25,11 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/x/test/testmarshal"
-
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
+
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/test/testmarshal"
 )
 
 func TestTypeIsValid(t *testing.T) {

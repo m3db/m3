@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/pborman/uuid"
+
 	"github.com/m3db/m3/src/ctl/service/r2"
 	r2store "github.com/m3db/m3/src/ctl/service/r2/store"
 	"github.com/m3db/m3/src/metrics/aggregation"
@@ -34,8 +36,6 @@ import (
 	"github.com/m3db/m3/src/metrics/rules/view/changes"
 	"github.com/m3db/m3/src/metrics/x/bytes"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/pborman/uuid"
 )
 
 type mappingRuleHistories map[string][]view.MappingRule

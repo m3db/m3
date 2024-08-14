@@ -23,12 +23,12 @@ package storage
 import (
 	"testing"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/cluster/placement"
-
-	"github.com/gogo/protobuf/proto"
-	"github.com/stretchr/testify/require"
 )
 
 func TestPlacementHelper(t *testing.T) {

@@ -25,17 +25,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/cluster/client"
-	"github.com/m3db/m3/src/cluster/kv"
-	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
-	"github.com/m3db/m3/src/x/instrument"
-	xtime "github.com/m3db/m3/src/x/time"
-
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+
+	"github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/kv"
+	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
+	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 func newTestSetup(t *testing.T, ctrl *gomock.Controller, watchable kv.ValueWatchable) (DynamicOptions, *kv.MockStore) {

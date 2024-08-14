@@ -24,11 +24,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/x/ident"
-
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
+
+	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 func TestRegistryConfig(t *testing.T) {

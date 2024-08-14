@@ -23,9 +23,9 @@ package context
 import (
 	"testing"
 
-	xresource "github.com/m3db/m3/src/x/resource"
-
 	"github.com/stretchr/testify/assert"
+
+	xresource "github.com/m3db/m3/src/x/resource"
 )
 
 func TestContextPool(t *testing.T) {

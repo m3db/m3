@@ -24,6 +24,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/pborman/uuid"
+
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -31,8 +33,6 @@ import (
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/pborman/uuid"
 )
 
 var errReusableTagIteratorRequired = errors.New("reusable tags iterator is required")

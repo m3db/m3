@@ -23,10 +23,10 @@ package bootstrapper
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestNoOpNoneBootstrapperBootstrapProvider(t *testing.T) {

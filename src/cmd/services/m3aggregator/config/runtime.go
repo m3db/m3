@@ -24,13 +24,13 @@ import (
 	"math"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/runtime"
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
 	kvutil "github.com/m3db/m3/src/cluster/kv/util"
-
-	"go.uber.org/zap"
 )
 
 // RuntimeOptionsConfiguration configures runtime options.

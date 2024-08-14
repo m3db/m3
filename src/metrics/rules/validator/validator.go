@@ -277,14 +277,14 @@ func (v *validator) validateStoragePolicies(
 }
 
 // validatePipeline validates the rollup pipeline as follows:
-// * The pipeline must contain at least one operation.
-// * The pipeline can contain at most one aggregation operation, and if there is one,
-//   it must be the first operation.
-// * The pipeline can contain arbitrary number of transformation operations. However,
-//   the transformation derivative order computed from the list of transformations must
-//   be no more than the maximum transformation derivative order that is supported.
-// * The pipeline must contain at least one rollup operation and at most `n` rollup operations,
-//   where `n` is the maximum supported number of rollup levels.
+//   - The pipeline must contain at least one operation.
+//   - The pipeline can contain at most one aggregation operation, and if there is one,
+//     it must be the first operation.
+//   - The pipeline can contain arbitrary number of transformation operations. However,
+//     the transformation derivative order computed from the list of transformations must
+//     be no more than the maximum transformation derivative order that is supported.
+//   - The pipeline must contain at least one rollup operation and at most `n` rollup operations,
+//     where `n` is the maximum supported number of rollup levels.
 func (v *validator) validatePipeline(pipeline mpipeline.Pipeline, types []metric.Type) error {
 	if pipeline.IsEmpty() {
 		return errEmptyPipeline

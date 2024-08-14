@@ -29,15 +29,15 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/services/leader/campaign"
 	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/watch"
-
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 // ElectionManager manages leadership elections.

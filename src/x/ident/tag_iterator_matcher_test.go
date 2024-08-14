@@ -24,10 +24,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/m3db/m3/src/x/ident"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/m3db/m3/src/x/ident"
 )
 
 func TestTagIteratorMatcher(t *testing.T) {

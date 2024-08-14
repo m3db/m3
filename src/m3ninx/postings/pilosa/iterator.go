@@ -21,8 +21,9 @@
 package pilosa
 
 import (
-	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3dbx/pilosa/roaring"
+
+	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
 // NB: need to do this to find a path into our postings list which doesn't require every

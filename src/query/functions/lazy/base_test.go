@@ -24,13 +24,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/executor/transform"
-	xtime "github.com/m3db/m3/src/x/time"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/executor/transform"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 func testLazyOpts(timeOffset time.Duration, valOffset float64) block.LazyOptions {

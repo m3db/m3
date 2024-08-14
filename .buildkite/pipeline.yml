@@ -48,6 +48,8 @@ common: &common
 # Temporarily disable codecov while we investigate issues with uploading.
 env:
   SKIP_CODECOV: "true"
+  CGO_ENABLED: 0
+  GIMME_GO_VERSION: 1.22.x
 
 # Buildkite pipeline is currently broken, and we are working on fixing it. In the meantime, we are temporarily
 # disabling steps until it is fixed. ISSUE: https://github.com/m3db/m3/issues/4274
@@ -55,7 +57,7 @@ steps:
 #  - name: "Codegen"
 #    env:
 #      CGO_ENABLED: 0
-#      GIMME_GO_VERSION: 1.18.x
+#      GIMME_GO_VERSION: 1.22.x
 #    plugins:
 #      gopath-checkout#v1.0.1:
 #        import: github.com/m3db/m3
@@ -122,9 +124,6 @@ steps:
                   make clean install-vendor-m3 services tools
     <<: *common
   - name: "Lint"
-    env:
-      CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.18.x
     plugins:
       docker-compose#v2.5.1:
         run: app
@@ -140,9 +139,6 @@ steps:
                   make clean lint
     <<: *common
   - label: "Integration (:docker:)"
-    env:
-      CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.18.x
     plugins:
       docker-compose#v2.5.1:
         run: app
@@ -158,9 +154,6 @@ steps:
                   make clean install-vendor-m3 docker-integration-test
     <<: *common
   - label: "M3 Cluster Integration Tests"
-    env:
-      CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.18.x
     plugins:
       gopath-checkout#v1.0.1:
         import: github.com/m3db/m3
@@ -195,7 +188,7 @@ steps:
 #    parallelism: 1
 #    env:
 #      CGO_ENABLED: 0
-#      GIMME_GO_VERSION: 1.18.x
+#      GIMME_GO_VERSION: 1.22.x
 #    plugins:
 #        gopath-checkout#v1.0.1:
 #          import: github.com/m3db/m3
@@ -286,7 +279,7 @@ steps:
 #    command: make clean install-vendor-m3 docs-test
 #    env:
 #      CGO_ENABLED: 0
-#      GIMME_GO_VERSION: 1.18.x
+#      GIMME_GO_VERSION: 1.22.x
 #    plugins:
 #        gopath-checkout#v1.0.1:
 #          import: github.com/m3db/m3

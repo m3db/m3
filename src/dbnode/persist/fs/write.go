@@ -29,6 +29,9 @@ import (
 	"sort"
 	"time"
 
+	"github.com/m3db/bloom/v4"
+	"github.com/pborman/uuid"
+
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
@@ -39,9 +42,6 @@ import (
 	xresource "github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/m3db/bloom/v4"
-	"github.com/pborman/uuid"
 )
 
 const (

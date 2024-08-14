@@ -30,17 +30,16 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/m3db/m3/src/integration/resources/docker/dockerexternal/etcdintegration/bridge"
-	xdockertest "github.com/m3db/m3/src/x/dockertest"
-	xerrors "github.com/m3db/m3/src/x/errors"
-	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/retry"
-
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+
+	xdockertest "github.com/m3db/m3/src/x/dockertest"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/retry"
 )
 
 var (
@@ -97,8 +96,6 @@ type EtcdNode struct {
 	// initialized by Setup
 	address  string
 	resource *xdockertest.Resource
-	etcdCli  *clientv3.Client
-	bridge   *bridge.Bridge
 
 	stopped bool
 }
@@ -247,7 +244,7 @@ func (c *EtcdNode) waitForHealth(ctx context.Context, memberCli memberClient) er
 	var timeout time.Duration
 	deadline, ok := ctx.Deadline()
 	if ok {
-		timeout = deadline.Sub(time.Now())
+		timeout = time.Until(deadline)
 	}
 	c.logger.Info(
 		"Waiting for etcd to report healthy (via member list)",

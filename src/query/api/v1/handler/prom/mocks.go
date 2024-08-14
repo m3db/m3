@@ -25,14 +25,14 @@ import (
 	"errors"
 	"time"
 
-	"github.com/m3db/m3/src/x/instrument"
-
 	"github.com/go-kit/kit/log"
 	kitlogzap "github.com/go-kit/kit/log/zap"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql"
 	promstorage "github.com/prometheus/prometheus/storage"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 type mockQuerier struct {

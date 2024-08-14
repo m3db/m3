@@ -24,10 +24,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/m3db/m3/src/metrics/metric/id"
-
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
+
+	"github.com/m3db/m3/src/metrics/metric/id"
 )
 
 func TestHashTypeUnmarshalYAML(t *testing.T) {

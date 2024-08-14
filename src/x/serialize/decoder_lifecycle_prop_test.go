@@ -28,12 +28,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/x/checked"
-	"github.com/m3db/m3/src/x/ident"
-
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/commands"
 	"github.com/leanovate/gopter/gen"
+
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 // NB(prateek): this file uses a SUT prop test to ensure we are correctly reference counting

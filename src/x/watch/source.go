@@ -24,9 +24,9 @@ import (
 	"errors"
 	"sync"
 
-	xresource "github.com/m3db/m3/src/x/resource"
-
 	"go.uber.org/zap"
+
+	xresource "github.com/m3db/m3/src/x/resource"
 )
 
 // ErrSourceClosed indicates that the Source should be closed.

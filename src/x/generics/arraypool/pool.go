@@ -21,9 +21,9 @@
 package arraypool
 
 import (
-	"github.com/m3db/m3/src/x/pool"
-
 	"github.com/mauricelam/genny/generic"
+
+	"github.com/m3db/m3/src/x/pool"
 )
 
 // elemType is the generic type for use with the specialized array pool.

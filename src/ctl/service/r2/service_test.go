@@ -23,9 +23,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/m3db/m3/src/ctl/auth"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/ctl/auth"
 )
 
 func TestDefaultAuthorizationTypeForHTTPMethodGet(t *testing.T) {

@@ -24,14 +24,14 @@ import (
 	"context"
 	"sync"
 
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/consumer"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
-
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 // Options for the ingest handler.
@@ -51,7 +51,7 @@ type handlerMetrics struct {
 func newHandlerMetrics(scope tally.Scope) handlerMetrics {
 	messageScope := scope.SubScope("metric")
 	return handlerMetrics{
-		metricAccepted:   messageScope.Counter("accepted"),
+		metricAccepted: messageScope.Counter("accepted"),
 		droppedMetricDecodeError: messageScope.Tagged(map[string]string{
 			"reason": "decode-error",
 		}).Counter("dropped"),

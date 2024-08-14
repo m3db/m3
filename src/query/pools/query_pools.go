@@ -21,6 +21,8 @@
 package pools
 
 import (
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -32,8 +34,6 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
-
-	"github.com/uber-go/tally"
 )
 
 const (

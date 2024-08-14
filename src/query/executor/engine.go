@@ -24,13 +24,13 @@ import (
 	"context"
 	"time"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/opentracing"
-
-	"github.com/uber-go/tally"
 )
 
 type engine struct {

@@ -23,11 +23,11 @@ package client
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/x/serialize"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
-
-	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/x/serialize"
 )
 
 func TestFetchTaggedResultsIndexIterator(t *testing.T) {

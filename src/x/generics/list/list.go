@@ -58,9 +58,9 @@ package list
 import (
 	"sync"
 
-	"github.com/m3db/m3/src/x/pool"
-
 	"github.com/mauricelam/genny/generic"
+
+	"github.com/m3db/m3/src/x/pool"
 )
 
 // ValueType is the generic element type for use with the list.

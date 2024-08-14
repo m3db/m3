@@ -23,10 +23,10 @@ package ts
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/pool"
-
-	"github.com/stretchr/testify/assert"
 )
 
 var (

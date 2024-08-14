@@ -23,10 +23,10 @@ package aggregation
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestOptions(t *testing.T) {

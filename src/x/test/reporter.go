@@ -32,26 +32,28 @@ import (
 // when interacting with gomock.Controller.
 //
 // For example, consider:
-//   func TestMyThing(t *testing.T) {
-//     mockCtrl := gomock.NewController(t)
-//     defer mockCtrl.Finish()
-//     mockObj := something.NewMockMyInterface(mockCtrl)
-//     go func() {
-//       mockObj.SomeMethod(4, "blah")
-//     }
-//   }
+//
+//	func TestMyThing(t *testing.T) {
+//	  mockCtrl := gomock.NewController(t)
+//	  defer mockCtrl.Finish()
+//	  mockObj := something.NewMockMyInterface(mockCtrl)
+//	  go func() {
+//	    mockObj.SomeMethod(4, "blah")
+//	  }
+//	}
 //
 // It hangs without any indication that it's missing an EXPECT() on `mockObj`.
 // Providing the Reporter to the gomock.Controller ctor avoids this, and terminates
 // with useful feedback. i.e.
-//   func TestMyThing(t *testing.T) {
-//     mockCtrl := gomock.NewController(test.Reporter{t})
-//     defer mockCtrl.Finish()
-//     mockObj := something.NewMockMyInterface(mockCtrl)
-//     go func() {
-//       mockObj.SomeMethod(4, "blah") // crashes the test now
-//     }
-//   }
+//
+//	func TestMyThing(t *testing.T) {
+//	  mockCtrl := gomock.NewController(test.Reporter{t})
+//	  defer mockCtrl.Finish()
+//	  mockObj := something.NewMockMyInterface(mockCtrl)
+//	  go func() {
+//	    mockObj.SomeMethod(4, "blah") // crashes the test now
+//	  }
+//	}
 type Reporter struct {
 	T require.TestingT
 }

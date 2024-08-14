@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/jhump/protoreflect/dynamic"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"

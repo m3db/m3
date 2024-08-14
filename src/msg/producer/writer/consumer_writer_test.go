@@ -387,6 +387,7 @@ func TestConsumerWriterResetWhileDecoding(t *testing.T) {
 }
 
 // Interface solely for mocking.
+//
 //nolint:deadcode,unused
 type contextDialer interface {
 	DialContext(ctx context.Context, network string, addr string) (net.Conn, error)

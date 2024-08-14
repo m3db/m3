@@ -29,11 +29,11 @@ import (
 	"strconv"
 	"sync"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	xnet "github.com/m3db/m3/src/x/net"
 	"github.com/m3db/m3/src/x/panicmon"
-
-	"go.uber.org/zap"
 )
 
 const (

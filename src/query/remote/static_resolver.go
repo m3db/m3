@@ -38,8 +38,8 @@ var _ resolver.Builder = (*staticResolverBuilder)(nil)
 
 // staticResolverBuilder implements resolver.Builder.
 // It constructs a staticResolver, which:
-//  - Always routes to a static list of endpoints (never updates)
-//  - Performs round-robin load balancing between them.
+//   - Always routes to a static list of endpoints (never updates)
+//   - Performs round-robin load balancing between them.
 type staticResolverBuilder struct {
 	addresses []string
 }

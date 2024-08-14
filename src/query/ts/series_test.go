@@ -23,10 +23,10 @@ package ts
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/m3db/m3/src/query/models"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestCreateNewSeries(t *testing.T) {

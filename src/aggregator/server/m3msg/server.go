@@ -23,14 +23,14 @@ package m3msg
 import (
 	"fmt"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/metrics/encoding"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/msg/consumer"
 	xserver "github.com/m3db/m3/src/x/server"
-
-	"go.uber.org/zap"
 )
 
 // NewServer creates a new M3Msg server.

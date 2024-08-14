@@ -23,10 +23,10 @@ package transform
 import (
 	"sync"
 
+	"github.com/pkg/errors"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/parser"
-
-	"github.com/pkg/errors"
 )
 
 // BlockCache is used to cache blocks

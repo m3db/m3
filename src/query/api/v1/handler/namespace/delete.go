@@ -28,6 +28,9 @@ import (
 	"path"
 	"strings"
 
+	"github.com/gorilla/mux"
+	"go.uber.org/zap"
+
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -36,9 +39,6 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	"github.com/gorilla/mux"
-	"go.uber.org/zap"
 )
 
 const (

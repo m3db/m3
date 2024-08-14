@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 // Copyright (c) 2020 Uber Technologies, Inc.
@@ -26,12 +27,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/storage"
-	xclock "github.com/m3db/m3/src/x/clock"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+
+	"github.com/m3db/m3/src/dbnode/storage"
+	xclock "github.com/m3db/m3/src/x/clock"
 )
 
 type testBackgroundProcess struct {

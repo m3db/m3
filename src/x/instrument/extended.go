@@ -27,9 +27,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	xerrors "github.com/m3db/m3/src/x/errors"
-
 	"github.com/uber-go/tally"
+
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 // ExtendedMetricsType is a type of extended metrics to report.

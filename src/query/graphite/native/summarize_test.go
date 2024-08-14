@@ -24,11 +24,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/graphite/common"
-	"github.com/m3db/m3/src/query/graphite/ts"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/query/graphite/common"
+	"github.com/m3db/m3/src/query/graphite/ts"
 )
 
 func TestSummarize(t *testing.T) {

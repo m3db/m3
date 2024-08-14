@@ -28,9 +28,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
-
 	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
 )
 
 // RegressionQuery is the JSON representation of a query to be compared.

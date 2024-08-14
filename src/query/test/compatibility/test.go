@@ -47,15 +47,15 @@ import (
 	"strings"
 	"time"
 
-	cparser "github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
-
 	"github.com/pkg/errors"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/util/testutil"
+
+	cparser "github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 )
 
 var (

@@ -32,6 +32,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber-go/tally"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
 	etcdkv "github.com/m3db/m3/src/cluster/kv/etcd"
@@ -40,10 +44,6 @@ import (
 	"github.com/m3db/m3/src/cluster/services/leader"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
-
-	"github.com/uber-go/tally"
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.uber.org/zap"
 )
 
 const (
@@ -78,6 +78,7 @@ type ZoneClient struct {
 }
 
 // NewEtcdConfigServiceClient returns a new etcd-backed cluster client.
+//
 //nolint:golint
 func NewEtcdConfigServiceClient(opts Options) (*csclient, error) {
 	if err := opts.Validate(); err != nil {

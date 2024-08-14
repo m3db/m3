@@ -24,11 +24,11 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/m3db/m3/src/x/pool"
-
 	"github.com/golang/mock/gomock"
 	"github.com/mauricelam/genny/generic"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/x/pool"
 )
 
 // nolint: structcheck

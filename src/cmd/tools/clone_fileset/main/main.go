@@ -25,10 +25,10 @@ import (
 	"log"
 	"os"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/persist/fs/clone"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"go.uber.org/zap"
 )
 
 var (

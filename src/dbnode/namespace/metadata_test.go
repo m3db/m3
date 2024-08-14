@@ -24,11 +24,11 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/x/ident"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 func TestMetadataEqualsTrue(t *testing.T) {

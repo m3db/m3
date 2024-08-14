@@ -29,6 +29,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+	context "golang.org/x/net/context"
+
 	hb "github.com/m3db/m3/src/m3em/generated/proto/heartbeat"
 	"github.com/m3db/m3/src/m3em/generated/proto/m3em"
 	"github.com/m3db/m3/src/m3em/os/exec"
@@ -36,10 +40,6 @@ import (
 	xgrpc "github.com/m3db/m3/src/m3em/x/grpc"
 	m3xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
-	context "golang.org/x/net/context"
 )
 
 func newTempDir(t *testing.T) string {

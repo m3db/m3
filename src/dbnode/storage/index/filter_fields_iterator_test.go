@@ -23,10 +23,10 @@ package index
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	xtest "github.com/m3db/m3/src/x/test"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestNewFilterFieldsIteratorError(t *testing.T) {

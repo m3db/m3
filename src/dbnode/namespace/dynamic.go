@@ -25,12 +25,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	xwatch "github.com/m3db/m3/src/x/watch"
-
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 var (

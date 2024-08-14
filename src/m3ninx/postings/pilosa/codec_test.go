@@ -23,10 +23,10 @@ package pilosa
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestEncodeDecode(t *testing.T) {

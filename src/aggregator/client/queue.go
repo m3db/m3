@@ -28,12 +28,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/m3db/m3/src/cluster/placement"
-	"github.com/m3db/m3/src/metrics/encoding/protobuf"
-
 	"github.com/uber-go/tally"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 )
 
 const (

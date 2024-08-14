@@ -27,9 +27,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/persist/fs"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 )
 
 func TestFiles(t *testing.T) {

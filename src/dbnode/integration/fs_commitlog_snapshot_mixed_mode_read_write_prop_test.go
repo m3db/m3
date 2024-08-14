@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 // Copyright (c) 2018 Uber Technologies, Inc.
@@ -29,16 +30,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/x/context"
-	xtime "github.com/m3db/m3/src/x/time"
-	"go.uber.org/zap"
-
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/x/context"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // Really small block sizes make certain operations take too long
@@ -56,12 +57,12 @@ const (
 // can properly bootstrap all the data from a combination of fileset files,
 // snapshotfiles, and commit log files. It varies the following inputs to
 // the system:
-// 		1) block size
-// 		2) buffer past
-// 		3) buffer future
-// 		4) number of datapoints
-// 		5) whether it waits for data files to be flushed before shutting down
-// 		6) whether it waits for snapshot files to be written before shutting down
+//  1. block size
+//  2. buffer past
+//  3. buffer future
+//  4. number of datapoints
+//  5. whether it waits for data files to be flushed before shutting down
+//  6. whether it waits for snapshot files to be written before shutting down
 //
 // It works by generating random datapoints, and then writing those data points
 // to the node in order. At randomly selected times during the write process, the

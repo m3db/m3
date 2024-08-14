@@ -27,6 +27,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/cluster/generated/proto/metadatapb"
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/kv"
@@ -37,10 +41,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xos "github.com/m3db/m3/src/x/os"
 	xwatch "github.com/m3db/m3/src/x/watch"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestConvertBetweenProtoAndService(t *testing.T) {

@@ -25,10 +25,10 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/m3db/m3/src/cluster/placement"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/cluster/placement"
 )
 
 func TestGroupInstancesByConflict(t *testing.T) {

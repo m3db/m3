@@ -23,9 +23,9 @@ package idx_test
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/m3ninx/idx"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/m3ninx/idx"
 )
 
 func TestQueryMatcherTermQuery(t *testing.T) {

@@ -25,9 +25,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/m3db/m3/src/x/errors"
-
 	"github.com/uber-go/tally"
+
+	"github.com/m3db/m3/src/x/errors"
 )
 
 // RetryableError returns a retryable error.

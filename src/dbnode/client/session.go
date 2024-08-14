@@ -32,6 +32,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/uber-go/tally"
+	"github.com/uber/tchannel-go/thrift"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -61,11 +66,6 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 	tbinarypool "github.com/m3db/m3/src/x/thrift"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/uber-go/tally"
-	"github.com/uber/tchannel-go/thrift"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 const (

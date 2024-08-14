@@ -29,17 +29,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/bloom/v4"
+	"github.com/pborman/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/m3db/bloom/v4"
-	"github.com/pborman/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -173,7 +173,7 @@ var readTestTypes = []readTestType{
 	readTestTypeMetadata,
 }
 
-//nolint: unparam
+// nolint: unparam
 func readTestData(t *testing.T, r DataFileSetReader, shard uint32,
 	timestamp xtime.UnixNano, entries []testEntry) {
 	readTestDataWithStreamingOpt(t, r, shard, timestamp, entries, false)

@@ -26,15 +26,15 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/gorilla/mux"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/ctl/auth"
 	mservice "github.com/m3db/m3/src/ctl/service"
 	"github.com/m3db/m3/src/ctl/service/r2/store"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/gorilla/mux"
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 const (

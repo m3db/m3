@@ -38,9 +38,9 @@ type simpleOpNode interface {
 // It adds instrumentation to the processing, and handles propagating the block downstream.
 // OpNode's should call this as their implementation of the Process method:
 //
-// func (n MyNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
-//     return transform.ProcessSimpleBlock(n, n.controller, queryCtx, ID, b)
-// }
+//	func (n MyNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
+//	    return transform.ProcessSimpleBlock(n, n.controller, queryCtx, ID, b)
+//	}
 func ProcessSimpleBlock(
 	node simpleOpNode,
 	controller *Controller,

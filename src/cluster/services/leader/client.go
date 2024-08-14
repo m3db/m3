@@ -25,13 +25,13 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/m3db/m3/src/cluster/services"
-	"github.com/m3db/m3/src/cluster/services/leader/campaign"
-	"github.com/m3db/m3/src/cluster/services/leader/election"
-
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/concurrency"
 	"golang.org/x/net/context"
+
+	"github.com/m3db/m3/src/cluster/services"
+	"github.com/m3db/m3/src/cluster/services/leader/campaign"
+	"github.com/m3db/m3/src/cluster/services/leader/election"
 )
 
 // Appended to elections with an empty string for electionID to make it easier

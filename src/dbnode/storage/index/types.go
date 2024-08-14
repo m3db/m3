@@ -25,6 +25,8 @@ import (
 	"sort"
 	"time"
 
+	opentracinglog "github.com/opentracing/opentracing-go/log"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
@@ -42,8 +44,6 @@ import (
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	opentracinglog "github.com/opentracing/opentracing-go/log"
 )
 
 // InsertMode specifies whether inserts are synchronous or asynchronous.

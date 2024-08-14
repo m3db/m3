@@ -23,10 +23,10 @@ package context
 import (
 	stdctx "context"
 
+	"github.com/opentracing/opentracing-go"
+
 	"github.com/m3db/m3/src/x/pool"
 	xresource "github.com/m3db/m3/src/x/resource"
-
-	"github.com/opentracing/opentracing-go"
 )
 
 // Cancellable is an object that can be cancelled.

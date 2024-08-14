@@ -33,6 +33,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/common/model"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/generated/proto/kvpb"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
@@ -47,10 +51,6 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/prometheus/common/model"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 const (
@@ -347,7 +347,7 @@ func testQueryLimitsApplied(
 		})
 
 	logger.Info("test query series limit with require-exhaustive headers true " +
-		"(below limit therefore no error)")
+		"(below the limit therefore no error)")
 	requireInstantQuerySuccess(t,
 		coordinator,
 		resources.QueryRequest{
@@ -366,7 +366,7 @@ func testQueryLimitsApplied(
 		})
 
 	logger.Info("test query series limit with require-exhaustive headers " +
-		"true (above limit therefore error)")
+		"true (above the limit therefore error)")
 	requireError(t, func() error {
 		_, err := coordinator.InstantQuery(resources.QueryRequest{
 			Query: "database_write_tagged_success",
@@ -408,7 +408,7 @@ func testQueryLimitsApplied(
 		})
 
 	logger.Info("test query docs limit with require-exhaustive headers true " +
-		"(below limit therefore no error)")
+		"(below limit and therefore no error)")
 	requireInstantQuerySuccess(t,
 		coordinator,
 		resources.QueryRequest{
@@ -429,7 +429,7 @@ func testQueryLimitsApplied(
 		})
 
 	logger.Info("test query docs limit with require-exhaustive headers " +
-		"true (above limit therefore error)")
+		"true (above limit, error)")
 	requireError(t, func() error {
 		_, err := coordinator.InstantQuery(resources.QueryRequest{
 			Query: "database_write_tagged_success",
@@ -683,7 +683,7 @@ func testQueryLimitsApplied(
 		})
 
 	logger.Info("test query time range limit with require-exhaustive headers true " +
-		"(above limit therefore error)")
+		"(above the limit and therefore error)")
 	requireError(t, func() error {
 		_, err := coordinator.RangeQuery(resources.RangeQueryRequest{
 			Query: "database_write_tagged_success",
@@ -751,7 +751,7 @@ func testQueryLimitsApplied(
 		})
 
 	logger.Info("test query time range limit with require-exhaustive headers true " +
-		"(above limit therefore error)")
+		"(above the limit therefore error)")
 	requireError(t, func() error {
 		_, err := coordinator.LabelValues(resources.LabelValuesRequest{
 			MetadataRequest: resources.MetadataRequest{
@@ -1099,7 +1099,7 @@ func testLabelQueryLimitsApplied(
 	logger *zap.Logger,
 ) {
 	logger.Info("test label limits with require-exhaustive headers true " +
-		"(below limit therefore no error)")
+		"(below the limit and therefore no error)")
 	requireLabelValuesSuccess(t,
 		coordinator,
 		resources.LabelValuesRequest{
@@ -1143,7 +1143,7 @@ func testLabelQueryLimitsApplied(
 		})
 
 	logger.Info("Test label series limit with require-exhaustive headers " +
-		"true (above limit therefore error)")
+		"true (above limit and therefore error)")
 	requireError(t, func() error {
 		_, err := coordinator.LabelValues(resources.LabelValuesRequest{
 			LabelName: "__name__",
@@ -1192,7 +1192,7 @@ func testLabelQueryLimitsApplied(
 		})
 
 	logger.Info("Test label docs limit with require-exhaustive headers " +
-		"true (above limit therefore error)")
+		"true (above limit, therefore error)")
 	requireError(t, func() error {
 		_, err := coordinator.LabelValues(resources.LabelValuesRequest{
 			LabelName: "__name__",

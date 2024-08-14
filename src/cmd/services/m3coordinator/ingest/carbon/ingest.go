@@ -32,6 +32,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
@@ -48,10 +52,6 @@ import (
 	m3xserver "github.com/m3db/m3/src/x/server"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -470,11 +470,14 @@ func newCarbonIngesterMetrics(scope tally.Scope) (carbonIngesterMetrics, error) 
 
 // GenerateTagsFromName accepts a carbon metric name and blows it up into a list of
 // key-value pair tags such that an input like:
-//      foo.bar.baz
+//
+//	foo.bar.baz
+//
 // becomes
-//      __g0__:foo
-//      __g1__:bar
-//      __g2__:baz
+//
+//	__g0__:foo
+//	__g1__:bar
+//	__g2__:baz
 func GenerateTagsFromName(
 	name []byte,
 	opts models.TagOptions,

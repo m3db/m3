@@ -23,9 +23,10 @@ package remote
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestMapTags_Append(t *testing.T) {

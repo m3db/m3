@@ -28,6 +28,11 @@ import (
 	"sort"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/metrics/aggregation"
@@ -44,11 +49,6 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
-
-	"github.com/gogo/protobuf/jsonpb"
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 var errNoTags = errors.New("no tags provided")

@@ -29,6 +29,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -45,11 +50,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/opentracing/opentracing-go"
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
 )
 
 const (

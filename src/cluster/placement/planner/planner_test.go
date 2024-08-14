@@ -24,10 +24,10 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/shard"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestDeployment(t *testing.T) {

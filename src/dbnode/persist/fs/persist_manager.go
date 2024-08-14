@@ -26,6 +26,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pborman/uuid"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/ratelimit"
 	"github.com/m3db/m3/src/dbnode/runtime"
@@ -37,10 +41,6 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 	xresource "github.com/m3db/m3/src/x/resource"
-
-	"github.com/pborman/uuid"
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 const (

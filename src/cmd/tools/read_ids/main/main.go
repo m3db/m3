@@ -28,14 +28,14 @@ import (
 	"strings"
 	"time"
 
+	tchannel "github.com/uber/tchannel-go"
+	"github.com/uber/tchannel-go/thrift"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	nchannel "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node/channel"
 	"github.com/m3db/m3/src/x/ident"
 	xretry "github.com/m3db/m3/src/x/retry"
-
-	tchannel "github.com/uber/tchannel-go"
-	"github.com/uber/tchannel-go/thrift"
-	"go.uber.org/zap"
 )
 
 func main() {

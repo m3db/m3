@@ -64,8 +64,9 @@ func (opts *Options) RegisterFlagSet(cmd *flag.FlagSet) {
 
 // MainLoad is a convenience method, intended for use in main(), which handles all
 // config commandline options. It:
-//  - Dumps config and exits if -d was passed.
-//  - Loads configuration otherwise.
+//   - Dumps config and exits if -d was passed.
+//   - Loads configuration otherwise.
+//
 // Users who want a subset of this behavior should call individual methods.
 func (opts *Options) MainLoad(target interface{}, loadOpts config.Options) error {
 	osFns := opts.osFns
@@ -94,10 +95,14 @@ func (opts *Options) MainLoad(target interface{}, loadOpts config.Options) error
 
 // FlagStringSlice represents a slice of strings. When used as a flag variable,
 // it allows for multiple string values. For example, it can be used like this:
-// 	var configFiles FlagStringSlice
-// 	flag.Var(&configFiles, "f", "configuration file(s)")
+//
+//	var configFiles FlagStringSlice
+//	flag.Var(&configFiles, "f", "configuration file(s)")
+//
 // Then it can be invoked like this:
-// 	./app -f file1.yaml -f file2.yaml -f valueN.yaml
+//
+//	./app -f file1.yaml -f file2.yaml -f valueN.yaml
+//
 // Finally, when the flags are parsed, the variable contains all the values.
 type FlagStringSlice struct {
 	Value []string

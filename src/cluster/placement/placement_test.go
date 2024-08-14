@@ -25,11 +25,11 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
-	"github.com/m3db/m3/src/cluster/shard"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
+	"github.com/m3db/m3/src/cluster/shard"
 )
 
 func TestPlacement(t *testing.T) {

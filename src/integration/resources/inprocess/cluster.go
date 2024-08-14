@@ -26,6 +26,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/ory/dockertest/v3"
+	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
+
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	aggcfg "github.com/m3db/m3/src/cmd/services/m3aggregator/config"
 	dbcfg "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
@@ -41,11 +46,6 @@ import (
 	"github.com/m3db/m3/src/x/config/hostid"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/google/uuid"
-	"github.com/ory/dockertest/v3"
-	"go.uber.org/zap"
-	"gopkg.in/yaml.v2"
 )
 
 // ClusterConfigs contain the input config to use for components within
@@ -245,7 +245,7 @@ func NewClusterFromSpecification(
 		if err := etcd.Setup(context.TODO()); err != nil {
 			return nil, err
 		}
-		etcdEndpoints = []string{fmt.Sprintf(etcd.Address())}
+		etcdEndpoints = []string{fmt.Sprint(etcd.Address())}
 	}
 
 	updateEtcdEndpoints := func(etcdCfg *etcdclient.Configuration) {

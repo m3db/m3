@@ -23,9 +23,9 @@ package query
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/m3ninx/search"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/m3ninx/search"
 )
 
 func TestConjunctionQuery(t *testing.T) {

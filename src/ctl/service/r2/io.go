@@ -28,9 +28,9 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/m3db/m3/src/metrics/rules/view/changes"
-
 	validator "gopkg.in/go-playground/validator.v9"
+
+	"github.com/m3db/m3/src/metrics/rules/view/changes"
 )
 
 // TODO(dgromov): Make this return a list of validation errors

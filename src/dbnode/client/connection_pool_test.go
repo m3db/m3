@@ -27,13 +27,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
-	"github.com/m3db/m3/src/dbnode/topology"
-	xclock "github.com/m3db/m3/src/x/clock"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/tchannel-go"
+
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/dbnode/topology"
+	xclock "github.com/m3db/m3/src/x/clock"
 )
 
 const (

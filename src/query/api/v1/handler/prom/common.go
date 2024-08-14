@@ -25,11 +25,11 @@ import (
 	"net/http"
 	"time"
 
-	xhttp "github.com/m3db/m3/src/x/net/http"
-
 	jsoniter "github.com/json-iterator/go"
 	promql "github.com/prometheus/prometheus/promql/parser"
 	promstorage "github.com/prometheus/prometheus/storage"
+
+	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
 // All of this is taken from prometheus to ensure we have consistent return/error

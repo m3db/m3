@@ -81,6 +81,8 @@ linters-settings:
     min-len: 3
     # minimal occurrences count to trigger, 3 by default
     min-occurrences: 3
+    # ignore tests
+    ignore-tests: true 
   depguard:
     list-type: blacklist
     include-go-root: false
@@ -156,6 +158,7 @@ linters-settings:
       # as a general rule of thumb.
       - hugeParam
       - rangeValCopy
+      - ifElseChain
     enabled-checks:
       # temp disabled, something wrong on go 1.18
       # - ruleguard
@@ -170,6 +173,9 @@ linters-settings:
       - standard
       - prefix(github.com/m3db/m3)
       - default
+  staticcheck:
+    # disable pkg deprecation checks.
+    checks: ["all", "-SA1019"]
 
 linters:
   enable:
@@ -253,6 +259,26 @@ linters:
     - gomoddirectives
     - gofumpt
     - ifshort
+    - wastedassign
+    - usestdlibvars
+    - testifylint
+    - inamedparam
+    - exhaustruct
+    - depguard
+    - revive
+    - protogetter
+    - gosec
+    - mirror
+    - interfacebloat
+    - musttag
+    - nonamedreturns
+    - stylecheck
+    - contextcheck
+    - tagalign
+    - gosmopolitan
+    - nilerr
+    - whitespace
+    - bodyclose
   disable-all: false
   presets:
     # bodyclose, errcheck, gosec, govet, scopelint, staticcheck, typecheck
