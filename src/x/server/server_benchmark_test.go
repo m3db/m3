@@ -109,7 +109,7 @@ func benchmarkServer(tlsMode xtls.ServerMode, mTLSEnabled bool, b *testing.B) {
 		_, err = conn.Write([]byte(msg))
 		require.NoError(b, err)
 	}
-	waitFor(func() bool { return handler.called() == b.N }, 100*time.Millisecond)
+	waitFor(func() bool { return handler.called() == b.N })
 	require.Equal(b, b.N, handler.called())
 }
 
