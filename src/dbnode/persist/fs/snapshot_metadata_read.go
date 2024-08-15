@@ -24,11 +24,11 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/pborman/uuid"
+
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/generated/proto/snapshot"
 	"github.com/m3db/m3/src/dbnode/persist"
-
-	"github.com/pborman/uuid"
 )
 
 // NewSnapshotMetadataReader returns a new SnapshotMetadataReader.

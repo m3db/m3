@@ -24,11 +24,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/m3db/m3/src/aggregator/aggregator"
-	"github.com/m3db/m3/src/x/sync"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/aggregator/aggregator"
+	"github.com/m3db/m3/src/x/sync"
 )
 
 func TestValidatorForFollowerStatusError(t *testing.T) {

@@ -25,11 +25,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	hb "github.com/m3db/m3/src/m3em/generated/proto/heartbeat"
 	xgrpc "github.com/m3db/m3/src/m3em/x/grpc"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestInvalidMessageType(t *testing.T) {

@@ -31,10 +31,10 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/unsafe"
-
-	"go.uber.org/zap"
 )
 
 const (

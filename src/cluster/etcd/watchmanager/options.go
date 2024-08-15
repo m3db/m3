@@ -24,9 +24,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/m3db/m3/src/x/instrument"
-
 	clientv3 "go.etcd.io/etcd/client/v3"
+
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 const (

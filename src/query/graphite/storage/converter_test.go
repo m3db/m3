@@ -23,11 +23,11 @@ package storage
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/query/graphite/graphite"
-	"github.com/m3db/m3/src/query/models"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/query/graphite/graphite"
+	"github.com/m3db/m3/src/query/models"
 )
 
 func TestConvertMetricPartToMatcher(t *testing.T) {

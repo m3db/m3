@@ -1,5 +1,5 @@
 # stage 1: build
-FROM golang:1.18-alpine3.15 AS builder
+FROM golang:1.22-alpine3.20 AS builder
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
 # Install deps

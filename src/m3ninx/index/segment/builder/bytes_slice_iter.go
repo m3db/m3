@@ -23,10 +23,10 @@ package builder
 import (
 	"bytes"
 
+	"github.com/twotwotwo/sorts"
+
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
-
-	"github.com/twotwotwo/sorts"
 )
 
 type uniqueField struct {

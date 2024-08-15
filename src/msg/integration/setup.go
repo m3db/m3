@@ -27,6 +27,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
+	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
+
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/mem"
@@ -41,12 +47,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xio "github.com/m3db/m3/src/x/io"
 	xsync "github.com/m3db/m3/src/x/sync"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
-	"go.uber.org/zap"
-	"gopkg.in/yaml.v2"
 )
 
 const (

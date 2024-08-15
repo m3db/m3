@@ -26,11 +26,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestTermsIterFromSegmentsDeduplicates(t *testing.T) {

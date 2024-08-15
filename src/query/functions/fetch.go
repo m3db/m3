@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
@@ -32,8 +34,6 @@ import (
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/opentracing"
-
-	"go.uber.org/zap"
 )
 
 // FetchType gets the series from storage

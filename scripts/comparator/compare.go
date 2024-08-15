@@ -31,12 +31,12 @@ import (
 	"os"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/scripts/comparator/utils"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"go.uber.org/zap"
 )
 
 func paramError(err string, log *zap.Logger) {

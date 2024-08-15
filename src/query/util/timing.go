@@ -26,8 +26,9 @@ import (
 	"strconv"
 	"time"
 
-	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/prometheus/common/model"
+
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 var (

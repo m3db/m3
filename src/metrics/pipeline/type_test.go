@@ -24,15 +24,15 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
+
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/generated/proto/pipelinepb"
 	"github.com/m3db/m3/src/metrics/generated/proto/transformationpb"
 	"github.com/m3db/m3/src/metrics/transformation"
 	"github.com/m3db/m3/src/metrics/x/bytes"
 	"github.com/m3db/m3/src/x/test/testmarshal"
-
-	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
 )
 
 var (

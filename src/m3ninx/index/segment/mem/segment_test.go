@@ -24,11 +24,11 @@ import (
 	re "regexp"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
-
-	"github.com/stretchr/testify/require"
 )
 
 var (

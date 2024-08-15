@@ -43,9 +43,9 @@ func transformPerSecond() BinaryTransform {
 // perSecond computes the derivative between consecutive datapoints, taking into
 // account the time interval between the values.
 // Note:
-// * It skips NaN values.
-// * It assumes the timestamps are monotonically increasing, and values are non-decreasing.
-//   If either of the two conditions is not met, an empty datapoint is returned.
+//   - It skips NaN values.
+//   - It assumes the timestamps are monotonically increasing, and values are non-decreasing.
+//     If either of the two conditions is not met, an empty datapoint is returned.
 func perSecond(prev, curr Datapoint, flags FeatureFlags) Datapoint {
 	if prev.TimeNanos >= curr.TimeNanos || math.IsNaN(prev.Value) || math.IsNaN(curr.Value) {
 		return emptyDatapoint
@@ -65,9 +65,9 @@ func transformIncrease() BinaryTransform {
 // increase computes the difference between consecutive datapoints, unlike
 // perSecond it does not account for the time interval between the values.
 // Note:
-// * It skips NaN values. If the previous value is a NaN value, it uses a previous value of 0.
-// * It assumes the timestamps are monotonically increasing, and values are non-decreasing.
-//   If either of the two conditions is not met, an empty datapoint is returned.
+//   - It skips NaN values. If the previous value is a NaN value, it uses a previous value of 0.
+//   - It assumes the timestamps are monotonically increasing, and values are non-decreasing.
+//     If either of the two conditions is not met, an empty datapoint is returned.
 func increase(prev, curr Datapoint, _ FeatureFlags) Datapoint {
 	if prev.TimeNanos >= curr.TimeNanos {
 		return emptyDatapoint

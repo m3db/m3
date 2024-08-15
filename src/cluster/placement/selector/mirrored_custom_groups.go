@@ -23,16 +23,16 @@ package selector
 import (
 	"fmt"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/x/errors"
-
-	"go.uber.org/zap"
 )
 
 type mirroredCustomGroupSelector struct {
 	instanceIDToGroupID InstanceGroupIDFunc
 	logger              *zap.Logger
-	opts            placement.Options
+	opts                placement.Options
 }
 
 // InstanceGroupIDFunc maps an instance to its mirrored group.
@@ -94,7 +94,7 @@ func (e *mirroredCustomGroupSelector) SelectReplaceInstances(
 ) ([]placement.Instance, error) {
 	candidates, err := getValidCandidates(p, candidates, e.opts)
 	if err != nil {
-	    return nil, err
+		return nil, err
 	}
 
 	// find a replacement for each leaving instance.

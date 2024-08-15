@@ -25,12 +25,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
-	"github.com/m3db/m3/src/cluster/kv/mem"
-
 	"github.com/fortytw2/leaktest"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+
+	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
+	"github.com/m3db/m3/src/cluster/kv/mem"
 )
 
 func TestWatchAndAtomicUpdateBool(t *testing.T) {

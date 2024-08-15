@@ -24,15 +24,15 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v3/docker"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/integration"
 	"github.com/m3db/m3/src/integration/resources"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	xdockertest "github.com/m3db/m3/src/x/dockertest"
-
-	"github.com/ory/dockertest/v3"
-	"github.com/ory/dockertest/v3/docker"
-	"go.uber.org/zap"
 )
 
 const (

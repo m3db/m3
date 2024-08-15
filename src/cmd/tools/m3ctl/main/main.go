@@ -27,16 +27,16 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/spf13/cobra"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/apply"
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/namespaces"
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/placements"
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/topics"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
-
-	"github.com/gogo/protobuf/jsonpb"
-	"github.com/spf13/cobra"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 const (

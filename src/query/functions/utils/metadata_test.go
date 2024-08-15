@@ -23,11 +23,11 @@ package utils
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestFlattenMetadata(t *testing.T) {

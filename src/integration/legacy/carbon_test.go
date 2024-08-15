@@ -1,4 +1,6 @@
+//go:build cluster_integration
 // +build cluster_integration
+
 //
 // Copyright (c) 2020  Uber Technologies, Inc.
 //
@@ -28,9 +30,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/integration/resources"
-
 	"github.com/stretchr/testify/assert"
+
+	"github.com/m3db/m3/src/integration/resources"
 )
 
 func findVerifier(expected string) resources.ResponseVerifier {

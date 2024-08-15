@@ -26,9 +26,9 @@ import (
 	"path"
 	"time"
 
-	"github.com/m3db/m3/src/m3em/node"
-
 	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/m3em/node"
 )
 
 const (

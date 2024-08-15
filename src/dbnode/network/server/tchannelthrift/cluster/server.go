@@ -21,14 +21,14 @@
 package cluster
 
 import (
+	"github.com/uber/tchannel-go"
+
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	ns "github.com/m3db/m3/src/dbnode/network/server"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
 	"github.com/m3db/m3/src/x/context"
 	xresource "github.com/m3db/m3/src/x/resource"
-
-	"github.com/uber/tchannel-go"
 )
 
 const (

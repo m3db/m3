@@ -22,12 +22,12 @@ package yaml
 
 import (
 	"bytes"
-	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
+	"go.uber.org/zap"
 )
 
 // Load reads a yaml representation of an m3 structure
@@ -37,7 +37,6 @@ import (
 // so peek at it to see what's the intended action then load it
 //
 // See the examples directories.
-//
 func Load(path string, zl *zap.Logger) (string, io.Reader, error) {
 	content, err := ioutil.ReadFile(path)
 	if err != nil {

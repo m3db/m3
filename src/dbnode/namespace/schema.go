@@ -27,14 +27,14 @@ import (
 	"os"
 	"strings"
 
-	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
-	xerrors "github.com/m3db/m3/src/x/errors"
-	"github.com/m3db/m3/src/x/ident"
-
 	"github.com/golang/protobuf/proto"
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/desc/protoparse"
+
+	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 var (
@@ -306,12 +306,13 @@ func marshalFileDescriptors(fdList []*desc.FileDescriptor) ([][]byte, error) {
 // protoFile: name of the top level proto file.
 // msgName: name of the top level proto message.
 // contents: map of name to proto strings.
-//          Except for the top level proto file, other imported proto files' key must be exactly the same
-//          as how they are imported in the import statement:
-//          E.g. if import.proto is imported as below
-//          import "mainpkg/imported.proto";
-//          Then the map key for improted.proto must be "mainpkg/imported.proto"
-//          See src/dbnode/namesapce/kvadmin test for example.
+//
+//	Except for the top level proto file, other imported proto files' key must be exactly the same
+//	as how they are imported in the import statement:
+//	E.g. if import.proto is imported as below
+//	import "mainpkg/imported.proto";
+//	Then the map key for improted.proto must be "mainpkg/imported.proto"
+//	See src/dbnode/namesapce/kvadmin test for example.
 func AppendSchemaOptions(schemaOpt *nsproto.SchemaOptions, protoFile, msgName string, contents map[string]string, deployID string) (*nsproto.SchemaOptions, error) {
 	// Verify schema options
 	schemaHist, err := LoadSchemaHistory(schemaOpt)

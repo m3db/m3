@@ -29,6 +29,8 @@ import (
 	"os"
 	"time"
 
+	protobuftypes "github.com/gogo/protobuf/types"
+
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/generated/proto/index"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -36,8 +38,6 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xos "github.com/m3db/m3/src/x/os"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	protobuftypes "github.com/gogo/protobuf/types"
 )
 
 const (

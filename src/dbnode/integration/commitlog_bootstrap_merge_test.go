@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 // Copyright (c) 2017 Uber Technologies, Inc.
@@ -26,16 +27,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
-
-	"github.com/stretchr/testify/require"
 )
 
 // Consider a database running with a single namespaces, and the following retention opts:
 //
-//           | BlockSize | Retention Period
+//	| BlockSize | Retention Period
+//
 // ns1       |    2h     |      8h
 // commitLog |   15m     |      8h
 //
@@ -43,8 +45,9 @@ import (
 //
 // time (flowing left --> right):
 // time-label: t0  t1  t2  t3
-//  ns1        .   .          [blocksize . is 2h]
-//  commitlog      ,,,,,,,,,  [blocksize , is 30min]
+//
+//	ns1        .   .          [blocksize . is 2h]
+//	commitlog      ,,,,,,,,,  [blocksize , is 30min]
 //
 // The test creates the blocks below, and verifies the bootstrappers are able to merge the data
 // successfully.

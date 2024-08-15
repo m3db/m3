@@ -25,13 +25,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/cluster/client"
-	"github.com/m3db/m3/src/cluster/services"
-	"github.com/m3db/m3/src/cluster/shard"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/services"
+	"github.com/m3db/m3/src/cluster/shard"
 )
 
 func testSetup(ctrl *gomock.Controller) (DynamicOptions, *testWatch) {

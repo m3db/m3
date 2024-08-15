@@ -23,13 +23,13 @@ package placement
 import (
 	"time"
 
+	"github.com/golang/protobuf/proto"
+
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/golang/protobuf/proto"
 )
 
 // Instance represents an instance in a placement.
@@ -465,13 +465,13 @@ type Service interface {
 // a local copy of a placement without persisting anything to backing storage. This can be useful
 // to apply multiple placement operations in a row before persisting them, e.g.:
 //
-// func DoMultipleOps(opts placement.Options, store placement.Storage) {
-//    curPlacement := store.Placement()
-//    op := placement.NewOperator(curPlacement, opts)
-//    op.ReplaceInstances(...)
-//    op.MarkAllShardsAvailable()
-//    store.CheckAndSet(op.Placement())
-// }
+//	func DoMultipleOps(opts placement.Options, store placement.Storage) {
+//	   curPlacement := store.Placement()
+//	   op := placement.NewOperator(curPlacement, opts)
+//	   op.ReplaceInstances(...)
+//	   op.MarkAllShardsAvailable()
+//	   store.CheckAndSet(op.Placement())
+//	}
 type Operator interface {
 	operations
 

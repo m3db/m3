@@ -22,9 +22,9 @@ package config
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/x/sync"
-
 	"github.com/stretchr/testify/assert"
+
+	"github.com/m3db/m3/src/x/sync"
 )
 
 func TestWorkerPoolPolicyConvertsToOptionsDefault(t *testing.T) {

@@ -23,9 +23,9 @@ package placement
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 )
 
 var (

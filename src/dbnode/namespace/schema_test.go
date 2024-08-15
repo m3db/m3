@@ -23,10 +23,10 @@ package namespace
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	xerrors "github.com/m3db/m3/src/x/errors"
-
-	"github.com/stretchr/testify/require"
 )
 
 var (

@@ -27,9 +27,9 @@ import (
 	"math"
 	"time"
 
-	xerrors "github.com/m3db/m3/src/x/errors"
-
 	"github.com/uber-go/tally"
+
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 var (

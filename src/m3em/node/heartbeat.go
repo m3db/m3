@@ -25,12 +25,12 @@ import (
 	"sync"
 	"time"
 
-	hb "github.com/m3db/m3/src/m3em/generated/proto/heartbeat"
-	"github.com/m3db/m3/src/x/instrument"
-
 	context "golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+
+	hb "github.com/m3db/m3/src/m3em/generated/proto/heartbeat"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 type heartbeatRouter struct {

@@ -28,6 +28,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/protobuf/proto"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
@@ -35,9 +38,6 @@ import (
 	"github.com/m3db/m3/src/metrics/matcher/namespace"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/rules"
-
-	"github.com/golang/protobuf/proto"
-	"github.com/stretchr/testify/require"
 )
 
 const (

@@ -24,13 +24,13 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/pborman/uuid"
+
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/search"
-
-	"github.com/pborman/uuid"
 )
 
 var (

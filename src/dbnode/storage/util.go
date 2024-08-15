@@ -97,9 +97,9 @@ func DefaultTestOptions() Options {
 // numIntervals returns the number of intervals between [start, end] for a given
 // windowSize.
 // NB: edge conditions:
-// 	- returns 0 if window <= 0 ;
-//  - returns 0 if end is before start;
-//  - returns 1 if end == start
+//   - returns 0 if window <= 0 ;
+//   - returns 0 if end is before start;
+//   - returns 1 if end == start
 func numIntervals(startInclusive, endInclusive xtime.UnixNano, window time.Duration) int {
 	if window <= 0 || endInclusive.Before(startInclusive) {
 		return 0

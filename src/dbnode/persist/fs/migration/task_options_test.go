@@ -25,12 +25,12 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/stretchr/testify/require"
 )
 
 func defaultTestOptions(t *testing.T, ctrl *gomock.Controller) TaskOptions {

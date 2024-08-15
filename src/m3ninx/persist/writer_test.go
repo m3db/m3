@@ -24,11 +24,11 @@ import (
 	"io"
 	"testing"
 
-	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
-	xtest "github.com/m3db/m3/src/x/test"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
+	xtest "github.com/m3db/m3/src/x/test"
 )
 
 func newTestWriter(t *testing.T, ctrl *gomock.Controller) (

@@ -24,10 +24,10 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/x/mmap"
-
-	"github.com/stretchr/testify/require"
 )
 
 // ToTestSegment returns a FST segment equivalent to the provide mutable segment.

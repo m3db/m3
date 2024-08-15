@@ -26,9 +26,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/graphite/ts"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/query/graphite/ts"
 )
 
 func TestRangeOfSeries(t *testing.T) {

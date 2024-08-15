@@ -51,7 +51,7 @@ func (f functionProcessor) initialize(
 	_ time.Duration,
 	_ transform.Options,
 ) processor {
-	return &functionNode{ 
+	return &functionNode{
 		comparisonFunc: f.compFunc,
 	}
 }
@@ -82,7 +82,7 @@ func NewFunctionOp(args []interface{}, optype string) (transform.Params, error) 
 	return newBaseOp(duration, optype, f)
 }
 
-type functionNode struct { 
+type functionNode struct {
 	comparisonFunc comparisonFunc
 }
 

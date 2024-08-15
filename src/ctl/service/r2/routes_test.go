@@ -29,6 +29,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/gorilla/mux"
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/ctl/auth"
 	"github.com/m3db/m3/src/ctl/service/r2/store"
 	"github.com/m3db/m3/src/metrics/rules"
@@ -36,11 +41,6 @@ import (
 	"github.com/m3db/m3/src/metrics/rules/view/changes"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/golang/mock/gomock"
-	"github.com/gorilla/mux"
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 func TestHandleRoute(t *testing.T) {
@@ -420,7 +420,7 @@ func (s mockStore) DeleteNamespace(namespaceID string, uOpts store.UpdateOptions
 	return nil
 }
 
-//nolint: unparam
+// nolint: unparam
 func (s mockStore) FetchRuleSet(namespaceID string) (rules.RuleSet, error) {
 	return newTestRuleSet(1), nil
 }

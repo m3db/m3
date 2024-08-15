@@ -23,12 +23,13 @@ package builder
 import (
 	"bytes"
 
+	bitmap "github.com/m3dbx/pilosa/roaring"
+
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	bitmap "github.com/m3dbx/pilosa/roaring"
 )
 
 var _ segment.FieldsPostingsListIterator = &multiKeyPostingsListIterator{}

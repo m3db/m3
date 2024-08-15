@@ -23,6 +23,8 @@ package topic
 import (
 	"net/http"
 
+	"go.uber.org/zap"
+
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
@@ -32,13 +34,11 @@ import (
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	"go.uber.org/zap"
 )
 
 const (
 	// AddURL is the url for the topic add handler (with the POST method).
-	AddURL = route.Prefix + "/topic"
+	AddURL = route.Prefix + _topic
 
 	// AddHTTPMethod is the HTTP method used with this resource.
 	AddHTTPMethod = http.MethodPost

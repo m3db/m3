@@ -23,6 +23,10 @@ package promql
 import (
 	"fmt"
 
+	"github.com/prometheus/common/model"
+	"github.com/prometheus/prometheus/model/labels"
+	promql "github.com/prometheus/prometheus/promql/parser"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/functions"
 	"github.com/m3db/m3/src/query/functions/aggregation"
@@ -35,10 +39,6 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/parser/common"
-
-	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/model/labels"
-	promql "github.com/prometheus/prometheus/promql/parser"
 )
 
 // NewSelectorFromVector creates a new fetchop.

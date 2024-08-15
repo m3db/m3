@@ -28,16 +28,16 @@ import (
 	"path"
 	"sync"
 
-	"github.com/m3db/m3/src/cluster/etcd/watchmanager"
-	"github.com/m3db/m3/src/cluster/kv"
-	xerrors "github.com/m3db/m3/src/x/errors"
-	"github.com/m3db/m3/src/x/retry"
-
 	"github.com/golang/protobuf/proto"
 	"github.com/uber-go/tally"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
+
+	"github.com/m3db/m3/src/cluster/etcd/watchmanager"
+	"github.com/m3db/m3/src/cluster/kv"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/retry"
 )
 
 const etcdVersionZero = 0

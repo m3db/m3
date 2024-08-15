@@ -30,11 +30,11 @@ import (
 	"strconv"
 	"strings"
 
-	xerrors "github.com/m3db/m3/src/x/errors"
-	"github.com/m3db/m3/src/x/headers"
-
 	apachethrift "github.com/uber/tchannel-go/thirdparty/github.com/apache/thrift/lib/go/thrift"
 	"github.com/uber/tchannel-go/thrift"
+
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/headers"
 )
 
 var (

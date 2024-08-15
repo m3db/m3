@@ -24,9 +24,9 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/m3db/m3/src/m3ninx/postings"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
 func TestStoredFieldsIndex(t *testing.T) {

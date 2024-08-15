@@ -28,6 +28,9 @@ import (
 	"path"
 	"reflect"
 
+	"github.com/gogo/protobuf/jsonpb"
+	"go.uber.org/zap"
+
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
@@ -38,9 +41,6 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	"github.com/gogo/protobuf/jsonpb"
-	"go.uber.org/zap"
 )
 
 var (

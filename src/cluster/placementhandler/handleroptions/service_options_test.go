@@ -25,9 +25,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/x/headers"
-
 	"github.com/stretchr/testify/assert"
+
+	"github.com/m3db/m3/src/x/headers"
 )
 
 func TestNewServiceOptions(t *testing.T) {

@@ -1,3 +1,4 @@
+//go:build big
 // +build big
 
 // Copyright (c) 2018 Uber Technologies, Inc.
@@ -28,16 +29,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leanovate/gopter"
+	"github.com/leanovate/gopter/prop"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/executor"
 	"github.com/m3db/m3/src/m3ninx/search/query"
 	"github.com/m3db/m3/src/x/context"
-
-	"github.com/leanovate/gopter"
-	"github.com/leanovate/gopter/prop"
-	"github.com/stretchr/testify/require"
 )
 
 // NB(prateek): this test simulates the issues described in issue: https://github.com/m3db/m3/issues/865

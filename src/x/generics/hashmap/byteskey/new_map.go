@@ -23,10 +23,10 @@ package byteskey
 import (
 	"bytes"
 
-	"github.com/m3db/m3/src/x/pool"
-
 	"github.com/cespare/xxhash/v2"
 	"github.com/mauricelam/genny/generic"
+
+	"github.com/m3db/m3/src/x/pool"
 )
 
 // MapValue is the generic type that needs to be specified when generating.

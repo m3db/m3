@@ -24,12 +24,12 @@ import (
 	"testing"
 	"time"
 
-	xclock "github.com/m3db/m3/src/x/clock"
-	xtest "github.com/m3db/m3/src/x/test"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+
+	xclock "github.com/m3db/m3/src/x/clock"
+	xtest "github.com/m3db/m3/src/x/test"
 )
 
 func TestDatabaseMediatorOpenClose(t *testing.T) {

@@ -27,6 +27,8 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/gogo/protobuf/jsonpb"
+
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
@@ -34,8 +36,6 @@ import (
 	"github.com/m3db/m3/src/x/debug"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	"github.com/gogo/protobuf/jsonpb"
 )
 
 type namespaceInfoSource struct {

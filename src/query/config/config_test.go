@@ -25,10 +25,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	xconfig "github.com/m3db/m3/src/x/config"
-
-	"github.com/stretchr/testify/require"
 )
 
 // TestProvidedConfigFiles ensures that the files in this directly are all valid, and will load.

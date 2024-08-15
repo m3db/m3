@@ -30,11 +30,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/x/tallytest"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+
+	"github.com/m3db/m3/src/x/tallytest"
 )
 
 func metric(key string) string {

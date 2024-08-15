@@ -30,6 +30,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/jhump/protoreflect/dynamic"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
@@ -44,10 +48,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/jhump/protoreflect/dynamic"
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 var (

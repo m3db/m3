@@ -23,9 +23,9 @@ package models
 import (
 	"context"
 
-	"github.com/m3db/m3/src/metrics/policy"
-
 	"github.com/uber-go/tally"
+
+	"github.com/m3db/m3/src/metrics/policy"
 )
 
 // QueryContext provides all external state needed to execute and track a query.

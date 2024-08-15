@@ -26,11 +26,11 @@ import (
 	"testing"
 	"time"
 
-	xtest "github.com/m3db/m3/src/query/graphite/testing"
-	"github.com/m3db/m3/src/query/graphite/ts"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	xtest "github.com/m3db/m3/src/query/graphite/testing"
+	"github.com/m3db/m3/src/query/graphite/ts"
 )
 
 func testRenamer(series *ts.Series) string {

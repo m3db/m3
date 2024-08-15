@@ -23,6 +23,8 @@ package node
 import (
 	"time"
 
+	"google.golang.org/grpc"
+
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/m3em/build"
 	hb "github.com/m3db/m3/src/m3em/generated/proto/heartbeat"
@@ -30,39 +32,39 @@ import (
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 	xretry "github.com/m3db/m3/src/x/retry"
-
-	"google.golang.org/grpc"
 )
 
 // Status indicates the different states a ServiceNode can be in. The
 // state diagram below describes the transitions between the various states:
 //
-//                           ┌──────────────────┐
-//                           │                  │
-//           ┌Teardown()─────│      Error       │
-//           │               │                  │
-//           │               └──────────────────┘
-//           │
-//           ▼
+//	                ┌──────────────────┐
+//	                │                  │
+//	┌Teardown()─────│      Error       │
+//	│               │                  │
+//	│               └──────────────────┘
+//	│
+//	▼
+//
 // ┌──────────────────┐                         ┌───────────────-──┐
 // │                  │      Setup()            │                  │
 // │  Uninitialized   ├────────────────────────▶│      Setup       │◀─┐
 // │                  │◀───────────┐            │                  │  │
 // └──────────────────┘  Teardown()└────────────└──────────────────┘  │
-//           ▲                                            │           │
-//           │                                            │           │
-//           │                                            │           │
-//           │                                  Start()   │           │
-//           │                              ┌─────────────┘           │
-//           │                              │                         │
-//           │                              │                         │
-//           │                              │                         │
-//           │                              ▼                         │
-//           │                    ┌──────────────────┐                │
-//           │Teardown()          │                  │                |
-//           └────────────────────│     Running      │────────────Stop()
-//                                │                  │
-//                                └──────────────────┘
+//
+//	▲                                            │           │
+//	│                                            │           │
+//	│                                            │           │
+//	│                                  Start()   │           │
+//	│                              ┌─────────────┘           │
+//	│                              │                         │
+//	│                              │                         │
+//	│                              │                         │
+//	│                              ▼                         │
+//	│                    ┌──────────────────┐                │
+//	│Teardown()          │                  │                |
+//	└────────────────────│     Running      │────────────Stop()
+//	                     │                  │
+//	                     └──────────────────┘
 type Status int
 
 const (

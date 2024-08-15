@@ -26,11 +26,11 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/m3db/m3/src/query/graphite/common"
-	xtest "github.com/m3db/m3/src/query/graphite/testing"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/query/graphite/common"
+	xtest "github.com/m3db/m3/src/query/graphite/testing"
 )
 
 func f1(ctx *common.Context, a float64, b string, c bool) (string, error) {

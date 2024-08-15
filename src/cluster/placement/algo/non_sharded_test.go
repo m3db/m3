@@ -23,9 +23,9 @@ package algo
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/cluster/placement"
-
 	"github.com/stretchr/testify/assert"
+
+	"github.com/m3db/m3/src/cluster/placement"
 )
 
 func TestNonShardedAlgo(t *testing.T) {

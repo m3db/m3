@@ -31,15 +31,15 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/pborman/getopt"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/pborman/getopt"
-	"go.uber.org/zap"
 )
 
 func main() {

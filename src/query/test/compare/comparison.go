@@ -28,11 +28,11 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/models"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 )
 
 // EqualsWithNans helps compare float slices which have NaNs in them

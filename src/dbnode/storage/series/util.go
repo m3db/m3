@@ -24,10 +24,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 // ValuesByTime is a sortable slice of DecodedTestValue.

@@ -25,11 +25,11 @@ import (
 	"fmt"
 	"testing"
 
-	xtest "github.com/m3db/m3/src/x/test"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
+
+	xtest "github.com/m3db/m3/src/x/test"
 )
 
 func TestParseErrorBehavior(t *testing.T) {

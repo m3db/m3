@@ -25,10 +25,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/retention"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/dbnode/retention"
 )
 
 func TestOptionsEquals(t *testing.T) {

@@ -26,11 +26,11 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/kv"
 	kvutil "github.com/m3db/m3/src/cluster/kv/util"
 	"github.com/m3db/m3/src/metrics/rules/validator/namespace"
-
-	"go.uber.org/zap"
 )
 
 var (

@@ -24,11 +24,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/m3db/m3/src/x/checked"
-	"github.com/m3db/m3/src/x/ident"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 func newTestEncoderOpts() TagEncoderOptions {

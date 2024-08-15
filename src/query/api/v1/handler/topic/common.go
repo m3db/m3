@@ -24,6 +24,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
+
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
@@ -32,9 +35,6 @@ import (
 	"github.com/m3db/m3/src/query/util/queryhttp"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/gogo/protobuf/jsonpb"
-	"github.com/gogo/protobuf/proto"
 )
 
 const (
@@ -42,6 +42,8 @@ const (
 	DefaultTopicName = "aggregated_metrics"
 	// HeaderTopicName is the header used to specify the topic name.
 	HeaderTopicName = "topic-name"
+
+	_topic = "/topic"
 )
 
 type serviceFn func(clusterClient clusterclient.Client, opts handleroptions.ServiceOptions) (topic.Service, error)

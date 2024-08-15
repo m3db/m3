@@ -23,11 +23,11 @@ package storage
 import (
 	"sync"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"go.uber.org/zap"
 )
 
 type fileOpStatus int

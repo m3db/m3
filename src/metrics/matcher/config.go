@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"time"
 
+	murmur3 "github.com/m3db/stackmurmur3/v2"
+
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/metrics/filters"
@@ -35,8 +37,6 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
-
-	murmur3 "github.com/m3db/stackmurmur3/v2"
 )
 
 // Configuration is config used to create a Matcher.

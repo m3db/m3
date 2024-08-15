@@ -27,6 +27,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber-go/tally"
+	"github.com/willf/bitset"
+	"go.uber.org/zap"
+
 	raggregation "github.com/m3db/m3/src/aggregator/aggregation"
 	maggregation "github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/metadata"
@@ -40,10 +44,6 @@ import (
 	"github.com/m3db/m3/src/metrics/transformation"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/uber-go/tally"
-	"github.com/willf/bitset"
-	"go.uber.org/zap"
 )
 
 const (
@@ -662,12 +662,12 @@ type parsedPipeline struct {
 
 // parsePipeline parses the given pipeline and returns an error if the pipeline is invalid.
 // A valid pipeline should take the form of one of the following:
-// * Empty pipeline with no operations.
-// * Pipeline that starts with a rollup operation.
-// * Pipeline that starts with a transformation operation and contains at least one
-//   rollup operation. Additionally, the transformation derivative order computed from
-//   the list of transformations must be no more than the maximum transformation derivative
-//   order that is supported.
+//   - Empty pipeline with no operations.
+//   - Pipeline that starts with a rollup operation.
+//   - Pipeline that starts with a transformation operation and contains at least one
+//     rollup operation. Additionally, the transformation derivative order computed from
+//     the list of transformations must be no more than the maximum transformation derivative
+//     order that is supported.
 func newParsedPipeline(pipeline applied.Pipeline) (parsedPipeline, error) {
 	if pipeline.IsEmpty() {
 		return parsedPipeline{}, nil

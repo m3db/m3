@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 // Copyright (c) 2018 Uber Technologies, Inc.
@@ -33,6 +34,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/c2h5oh/datasize"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
@@ -43,10 +48,6 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/c2h5oh/datasize"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 // TestCommitLogIndexPerfSpeedBootstrap tests the performance of the commit log

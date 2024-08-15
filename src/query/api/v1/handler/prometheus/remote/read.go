@@ -31,6 +31,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/golang/protobuf/proto"
+	"github.com/golang/snappy"
+	"github.com/prometheus/prometheus/model/labels"
+	promql "github.com/prometheus/prometheus/promql/parser"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	comparator "github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
@@ -48,13 +55,6 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/golang/protobuf/proto"
-	"github.com/golang/snappy"
-	"github.com/prometheus/prometheus/model/labels"
-	promql "github.com/prometheus/prometheus/promql/parser"
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 const (

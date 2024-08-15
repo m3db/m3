@@ -33,6 +33,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pborman/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -41,10 +45,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xresource "github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/pborman/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -1327,7 +1327,7 @@ func createCommitLogFiles(t *testing.T, iter int) string {
 	return dir
 }
 
-//nolint: unparam
+// nolint: unparam
 func writeOutTestSnapshot(
 	t *testing.T, filePathPrefix string,
 	shard uint32, blockStart xtime.UnixNano, volume int) {

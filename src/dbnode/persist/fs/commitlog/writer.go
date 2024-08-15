@@ -28,6 +28,7 @@ import (
 	"os"
 
 	"github.com/m3db/bitset"
+
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"

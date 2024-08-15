@@ -21,6 +21,8 @@
 package downsample
 
 import (
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/metrics/metadata"
@@ -29,8 +31,6 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/uber-go/tally"
 )
 
 // samplesAppender must have one of agg or client set

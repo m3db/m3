@@ -24,13 +24,13 @@ import (
 	"fmt"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	httpserver "github.com/m3db/m3/src/aggregator/server/http"
 	m3msgserver "github.com/m3db/m3/src/aggregator/server/m3msg"
 	rawtcpserver "github.com/m3db/m3/src/aggregator/server/rawtcp"
 	xdebug "github.com/m3db/m3/src/x/debug"
-
-	"go.uber.org/zap"
 )
 
 // Serve starts serving RPC traffic.

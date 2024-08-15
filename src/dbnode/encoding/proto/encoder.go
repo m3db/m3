@@ -25,6 +25,9 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	"github.com/cespare/xxhash/v2"
+	"github.com/jhump/protoreflect/desc"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -34,9 +37,6 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/cespare/xxhash/v2"
-	"github.com/jhump/protoreflect/desc"
 )
 
 // Make sure encoder implements encoding.Encoder.
@@ -872,7 +872,7 @@ func (enc *Encoder) addToBytesDict(fieldIdx int, state encoderBytesFieldDictStat
 
 // encodeBitset writes out a bitset in the form of:
 //
-//      varint(number of bits)|bitset
+//	varint(number of bits)|bitset
 //
 // I.E first it encodes a varint which specifies the number of following
 // bits to interpret as a bitset and then it encodes the provided values

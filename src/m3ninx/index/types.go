@@ -25,10 +25,11 @@ import (
 	"regexp"
 	"regexp/syntax"
 
+	vregex "github.com/m3dbx/vellum/regexp"
+
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	vregex "github.com/m3dbx/vellum/regexp"
 )
 
 // ErrDocNotFound is the error returned when there is no document for a given postings ID.

@@ -24,11 +24,11 @@ import (
 	"fmt"
 	"sync"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/x/ident"
 	xresource "github.com/m3db/m3/src/x/resource"
 	xwatch "github.com/m3db/m3/src/x/watch"
-
-	"go.uber.org/zap"
 )
 
 func newSchemaHistoryNotFoundError(nsIDStr string) error {

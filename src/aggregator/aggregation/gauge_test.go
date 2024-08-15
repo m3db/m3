@@ -25,11 +25,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/metrics/aggregation"
-	"github.com/m3db/m3/src/x/instrument"
-
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+
+	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 func TestGaugeDefaultAggregationType(t *testing.T) {

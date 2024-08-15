@@ -27,10 +27,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/m3db/m3/src/x/instrument"
-
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 func TestHostName(t *testing.T) {

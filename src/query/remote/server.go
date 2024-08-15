@@ -25,6 +25,9 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
@@ -33,9 +36,6 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"go.uber.org/zap"
-	"google.golang.org/grpc"
 )
 
 const poolTimeout = time.Second * 10

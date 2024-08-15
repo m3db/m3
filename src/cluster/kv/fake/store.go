@@ -23,9 +23,9 @@ package fake
 import (
 	"errors"
 
-	"github.com/m3db/m3/src/cluster/kv"
-
 	"github.com/golang/protobuf/proto"
+
+	"github.com/m3db/m3/src/cluster/kv"
 )
 
 // NewStore returns a fakeStore adhering to the kv.Store interface.

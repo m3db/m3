@@ -25,14 +25,14 @@ import (
 	"fmt"
 	"sync"
 
-	xopentracing "github.com/m3db/m3/src/x/opentracing"
-	xresource "github.com/m3db/m3/src/x/resource"
-
 	lightstep "github.com/lightstep/lightstep-tracer-go"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/uber/jaeger-client-go"
+
+	xopentracing "github.com/m3db/m3/src/x/opentracing"
+	xresource "github.com/m3db/m3/src/x/resource"
 )
 
 const (

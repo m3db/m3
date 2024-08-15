@@ -32,17 +32,17 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3/src/m3em/checksum"
-	"github.com/m3db/m3/src/m3em/generated/proto/m3em"
-	"github.com/m3db/m3/src/m3em/os/exec"
-	"github.com/m3db/m3/src/m3em/os/fs"
-	xerrors "github.com/m3db/m3/src/x/errors"
-
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	context "golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+
+	"github.com/m3db/m3/src/m3em/checksum"
+	"github.com/m3db/m3/src/m3em/generated/proto/m3em"
+	"github.com/m3db/m3/src/m3em/os/exec"
+	"github.com/m3db/m3/src/m3em/os/fs"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 const (

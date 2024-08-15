@@ -30,6 +30,12 @@ import (
 	"testing"
 	"time"
 
+	protobuftypes "github.com/gogo/protobuf/types"
+	"github.com/golang/mock/gomock"
+	opentracinglog "github.com/opentracing/opentracing-go/log"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	indexpb "github.com/m3db/m3/src/dbnode/generated/proto/index"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -46,12 +52,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	protobuftypes "github.com/gogo/protobuf/types"
-	"github.com/golang/mock/gomock"
-	opentracinglog "github.com/opentracing/opentracing-go/log"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNamespaceIndexCleanupExpiredFilesets(t *testing.T) {

@@ -27,14 +27,13 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/sergi/go-diff/diffmatchpatch"
-
-	xjson "github.com/m3db/m3/src/x/json"
-
 	"github.com/gogo/protobuf/jsonpb"
 	extprom "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/expfmt"
+	"github.com/sergi/go-diff/diffmatchpatch"
 	"github.com/stretchr/testify/require"
+
+	xjson "github.com/m3db/m3/src/x/json"
 )
 
 func TestPrometheusDefaults(t *testing.T) {

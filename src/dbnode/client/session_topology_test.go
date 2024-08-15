@@ -25,15 +25,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/cluster/services"
-	"github.com/m3db/m3/src/cluster/shard"
-	"github.com/m3db/m3/src/dbnode/integration/fake"
-	"github.com/m3db/m3/src/dbnode/topology"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+
+	"github.com/m3db/m3/src/cluster/services"
+	"github.com/m3db/m3/src/cluster/shard"
+	"github.com/m3db/m3/src/dbnode/integration/fake"
+	"github.com/m3db/m3/src/dbnode/topology"
 )
 
 type testHostQueues struct {

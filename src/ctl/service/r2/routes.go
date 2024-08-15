@@ -24,9 +24,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/m3db/m3/src/metrics/rules/view"
-
 	"github.com/gorilla/mux"
+
+	"github.com/m3db/m3/src/metrics/rules/view"
 )
 
 func fetchNamespaces(s *service, _ *http.Request) (data interface{}, err error) {

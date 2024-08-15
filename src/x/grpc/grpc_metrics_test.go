@@ -28,13 +28,13 @@ import (
 	"testing"
 	"time"
 
-	testpb "github.com/m3db/m3/src/x/generated/proto/test"
-
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	testpb "github.com/m3db/m3/src/x/generated/proto/test"
 )
 
 func TestInterceptors(t *testing.T) {

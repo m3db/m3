@@ -27,6 +27,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -40,9 +43,6 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -125,7 +125,7 @@ func TestBootstrapIndex(t *testing.T) {
 	}
 }
 
-//nolint
+// nolint
 func testBootstrapIndex(t *testing.T, test testOptions) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

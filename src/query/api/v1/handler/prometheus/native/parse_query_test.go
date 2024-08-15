@@ -27,14 +27,14 @@ import (
 	"net/url"
 	"testing"
 
+	pql "github.com/prometheus/prometheus/promql/parser"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
-
-	pql "github.com/prometheus/prometheus/promql/parser"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 var parseTests = []struct {

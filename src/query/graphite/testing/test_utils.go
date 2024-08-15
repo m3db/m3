@@ -124,7 +124,7 @@ func InDeltaWithNaNs(
 // Equalish asserts that two objects are equal. Looser than assert.Equal since
 // it checks for equality of printing expected vs printing actual.
 //
-//    assert.Equal(t, 123, 123, "123 and 123 should be equal")
+//	assert.Equal(t, 123, 123, "123 and 123 should be equal")
 //
 // Returns whether the assertion was successful (true) or not (false).
 func Equalish(

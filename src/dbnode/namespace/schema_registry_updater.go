@@ -23,9 +23,9 @@ package namespace
 import (
 	"fmt"
 
-	xerrors "github.com/m3db/m3/src/x/errors"
-
 	"go.uber.org/zap"
+
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 // UpdateSchemaRegistry updates schema registry with namespace updates.

@@ -24,12 +24,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/x/instrument"
-
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 func newTestNamespaceWatch(t *testing.T, ctrl *gomock.Controller, updater NamespaceUpdater) (
@@ -55,7 +55,7 @@ func TestNamespaceWatchStartStop(t *testing.T) {
 		leaktest.CheckTimeout(t, time.Second)()
 	}()
 
-	noopUpdater := func(Map) error {return nil}
+	noopUpdater := func(Map) error { return nil }
 	dbWatch, mockWatch := newTestNamespaceWatch(t, ctrl, noopUpdater)
 
 	mockWatch.EXPECT().C().Return(ch).AnyTimes()
@@ -77,7 +77,7 @@ func TestNamespaceWatchStopWithoutStart(t *testing.T) {
 		leaktest.CheckTimeout(t, time.Second)()
 	}()
 
-	noopUpdater := func(Map) error {return nil}
+	noopUpdater := func(Map) error { return nil }
 	dbWatch, _ := newTestNamespaceWatch(t, ctrl, noopUpdater)
 	require.Error(t, dbWatch.Stop())
 	require.NoError(t, dbWatch.Close())
@@ -95,7 +95,7 @@ func TestNamespaceWatchUpdatePropagation(t *testing.T) {
 	mockMap := NewMockMap(ctrl)
 	mockMap.EXPECT().Metadatas().Return([]Metadata{}).AnyTimes()
 
-	noopUpdater := func(Map) error {return nil}
+	noopUpdater := func(Map) error { return nil }
 	dbWatch, mockWatch := newTestNamespaceWatch(t, ctrl, noopUpdater)
 	mockWatch.EXPECT().Get().Return(mockMap).AnyTimes()
 	mockWatch.EXPECT().C().Return(ch).AnyTimes()

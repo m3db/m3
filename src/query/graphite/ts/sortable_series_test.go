@@ -27,11 +27,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/graphite/context"
-	xtest "github.com/m3db/m3/src/query/graphite/testing"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/query/graphite/context"
+	xtest "github.com/m3db/m3/src/query/graphite/testing"
 )
 
 type testSeries struct {

@@ -23,11 +23,12 @@ package service
 import (
 	"fmt"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/placement/algo"
 	"github.com/m3db/m3/src/cluster/placement/selector"
 	"github.com/m3db/m3/src/cluster/shard"
-	"go.uber.org/zap"
 )
 
 type placementService struct {

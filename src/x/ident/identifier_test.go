@@ -23,10 +23,10 @@ package ident
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/x/checked"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/x/checked"
 )
 
 func TestConstructorEquality(t *testing.T) {

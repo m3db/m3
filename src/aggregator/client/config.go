@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/aggregator/sharding"
 	m3clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
@@ -34,11 +36,10 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 	xio "github.com/m3db/m3/src/x/io"
+	"github.com/m3db/m3/src/x/net"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
 	xtls "github.com/m3db/m3/src/x/tls"
-
-	"github.com/uber-go/tally"
 )
 
 var errNoM3MsgOptions = errors.New("m3msg aggregator client: missing m3msg options")
@@ -241,6 +242,7 @@ type ConnectionConfiguration struct {
 	MaxReconnectDuration         *time.Duration       `yaml:"maxReconnectDuration"`
 	WriteRetries                 *retry.Configuration `yaml:"writeRetries"`
 	TLS                          *TLSConfiguration    `yaml:"tls"`
+	ContextDialerFn              net.ContextDialerFn  `yaml:"-"`
 }
 
 // NewConnectionOptions creates new connection options.
@@ -273,6 +275,9 @@ func (c *ConnectionConfiguration) NewConnectionOptions(scope tally.Scope) Connec
 	}
 	if c.TLS != nil {
 		opts = opts.SetTLSOptions(c.TLS.NewTLSOptions())
+	}
+	if c.ContextDialerFn != nil {
+		opts = opts.SetContextDialer(c.ContextDialerFn)
 	}
 	return opts
 }

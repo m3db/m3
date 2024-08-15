@@ -29,14 +29,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/x/clock"
 	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/retry"
-
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 const (

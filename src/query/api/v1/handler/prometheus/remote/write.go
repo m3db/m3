@@ -33,6 +33,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
+	"github.com/golang/protobuf/proto"
+	"github.com/golang/snappy"
+	murmur3 "github.com/m3db/stackmurmur3/v2"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/metrics/policy"
@@ -54,13 +61,6 @@ import (
 	"github.com/m3db/m3/src/x/retry"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/cespare/xxhash/v2"
-	"github.com/golang/protobuf/proto"
-	"github.com/golang/snappy"
-	murmur3 "github.com/m3db/stackmurmur3/v2"
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 const (

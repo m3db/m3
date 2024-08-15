@@ -27,6 +27,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/pborman/uuid"
+
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	merrors "github.com/m3db/m3/src/metrics/errors"
@@ -37,8 +39,6 @@ import (
 	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/metrics/rules/view/changes"
 	xerrors "github.com/m3db/m3/src/x/errors"
-
-	"github.com/pborman/uuid"
 )
 
 const (

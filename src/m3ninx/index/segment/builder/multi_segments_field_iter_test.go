@@ -23,13 +23,13 @@ package builder
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	xerrors "github.com/m3db/m3/src/x/errors"
-
-	"github.com/stretchr/testify/require"
 )
 
 var (

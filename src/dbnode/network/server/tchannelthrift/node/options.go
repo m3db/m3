@@ -21,11 +21,11 @@
 package node
 
 import (
-	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
-	"github.com/m3db/m3/src/x/instrument"
-
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
+
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 // NewTChanChannelFn creates a tchan channel.

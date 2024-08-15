@@ -28,16 +28,16 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/pborman/uuid"
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
+
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/m3em/build"
 	"github.com/m3db/m3/src/m3em/generated/proto/m3em"
 	"github.com/m3db/m3/src/m3em/os/fs"
 	xclock "github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
-
-	"github.com/pborman/uuid"
-	"go.uber.org/zap"
-	"google.golang.org/grpc"
 )
 
 var (

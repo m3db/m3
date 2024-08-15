@@ -23,11 +23,11 @@ package ident
 import (
 	"testing"
 
+	"github.com/stretchr/testify/suite"
+
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/pool"
-
-	"github.com/stretchr/testify/suite"
 )
 
 func TestSimpleIDPool(t *testing.T) {

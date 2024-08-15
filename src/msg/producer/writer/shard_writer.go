@@ -23,11 +23,11 @@ package writer
 import (
 	"sync"
 
-	"github.com/m3db/m3/src/cluster/placement"
-	"github.com/m3db/m3/src/msg/producer"
-
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/msg/producer"
 )
 
 type shardWriter interface {

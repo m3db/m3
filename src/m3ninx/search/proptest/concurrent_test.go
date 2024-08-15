@@ -27,15 +27,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leanovate/gopter"
+	"github.com/leanovate/gopter/prop"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/executor"
 	"github.com/m3db/m3/src/x/context"
-
-	"github.com/leanovate/gopter"
-	"github.com/leanovate/gopter/prop"
-	"github.com/stretchr/testify/require"
 )
 
 func TestConcurrentQueries(t *testing.T) {

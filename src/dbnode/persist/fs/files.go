@@ -32,6 +32,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pborman/uuid"
+
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/generated/proto/index"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -42,8 +44,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/pborman/uuid"
 )
 
 var (
@@ -1749,7 +1749,7 @@ func FilesetPathFromTimeAndIndex(prefix string, t xtime.UnixNano, index int, suf
 // function, the caller expects there to be a legacy or non-legacy file, and
 // thus returns an error if neither exist. Note that this function does not
 // check for the volume's complete checkpoint file.
-//nolint: unparam
+// nolint: unparam
 func isFirstVolumeLegacy(prefix string, t xtime.UnixNano, suffix string) (bool, error) {
 	// Check non-legacy path first to optimize for newer files.
 	path := FilesetPathFromTimeAndIndex(prefix, t, 0, suffix)

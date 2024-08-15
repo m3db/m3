@@ -23,10 +23,10 @@ package changes
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/metrics/x/bytes"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestRuleSetChangeSetsSort(t *testing.T) {

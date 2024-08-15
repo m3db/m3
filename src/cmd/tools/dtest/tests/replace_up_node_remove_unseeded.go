@@ -21,11 +21,11 @@
 package dtests
 
 import (
+	"github.com/spf13/cobra"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/cmd/tools/dtest/harness"
 	xclock "github.com/m3db/m3/src/x/clock"
-
-	"github.com/spf13/cobra"
 )
 
 var (

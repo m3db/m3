@@ -26,10 +26,10 @@ import (
 	"io"
 	"os"
 
-	"github.com/m3db/m3/src/dbnode/persist"
-
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/dbnode/persist"
 )
 
 var (

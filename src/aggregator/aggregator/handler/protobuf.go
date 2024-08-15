@@ -21,11 +21,11 @@
 package handler
 
 import (
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3/src/msg/producer"
-
-	"github.com/uber-go/tally"
 )
 
 type protobufHandler struct {

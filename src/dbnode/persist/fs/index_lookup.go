@@ -68,12 +68,13 @@ func (il *nearestIndexOffsetLookup) concurrentClone() (*nearestIndexOffsetLookup
 }
 
 // getNearestIndexFileOffset returns either:
-//     1. The offset in the index file for the specified series
-//     2. The offset in the index file for the the series in the summaries file
-//        that satisfies the following two constraints:
-//            1. Is closest to the desired series in the index file
-//            2. Is BEFORE the desired series in the index file (because we
-//               we scan the index file sequentially in a forward-moving manner)
+//  1. The offset in the index file for the specified series
+//  2. The offset in the index file for the the series in the summaries file
+//     that satisfies the following two constraints:
+//  1. Is closest to the desired series in the index file
+//  2. Is BEFORE the desired series in the index file (because we
+//     we scan the index file sequentially in a forward-moving manner)
+//
 // In other words, the returned offset can always be used as a starting point to
 // begin scanning the index file for the desired series.
 func (il *nearestIndexOffsetLookup) getNearestIndexFileOffset(

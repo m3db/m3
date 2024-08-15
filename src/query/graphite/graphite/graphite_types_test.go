@@ -28,11 +28,11 @@ import (
 	"testing"
 	"time"
 
-	xtest "github.com/m3db/m3/src/query/graphite/testing"
-
 	"github.com/hydrogen18/stalecucumber"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	xtest "github.com/m3db/m3/src/query/graphite/testing"
 )
 
 func TestMarshalRenderResults(t *testing.T) {

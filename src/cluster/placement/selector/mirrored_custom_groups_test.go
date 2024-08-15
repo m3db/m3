@@ -23,12 +23,12 @@ package selector
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/cluster/placement"
-	"github.com/m3db/m3/src/x/instrument"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 const (
@@ -138,7 +138,7 @@ func testAddingNodesBehavior(
 				SetValidZone("zone").
 				SetAllowAllZones(false),
 		)
-		
+
 		instances, err := doAdd(tctx, []placement.Instance{
 			newInstanceWithID(instG1I1).SetZone("zone"),
 			newInstanceWithID(instG1I2).SetZone("otherZone"),
@@ -199,7 +199,7 @@ func TestExplicitMirroredCustomGroupSelector_SelectReplaceInstances(t *testing.T
 
 		return &testContext{
 			mirroredCustomGroupSelectorTestContext: tctx,
-			ToReplace:                  toReplace,
+			ToReplace:                              toReplace,
 		}
 	}
 
@@ -281,7 +281,7 @@ func mirroredCustomGroupSelectorSetup(_ *testing.T) *mirroredCustomGroupSelector
 	}
 
 	tctx.Groups = testGroups
-	
+
 	tctx.GroupFn = NewMapInstanceGroupIDFunc(tctx.Groups)
 
 	tctx.Selector = NewMirroredCustomGroupSelector(

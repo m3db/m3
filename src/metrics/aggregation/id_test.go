@@ -24,12 +24,12 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/m3db/m3/src/metrics/generated/proto/aggregationpb"
-	"github.com/m3db/m3/src/x/test/testmarshal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
-	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/metrics/generated/proto/aggregationpb"
+	"github.com/m3db/m3/src/x/test/testmarshal"
 )
 
 var (

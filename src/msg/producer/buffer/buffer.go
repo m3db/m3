@@ -27,12 +27,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
+
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
-
-	"github.com/uber-go/tally"
-	"go.uber.org/atomic"
 )
 
 var (

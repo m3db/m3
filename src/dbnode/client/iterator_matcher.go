@@ -23,9 +23,9 @@ package client
 import (
 	"fmt"
 
-	"github.com/m3db/m3/src/x/ident"
-
 	"github.com/golang/mock/gomock"
+
+	"github.com/m3db/m3/src/x/ident"
 )
 
 // TaggedIDsIteratorMatcher is a gomock.Matcher that matches TaggedIDsIterator.
