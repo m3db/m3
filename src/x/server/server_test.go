@@ -64,7 +64,8 @@ func isKeepAlive(conn net.Conn) (bool, error) {
 	return false, nil
 }
 
-func waitFor(checkFn func() bool, numChecks int, waitTime time.Duration) {
+func waitFor(checkFn func() bool, waitTime time.Duration) {
+	numChecks := 5
 	checks := 0
 	for !checkFn() && checks < numChecks {
 		time.Sleep(waitTime)
@@ -139,7 +140,7 @@ func TestServerListenAndClose(t *testing.T) {
 	for h.called() < numClients {
 		time.Sleep(100 * time.Millisecond)
 	}
-	waitFor(func() bool { return h.called() == numClients }, 5, 100*time.Millisecond)
+	waitFor(func() bool { return h.called() == numClients }, 100*time.Millisecond)
 
 	require.False(t, h.isClosed())
 
@@ -242,7 +243,7 @@ func TestTLS(t *testing.T) {
 					s.Lock()
 					defer s.Unlock()
 					return len(s.conns) == 1
-				}, 5, 100*time.Millisecond)
+				}, 100*time.Millisecond)
 				s.Lock()
 				c := s.conns[0]
 				s.Unlock()
@@ -256,7 +257,7 @@ func TestTLS(t *testing.T) {
 				_, err = conn.Write([]byte(msg))
 				require.NoError(t, err)
 			}
-			waitFor(func() bool { return h.called() == tt.expectedServerCalls }, 5, 100*time.Millisecond)
+			waitFor(func() bool { return h.called() == tt.expectedServerCalls }, 100*time.Millisecond)
 			require.False(t, h.isClosed())
 
 			s.Close()

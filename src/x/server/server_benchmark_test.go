@@ -28,10 +28,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/x/retry"
 	xtls "github.com/m3db/m3/src/x/tls"
-
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -87,7 +87,7 @@ func testBenchServer(addr string, h Handler, tlsMode xtls.ServerMode, mTLSEnable
 	return s
 }
 
-func dial(listenAddr string, tlsMode xtls.ServerMode, certs []tls.Certificate, b *testing.B) (net.Conn, error) {
+func dial(listenAddr string, tlsMode xtls.ServerMode, certs []tls.Certificate) (net.Conn, error) {
 	if tlsMode == xtls.Disabled {
 		return net.Dial("tcp", listenAddr)
 	}
@@ -103,7 +103,7 @@ func benchmarkServer(tlsMode xtls.ServerMode, mTLSEnabled bool, b *testing.B) {
 	cert, err := tls.LoadX509KeyPair("./testdata/client.crt", "./testdata/client.key")
 	require.NoError(b, err)
 	for n := 0; n < b.N; n++ {
-		conn, err := dial(server.listener.Addr().String(), tlsMode, []tls.Certificate{cert}, b)
+		conn, err := dial(server.listener.Addr().String(), tlsMode, []tls.Certificate{cert})
 		require.NoError(b, err)
 		msg := fmt.Sprintf("msg%d", n)
 		_, err = conn.Write([]byte(msg))
@@ -133,7 +133,7 @@ func benchmarkKeepAliveServer(tlsMode xtls.ServerMode, mTLSEnabled bool, b *test
 	require.NoError(b, err)
 	cert, err := tls.LoadX509KeyPair("./testdata/client.crt", "./testdata/client.key")
 	require.NoError(b, err)
-	conn, err := dial(server.listener.Addr().String(), tlsMode, []tls.Certificate{cert}, b)
+	conn, err := dial(server.listener.Addr().String(), tlsMode, []tls.Certificate{cert})
 	require.NoError(b, err)
 	for n := 0; n < b.N; n++ {
 		msg := fmt.Sprintf("msg%d", n)

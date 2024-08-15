@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 	xio "github.com/m3db/m3/src/x/io"
-	xtls "github.com/m3db/m3/src/x/tls"
 )
 
 // AggregatorClientType determines the aggregator client type.
@@ -252,7 +251,6 @@ type options struct {
 	maxBatchSize               int
 	flushWorkerCount           int
 	aggregatorClientType       AggregatorClientType
-	tlsOptions                 xtls.Options
 }
 
 // NewOptions creates a new set of client options.

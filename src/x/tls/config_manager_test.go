@@ -28,12 +28,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/tallytest"
-
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/tallytest"
 )
 
 func appendCA(filename string, certPool *x509.CertPool) error {
@@ -81,13 +81,13 @@ func TestLoadCertPool(t *testing.T) {
 
 	opts = opts.SetCAFile("testdata/3.crt")
 	cm.options = opts
-	certPool, err = cm.loadCertPool()
+	_, err = cm.loadCertPool()
 	require.Error(t, err)
 	require.Equal(t, expectedCertPool.Subjects(), cm.certPool.Subjects())
 
 	opts = opts.SetCAFile("wrong/path")
 	cm.options = opts
-	certPool, err = cm.loadCertPool()
+	_, err = cm.loadCertPool()
 	require.Error(t, err)
 }
 
