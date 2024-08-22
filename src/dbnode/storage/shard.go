@@ -1409,12 +1409,109 @@ func (s *dbShard) insertSeriesSync(
 	return newEntry, nil
 }
 
+func (s *dbShard) insertNewShardEntriesWithLock(entries []*Entry) {
+	if len(entries) == 0 {
+		return
+	}
+
+	// Fast Path: Check if the entire slice can be appended to the end of the list
+	if s.canAppendToEnd(entries[0]) {
+		s.appendEntriesToEnd(entries)
+		return
+	}
+
+	// If not, proceed with the standard insertion logic
+	elem := s.list.Back()
+	i := len(entries) - 1
+
+	for elem != nil && i >= 0 {
+		currListEntry := elem.Value.(*Entry)
+
+		insertIdx := s.findInsertionIndex(entries, currListEntry.Index, 0, i)
+
+		if insertIdx < len(entries) {
+			i = s.insertEntriesAfter(elem, entries, insertIdx, i)
+		}
+
+		elem = elem.Prev()
+	}
+
+	s.insertRemainingEntriesAtFront(entries, i)
+}
+
+// Helper function to check if we can append the entire slice to the end of the list
+func (s *dbShard) canAppendToEnd(firstEntry *Entry) bool {
+	lastListElem := s.list.Back()
+	if lastListElem == nil {
+		return false
+	}
+	lastListEntry := lastListElem.Value.(*Entry)
+	return firstEntry.Index > lastListEntry.Index
+}
+
+// Helper function to append all entries to the end of the list
+func (s *dbShard) appendEntriesToEnd(entries []*Entry) {
+	for _, entry := range entries {
+		s.insertNewShardEntryWithLock(entry)
+	}
+}
+
+// Helper function to find the correct insertion index using binary search
+func (s *dbShard) findInsertionIndex(entries []*Entry, targetIndex uint64, start, end int) int {
+	for start <= end {
+		mid := (start + end) / 2
+		if entries[mid].Index > targetIndex {
+			end = mid - 1
+		} else {
+			start = mid + 1
+		}
+	}
+	return start
+}
+
+// Helper function to insert entries after a  given entry with indexes [start,end]
+func (s *dbShard) insertEntriesAfter(elem *list.Element, entries []*Entry, start, end int) int {
+	currElem := elem
+	for j := start; j <= end; j++ {
+		entry := entries[j]
+		currElem = s.list.InsertAfter(entry, currElem)
+		s.insertInLookupMapWithLock(entry.Series.ID(), currElem)
+	}
+	return start - 1
+}
+
+// Helper function to insert any remaining entries at the front of the list
+func (s *dbShard) insertRemainingEntriesAtFront(entries []*Entry, i int) {
+	for i >= 0 {
+		entry := entries[i]
+		elem := s.list.PushFront(entry)
+		s.insertInLookupMapWithLock(entry.Series.ID(), elem)
+		i--
+	}
+}
+
+func (s *dbShard) insertInLookupMapWithLock(id ident.ID, element *list.Element) {
+	s.lookup.SetUnsafe(id, element, shardMapSetUnsafeOptions{
+		NoCopyKey:     true,
+		NoFinalizeKey: true,
+	})
+	element.Value.(*Entry).SetInsertTime(s.nowFn())
+}
+
 func (s *dbShard) insertNewShardEntryWithLock(entry *Entry) {
 	// Set the lookup value, we use the copied ID and since it is GC'd
 	// we explicitly set it with options to not copy the key and not to
 	// finalize it.
 	copiedID := entry.Series.ID()
-	listElem := s.list.PushBack(entry)
+	listElem := s.list.Back()
+	if listElem == nil || listElem.Value.(*Entry).Index < entry.Index {
+		listElem = s.list.PushBack(entry)
+	} else {
+		for listElem != nil && listElem.Value.(*Entry).Index > entry.Index {
+			listElem = listElem.Prev()
+		}
+		listElem = s.list.InsertAfter(entry, listElem)
+	}
 	s.lookup.SetUnsafe(copiedID, listElem, shardMapSetUnsafeOptions{
 		NoCopyKey:     true,
 		NoFinalizeKey: true,
@@ -1426,6 +1523,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 	var (
 		anyPendingAction   = false
 		numPendingIndexing = 0
+		entriesToInsert    []*Entry
 	)
 
 	s.Lock()
@@ -1484,7 +1582,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 		// Insert still pending, perform the insert
 		entry = inserts[i].entry
-		s.insertNewShardEntryWithLock(entry)
+		entriesToInsert = append(entriesToInsert, entry)
 	}
 	s.Unlock()
 
