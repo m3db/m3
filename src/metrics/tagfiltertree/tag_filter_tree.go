@@ -3,6 +3,7 @@ package tagfiltertree
 import (
 	"errors"
 	"maps"
+	"regexp"
 	"strings"
 
 	"github.com/m3db/m3/src/metrics/filters"
@@ -28,7 +29,10 @@ type node[T any] struct {
 	Name string
 	// key=tagValue
 	Values map[string]*Tree[T]
-	Data   []T
+	// map string values to their compiled regex
+	// for faster matching.
+	ValueToRegex map[string]*regexp.Regexp
+	Data         []T
 }
 
 // New creates a new tree.
@@ -39,37 +43,52 @@ func New[T any]() *Tree[T] {
 }
 
 // AddTagFilter adds a tag filter to the tree.
-func (t *Tree[T]) AddTagFilter(tags []Tag, data T) {
-	addNode(t, tags, 0, data)
+func (t *Tree[T]) AddTagFilter(tags []Tag, data T) error {
+	return addNode(t, tags, 0, data)
 }
 
-func (n *node[T]) addValue(value string) *Tree[T] {
+func (n *node[T]) addValue(value string) (*Tree[T], error) {
 	if _, ok := n.Values[value]; !ok {
 		n.Values[value] = &Tree[T]{
 			Nodes: make(map[string]*node[T]),
 		}
+
+		// set the compiled regex for wildcard values.
+		if isWildcardTagValue(value) {
+			value = wildcardValueToRegex(value)
+			re, err := regexp.Compile(value)
+			if err != nil {
+				return nil, err
+			}
+			n.ValueToRegex[value] = re
+		}
 	}
-	return n.Values[value]
+	return n.Values[value], nil
 }
 
-func addNode[T any](t *Tree[T], tags []Tag, idx int, data T) {
+func addNode[T any](t *Tree[T], tags []Tag, idx int, data T) error {
 	if idx >= len(tags) {
-		return
+		return nil
 	}
 
 	tag := tags[idx]
 	if _, ok := t.Nodes[tag.Name]; !ok {
 		t.Nodes[tag.Name] = &node[T]{
-			Name:   tag.Name,
-			Values: make(map[string]*Tree[T]),
-			Data:   make([]T, 0),
+			Name:         tag.Name,
+			Values:       make(map[string]*Tree[T]),
+			ValueToRegex: make(map[string]*regexp.Regexp),
+			Data:         make([]T, 0),
 		}
 	}
 	node := t.Nodes[tag.Name]
 	// AddValue returns a tree along the path of each added value.
 	childTrees := make([]*Tree[T], 0)
 	for _, value := range tag.Values {
-		childTrees = append(childTrees, node.addValue(value))
+		childTree, err := node.addValue(value)
+		if err != nil {
+			return err
+		}
+		childTrees = append(childTrees, childTree)
 	}
 
 	// Add the data if this is the last tag.
@@ -79,8 +98,13 @@ func addNode[T any](t *Tree[T], tags []Tag, idx int, data T) {
 
 	// Recurse to the next tag for each of the childTrees.
 	for _, childTree := range childTrees {
-		addNode(childTree, tags, idx+1, data)
+		if err := addNode(childTree, tags, idx+1, data); err != nil {
+			// TODO: perform cleanup to avoid partially added nodes.
+			return err
+		}
 	}
+
+	return nil
 }
 
 // Match returns the data for the given tags.
@@ -106,8 +130,20 @@ func match[T any](
 			// - the node value is a variable
 			// - the node value is a matchall
 			for nodeValue, subTree := range node.Values {
-				isVar := isVarTagValue(nodeValue)
-				if tagValue == nodeValue || nodeValue == _matchall || isVar {
+				isVar := false
+				isMatch := false
+				if isVar = isVarTagValue(nodeValue); isVar {
+					isMatch = true
+				} else if re, ok := node.ValueToRegex[nodeValue]; ok {
+					isMatch = re.MatchString(tagValue)
+				} else {
+					// if no regex is present, then the value is a simple value.
+					if tagValue == nodeValue {
+						isMatch = true
+					}
+				}
+
+				if isMatch {
 					// gather data from this node and recurse.
 					newVarMap := varMap
 					if isVar {
@@ -254,4 +290,20 @@ func isVarTagValue(value string) bool {
 	return len(value) > 4 &&
 		strings.Contains(value, "{{") &&
 		strings.Contains(value, "}}")
+}
+
+func isSimpleTagValue(value string) bool {
+	return !strings.ContainsAny(value, "{},*")
+}
+
+func isWildcardTagValue(value string) bool {
+	return !isSimpleTagValue(value) && !isVarTagValue(value)
+}
+
+func wildcardValueToRegex(wildcard string) string {
+	// escape all regex special characters.
+	regex := regexp.QuoteMeta(wildcard)
+	// replace the wildcard with a regex pattern.
+	regex = strings.ReplaceAll(regex, _matchall, ".*")
+	return regex
 }

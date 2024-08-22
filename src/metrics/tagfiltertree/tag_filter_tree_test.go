@@ -239,6 +239,32 @@ func TestTreeGetData(t *testing.T) {
 			},
 			expected: []string{"namespace1", "namespace2"},
 		},
+		{
+			name: "multiple input tags, wildcard tag value, multi rule match",
+			inputTags: map[string]string{
+				"tag3": "apple",
+				"tag4": "banana",
+				"tag5": "train",
+				"tag6": "car",
+			},
+			rules: []Rule{
+				{
+					TagFilters: []string{
+						"tag3:app* tag4:b*n*",
+						"tag5:value5 tag6:value6",
+					},
+					Namespace: "namespace1",
+				},
+				{
+					TagFilters: []string{
+						"tag4:b*g* tag5:* tag6:c*",
+						"tag5:value5 tag7:value7",
+					},
+					Namespace: "namespace2",
+				},
+			},
+			expected: []string{"namespace1"},
+		},
 	}
 
 	less := func(a, b string) bool { return a < b }
@@ -250,7 +276,8 @@ func TestTreeGetData(t *testing.T) {
 				for _, tagFilter := range rule.TagFilters {
 					tags, err := TagsFromTagFilter(tagFilter)
 					require.NoError(t, err)
-					tree.AddTagFilter(tags, &localRule)
+					err = tree.AddTagFilter(tags, &localRule)
+					require.NoError(t, err)
 				}
 			}
 
