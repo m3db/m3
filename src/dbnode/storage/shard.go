@@ -1506,6 +1506,8 @@ func (s *dbShard) insertNewShardEntryWithLock(entry *Entry) {
 	listElem := s.list.Back()
 	if listElem == nil || listElem.Value.(*Entry).Index < entry.Index {
 		listElem = s.list.PushBack(entry)
+	} else if elem := s.list.Front(); elem == nil || elem.Value.(*Entry).Index > entry.Index {
+		listElem = s.list.PushFront(entry)
 	} else {
 		for listElem != nil && listElem.Value.(*Entry).Index > entry.Index {
 			listElem = listElem.Prev()
@@ -1584,6 +1586,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		entry = inserts[i].entry
 		entriesToInsert = append(entriesToInsert, entry)
 	}
+	s.insertNewShardEntriesWithLock(entriesToInsert)
 	s.Unlock()
 
 	if !anyPendingAction {

@@ -59,6 +59,9 @@ func (d dbShardInsertByEntryIndex) Len() int {
 }
 
 func (d dbShardInsertByEntryIndex) Less(i, j int) bool {
+	if d[i].entry == nil || d[j].entry == nil {
+		return true
+	}
 	return d[i].entry.Index < d[j].entry.Index
 }
 func (d dbShardInsertByEntryIndex) Swap(i, j int) {
