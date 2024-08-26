@@ -191,6 +191,9 @@ steps:
     plugins:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3
+        docker-compose#v2.5.1:
+          run: app
+          workdir: /go/src/github.com/m3db/m3
         kubernetes:
           <<: *kubernetes
           podSpec:
