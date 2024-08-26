@@ -68,7 +68,7 @@ then
 	trap defer EXIT
 fi
 
-docker ps
+docker ps -a
 $comparator -input=$QUERY_FILE \
 -s=$START \
 -e=$END \
