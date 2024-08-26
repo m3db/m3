@@ -31,7 +31,7 @@ services:
       - backend
     image: prom/prometheus:v2.31.2
     volumes:
-      - "./prometheus.yml:/etc/prometheus/prometheus.yml"
+      - "./prometheus.yml:/etc/prometheus/"
   grafana:
     build:
       context: ./grafana
