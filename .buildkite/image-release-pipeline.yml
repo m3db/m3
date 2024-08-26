@@ -1,6 +1,7 @@
 steps:
   # We add a wait step here so that docker images and docs won't get built
   # unless rest of CI passes.
+# Temporarily commenting out the following steps to make pipeline green. ISSUE: https://github.com/m3db/m3/issues/4289
 #  - wait
 #  - name: ":docker: build quay.io/m3db"
 #    command: ".ci/docker/build.sh"
