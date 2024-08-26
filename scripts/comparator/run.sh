@@ -63,10 +63,10 @@ function defer {
 	fi
 }
 
-#if [[ "$RUN_ONLY" == "false" ]]
-#then
-#	trap defer EXIT
-#fi
+if [[ "$RUN_ONLY" == "false" ]]
+then
+	trap defer EXIT
+fi
 
 $comparator -input=$QUERY_FILE \
 -s=$START \
