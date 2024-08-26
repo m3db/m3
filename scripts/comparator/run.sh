@@ -48,8 +48,8 @@ then
 	setup_docker $CI
 fi
 
-#comparator=$COMPARATOR/compare.out
-#go build -o $comparator $COMPARATOR/.
+comparator=$COMPARATOR/compare.out
+go build -o $comparator $COMPARATOR/.
 #function defer {
 #	rm $comparator
 #	if [[ "$CI" == "true" ]]
