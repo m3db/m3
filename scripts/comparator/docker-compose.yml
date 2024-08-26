@@ -20,8 +20,6 @@ services:
     networks:
       - backend
     image: "m3query:${REVISION}"
-    volumes:
-      - "./:/etc/m3query/"
   prometheus:
     expose:
       - "9090"
@@ -30,8 +28,6 @@ services:
     networks:
       - backend
     image: prom/prometheus:v2.31.2
-    volumes:
-      - "./prometheus.yml:/etc/prometheus/"
   grafana:
     build:
       context: ./grafana
