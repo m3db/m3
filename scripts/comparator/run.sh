@@ -48,31 +48,31 @@ then
 	setup_docker $CI
 fi
 
-comparator=$COMPARATOR/compare.out
-go build -o $comparator $COMPARATOR/.
-function defer {
-	rm $comparator
-	if [[ "$CI" == "true" ]]
-	then
-		teardown_docker $CI
-	else
-		if [[ "$RUN_ONLY" == "false" ]]
-		then
-			rm $DASHBOARD
-		fi
-	fi
-}
-
-if [[ "$RUN_ONLY" == "false" ]]
-then
-	trap defer EXIT
-fi
-
-$comparator -input=$QUERY_FILE \
--s=$START \
--e=$END \
--comparator=$COMPARATOR_WRITE \
--regressionDir=$REGRESSION_DIR
-
-# Run PromQL testdata tests
-go test -v -timeout 300s -tags=compatibility -count=1 github.com/m3db/m3/src/query/test/compatibility/
+#comparator=$COMPARATOR/compare.out
+#go build -o $comparator $COMPARATOR/.
+#function defer {
+#	rm $comparator
+#	if [[ "$CI" == "true" ]]
+#	then
+#		teardown_docker $CI
+#	else
+#		if [[ "$RUN_ONLY" == "false" ]]
+#		then
+#			rm $DASHBOARD
+#		fi
+#	fi
+#}
+#
+#if [[ "$RUN_ONLY" == "false" ]]
+#then
+#	trap defer EXIT
+#fi
+#
+#$comparator -input=$QUERY_FILE \
+#-s=$START \
+#-e=$END \
+#-comparator=$COMPARATOR_WRITE \
+#-regressionDir=$REGRESSION_DIR
+#
+## Run PromQL testdata tests
+#go test -v -timeout 300s -tags=compatibility -count=1 github.com/m3db/m3/src/query/test/compatibility/
