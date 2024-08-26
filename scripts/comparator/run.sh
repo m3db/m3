@@ -50,24 +50,24 @@ fi
 
 comparator=$COMPARATOR/compare.out
 go build -o $comparator $COMPARATOR/.
-#function defer {
-#	rm $comparator
-#	if [[ "$CI" == "true" ]]
-#	then
-#		teardown_docker $CI
-#	else
-#		if [[ "$RUN_ONLY" == "false" ]]
-#		then
-#			rm $DASHBOARD
-#		fi
-#	fi
-#}
-#
-#if [[ "$RUN_ONLY" == "false" ]]
-#then
-#	trap defer EXIT
-#fi
-#
+function defer {
+	rm $comparator
+	if [[ "$CI" == "true" ]]
+	then
+		teardown_docker $CI
+	else
+		if [[ "$RUN_ONLY" == "false" ]]
+		then
+			rm $DASHBOARD
+		fi
+	fi
+}
+
+if [[ "$RUN_ONLY" == "false" ]]
+then
+	trap defer EXIT
+fi
+
 #$comparator -input=$QUERY_FILE \
 #-s=$START \
 #-e=$END \
