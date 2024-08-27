@@ -29,7 +29,7 @@ services:
       - backend
     image: prom/prometheus:v2.31.2
     volumes:
-      - "/go/src/github.com/m3db/m3/scripts/comparator:/etc/prometheus/"
+      - "/go/src/github.com/m3db/m3/scripts/comparator/:/etc/prometheus/"
   grafana:
     build:
       context: ./grafana
