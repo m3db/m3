@@ -69,7 +69,7 @@ then
 fi
 
 docker ps -a
-sudo ufw status verbose
+docker inspect e1f1df2c496c
 $comparator -input=$QUERY_FILE \
 -s=$START \
 -e=$END \
