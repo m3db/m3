@@ -17,7 +17,7 @@ export DASHBOARD=$GRAFANA_PATH/dash.json.out
 export END=${END:-$(date +%s)}
 export START=${START:-$(( $END - 10800 ))}
 # TODO: make this a bit less hacky in the future; e.g. take from config.
-export COMPARATOR_WRITE="localhost:9001"
+export COMPARATOR_WRITE="host.docker.internal:9001"
 
 function generate_dash {
 	TEMPLATE=$GRAFANA_PATH/dashboard.tmpl
@@ -73,8 +73,7 @@ $comparator -input=$QUERY_FILE \
 -s=$START \
 -e=$END \
 -comparator=$COMPARATOR_WRITE \
--regressionDir=$REGRESSION_DIR \
--prometheusURL=http://prometheus:9090
+-regressionDir=$REGRESSION_DIR
 
 ## Run PromQL testdata tests
 #go test -v -timeout 300s -tags=compatibility -count=1 github.com/m3db/m3/src/query/test/compatibility/
