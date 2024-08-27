@@ -20,6 +20,8 @@ services:
     networks:
       - backend
     image: "m3query:${REVISION}"
+    volumes:
+      - "./m3query.yml:/etc/m3query/m3query.yml"
   prometheus:
     expose:
       - "9090"
