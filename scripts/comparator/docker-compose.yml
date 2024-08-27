@@ -28,6 +28,8 @@ services:
     networks:
       - backend
     image: prom/prometheus:v2.31.2
+    volumes:
+      - "./:etc/prometheus"
   grafana:
     build:
       context: ./grafana
