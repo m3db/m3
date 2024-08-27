@@ -47,4 +47,3 @@ networks:
   backend:
 volumes:
   app:
-    external: true
