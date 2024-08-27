@@ -10,6 +10,7 @@ function setup_docker {
   echo "Run m3query, m3comparator, and prometheus containers"
   docker-compose -f ${COMPOSE_FILE} up -d --build --renew-anon-volumes m3comparator
   pwd
+  ls /go/src/github.com/m3db/m3/scripts/comparator/
   docker-compose -f ${COMPOSE_FILE} up -d --build --renew-anon-volumes prometheus
   docker-compose -f ${COMPOSE_FILE} logs prometheus
   docker-compose -f ${COMPOSE_FILE} up -d --build --renew-anon-volumes m3query
