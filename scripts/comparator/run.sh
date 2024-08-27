@@ -69,7 +69,7 @@ then
 fi
 
 docker ps -a
-docker inspect e1f1df2c496c
+docker inspect comparator_prometheus_1
 $comparator -input=$QUERY_FILE \
 -s=$START \
 -e=$END \
