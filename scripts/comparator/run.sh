@@ -45,6 +45,8 @@ then
 	$COMPARATOR/setup.sh
 
 	echo "setting up docker"
+	pwd
+	ls /go/src/github.com/m3db/m3/scripts/comparator/
 	setup_docker $CI
 fi
 
