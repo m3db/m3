@@ -71,7 +71,6 @@ then
 fi
 
 docker ps -a
-docker inspect comparator_m3query_1
 $comparator -input=$QUERY_FILE \
 -s=$START \
 -e=$END \
