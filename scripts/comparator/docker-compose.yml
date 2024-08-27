@@ -20,6 +20,8 @@ services:
     networks:
       - backend
     image: "m3query:${REVISION}"
+    volumes:
+      - app2:/etc/m3query/
   prometheus:
     expose:
       - "9090"
@@ -45,3 +47,4 @@ networks:
   backend:
 volumes:
   app:
+  app2:
