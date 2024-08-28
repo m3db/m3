@@ -5,7 +5,7 @@ backend: grpc
 rpc:
   remotes:
     - name: "remote"
-      remoteListenAddresses: ["random:9000"]
+      remoteListenAddresses: ["m3comparator:9000"]
 
 metrics:
   scope:
