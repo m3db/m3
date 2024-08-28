@@ -27,7 +27,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"time"
@@ -314,7 +313,7 @@ func parseResult(endpoint string, log *zap.Logger) (prometheus.Response, error) 
 		body.Close()
 	}()
 
-	data, err := ioutil.ReadAll(body)
+	data, err := io.ReadAll(body)
 	if err != nil {
 		return result, err
 	}
