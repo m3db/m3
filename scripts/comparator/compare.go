@@ -270,6 +270,8 @@ func runComparison(
 	queryURL string,
 	log *zap.Logger,
 ) error {
+	log.Info("Running comparison", zap.String("promURL", promURL), zap.String("queryURL", queryURL))
+
 	promResult, err := parseResult(promURL, log)
 	if err != nil {
 		log.Error("failed to parse Prometheus result", zap.Error(err))
@@ -302,9 +304,6 @@ func parseResult(endpoint string, log *zap.Logger) (prometheus.Response, error) 
 	}
 
 	if response.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(response.Body)
-		bodyString := string(bodyBytes)
-		log.Info("response_body", zap.String("response_body", bodyString))
 		return result, fmt.Errorf("response failed with code %s", response.Status)
 	}
 
