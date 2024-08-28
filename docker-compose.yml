@@ -11,6 +11,7 @@ services:
       # Support running docker within docker. That is, buildkite jobs themselves run in a container; that container
       # needs to be able to spin up functioning docker containers.
       - /var/run/docker.sock:/var/run/docker.sock
+      - comparator_volume:/go/src/github.com/m3db/m3/scripts/comparator
     extra_hosts:
       # Allow routing from the buildkite container to the host machine, as host.docker.internal. This allows us to do
       # the following:
@@ -38,3 +39,5 @@ services:
       - SPLIT_IDX
       - TOTAL_SPLITS
       - GOPATH=/go
+volumes:
+  comparator_volume:
