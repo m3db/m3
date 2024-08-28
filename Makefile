@@ -225,6 +225,7 @@ endif
 .PHONY: docker-integration-test
 docker-integration-test:
 	@echo "--- Running Docker integration test"
+	pwd
 	./scripts/docker-integration-tests/run.sh
 
 .PHONY: docker-compatibility-test
