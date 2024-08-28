@@ -129,6 +129,8 @@ func main() {
 		}
 	}
 
+	log.Info("did we get here?")
+
 	if !multiErr.Empty() {
 		log.Fatal("mismatched queries detected in base queries")
 	}
