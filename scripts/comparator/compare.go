@@ -104,6 +104,7 @@ func main() {
 	}
 
 	var multiErr xerrors.MultiError
+	log.Info("queries", zap.Any("queries", queries))
 	for _, queryGroup := range queries {
 		runs := 1
 		if queryGroup.Reruns > 1 {
