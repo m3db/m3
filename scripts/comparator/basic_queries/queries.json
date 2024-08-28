@@ -10,6 +10,18 @@
     ]
   },
   {
+    "queryGroup": "fetch",
+    "queries": [
+      "quail",
+      "quail offset 60s"
+    ],
+    "steps": [
+      "15s",
+      "30s",
+      "1m"
+    ]
+  },
+  {
     "queryGroup": "temporal",
     "queries": [
       "rate(multi_1[1m])",
