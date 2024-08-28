@@ -21,7 +21,7 @@ services:
       - backend
     image: "m3query:${REVISION}"
     volumes:
-      - comparator_volume:/etc/m3query/
+      - .:/go/src/github.com/m3db/m3
   prometheus:
     expose:
       - "9090"
@@ -31,7 +31,7 @@ services:
       - backend
     image: prom/prometheus:v2.31.2
     volumes:
-      - comparator_volume:/etc/prometheus/
+      - .:/go/src/github.com/m3db/m3
   grafana:
     build:
       context: ./grafana
@@ -45,6 +45,3 @@ services:
     image: m3grafana:latest
 networks:
   backend:
-volumes:
-  comparator_volume:
-    external: true
