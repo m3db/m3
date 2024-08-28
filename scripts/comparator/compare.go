@@ -283,6 +283,9 @@ func runComparison(
 		return err
 	}
 
+	log.Info("Prometheus result", zap.Any("result", promResult))
+	log.Info("M3Query result", zap.Any("result", queryResult))
+
 	_, err = promResult.Matches(queryResult)
 	if err != nil {
 		log.Error("mismatch", zap.Error(err))
