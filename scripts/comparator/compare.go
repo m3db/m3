@@ -26,6 +26,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -128,8 +129,6 @@ func main() {
 			}
 		}
 	}
-
-	log.Info("did we get here?")
 
 	if !multiErr.Empty() {
 		log.Fatal("mismatched queries detected in base queries")
@@ -272,13 +271,13 @@ func runComparison(
 	queryURL string,
 	log *zap.Logger,
 ) error {
-	promResult, err := parseResult(promURL)
+	promResult, err := parseResult(promURL, log)
 	if err != nil {
 		log.Error("failed to parse Prometheus result", zap.Error(err))
 		return err
 	}
 
-	queryResult, err := parseResult(queryURL)
+	queryResult, err := parseResult(queryURL, log)
 	if err != nil {
 		log.Error("failed to parse M3Query result", zap.Error(err))
 		return err
@@ -293,7 +292,7 @@ func runComparison(
 	return nil
 }
 
-func parseResult(endpoint string) (prometheus.Response, error) {
+func parseResult(endpoint string, log *zap.Logger) (prometheus.Response, error) {
 	var result prometheus.Response
 	response, err := http.Get(endpoint)
 	if err != nil {
@@ -301,6 +300,9 @@ func parseResult(endpoint string) (prometheus.Response, error) {
 	}
 
 	if response.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(response.Body)
+		bodyString := string(bodyBytes)
+		log.Info("response_body", zap.String("response_body", bodyString))
 		return result, fmt.Errorf("response failed with code %s", response.Status)
 	}
 
