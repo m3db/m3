@@ -8,4 +8,3 @@ ADD ./m3comparator /bin/
 EXPOSE 9000/tcp 9001/tcp
 
 ENTRYPOINT [ "/bin/m3comparator" ]
-CMD
