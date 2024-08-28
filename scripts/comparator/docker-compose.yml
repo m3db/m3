@@ -20,8 +20,8 @@ services:
     networks:
       - backend
     image: "m3query:${REVISION}"
-    volumes:
-      - ./scripts/comparator/:/etc/m3query/
+#    volumes:
+#      - ./scripts/comparator/:/etc/m3query/
   prometheus:
     expose:
       - "9090"
