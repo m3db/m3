@@ -82,6 +82,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	log.Info("log queryFile", zap.String("queryFile", queryFile))
+
 	if len(promAddress) == 0 {
 		paramError("No prom address found", log)
 		os.Exit(1)
@@ -114,6 +116,7 @@ func main() {
 			log.Info("running query group",
 				zap.String("group", queryGroup.QueryGroup),
 				zap.Int("run", i+1))
+			log.Info("log query group", zap.Any("group", queryGroup))
 			if err := runQueryGroup(
 				queryGroup,
 				promAddress,
@@ -250,6 +253,7 @@ func runQueryGroup(
 ) error {
 	var multiErr xerrors.MultiError
 	for _, query := range queryGroup.Queries {
+		log.Info("running query", zap.String("query", query))
 		promURL := fmt.Sprintf("http://%s%s", promAddress, query)
 		queryURL := fmt.Sprintf("http://%s%s", queryAddress, query)
 		if err := runComparison(promURL, queryURL, log); err != nil {
