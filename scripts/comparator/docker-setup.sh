@@ -12,7 +12,6 @@ function setup_docker {
   docker-compose -f ${COMPOSE_FILE} up -d --build --renew-anon-volumes prometheus
   docker-compose -f ${COMPOSE_FILE} logs prometheus
   docker-compose -f ${COMPOSE_FILE} up -d --build --renew-anon-volumes m3query
-  docker-compose -f ${COMPOSE_FILE} logs m3query
   docker-compose -f ${COMPOSE_FILE} ps
   
   CI=$1
