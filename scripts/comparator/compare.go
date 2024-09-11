@@ -52,7 +52,7 @@ func main() {
 		now = time.Now()
 
 		pQueryFile    = flag.String("input", "", "the query file")
-		pPromAddress  = flag.String("promAdress", "host.docker.internal:9090", "prom address")
+		pPromAddress  = flag.String("promAdress", "host.docker.internal:7201/m3query", "prom address")
 		pQueryAddress = flag.String("queryAddress", "host.docker.internal:7201/m3query", "M3 query address")
 
 		pComparatorAddress = flag.String("comparator", "", "comparator address")
