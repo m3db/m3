@@ -55,7 +55,7 @@ func main() {
 		pPromAddress  = flag.String("promAdress", "host.docker.internal:7201/m3query", "prom address")
 		pQueryAddress = flag.String("queryAddress", "host.docker.internal:7201/m3query", "M3 query address")
 
-		pComparatorAddress = flag.String("comparator", "host.docker.internal:9001", "comparator address")
+		pComparatorAddress = flag.String("comparator", "", "comparator address")
 		pRegressionDir     = flag.String("regressionDir", "", "optional directory for regression tests")
 
 		pStart = flag.Int64("s", now.Add(time.Hour*-3).Unix(), "start time")
@@ -212,6 +212,7 @@ func runRegression(
 	}
 
 	comparatorURL := fmt.Sprintf("http://%s", comparatorAddress)
+
 	resp, err := http.Post(comparatorURL, "application/json", bytes.NewReader(data))
 	if err != nil {
 		log.Error("could not seed regression data", zap.Error(err))
