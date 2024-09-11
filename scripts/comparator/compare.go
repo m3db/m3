@@ -55,7 +55,7 @@ func main() {
 		pPromAddress  = flag.String("promAdress", "host.docker.internal:7201/m3query", "prom address")
 		pQueryAddress = flag.String("queryAddress", "host.docker.internal:7201/m3query", "M3 query address")
 
-		pComparatorAddress = flag.String("comparator", "", "comparator address")
+		pComparatorAddress = flag.String("comparator", "host.docker.internal:9001", "comparator address")
 		pRegressionDir     = flag.String("regressionDir", "", "optional directory for regression tests")
 
 		pStart = flag.Int64("s", now.Add(time.Hour*-3).Unix(), "start time")
@@ -270,8 +270,6 @@ func runComparison(
 	queryURL string,
 	log *zap.Logger,
 ) error {
-	log.Info("Running comparison", zap.String("promURL", promURL), zap.String("queryURL", queryURL))
-
 	promResult, err := parseResult(promURL)
 	if err != nil {
 		log.Error("failed to parse Prometheus result", zap.Error(err))
@@ -283,9 +281,6 @@ func runComparison(
 		log.Error("failed to parse M3Query result", zap.Error(err))
 		return err
 	}
-
-	log.Info("Prometheus result", zap.Any("result", promResult))
-	log.Info("M3Query result", zap.Any("result", queryResult))
 
 	_, err = promResult.Matches(queryResult)
 	if err != nil {
