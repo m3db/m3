@@ -26,7 +26,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"time"
@@ -82,8 +82,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	log.Info("log queryFile", zap.String("queryFile", queryFile))
-
 	if len(promAddress) == 0 {
 		paramError("No prom address found", log)
 		os.Exit(1)
@@ -116,7 +114,6 @@ func main() {
 			log.Info("running query group",
 				zap.String("group", queryGroup.QueryGroup),
 				zap.Int("run", i+1))
-			log.Info("log query group", zap.Any("group", queryGroup))
 			if err := runQueryGroup(
 				queryGroup,
 				promAddress,
@@ -253,7 +250,6 @@ func runQueryGroup(
 ) error {
 	var multiErr xerrors.MultiError
 	for _, query := range queryGroup.Queries {
-		log.Info("running query", zap.String("query", query))
 		promURL := fmt.Sprintf("http://%s%s", promAddress, query)
 		queryURL := fmt.Sprintf("http://%s%s", queryAddress, query)
 		if err := runComparison(promURL, queryURL, log); err != nil {
@@ -289,6 +285,7 @@ func runComparison(
 	}
 
 	log.Info("Prometheus result", zap.Any("result", promResult))
+	log.Info("M3Query result", zap.Any("result", queryResult))
 
 	_, err = promResult.Matches(queryResult)
 	if err != nil {
@@ -315,7 +312,7 @@ func parseResult(endpoint string) (prometheus.Response, error) {
 		body.Close()
 	}()
 
-	data, err := io.ReadAll(body)
+	data, err := ioutil.ReadAll(body)
 	if err != nil {
 		return result, err
 	}
