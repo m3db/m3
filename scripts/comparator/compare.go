@@ -212,7 +212,6 @@ func runRegression(
 	}
 
 	comparatorURL := fmt.Sprintf("http://%s", comparatorAddress)
-
 	resp, err := http.Post(comparatorURL, "application/json", bytes.NewReader(data))
 	if err != nil {
 		log.Error("could not seed regression data", zap.Error(err))
