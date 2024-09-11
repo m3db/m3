@@ -17,7 +17,7 @@ export DASHBOARD=$GRAFANA_PATH/dash.json.out
 export END=${END:-$(date +%s)}
 export START=${START:-$(( $END - 10800 ))}
 # TODO: make this a bit less hacky in the future; e.g. take from config.
-export COMPARATOR_WRITE="m3comparator:9001"
+export COMPARATOR_WRITE="localhost:9001"
 
 function generate_dash {
 	TEMPLATE=$GRAFANA_PATH/dashboard.tmpl
