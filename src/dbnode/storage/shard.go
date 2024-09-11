@@ -1377,7 +1377,7 @@ func (s *dbShard) insertSeriesSync(
 		return existingEntry, nil
 	}
 
-	s.insertNewShardEntryWithLock(newEntry)
+	s.insertNewShardEntriesWithLock([]*Entry{newEntry})
 
 	// Track unlocking.
 	unlocked = true
@@ -1409,38 +1409,40 @@ func (s *dbShard) insertSeriesSync(
 	return newEntry, nil
 }
 
+// insertNewShardEntriesWithLock inserts the entries to shard.
+// The entries passed to the function ae assumed to be sorted by index.
 func (s *dbShard) insertNewShardEntriesWithLock(entries []*Entry) {
 	if len(entries) == 0 {
 		return
 	}
 
 	// Fast Path: Check if the entire slice can be appended to the end of the list
-	if s.canAppendToEnd(entries[0]) {
-		s.appendEntriesToEnd(entries)
+	if s.canAppendToEndWithLock(entries[0]) {
+		s.appendEntriesToEndWithLock(entries)
 		return
 	}
 
 	// If not, proceed with the standard insertion logic
 	elem := s.list.Back()
-	i := len(entries) - 1
 
-	for elem != nil && i >= 0 {
+	for elem != nil && len(entries) != 0 {
 		currListEntry := elem.Value.(*Entry)
 
-		insertIdx := s.findInsertionIndex(entries, currListEntry.Index, 0, i)
+		insertIdx := s.findInsertionIndexWithLock(entries, currListEntry.Index)
 
 		if insertIdx < len(entries) {
-			i = s.insertEntriesAfter(elem, entries, insertIdx, i)
+			s.insertEntriesAfterWithLock(elem, entries[insertIdx:])
+			entries = entries[:insertIdx]
 		}
 
 		elem = elem.Prev()
 	}
 
-	s.insertRemainingEntriesAtFront(entries, i)
+	s.insertEntriesAtFrontWithLock(entries)
 }
 
 // Helper function to check if we can append the entire slice to the end of the list
-func (s *dbShard) canAppendToEnd(firstEntry *Entry) bool {
+func (s *dbShard) canAppendToEndWithLock(firstEntry *Entry) bool {
 	lastListElem := s.list.Back()
 	if lastListElem == nil {
 		return false
@@ -1450,14 +1452,15 @@ func (s *dbShard) canAppendToEnd(firstEntry *Entry) bool {
 }
 
 // Helper function to append all entries to the end of the list
-func (s *dbShard) appendEntriesToEnd(entries []*Entry) {
+func (s *dbShard) appendEntriesToEndWithLock(entries []*Entry) {
 	for _, entry := range entries {
 		s.insertNewShardEntryWithLock(entry)
 	}
 }
 
 // Helper function to find the correct insertion index using binary search
-func (s *dbShard) findInsertionIndex(entries []*Entry, targetIndex uint64, start, end int) int {
+func (s *dbShard) findInsertionIndexWithLock(entries []*Entry, targetIndex uint64) int {
+	start, end := 0, len(entries)-1
 	for start <= end {
 		mid := (start + end) / 2
 		if entries[mid].Index > targetIndex {
@@ -1470,23 +1473,19 @@ func (s *dbShard) findInsertionIndex(entries []*Entry, targetIndex uint64, start
 }
 
 // Helper function to insert entries after a  given entry with indexes [start,end]
-func (s *dbShard) insertEntriesAfter(elem *list.Element, entries []*Entry, start, end int) int {
+func (s *dbShard) insertEntriesAfterWithLock(elem *list.Element, entries []*Entry) {
 	currElem := elem
-	for j := start; j <= end; j++ {
-		entry := entries[j]
+	for _, entry := range entries {
 		currElem = s.list.InsertAfter(entry, currElem)
 		s.insertInLookupMapWithLock(entry.Series.ID(), currElem)
 	}
-	return start - 1
 }
 
 // Helper function to insert any remaining entries at the front of the list
-func (s *dbShard) insertRemainingEntriesAtFront(entries []*Entry, i int) {
-	for i >= 0 {
-		entry := entries[i]
+func (s *dbShard) insertEntriesAtFrontWithLock(entries []*Entry) {
+	for _, entry := range entries {
 		elem := s.list.PushFront(entry)
 		s.insertInLookupMapWithLock(entry.Series.ID(), elem)
-		i--
 	}
 }
 
@@ -1503,17 +1502,7 @@ func (s *dbShard) insertNewShardEntryWithLock(entry *Entry) {
 	// we explicitly set it with options to not copy the key and not to
 	// finalize it.
 	copiedID := entry.Series.ID()
-	listElem := s.list.Back()
-	if listElem == nil || listElem.Value.(*Entry).Index < entry.Index {
-		listElem = s.list.PushBack(entry)
-	} else if elem := s.list.Front(); elem == nil || elem.Value.(*Entry).Index > entry.Index {
-		listElem = s.list.PushFront(entry)
-	} else {
-		for listElem != nil && listElem.Value.(*Entry).Index > entry.Index {
-			listElem = listElem.Prev()
-		}
-		listElem = s.list.InsertAfter(entry, listElem)
-	}
+	listElem := s.list.PushBack(entry)
 	s.lookup.SetUnsafe(copiedID, listElem, shardMapSetUnsafeOptions{
 		NoCopyKey:     true,
 		NoFinalizeKey: true,
