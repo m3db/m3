@@ -10,10 +10,8 @@ function setup_docker {
   echo "Run m3query, m3comparator, and prometheus containers"
   docker-compose -f ${COMPOSE_FILE} up -d --build --renew-anon-volumes m3comparator
   docker-compose -f ${COMPOSE_FILE} up -d --build --renew-anon-volumes prometheus
-  docker-compose -f ${COMPOSE_FILE} logs prometheus
   docker-compose -f ${COMPOSE_FILE} up -d --build --renew-anon-volumes m3query
-  docker-compose -f ${COMPOSE_FILE} ps
-  
+
   CI=$1
   if [[ "$CI" != "true" ]]
   then
