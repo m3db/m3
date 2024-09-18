@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -295,5 +296,70 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T
 			assert.True(t, expectedBlock.LastRead.Equal(actualBlock.LastRead))
 			assert.Equal(t, expectedBlock.Err, actualBlock.Err)
 		}
+	}
+}
+
+func TestShardFetchBlocksMetadata(t *testing.T) {
+	opts := DefaultTestOptions().SetSeriesCachePolicy(series.CacheRecentlyRead)
+	ctx := opts.ContextPool().Get()
+	defer ctx.Close()
+
+	numOfActiveSeries := 1000
+	writeBatchSize := 100
+	readBatchSize := 10
+
+	shard := testDatabaseShard(t, opts)
+	defer shard.Close()
+
+	nowFn := opts.ClockOptions().NowFn()
+	start := nowFn()
+	var wg sync.WaitGroup
+	for i := 0; i < numOfActiveSeries; i += writeBatchSize {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			for j := 0; j < writeBatchSize; j++ {
+				id := fmt.Sprintf("foo=%d_%d", i, j)
+				_, err := shard.Write(ctx, ident.StringID(id), xtime.ToUnixNano(nowFn()),
+					1.0, xtime.Second, nil, series.WriteOptions{})
+				require.NoError(t, err)
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	end := nowFn()
+	var (
+		encodedPageToken PageToken
+		err              error
+		result           block.FetchBlocksMetadataResults
+	)
+
+	fetchMetadata := true
+	observedIds := make(map[string]int, numOfActiveSeries)
+	fetchOpts := block.FetchBlocksMetadataOptions{
+		IncludeSizes:     true,
+		IncludeChecksums: true,
+		IncludeLastRead:  true,
+	}
+
+	for i := 0; i < numOfActiveSeries; i += readBatchSize {
+		if fetchMetadata {
+			result, encodedPageToken, err = shard.FetchBlocksMetadataV2(ctx, xtime.ToUnixNano(start), xtime.ToUnixNano(end), int64(readBatchSize), encodedPageToken, fetchOpts)
+			require.NoError(t, err)
+			for _, res := range result.Results() {
+				observedIds[res.ID.String()]++
+			}
+		} else {
+			break
+		}
+		if encodedPageToken == nil {
+			fetchMetadata = false
+		}
+	}
+
+	require.Equal(t, numOfActiveSeries, len(observedIds))
+	for id, _ := range observedIds {
+		require.Equal(t, 1, observedIds[id])
 	}
 }
