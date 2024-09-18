@@ -24,9 +24,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/metrics/generated/proto/attributionpb"
+	"github.com/m3db/m3/src/metrics/tagfiltertree"
 )
 
 var (
@@ -259,17 +261,54 @@ func NewRuleFromProto(rpb *attributionpb.Rule) (*Rule, error) {
 		SetUOwnID(rpb.GetUownId()), nil
 }
 
-// ResolvedRule represents the result of a rule match with any
-// variables in the tag filter resolved.
-type ResolvedRule struct {
-	*Rule
-	VarMap map[string]string
+type Result struct {
+	Rule        *Rule
+	PrimaryNS   string
+	SecondaryNS string
 }
 
-// Annotate annotates the Rule with the resolved variable map.
-func (rr *ResolvedRule) Annotate(varMap map[string]string) *ResolvedRule {
-	return &ResolvedRule{
-		Rule:   rr.Rule,
-		VarMap: varMap,
+func (r *Rule) Resolve(inputTags map[string]string) (Result, error) {
+	if !tagfiltertree.IsVarTagValue(r.PrimaryNS()) &&
+		!tagfiltertree.IsVarTagValue(r.SecondaryNS()) {
+		return Result{
+			Rule:        r,
+			PrimaryNS:   r.PrimaryNS(),
+			SecondaryNS: r.SecondaryNS(),
+		}, nil
 	}
+
+	// resolve the var tags.
+	varMap := make(map[string]string)
+	for _, tagFilter := range r.tagFilters {
+		tags, err := tagfiltertree.TagsFromTagFilter(tagFilter)
+		if err != nil {
+			return Result{}, err
+		}
+		for _, tag := range tags {
+			if tag.Var != "" {
+				// is var tag
+				inputTagValue, ok := inputTags[tag.Name]
+				if !ok {
+					return Result{}, errors.New("tag not found")
+				}
+				varMap[tag.Var] = inputTagValue
+			}
+		}
+	}
+
+	primaryNS := r.PrimaryNS()
+	for varName, varValue := range varMap {
+		primaryNS = strings.ReplaceAll(primaryNS, varName, varValue)
+	}
+
+	secondaryNS := r.SecondaryNS()
+	for varName, varValue := range varMap {
+		secondaryNS = strings.ReplaceAll(secondaryNS, varName, varValue)
+	}
+
+	return Result{
+		Rule:        r,
+		PrimaryNS:   primaryNS,
+		SecondaryNS: secondaryNS,
+	}, nil
 }

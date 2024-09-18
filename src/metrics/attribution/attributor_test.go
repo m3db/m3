@@ -182,6 +182,63 @@ func TestAttributorNamespaces(t *testing.T) {
 			},
 		},
 		{
+			name: "multiple rules with secondary ns, multiple filters, var tag values",
+			inputRules: []*rules.Rule{
+				rules.NewRule().
+					SetName("foo").
+					SetPrimaryNS("{{VAR1}}").
+					SetSecondaryNS("foo2").
+					SetTagFilters([]string{
+						"tag1:value1 tag2:{{VAR1}}",
+						"tag2:value2 tag3:value3",
+						"tag3:value3 tag4:value4",
+					}),
+				rules.NewRule().
+					SetName("bar").
+					SetPrimaryNS("bar").
+					SetSecondaryNS("bar2").
+					SetTagFilters([]string{
+						"tag2:value2 tag3:value3",
+						"tag3:value3 tag4:value4",
+						"tag4:value4 tag5:value5",
+					}),
+			},
+			metricID: []byte("tag1=value1,tag2=apple,tag3=value3"),
+			expectedNS: []string{
+				"apple+foo2",
+				"global+",
+			},
+		},
+		{
+			name: "multiple rules with secondary ns, multiple filters, multi var tag values",
+			inputRules: []*rules.Rule{
+				rules.NewRule().
+					SetName("foo").
+					SetPrimaryNS("{{VAR1}}").
+					SetSecondaryNS("foo2").
+					SetTagFilters([]string{
+						"tag1:value1 tag2:{{VAR1}}",
+						"tag2:value2 tag3:value3",
+						"tag3:value3 tag4:value4",
+					}),
+				rules.NewRule().
+					SetName("bar").
+					SetPrimaryNS("bar").
+					SetSecondaryNS("{{VAR1}}_{{VAR2}}").
+					SetTagFilters([]string{
+						"tag2:value2 tag3:{{VAR1}}",
+						"tag3:value3 tag4:{{VAR2}}",
+						"tag4:value4 tag5:value5",
+					}),
+			},
+			metricID: []byte("tag1=value1,tag2=apple,tag3=value3,tag4=value4"),
+			expectedNS: []string{
+				"apple+foo2",
+				"bar+value3_value4",
+				"global+",
+			},
+		},
+		{
 			name: "no matched rules",
 			inputRules: []*rules.Rule{
 				rules.NewRule().
@@ -247,13 +304,13 @@ func TestAttributorNamespaces(t *testing.T) {
 			err := a.Init()
 			require.NoError(t, err)
 
-			matchedRules, err := a.Match(tt.metricID)
+			results, err := a.Match(tt.metricID)
 			// prepare actual NS string.
 			actualNamespaces := make([]string, 0)
-			for _, r := range matchedRules {
+			for _, res := range results {
 				actualNamespaces = append(
 					actualNamespaces,
-					r.PrimaryNS()+"+"+r.SecondaryNS(),
+					res.PrimaryNS+"+"+res.SecondaryNS,
 				)
 			}
 			require.NoError(t, err)
@@ -314,14 +371,14 @@ func TestAttributorUpdate(t *testing.T) {
 			a := newTestAttributorWithRuleSet(t, newRuleSetFromRules(tt.inputRules))
 			err := a.Init()
 			require.NoError(t, err)
-			matchedRules, err := a.Match(tt.metricID)
+			results, err := a.Match(tt.metricID)
 			require.NoError(t, err)
 
 			actualNamespaces := make([]string, 0)
-			for _, r := range matchedRules {
+			for _, r := range results {
 				actualNamespaces = append(
 					actualNamespaces,
-					r.PrimaryNS()+"+"+r.SecondaryNS(),
+					r.PrimaryNS+"+"+r.SecondaryNS,
 				)
 			}
 			sort.Strings(tt.expectedNamespacesForInput)
@@ -336,13 +393,13 @@ func TestAttributorUpdate(t *testing.T) {
 
 			err = a.Update(newRuleSetFromRules(tt.updateRules))
 			require.NoError(t, err)
-			matchedRules, err = a.Match(tt.metricID)
+			results, err = a.Match(tt.metricID)
 			require.NoError(t, err)
 			actualNamespaces = actualNamespaces[:0]
-			for _, r := range matchedRules {
+			for _, r := range results {
 				actualNamespaces = append(
 					actualNamespaces,
-					r.PrimaryNS()+"+"+r.SecondaryNS(),
+					r.PrimaryNS+"+"+r.SecondaryNS,
 				)
 			}
 			sort.Strings(tt.expectedNamespacesForUpdate)
@@ -436,12 +493,14 @@ func newTestAttributorWithRuleSet(
 type testDefaultRuleMatcher struct {
 }
 
-func (m *testDefaultRuleMatcher) Match(_ []byte) []*rules.ResolvedRule {
-	return []*rules.ResolvedRule{
+func (m *testDefaultRuleMatcher) Match(_ []byte) []rules.Result {
+	return []rules.Result{
 		{
 			Rule: rules.NewRule().
 				SetName("global").
 				SetPrimaryNS("global"),
+			PrimaryNS:   "global",
+			SecondaryNS: "",
 		},
 	}
 }

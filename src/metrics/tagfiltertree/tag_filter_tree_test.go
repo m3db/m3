@@ -1,8 +1,8 @@
 package tagfiltertree
 
 import (
-	"reflect"
-	"sort"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -11,9 +11,38 @@ import (
 )
 
 type Rule struct {
-	TagFilters     []string
-	Namespace      string
-	ExpectedVarMap map[string]string
+	TagFilters []string
+	Namespace  string
+}
+
+func (r *Rule) Resolve(inputTags map[string]string) (string, error) {
+	if !IsVarTagValue(r.Namespace) {
+		return r.Namespace, nil
+	}
+
+	varMap := make(map[string]string)
+	for _, tagFilter := range r.TagFilters {
+		tags, err := TagsFromTagFilter(tagFilter)
+		if err != nil {
+			return "", err
+		}
+		for _, tag := range tags {
+			if tag.Var != "" {
+				// is var tag
+				inputTagValue, ok := inputTags[tag.Name]
+				if !ok {
+					return "", errors.New("tag not found")
+				}
+				varMap[tag.Var] = inputTagValue
+			}
+		}
+	}
+
+	ns := r.Namespace
+	for varName, varValue := range varMap {
+		ns = strings.ReplaceAll(ns, varName, varValue)
+	}
+	return ns, nil
 }
 
 func TestTreeGetData(t *testing.T) {
@@ -60,6 +89,86 @@ func TestTreeGetData(t *testing.T) {
 				},
 			},
 			expected: []string{"namespace1", "namespace2", "namespace3"},
+		},
+		{
+			name: "single rule, all negation, match",
+			inputTags: map[string]string{
+				"tag1": "value1",
+				"tag2": "value2",
+				"tag4": "value4",
+				"tag5": "value5",
+			},
+			rules: []Rule{
+				{
+					TagFilters: []string{
+						"tag3:!*",
+					},
+					Namespace: "namespace1",
+				},
+			},
+			expected: []string{"namespace1"},
+		},
+		{
+			name: "single rule, all negation, no match",
+			inputTags: map[string]string{
+				"tag1": "value1",
+				"tag2": "value2",
+				"tag4": "value4",
+				"tag5": "value5",
+			},
+			rules: []Rule{
+				{
+					TagFilters: []string{
+						"tag2:!*",
+					},
+					Namespace: "namespace1",
+				},
+			},
+			expected: []string{},
+		},
+		{
+			name: "single rule, negation, match",
+			inputTags: map[string]string{
+				"tag1": "value1",
+				"tag2": "value2",
+				"tag3": "value3",
+				"tag4": "value4",
+				"tag5": "value5",
+			},
+			rules: []Rule{
+				{
+					TagFilters: []string{
+						"tag3:!{value1,value2}",
+					},
+					Namespace: "namespace1",
+				},
+			},
+			expected: []string{"namespace1"},
+		},
+		{
+			name: "multiple rules, negation, single match",
+			inputTags: map[string]string{
+				"tag1": "value1",
+				"tag2": "value2",
+				"tag3": "value3",
+				"tag4": "value4",
+				"tag5": "value5",
+			},
+			rules: []Rule{
+				{
+					TagFilters: []string{
+						"tag1:!* tag2:value2",
+					},
+					Namespace: "namespace1",
+				},
+				{
+					TagFilters: []string{
+						"tag1:value1 tag6:!*",
+					},
+					Namespace: "namespace2",
+				},
+			},
+			expected: []string{"namespace2"},
 		},
 		{
 			name: "single input tag, single filter, match",
@@ -195,14 +304,10 @@ func TestTreeGetData(t *testing.T) {
 						"tag3:{{VAR1}} tag4:{{VAR2}}",
 						"tag5:value5 tag6:value6",
 					},
-					Namespace: "namespace1",
-					ExpectedVarMap: map[string]string{
-						"{{VAR1}}": "apple",
-						"{{VAR2}}": "banana",
-					},
+					Namespace: "{{VAR1}}_{{VAR2}}",
 				},
 			},
-			expected: []string{"namespace1"},
+			expected: []string{"apple_banana"},
 		},
 		{
 			name: "multiple input tags, var tag value, multi rule match",
@@ -218,26 +323,20 @@ func TestTreeGetData(t *testing.T) {
 						"tag3:{{VAR1}} tag4:{{VAR2}}",
 						"tag5:value5 tag6:value6",
 					},
-					Namespace: "namespace1",
-					ExpectedVarMap: map[string]string{
-						"{{VAR1}}": "apple",
-						"{{VAR2}}": "banana",
-					},
+					Namespace: "namespace1_{{VAR1}}_{{VAR2}}",
 				},
 				{
 					TagFilters: []string{
 						"tag4:{{VAR5}} tag5:{{VAR6}} tag6:{{VAR2}}",
 						"tag5:value5 tag7:value7",
 					},
-					Namespace: "namespace2",
-					ExpectedVarMap: map[string]string{
-						"{{VAR5}}": "banana",
-						"{{VAR2}}": "car",
-						"{{VAR6}}": "train",
-					},
+					Namespace: "{{VAR6}}_{{VAR6}}_{{VAR2}}_{{VAR5}}",
 				},
 			},
-			expected: []string{"namespace1", "namespace2"},
+			expected: []string{
+				"namespace1_apple_banana",
+				"train_train_car_banana",
+			},
 		},
 		{
 			name: "multiple input tags, wildcard tag value, multi rule match",
@@ -250,14 +349,14 @@ func TestTreeGetData(t *testing.T) {
 			rules: []Rule{
 				{
 					TagFilters: []string{
-						"tag3:app* tag4:b*n*",
-						"tag5:value5 tag6:value6",
+						"tag3:app* tag4:ban*",
+						"tag5:train tag6:value6",
 					},
 					Namespace: "namespace1",
 				},
 				{
 					TagFilters: []string{
-						"tag4:b*g* tag5:* tag6:c*",
+						"tag4:bag* tag5:* tag6:c*",
 						"tag5:value5 tag7:value7",
 					},
 					Namespace: "namespace2",
@@ -270,13 +369,10 @@ func TestTreeGetData(t *testing.T) {
 	less := func(a, b string) bool { return a < b }
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tree := New[*Rule]()
+			tree := New[*Rule, string]()
 			for _, rule := range tt.rules {
-				localRule := rule
 				for _, tagFilter := range rule.TagFilters {
-					tags, err := TagsFromTagFilter(tagFilter)
-					require.NoError(t, err)
-					err = tree.AddTagFilter(tags, &localRule)
+					err := tree.AddTagFilter(tagFilter, &rule)
 					require.NoError(t, err)
 				}
 			}
@@ -289,118 +385,18 @@ func TestTreeGetData(t *testing.T) {
 
 			actualNamespaces := uniqueNamespaces(actual)
 			require.Equal(t, "", cmp.Diff(tt.expected, actualNamespaces, cmpopts.SortSlices(less)))
-
-			// validate var tag value type.
-			for r, varMap := range actual {
-				matchedRule, ok := r.(*Rule)
-				require.True(t, ok, "typecast failed")
-				if matchedRule.ExpectedVarMap == nil {
-					require.Empty(t, varMap)
-					continue
-				}
-
-				expectedVarMap := make(VarMap)
-				for k, v := range matchedRule.ExpectedVarMap {
-					expectedVarMap[k] = v
-				}
-
-				require.True(
-					t,
-					reflect.DeepEqual(expectedVarMap, varMap),
-					"var maps not equal",
-				)
-			}
 		})
 	}
 }
 
-func TestParseTagValue(t *testing.T) {
-	tests := []struct {
-		name      string
-		input     string
-		expected  []string
-		shouldErr bool
-	}{
-		{
-			name:      "simple tag value",
-			input:     "value",
-			expected:  []string{"value"},
-			shouldErr: false,
-		},
-		{
-			name:      "simple tag value, error",
-			input:     "val{ue",
-			expected:  []string{},
-			shouldErr: true,
-		},
-		{
-			name:      "composite tag value",
-			input:     "  {foo,bar,  baz}",
-			expected:  []string{"foo", "bar", "baz"},
-			shouldErr: false,
-		},
-		{
-			name:      "composite tag value, error",
-			input:     "{foo,bar,baz}}",
-			expected:  []string{},
-			shouldErr: true,
-		},
-		{
-			name:      "var tag value",
-			input:     "  {{foo}}",
-			expected:  []string{"{{foo}}"},
-			shouldErr: false,
-		},
-		{
-			name:      "var tag value, error",
-			input:     "  {{foo,bar}}",
-			expected:  []string{},
-			shouldErr: true,
-		},
-		{
-			name:      "empty tag value",
-			input:     "",
-			expected:  []string{},
-			shouldErr: true,
-		},
-		{
-			name:      "empty composite tag value",
-			input:     "{}",
-			expected:  []string{},
-			shouldErr: true,
-		},
-		{
-			name:      "empty var tag value",
-			input:     "{{}}",
-			expected:  []string{},
-			shouldErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			actual, err := parseTagValue(tt.input)
-			if tt.shouldErr {
-				require.Error(t, err)
-				return
-			}
-
-			sort.Strings(tt.expected)
-			sort.Strings(actual)
-			require.True(t, reflect.DeepEqual(tt.expected, actual))
-		})
-	}
-}
-
-func uniqueNamespaces(input map[any]VarMap) []string {
-	unique := make(map[string]*Rule)
-	for r := range input {
-		rule := r.(*Rule)
-		unique[rule.Namespace] = rule
+func uniqueNamespaces(input []string) []string {
+	unique := make(map[string]struct{})
+	for _, ns := range input {
+		unique[ns] = struct{}{}
 	}
 
 	output := make([]string, 0, len(unique))
-	for ns := range unique {
+	for ns, _ := range unique {
 		output = append(output, ns)
 	}
 	return output

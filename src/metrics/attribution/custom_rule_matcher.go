@@ -12,7 +12,7 @@ import (
 type customRuleMatcher struct {
 	ruleTreeLock    sync.RWMutex
 	tagMatchOptions filters.TagMatchOptions
-	ruleTree        *tagfiltertree.Tree[*rules.ResolvedRule]
+	ruleTree        *tagfiltertree.Tree[*rules.Rule, rules.Result]
 	instrumentOpts  instrument.Options
 }
 
@@ -29,7 +29,7 @@ func NewCustomRuleMatcher(
 
 func (m *customRuleMatcher) Match(
 	metricID []byte,
-) []*rules.ResolvedRule {
+) []rules.Result {
 	if m.ruleTree == nil {
 		return nil
 	}
@@ -48,17 +48,14 @@ func (m *customRuleMatcher) Match(
 }
 
 func (m *customRuleMatcher) Update(ruleSet rules.RuleSet) error {
-	ruleTree := tagfiltertree.New[*rules.ResolvedRule]()
+	ruleTree := tagfiltertree.New[*rules.Rule, rules.Result]()
 	for _, rule := range ruleSet.Rules() {
 		// add the namespace to the ruleTree.
 		for _, tagFilter := range rule.TagFilters() {
-			tags, err := tagfiltertree.TagsFromTagFilter(tagFilter)
+			err := ruleTree.AddTagFilter(tagFilter, rule)
 			if err != nil {
 				return err
 			}
-			ruleTree.AddTagFilter(tags, &rules.ResolvedRule{
-				Rule: rule,
-			})
 		}
 	}
 

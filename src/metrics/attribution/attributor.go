@@ -1,6 +1,7 @@
 package attribution
 
 import (
+	"errors"
 	"sync"
 
 	"github.com/m3db/m3/src/metrics/attribution/rules"
@@ -12,7 +13,7 @@ import (
 type Attributor interface {
 	// Match return a list of namespaces that the metricID should
 	// be attributed to.
-	Match(metricID []byte) ([]*rules.ResolvedRule, error)
+	Match(metricID []byte) ([]rules.Result, error)
 
 	// Update updates the attributor with new namespaces and their tag filters.
 	Update(ruleSet rules.RuleSet) error
@@ -45,9 +46,9 @@ func NewAttributor(opts Options) Attributor {
 	return a
 }
 
-func (a *attributor) Match(metricID []byte) ([]*rules.ResolvedRule, error) {
+func (a *attributor) Match(metricID []byte) ([]rules.Result, error) {
 	var (
-		ruleMap map[string]*rules.ResolvedRule
+		ruleMap map[string]rules.Result
 	)
 
 	var customMatcher RuleMatcher
@@ -57,16 +58,22 @@ func (a *attributor) Match(metricID []byte) ([]*rules.ResolvedRule, error) {
 		a.matcherLock.RUnlock()
 	}
 
-	ruleMap = make(map[string]*rules.ResolvedRule)
+	ruleMap = make(map[string]rules.Result)
 	for _, rule := range customMatcher.Match(metricID) {
-		ruleMap[rule.Name()] = rule
+		if rule.Rule == nil {
+			return nil, errors.New("custom rule is nil")
+		}
+		ruleMap[rule.Rule.Name()] = rule
 	}
 
 	for _, rule := range a.defaultMatcher.Match(metricID) {
-		ruleMap[rule.Name()] = rule
+		if rule.Rule == nil {
+			return nil, errors.New("default rule is nil")
+		}
+		ruleMap[rule.Rule.Name()] = rule
 	}
 
-	rules := make([]*rules.ResolvedRule, 0, len(ruleMap))
+	rules := make([]rules.Result, 0, len(ruleMap))
 	for _, rule := range ruleMap {
 		rules = append(rules, rule)
 	}
