@@ -22,7 +22,6 @@ package storage
 
 import (
 	"errors"
-	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -51,22 +50,6 @@ var (
 	errShardInsertQueueAlreadyOpenOrClosed = errors.New("shard insert queue already open or is closed")
 	errNewSeriesInsertRateLimitExceeded    = errors.New("shard insert of new series exceeds rate limit")
 )
-
-type dbShardInsertByEntryIndex []dbShardInsert
-
-func (d dbShardInsertByEntryIndex) Len() int {
-	return len(d)
-}
-
-func (d dbShardInsertByEntryIndex) Less(i, j int) bool {
-	if d[i].entry == nil || d[j].entry == nil {
-		return true
-	}
-	return d[i].entry.Index < d[j].entry.Index
-}
-func (d dbShardInsertByEntryIndex) Swap(i, j int) {
-	d[i], d[j] = d[j], d[i]
-}
 
 type dbShardInsertQueueState int
 
@@ -226,8 +209,6 @@ func (q *dbShardInsertQueue) insertLoop() {
 			allInserts = append(allInserts, batchByCPUCore.inserts...)
 			batchByCPUCore.Unlock()
 		}
-		// sort the shard inserts by entry index
-		sort.Sort(dbShardInsertByEntryIndex(allInserts))
 		err := q.insertEntryBatchFn(allInserts)
 		if err != nil {
 			q.metrics.insertsBatchErrors.Inc(1)

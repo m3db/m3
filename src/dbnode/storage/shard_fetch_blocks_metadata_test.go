@@ -73,6 +73,7 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyCacheAll(t *testing.T) {
 	}
 	lastRead := xtime.Now().Add(-time.Minute)
 	for i := int64(0); i < 10; i++ {
+		entryIndex := i + 1
 		id := ident.StringID(fmt.Sprintf("foo.%d", i))
 		tags := ident.NewTags(
 			ident.StringTag("aaa", "bbb"),
@@ -80,12 +81,12 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyCacheAll(t *testing.T) {
 		)
 		tagsIter := ident.NewTagsIterator(tags)
 		series := addMockSeries(ctrl, shard, id, tags, uint64(i))
-		if i == startCursor {
+		if entryIndex == startCursor {
 			series.EXPECT().
 				FetchBlocksMetadata(gomock.Not(nil), start, end, seriesFetchOpts).
 				Return(block.NewFetchBlocksMetadataResult(id, tagsIter,
 					block.NewFetchBlockMetadataResults()), nil)
-		} else if i > startCursor && i <= startCursor+fetchLimit {
+		} else if entryIndex > startCursor && entryIndex <= startCursor+fetchLimit {
 			ids = append(ids, id)
 			blocks := block.NewFetchBlockMetadataResults()
 			at := start.Add(time.Duration(i))

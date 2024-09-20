@@ -133,6 +133,8 @@ type Entry struct {
 	nowFn                    clock.NowFn
 	metrics                  *EntryMetrics
 	pendingIndexBatchSizeOne []writes.PendingIndexInsert
+	// Index assigned to entry while adding it to the shard
+	indexInShard xatomic.Uint64
 }
 
 // ensure Entry satisfies the `doc.OnIndexSeries` interface.

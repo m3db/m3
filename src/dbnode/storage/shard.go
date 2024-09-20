@@ -115,20 +115,22 @@ const (
 type dbShard struct {
 	sync.RWMutex
 	block.DatabaseBlockRetriever
-	opts                     Options
-	seriesOpts               series.Options
-	nowFn                    clock.NowFn
-	state                    dbShardState
-	namespace                namespace.Metadata
-	seriesBlockRetriever     series.QueryableBlockRetriever
-	seriesOnRetrieveBlock    block.OnRetrieveBlock
-	namespaceReaderMgr       databaseNamespaceReaderManager
-	increasingIndex          increasingIndex
-	seriesPool               series.DatabaseSeriesPool
-	reverseIndex             NamespaceIndex
-	insertQueue              *dbShardInsertQueue
-	lookup                   *shardMap
-	list                     *list.List
+	opts                  Options
+	seriesOpts            series.Options
+	nowFn                 clock.NowFn
+	state                 dbShardState
+	namespace             namespace.Metadata
+	seriesBlockRetriever  series.QueryableBlockRetriever
+	seriesOnRetrieveBlock block.OnRetrieveBlock
+	namespaceReaderMgr    databaseNamespaceReaderManager
+	increasingIndex       increasingIndex
+	seriesPool            series.DatabaseSeriesPool
+	reverseIndex          NamespaceIndex
+	insertQueue           *dbShardInsertQueue
+	lookup                *shardMap
+	list                  *list.List
+	// protected by dbShard lock
+	lastEntryIndex           uint64
 	bootstrapState           BootstrapState
 	newMergerFn              fs.NewMergerFn
 	newFSMergeWithMemFn      newFSMergeWithMemFn
@@ -1377,7 +1379,7 @@ func (s *dbShard) insertSeriesSync(
 		return existingEntry, nil
 	}
 
-	s.insertNewShardEntriesWithLock([]*Entry{newEntry})
+	s.insertNewShardEntryWithLock(newEntry)
 
 	// Track unlocking.
 	unlocked = true
@@ -1409,100 +1411,16 @@ func (s *dbShard) insertSeriesSync(
 	return newEntry, nil
 }
 
-// insertNewShardEntriesWithLock inserts the entries to shard.
-// The entries passed to the function ae assumed to be sorted by index.
-func (s *dbShard) insertNewShardEntriesWithLock(entries []*Entry) {
-	if len(entries) == 0 {
-		return
-	}
-
-	// Fast Path: Check if the entire slice can be appended to the end of the list
-	if s.canAppendToEndWithLock(entries[0]) {
-		s.appendEntriesToEndWithLock(entries)
-		return
-	}
-
-	// If not, proceed with the standard insertion logic
-	elem := s.list.Back()
-
-	for elem != nil && len(entries) != 0 {
-		currListEntry := elem.Value.(*Entry)
-
-		insertIdx := s.findInsertionIndexWithLock(entries, currListEntry.Index)
-
-		if insertIdx < len(entries) {
-			s.insertEntriesAfterWithLock(elem, entries[insertIdx:])
-			entries = entries[:insertIdx]
-		}
-
-		elem = elem.Prev()
-	}
-
-	s.insertEntriesAtFrontWithLock(entries)
-}
-
-// Helper function to check if we can append the entire slice to the end of the list
-func (s *dbShard) canAppendToEndWithLock(firstEntry *Entry) bool {
-	lastListElem := s.list.Back()
-	if lastListElem == nil {
-		return false
-	}
-	lastListEntry := lastListElem.Value.(*Entry)
-	return firstEntry.Index > lastListEntry.Index
-}
-
-// Helper function to append all entries to the end of the list
-func (s *dbShard) appendEntriesToEndWithLock(entries []*Entry) {
-	for _, entry := range entries {
-		s.insertNewShardEntryWithLock(entry)
-	}
-}
-
-// Helper function to find the correct insertion index using binary search
-func (s *dbShard) findInsertionIndexWithLock(entries []*Entry, targetIndex uint64) int {
-	start, end := 0, len(entries)-1
-	for start <= end {
-		mid := (start + end) / 2
-		if entries[mid].Index > targetIndex {
-			end = mid - 1
-		} else {
-			start = mid + 1
-		}
-	}
-	return start
-}
-
-// Helper function to insert entries after a  given entry with indexes [start,end]
-func (s *dbShard) insertEntriesAfterWithLock(elem *list.Element, entries []*Entry) {
-	currElem := elem
-	for _, entry := range entries {
-		currElem = s.list.InsertAfter(entry, currElem)
-		s.insertInLookupMapWithLock(entry.Series.ID(), currElem)
-	}
-}
-
-// Helper function to insert any remaining entries at the front of the list
-func (s *dbShard) insertEntriesAtFrontWithLock(entries []*Entry) {
-	for _, entry := range entries {
-		elem := s.list.PushFront(entry)
-		s.insertInLookupMapWithLock(entry.Series.ID(), elem)
-	}
-}
-
-func (s *dbShard) insertInLookupMapWithLock(id ident.ID, element *list.Element) {
-	s.lookup.SetUnsafe(id, element, shardMapSetUnsafeOptions{
-		NoCopyKey:     true,
-		NoFinalizeKey: true,
-	})
-	element.Value.(*Entry).SetInsertTime(s.nowFn())
-}
-
 func (s *dbShard) insertNewShardEntryWithLock(entry *Entry) {
 	// Set the lookup value, we use the copied ID and since it is GC'd
 	// we explicitly set it with options to not copy the key and not to
 	// finalize it.
 	copiedID := entry.Series.ID()
 	listElem := s.list.PushBack(entry)
+	// It is important to keep increasing order of shard index since it's used for cursor pagination filtering
+	// when peers bootstrapping in memory block.
+	s.lastEntryIndex++
+	entry.indexInShard.Store(s.lastEntryIndex)
 	s.lookup.SetUnsafe(copiedID, listElem, shardMapSetUnsafeOptions{
 		NoCopyKey:     true,
 		NoFinalizeKey: true,
@@ -1514,7 +1432,6 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 	var (
 		anyPendingAction   = false
 		numPendingIndexing = 0
-		entriesToInsert    []*Entry
 	)
 
 	s.Lock()
@@ -1570,12 +1487,10 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			s.metrics.insertAsyncInsertErrors.Inc(int64(len(inserts) - i))
 			return err
 		}
-
 		// Insert still pending, perform the insert
 		entry = inserts[i].entry
-		entriesToInsert = append(entriesToInsert, entry)
+		s.insertNewShardEntryWithLock(entry)
 	}
-	s.insertNewShardEntriesWithLock(entriesToInsert)
 	s.Unlock()
 
 	if !anyPendingAction {
@@ -1744,13 +1659,13 @@ func (s *dbShard) fetchActiveBlocksMetadata(
 	s.forEachShardEntry(func(entry *Entry) bool {
 		// Break out of the iteration loop once we've accumulated enough entries.
 		if int64(len(res.Results())) >= limit {
-			next := int64(entry.Index)
+			next := int64(entry.indexInShard.Load())
 			nextIndexCursor = &next
 			return false
 		}
 
 		// Fast forward past indexes lower than page token
-		if int64(entry.Index) < indexCursor {
+		if int64(entry.indexInShard.Load()) < indexCursor {
 			return true
 		}
 
