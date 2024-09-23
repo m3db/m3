@@ -23,6 +23,7 @@ package producer
 import (
 	"sync"
 
+	"github.com/uber-go/tally"
 	"go.uber.org/atomic"
 )
 
@@ -50,16 +51,23 @@ func NewRefCountedMessage(m Message, fn OnFinalizeFn) *RefCountedMessage {
 	}
 }
 
+// note: Not a fan at all of passing function pointers here, but passing ConsumerServiceWriterMetrics to RefCountedMessage.Accept would cause a cyclical depdenency. ¯\_(ツ)_/¯
+type filterAcceptCounterFn func(metadata FilterFuncMetadata) tally.Counter
+type filterDenyCounterFn func(metadata FilterFuncMetadata) tally.Counter
+
 // Accept returns true if the message can be accepted by the filter.
-func (rm *RefCountedMessage) Accept(fn []FilterFunc) bool {
+func (rm *RefCountedMessage) Accept(fn []FilterFunc, acceptCounterFn filterAcceptCounterFn, denyCounterFn filterDenyCounterFn) bool {
 	if len(fn) == 0 {
 		return false
 	}
 	for _, f := range fn {
 		if !f.Function(rm.Message) {
+			denyCounterFn(f.Metadata).Inc(1)
 			return false
 		}
+		acceptCounterFn(f.Metadata).Inc(1)
 	}
+
 	return true
 }
 

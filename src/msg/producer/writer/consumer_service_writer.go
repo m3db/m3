@@ -85,21 +85,75 @@ type consumerServiceWriter interface {
 	UnregisterFilters()
 }
 
-type consumerServiceWriterMetrics struct {
-	placementError    tally.Counter
-	placementUpdate   tally.Counter
-	filterAccepted    tally.Counter
-	filterNotAccepted tally.Counter
-	queueSize         tally.Gauge
+type ConsumerServiceWriterMetrics struct {
+	scope                         tally.Scope
+	placementError                tally.Counter
+	placementUpdate               tally.Counter
+	queueSize                     tally.Gauge
+	filterAccepted                tally.Counter
+	filterNotAccepted             tally.Counter
+	filterAcceptedGranular        map[string]tally.Counter
+	filterAcceptedGranularLock    sync.RWMutex
+	filterNotAcceptedGranular     map[string]tally.Counter
+	filterNotAcceptedGranularLock sync.RWMutex
 }
 
-func newConsumerServiceWriterMetrics(scope tally.Scope) consumerServiceWriterMetrics {
-	return consumerServiceWriterMetrics{
-		placementUpdate:   scope.Counter("placement-update"),
-		placementError:    scope.Counter("placement-error"),
-		filterAccepted:    scope.Counter("filter-accepted"),
-		filterNotAccepted: scope.Counter("filter-not-accepted"),
-		queueSize:         scope.Gauge("queue-size"),
+func (cswm *ConsumerServiceWriterMetrics) getGranularFilterCounterMapKey(metadata producer.FilterFuncMetadata) string {
+	return fmt.Sprintf("%s::%s", metadata.FilterType.String(), metadata.SourceType.String())
+}
+
+func (cswm *ConsumerServiceWriterMetrics) getFilterAcceptedGranularCounter(metadata producer.FilterFuncMetadata) tally.Counter {
+	key := cswm.getGranularFilterCounterMapKey(metadata)
+
+	cswm.filterAcceptedGranularLock.RLock()
+	val, ok := cswm.filterAcceptedGranular[key]
+	cswm.filterAcceptedGranularLock.RUnlock()
+
+	if !ok {
+		val = cswm.scope.Tagged(map[string]string{
+			"config-source": metadata.SourceType.String(),
+			"filter-type":   metadata.FilterType.String(),
+		}).Counter("filter-accepted-granular")
+
+		cswm.filterAcceptedGranularLock.Lock()
+		cswm.filterAcceptedGranular[key] = val
+		cswm.filterAcceptedGranularLock.Unlock()
+	}
+
+	return val
+}
+
+func (cswm *ConsumerServiceWriterMetrics) getFilterNotAcceptedGranularCounter(metadata producer.FilterFuncMetadata) tally.Counter {
+	key := cswm.getGranularFilterCounterMapKey(metadata)
+
+	cswm.filterNotAcceptedGranularLock.RLock()
+	val, ok := cswm.filterNotAcceptedGranular[key]
+	cswm.filterNotAcceptedGranularLock.RUnlock()
+
+	if !ok {
+		val = cswm.scope.Tagged(map[string]string{
+			"config-source": metadata.SourceType.String(),
+			"filter-type":   metadata.FilterType.String(),
+		}).Counter("filter-not-accepted-granular")
+
+		cswm.filterNotAcceptedGranularLock.Lock()
+		cswm.filterNotAcceptedGranular[key] = val
+		cswm.filterNotAcceptedGranularLock.Unlock()
+	}
+
+	return val
+}
+
+func newConsumerServiceWriterMetrics(scope tally.Scope) ConsumerServiceWriterMetrics {
+	return ConsumerServiceWriterMetrics{
+		placementUpdate:           scope.Counter("placement-update"),
+		placementError:            scope.Counter("placement-error"),
+		filterAccepted:            scope.Counter("filter-accepted"),
+		filterNotAccepted:         scope.Counter("filter-not-accepted"),
+		scope:                     scope,
+		filterAcceptedGranular:    make(map[string]tally.Counter),
+		filterNotAcceptedGranular: make(map[string]tally.Counter),
+		queueSize:                 scope.Gauge("queue-size"),
 	}
 }
 
@@ -119,7 +173,7 @@ type consumerServiceWriterImpl struct {
 	closed          bool
 	doneCh          chan struct{}
 	wg              sync.WaitGroup
-	m               consumerServiceWriterMetrics
+	m               ConsumerServiceWriterMetrics
 	cm              consumerWriterMetrics
 	shardSet        string
 
@@ -186,7 +240,7 @@ func initShardWriters(
 }
 
 func (w *consumerServiceWriterImpl) Write(rm *producer.RefCountedMessage) {
-	if rm.Accept(w.dataFilters) {
+	if rm.Accept(w.dataFilters, w.m.getFilterAcceptedGranularCounter, w.m.getFilterNotAcceptedGranularCounter) {
 		w.shardWriters[rm.Shard()].Write(rm)
 		w.m.filterAccepted.Inc(1)
 		return

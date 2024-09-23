@@ -95,12 +95,42 @@ const (
 	UnspecifiedFilter
 )
 
+func (f FilterFuncType) String() string {
+	switch f {
+
+	case ShardSetFilter:
+		return "ShardSetFilter"
+	case StoragePolicyFilter:
+		return "StoragePolicyFilter"
+	case PercentageFilter:
+		return "PercentageFilter"
+	case AcceptAllFilter:
+		return "AcceptAllFilter"
+	case UnspecifiedFilter:
+		return "UnspecifiedFilter"
+	}
+
+	return "Unknown"
+}
+
 type FilterFuncConfigSourceType uint8
 
 const (
 	StaticConfig FilterFuncConfigSourceType = iota
 	DynamicConfig
 )
+
+func (f FilterFuncConfigSourceType) String() string {
+	switch f {
+
+	case StaticConfig:
+		return "StaticConfig"
+	case DynamicConfig:
+		return "DynamicConfig"
+	}
+
+	return "Unknown"
+}
 
 type FilterFuncMetadata struct {
 	FilterType FilterFuncType
