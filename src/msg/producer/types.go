@@ -85,8 +85,28 @@ type Producer interface {
 	Close(ct CloseType)
 }
 
+type FilterFuncType uint8
+
+const (
+	ShardSetFilter FilterFuncType = iota
+	StoragePolicyFilter
+	PercentageFilter
+	AcceptAllFilter
+	UnspecifiedFilter
+)
+
 // FilterFunc can filter message.
-type FilterFunc func(m Message) bool
+type FilterFunc struct {
+	Function func(m Message) bool
+	FilterType FilterFuncType
+}
+
+func NewFilterFunc(function func(m Message) bool, filterType FilterFuncType) FilterFunc {
+	return FilterFunc{
+		Function: function,
+		FilterType: filterType,
+	}
+}
 
 // Options configs a producer.
 type Options interface {

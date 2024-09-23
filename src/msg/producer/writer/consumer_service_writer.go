@@ -37,8 +37,11 @@ import (
 
 var (
 	acceptAllFilter = producer.FilterFunc(
-		func(m producer.Message) bool {
-			return true
+		producer.FilterFunc{
+			Function: func(m producer.Message) bool {
+				return true
+			},
+			FilterType: producer.AcceptAllFilter,
 		},
 	)
 
@@ -115,6 +118,7 @@ type consumerServiceWriterImpl struct {
 	wg              sync.WaitGroup
 	m               consumerServiceWriterMetrics
 	cm              consumerWriterMetrics
+	shardSet string
 
 	processFn watch.ProcessFn
 }
@@ -147,6 +151,7 @@ func newConsumerServiceWriter(
 		doneCh:          make(chan struct{}),
 		m:               newConsumerServiceWriterMetrics(opts.InstrumentOptions().MetricsScope()),
 		cm:              newConsumerWriterMetrics(opts.InstrumentOptions().MetricsScope()),
+		shardSet:        cs.ShardSet(),
 	}
 	w.processFn = w.process
 	return w, nil
@@ -324,6 +329,14 @@ func (w *consumerServiceWriterImpl) SetMessageTTLNanos(value int64) {
 	for _, sw := range w.shardWriters {
 		sw.SetMessageTTLNanos(value)
 	}
+}
+
+func (w *consumerServiceWriterImpl) GetShardSet() string {
+	return w.shardSet
+}
+
+func (w *consumerServiceWriterImpl) SetShardSet(value string) {
+	w.shardSet = value
 }
 
 func (w *consumerServiceWriterImpl) RegisterFilter(filter producer.FilterFunc) {

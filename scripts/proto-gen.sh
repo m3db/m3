@@ -17,10 +17,13 @@ if [[ -n "$BUILDKITE" ]]; then
 fi
 
 PROTO_SRC=$1
+GOPATH="/home/user/Uber/gocode"
 for i in "${GOPATH}/src/${PROTO_SRC}"/*; do
+	echo $i
 	if ! [ -d $i ]; then
 		continue
 	fi
+	echo $i
 
 	if ls $i/*.proto > /dev/null 2>&1; then
 		proto_files=$(ls $i/*.proto | sed -e "s@${GOPATH}@@g")

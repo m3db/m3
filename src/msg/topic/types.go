@@ -88,8 +88,29 @@ type ConsumerService interface {
 	// SetMessageTTLNanos sets ttl for each message in nanoseconds.
 	SetMessageTTLNanos(value int64) ConsumerService
 
+	// StoragePolicyFilter returns the storage policy data filter of the consumer service.
+	StoragePolicyFilter() StoragePolicyFilter
+
+	// PercentageFilter returns the percentage data filter of the consumer service.
+	PercentageFilter() PercentageFilter
+	
+	// ShardSetFilte returns the shard set data filter of the consumer service.
+	ShardSetFilter() ShardSetFilter
+
 	// String returns the string representation of the consumer service.
 	String() string
+}
+
+type PercentageFilter interface {
+	Percentage() uint32
+}
+
+type StoragePolicyFilter interface {
+	StoragePolicies() string
+}
+
+type ShardSetFilter interface {
+	ShardSet()
 }
 
 // Watch watches the updates of a topic.

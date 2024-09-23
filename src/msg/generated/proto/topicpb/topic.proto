@@ -11,6 +11,25 @@ message ConsumerService {
   ServiceID service_id = 1;
   ConsumptionType consumption_type = 2;
   int64 message_ttl_nanos = 3;
+  Filters filters = 4;
+}
+
+message Filters {
+  StoragePolicyFilter storage_policy_filter = 1;
+  PercentageFilter percentage_filter = 2;
+  ShardSetFilter shard_set_filter = 3;
+}
+
+message StoragePolicyFilter {
+  repeated string storage_policies = 1;
+}
+
+message PercentageFilter {
+  uint32 percentage = 1;
+}
+
+message ShardSetFilter {
+  string shard_set = 1;
 }
 
 message ServiceID {

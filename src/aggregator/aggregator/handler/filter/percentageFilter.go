@@ -41,7 +41,7 @@ func NewPercentageFilter(percentage float64) producer.FilterFunc {
 	}
 
 	f := percentageFilter{rate: rate}
-	return f.Filter
+	return producer.NewFilterFunc(f.Filter, producer.PercentageFilter)
 }
 
 func (f percentageFilter) Filter(_ producer.Message) bool {

@@ -56,7 +56,7 @@ func (rm *RefCountedMessage) Accept(fn []FilterFunc) bool {
 		return false
 	}
 	for _, f := range fn {
-		if !f(rm.Message) {
+		if !f.Function(rm.Message) {
 			return false
 		}
 	}

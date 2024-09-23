@@ -105,6 +105,18 @@ func (mr *MockconsumerServiceWriterMockRecorder) SetMessageTTLNanos(value interf
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMessageTTLNanos", reflect.TypeOf((*MockconsumerServiceWriter)(nil).SetMessageTTLNanos), value)
 }
 
+// SetShardSet mocks base method.
+func (m *MockconsumerServiceWriter) SetShardSet(value string) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetShardSet", value)
+}
+
+// SetShardSet indicates an expected call of SetShardSet.
+func (mr *MockconsumerServiceWriterMockRecorder) SetShardSet(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMessageTTLNanos", reflect.TypeOf((*MockconsumerServiceWriter)(nil).SetShardSet), value)
+}
+
 // UnregisterFilters mocks base method.
 func (m *MockconsumerServiceWriter) UnregisterFilters() {
 	m.ctrl.T.Helper()

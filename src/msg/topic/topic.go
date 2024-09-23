@@ -212,6 +212,7 @@ type consumerService struct {
 	sid      services.ServiceID
 	ct       ConsumptionType
 	ttlNanos int64
+	shardSet string
 }
 
 // NewConsumerService creates a ConsumerService.
@@ -271,6 +272,17 @@ func (cs *consumerService) MessageTTLNanos() int64 {
 func (cs *consumerService) SetMessageTTLNanos(value int64) ConsumerService {
 	newcs := *cs
 	newcs.ttlNanos = value
+	return &newcs
+}
+
+
+func (cs *consumerService) ShardSet() string {
+	return cs.shardSet
+}
+
+func (cs *consumerService) SetShardSet(value string) ConsumerService {
+	newcs := *cs
+	newcs.shardSet = value
 	return &newcs
 }
 

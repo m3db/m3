@@ -32,7 +32,7 @@ type shardSetFilter struct {
 // NewShardSetFilter creates a filter based on ShardSet.
 func NewShardSetFilter(shardSet sharding.ShardSet) producer.FilterFunc {
 	f := shardSetFilter{shardSet: shardSet}
-	return f.Filter
+	return producer.NewFilterFunc(f.Filter, producer.ShardSetFilter)
 }
 
 func (f shardSetFilter) Filter(m producer.Message) bool {

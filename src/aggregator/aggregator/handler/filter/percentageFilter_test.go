@@ -35,10 +35,10 @@ func TestPercentageFilter(t *testing.T) {
 	mm := producer.NewMockMessage(ctrl)
 
 	f0 := NewPercentageFilter(0)
-	require.False(t, f0(mm))
+	require.False(t, f0.Function((mm)))
 
 	f1 := NewPercentageFilter(1)
-	require.True(t, f1(mm))
+	require.True(t, f1.Function(mm))
 }
 
 var filterResult bool
@@ -58,7 +58,7 @@ func BenchmarkPercentageFilter(b *testing.B) {
 	f := NewPercentageFilter(0.5)
 	var r bool
 	for i := 0; i < b.N; i++ {
-		r = f(nil)
+		r = f.Function(nil)
 	}
 	filterResult = r
 }

@@ -28,6 +28,8 @@ import (
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/filter"
+	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/topic"
@@ -153,7 +155,7 @@ func (w *writer) NumShards() uint32 {
 	return n
 }
 
-func (w *writer) process(update interface{}) error {
+func (w *writer) process(update interface{}) error { 
 	t := update.(topic.Topic)
 	if err := t.Validate(); err != nil {
 		return err
@@ -171,6 +173,7 @@ func (w *writer) process(update interface{}) error {
 		toBeClosed                []consumerServiceWriter
 		multiErr                  xerrors.MultiError
 	)
+	// NOTE: processing topic update
 	for _, cs := range t.ConsumerServices() {
 		key := cs.ServiceID().String()
 		csw, ok := w.consumerServiceWriters[key]
@@ -201,6 +204,8 @@ func (w *writer) process(update interface{}) error {
 			continue
 		}
 		csw.SetMessageTTLNanos(cs.MessageTTLNanos())
+		csw.SetShardSet(cs.ShardSet())
+
 		newConsumerServiceWriters[key] = csw
 		w.logger.Info("initialized consumer service writer", zap.String("writer", cs.String()))
 	}
@@ -220,13 +225,36 @@ func (w *writer) process(update interface{}) error {
 
 	// Apply the new consumer service writers.
 	w.Lock()
+
+	for key, csw := range newConsumerServiceWriters {
+		
+	}
+
 	for key, csw := range newConsumerServiceWriters {
 		if filters, ok := w.filterRegistry[key]; ok {
 			for _, filter := range filters {
+				// if filter.FilterType != producer.ShardSetFilter {
 				csw.RegisterFilter(filter)
+				// } 
 			}
+			
+			// shardSetString := csw.GetShardSet()
+			//
+			// // only set if a shard set was specified
+			// if len(shardSetString) != 0 {
+			// 	shardSet, err := sharding.ParseShardSet(shardSetString)
+			//
+			// 	if err != nil {
+			// 		w.logger.Error("Invalid shard set for consumer service", zap.String("shardSet", shardSetString), zap.Error(err))
+			// 		continue
+			// 	}
+			// 	
+			// 	csw.RegisterFilter(filter.NewShardSetFilter(shardSet))
+			// }
 		}
 	}
+	
+
 	w.consumerServiceWriters = newConsumerServiceWriters
 	w.numShards = t.NumberOfShards()
 	w.Unlock()
