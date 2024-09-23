@@ -301,25 +301,48 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T
 }
 
 func TestShardFetchBlocksMetadata(t *testing.T) {
-	opts := DefaultTestOptions().SetSeriesCachePolicy(series.CacheRecentlyRead)
+
+	tests := []struct {
+		name              string
+		numOfActiveSeries int
+		WriteBatchSize    int
+		readBatchSize     int
+	}{
+		{name: "Test-case 1", numOfActiveSeries: 1000, WriteBatchSize: 10, readBatchSize: 10},
+		{name: "Test-case 2", numOfActiveSeries: 1000, WriteBatchSize: 7, readBatchSize: 19},
+		{name: "Test-case 3", numOfActiveSeries: 4000, WriteBatchSize: 9, readBatchSize: 7},
+		{name: "Test-case 4", numOfActiveSeries: 5000, WriteBatchSize: 121, readBatchSize: 151},
+		{name: "Test-case 5", numOfActiveSeries: 30000, WriteBatchSize: 1021, readBatchSize: 4096},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			opts := DefaultTestOptions().SetSeriesCachePolicy(series.CacheRecentlyRead)
+			shard := testDatabaseShard(t, opts)
+			defer shard.Close()
+			nowFn := opts.ClockOptions().NowFn()
+			start := nowFn()
+			writeTestData(t, tc.numOfActiveSeries, tc.WriteBatchSize, shard, opts)
+			end := nowFn()
+			verifyFetchedBlockMetadata(t, tc.numOfActiveSeries, tc.readBatchSize, shard, opts, start, end)
+		})
+	}
+}
+
+func writeTestData(t *testing.T, numOfActiveSeries int, writeBatchSize int, shard *dbShard, opts Options) {
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
-
-	numOfActiveSeries := 1000
-	writeBatchSize := 100
-	readBatchSize := 10
-
-	shard := testDatabaseShard(t, opts)
-	defer shard.Close()
-
 	nowFn := opts.ClockOptions().NowFn()
-	start := nowFn()
 	var wg sync.WaitGroup
 	for i := 0; i < numOfActiveSeries; i += writeBatchSize {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			for j := 0; j < writeBatchSize; j++ {
+			size := writeBatchSize
+			if numOfActiveSeries-i < writeBatchSize {
+				size = numOfActiveSeries - i
+			}
+			for j := 0; j < size; j++ {
 				id := fmt.Sprintf("foo=%d_%d", i, j)
 				_, err := shard.Write(ctx, ident.StringID(id), xtime.ToUnixNano(nowFn()),
 					1.0, xtime.Second, nil, series.WriteOptions{})
@@ -328,8 +351,10 @@ func TestShardFetchBlocksMetadata(t *testing.T) {
 		}(i)
 	}
 	wg.Wait()
+}
 
-	end := nowFn()
+func verifyFetchedBlockMetadata(t *testing.T, numOfActiveSeries int, readBatchSize int, shard *dbShard, opts Options, start, end time.Time) {
+	ctx := opts.ContextPool().Get()
 	var (
 		encodedPageToken PageToken
 		err              error

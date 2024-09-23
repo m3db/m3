@@ -21,8 +21,8 @@ func TestAdminSessionFetchBootstrapBlocksMetadataFromPeer(t *testing.T) {
 	}
 
 	numOfActiveSeries := 1000
-	writeBatchSize := 100
-	readBatchSize := 10
+	writeBatchSize := 7
+	readBatchSize := 13
 
 	testOpts := NewTestOptions(t).SetUseTChannelClientForWriting(true).SetNumShards(1).SetFetchSeriesBlocksBatchSize(readBatchSize)
 	testSetup, err := NewTestSetup(t, testOpts, nil)
@@ -49,7 +49,7 @@ func TestAdminSessionFetchBootstrapBlocksMetadataFromPeer(t *testing.T) {
 	end := testSetup.NowFn()()
 
 	// Fetch and verify metadata
-	observedSeries := getTestSetupBootstrapBlocksMetadata(t, testSetup, testNamespaces[0], start, end)
+	observedSeries := newTestSetupBootstrapBlocksMetadata(t, testSetup, testNamespaces[0], start, end)
 	verifySeriesMetadata(t, numOfActiveSeries, observedSeries)
 }
 
@@ -60,7 +60,11 @@ func writeTestData(t *testing.T, testSetup TestSetup, namespace ident.ID, start 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for j := 0; j < batchSize; j++ {
+			size := batchSize
+			if numOfSeries-i < batchSize {
+				size = numOfSeries - i
+			}
+			for j := 0; j < size; j++ {
 				id := fmt.Sprintf("foo_%d_%d", i, j)
 				currInput := generate.BlockConfig{IDs: []string{id}, Start: start, NumPoints: 5}
 				testData := generate.Block(currInput)
@@ -71,7 +75,7 @@ func writeTestData(t *testing.T, testSetup TestSetup, namespace ident.ID, start 
 	wg.Wait()
 }
 
-func getTestSetupBootstrapBlocksMetadata(t *testing.T,
+func newTestSetupBootstrapBlocksMetadata(t *testing.T,
 	testSetup TestSetup,
 	namespace ident.ID,
 	start xtime.UnixNano,
@@ -83,10 +87,10 @@ func getTestSetupBootstrapBlocksMetadata(t *testing.T,
 	require.NoError(t, err)
 
 	// Setup only has one shard
-	return getTestsSetupSeriesMetadataMap(metadatasByShard[0])
+	return newTestsSetupSeriesMetadataMap(metadatasByShard[0])
 }
 
-func getTestsSetupSeriesMetadataMap(metadatas []block.ReplicaMetadata) map[string]int {
+func newTestsSetupSeriesMetadataMap(metadatas []block.ReplicaMetadata) map[string]int {
 	seriesMap := make(map[string]int, 100000)
 	for _, block := range metadatas {
 		idString := block.ID.String()

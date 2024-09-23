@@ -118,7 +118,6 @@ type dbShard struct {
 	opts                  Options
 	seriesOpts            series.Options
 	nowFn                 clock.NowFn
-	state                 dbShardState
 	namespace             namespace.Metadata
 	seriesBlockRetriever  series.QueryableBlockRetriever
 	seriesOnRetrieveBlock block.OnRetrieveBlock
@@ -127,11 +126,14 @@ type dbShard struct {
 	seriesPool            series.DatabaseSeriesPool
 	reverseIndex          NamespaceIndex
 	insertQueue           *dbShardInsertQueue
-	lookup                *shardMap
-	list                  *list.List
-	// protected by dbShard lock
-	lastEntryIndex           uint64
-	bootstrapState           BootstrapState
+
+	// protected by dbShard lock.
+	lastEntryIndex uint64
+	lookup         *shardMap
+	list           *list.List
+	state          dbShardState
+	bootstrapState BootstrapState
+
 	newMergerFn              fs.NewMergerFn
 	newFSMergeWithMemFn      newFSMergeWithMemFn
 	filesetsFn               filesetsFn
