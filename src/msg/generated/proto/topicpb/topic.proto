@@ -22,7 +22,7 @@ message Filters {
 
 message StoragePolicyFilter { repeated string storage_policies = 1; }
 
-message PercentageFilter { Float64 percentage = 1; }
+message PercentageFilter { double percentage = 1; }
 
 message ShardSetFilter { string shard_set = 1; }
 
