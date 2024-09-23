@@ -127,14 +127,15 @@ func TestRefCountedMessageFilter(t *testing.T) {
 		func(m Message) bool {
 			called++
 			return m.Shard() == 0
-		}, 
+		},
 		UnspecifiedFilter,
-		)
+		StaticConfig,
+	)
 
 	sizeFilter := NewFilterFunc(func(m Message) bool {
 		called++
 		return m.Size() == 0
-	}, UnspecifiedFilter)
+	}, UnspecifiedFilter, StaticConfig)
 
 	mm := NewMockMessage(ctrl)
 	mm.EXPECT().Size().Return(0)

@@ -20,17 +20,11 @@ message Filters {
   ShardSetFilter shard_set_filter = 3;
 }
 
-message StoragePolicyFilter {
-  repeated string storage_policies = 1;
-}
+message StoragePolicyFilter { repeated string storage_policies = 1; }
 
-message PercentageFilter {
-  uint32 percentage = 1;
-}
+message PercentageFilter { Float64 percentage = 1; }
 
-message ShardSetFilter {
-  string shard_set = 1;
-}
+message ShardSetFilter { string shard_set = 1; }
 
 message ServiceID {
   string name = 1;

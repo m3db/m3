@@ -95,16 +95,35 @@ const (
 	UnspecifiedFilter
 )
 
+type FilterFuncConfigSourceType uint8
+
+const (
+	StaticConfig FilterFuncConfigSourceType = iota
+	DynamicConfig
+)
+
+type FilterFuncMetadata struct {
+	FilterType FilterFuncType
+	SourceType FilterFuncConfigSourceType
+}
+
+func NewFilterFuncMetadata(filterType FilterFuncType, sourceType FilterFuncConfigSourceType) FilterFuncMetadata {
+	return FilterFuncMetadata{
+		FilterType: filterType,
+		SourceType: sourceType,
+	}
+}
+
 // FilterFunc can filter message.
 type FilterFunc struct {
 	Function func(m Message) bool
-	FilterType FilterFuncType
+	Metadata FilterFuncMetadata
 }
 
-func NewFilterFunc(function func(m Message) bool, filterType FilterFuncType) FilterFunc {
+func NewFilterFunc(function func(m Message) bool, filterType FilterFuncType, sourceType FilterFuncConfigSourceType) FilterFunc {
 	return FilterFunc{
 		Function: function,
-		FilterType: filterType,
+		Metadata: NewFilterFuncMetadata(filterType, sourceType),
 	}
 }
 

@@ -163,6 +163,7 @@ func (t *topic) String() string {
 		buf.WriteString("\tconsumerServices: {\n")
 	}
 	for _, cs := range t.consumerServices {
+		// NOTE: update to print filters?
 		buf.WriteString(fmt.Sprintf("\t\t%s\n", cs.String()))
 	}
 	if len(t.consumerServices) > 0 {
@@ -208,11 +209,54 @@ func ToProto(t Topic) (*topicpb.Topic, error) {
 	}, nil
 }
 
-type consumerService struct {
-	sid      services.ServiceID
-	ct       ConsumptionType
-	ttlNanos int64
+type percentageFilter struct {
+	percentage float64
+}
+
+func (filter *percentageFilter) Percentage() float64 {
+	return filter.percentage
+}
+
+type storagePolicyFilter struct {
+	storagePolicies []string
+}
+
+func (filter *storagePolicyFilter) StoragePolicies() []string {
+	return filter.storagePolicies
+}
+
+type shardSetFilter struct {
 	shardSet string
+}
+
+func (filter *shardSetFilter) ShardSet() string {
+	return filter.shardSet
+}
+
+type filterConfig struct {
+	shardSetFilterConfig      *shardSetFilter
+	percentageFilterConfig    *percentageFilter
+	storagePolicyFilterConfig *storagePolicyFilter
+}
+
+func (fc *filterConfig) ShardSetFilter() ShardSetFilter {
+	return fc.shardSetFilterConfig
+}
+
+func (fc *filterConfig) PercentageFilter() PercentageFilter {
+	return fc.percentageFilterConfig
+}
+
+func (fc *filterConfig) StoragePolicyFilter() StoragePolicyFilter {
+	return fc.storagePolicyFilterConfig
+}
+
+type consumerService struct {
+	sid           services.ServiceID
+	ct            ConsumptionType
+	ttlNanos      int64
+	shardSet      string
+	filterConfigs *filterConfig
 }
 
 // NewConsumerService creates a ConsumerService.
@@ -229,7 +273,8 @@ func NewConsumerServiceFromProto(cs *topicpb.ConsumerService) (ConsumerService, 
 	return NewConsumerService().
 		SetServiceID(NewServiceIDFromProto(cs.ServiceId)).
 		SetConsumptionType(ct).
-		SetMessageTTLNanos(cs.MessageTtlNanos), nil
+		SetMessageTTLNanos(cs.MessageTtlNanos).
+		SetDynamicFilterConfigs(NewDynamicFilterConfigFromProto(cs.Filters)), nil
 }
 
 // ConsumerServiceToProto creates proto from a ConsumerService.
@@ -275,7 +320,6 @@ func (cs *consumerService) SetMessageTTLNanos(value int64) ConsumerService {
 	return &newcs
 }
 
-
 func (cs *consumerService) ShardSet() string {
 	return cs.shardSet
 }
@@ -283,6 +327,16 @@ func (cs *consumerService) ShardSet() string {
 func (cs *consumerService) SetShardSet(value string) ConsumerService {
 	newcs := *cs
 	newcs.shardSet = value
+	return &newcs
+}
+
+func (cs *consumerService) DynamicFilterConfigs() FilterConfig {
+	return cs.filterConfigs
+}
+
+func (cs *consumerService) SetDynamicFilterConfigs(value FilterConfig) ConsumerService {
+	newcs := *cs
+	newcs.filterConfigs = value.(*filterConfig)
 	return &newcs
 }
 
@@ -309,4 +363,23 @@ func ServiceIDToProto(sid services.ServiceID) *topicpb.ServiceID {
 		Environment: sid.Environment(),
 		Zone:        sid.Zone(),
 	}
+}
+
+// NewDynamicFilterConfigFromProto creates filters from a proto.
+func NewDynamicFilterConfigFromProto(filterProto *topicpb.Filters) FilterConfig {
+	if filterProto == nil {
+		return nil
+	}
+	var filter filterConfig
+	if filterProto.ShardSetFilter != nil {
+		filter.shardSetFilterConfig = &shardSetFilter{shardSet: filterProto.ShardSetFilter.ShardSet}
+	}
+	if filterProto.PercentageFilter != nil {
+		filter.percentageFilterConfig = &percentageFilter{percentage: filterProto.PercentageFilter.Percentage}
+	}
+	if filterProto.StoragePolicyFilter != nil {
+		filter.storagePolicyFilterConfig = &storagePolicyFilter{storagePolicies: filterProto.StoragePolicyFilter.StoragePolicies}
+	}
+
+	return &filter
 }

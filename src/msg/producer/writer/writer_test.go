@@ -211,8 +211,8 @@ func TestWriterRegisterFilter(t *testing.T) {
 	csw1 := NewMockconsumerServiceWriter(ctrl)
 
 	sid2 := services.NewServiceID().SetName("s2")
-	filter := producer.NewFilterFunc(func(producer.Message) bool { return false }, producer.UnspecifiedFilter)
-	filter2 := producer.NewFilterFunc(func(producer.Message) bool { return true }, producer.UnspecifiedFilter)
+	filter := producer.NewFilterFunc(func(producer.Message) bool { return false }, producer.UnspecifiedFilter, producer.StaticConfig)
+	filter2 := producer.NewFilterFunc(func(producer.Message) bool { return true }, producer.UnspecifiedFilter, producer.StaticConfig)
 
 	w := NewWriter(opts).(*writer)
 	w.consumerServiceWriters[cs1.ServiceID().String()] = csw1

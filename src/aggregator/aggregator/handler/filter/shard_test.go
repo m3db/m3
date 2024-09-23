@@ -35,7 +35,7 @@ func TestShardSetFilter(t *testing.T) {
 	defer ctrl.Finish()
 
 	ss := sharding.MustParseShardSet("0..511")
-	f := NewShardSetFilter(ss)
+	f := NewShardSetFilter(ss, producer.StaticConfig)
 
 	mm := producer.NewMockMessage(ctrl)
 	mm.EXPECT().Shard().Return(uint32(0))

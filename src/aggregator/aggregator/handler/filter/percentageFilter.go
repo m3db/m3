@@ -32,7 +32,7 @@ type percentageFilter struct {
 }
 
 // NewPercentageFilter creates a filter based on percentage.
-func NewPercentageFilter(percentage float64) producer.FilterFunc {
+func NewPercentageFilter(percentage float64, configSource producer.FilterFuncConfigSourceType) producer.FilterFunc {
 	rate := uint32(_maxRate)
 	if percentage <= 0 {
 		rate = 0
@@ -41,7 +41,7 @@ func NewPercentageFilter(percentage float64) producer.FilterFunc {
 	}
 
 	f := percentageFilter{rate: rate}
-	return producer.NewFilterFunc(f.Filter, producer.PercentageFilter)
+	return producer.NewFilterFunc(f.Filter, producer.PercentageFilter, configSource)
 }
 
 func (f percentageFilter) Filter(_ producer.Message) bool {

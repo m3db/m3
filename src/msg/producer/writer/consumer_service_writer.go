@@ -41,7 +41,10 @@ var (
 			Function: func(m producer.Message) bool {
 				return true
 			},
-			FilterType: producer.AcceptAllFilter,
+			Metadata: producer.FilterFuncMetadata{
+				FilterType: producer.AcceptAllFilter,
+				SourceType: producer.StaticConfig,
+			},
 		},
 	)
 
@@ -118,7 +121,7 @@ type consumerServiceWriterImpl struct {
 	wg              sync.WaitGroup
 	m               consumerServiceWriterMetrics
 	cm              consumerWriterMetrics
-	shardSet string
+	shardSet        string
 
 	processFn watch.ProcessFn
 }

@@ -90,7 +90,7 @@ func TestStoragePolicyFilter(t *testing.T) {
 
 	m2 := producer.NewMockMessage(nil)
 
-	f := NewStoragePolicyFilter([]policy.StoragePolicy{sp2})
+	f := NewStoragePolicyFilter([]policy.StoragePolicy{sp2}, producer.StaticConfig)
 
 	require.True(t, f.Function(m2))
 	require.False(t, f.Function(newMessage(0, sp1, protobuf.Buffer{})))

@@ -521,7 +521,7 @@ func TestConsumerServiceWriterFilter(t *testing.T) {
 	sw1.EXPECT().Write(gomock.Any())
 	csw.Write(producer.NewRefCountedMessage(mm1, nil))
 
-	csw.RegisterFilter(producer.NewFilterFunc(func(m producer.Message) bool { return m.Shard() == uint32(0) }, producer.UnspecifiedFilter))
+	csw.RegisterFilter(producer.NewFilterFunc(func(m producer.Message) bool { return m.Shard() == uint32(0) }, producer.UnspecifiedFilter, producer.StaticConfig))
 	// Write is not expected due to mm1 shard != 0
 	csw.Write(producer.NewRefCountedMessage(mm1, nil))
 
@@ -529,7 +529,7 @@ func TestConsumerServiceWriterFilter(t *testing.T) {
 	// Write is expected due to mm0 shard == 0
 	csw.Write(producer.NewRefCountedMessage(mm0, nil))
 
-	csw.RegisterFilter(producer.NewFilterFunc(func(m producer.Message) bool { return m.Size() == 3 }, producer.UnspecifiedFilter))
+	csw.RegisterFilter(producer.NewFilterFunc(func(m producer.Message) bool { return m.Size() == 3 }, producer.UnspecifiedFilter, producer.StaticConfig))
 	sw0.EXPECT().Write(gomock.Any())
 	// Write is expected because to mm0 shard == 0 and mm0 size == 3
 	csw.Write(producer.NewRefCountedMessage(mm0, nil))
