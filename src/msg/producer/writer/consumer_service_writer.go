@@ -154,7 +154,6 @@ func newConsumerServiceWriter(
 		doneCh:          make(chan struct{}),
 		m:               newConsumerServiceWriterMetrics(opts.InstrumentOptions().MetricsScope()),
 		cm:              newConsumerWriterMetrics(opts.InstrumentOptions().MetricsScope()),
-		shardSet:        cs.ShardSet(),
 	}
 	w.processFn = w.process
 	return w, nil
