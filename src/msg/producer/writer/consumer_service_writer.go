@@ -83,6 +83,9 @@ type consumerServiceWriter interface {
 
 	// UnregisterFilters unregisters the filters for the consumer service.
 	UnregisterFilters()
+
+	// GetDataFilter returns the data filters on the consumer service writer.
+	GetDataFilters() []producer.FilterFunc
 }
 
 type ConsumerServiceWriterMetrics struct {
@@ -237,6 +240,10 @@ func initShardWriters(
 		}
 	}
 	return sws
+}
+
+func (w *consumerServiceWriterImpl) GetDataFilters() []producer.FilterFunc {
+	return w.dataFilters
 }
 
 func (w *consumerServiceWriterImpl) Write(rm *producer.RefCountedMessage) {

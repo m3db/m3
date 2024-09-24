@@ -163,7 +163,6 @@ func (t *topic) String() string {
 		buf.WriteString("\tconsumerServices: {\n")
 	}
 	for _, cs := range t.consumerServices {
-		// NOTE: update to print filters?
 		buf.WriteString(fmt.Sprintf("\t\t%s\n", cs.String()))
 	}
 	if len(t.consumerServices) > 0 {
@@ -187,7 +186,36 @@ func (t *topic) Validate() error {
 			return fmt.Errorf("invalid topic: duplicated consumer %s", cs.ServiceID().String())
 		}
 		uniqConsumers[cs.ServiceID().String()] = struct{}{}
+
+		filterConfig := cs.DynamicFilterConfigs()
+
+		if filterConfig != nil {
+			shardSetFilter := filterConfig.ShardSetFilter()
+			if shardSetFilter != nil {
+				shardSet := shardSetFilter.ShardSet()
+				if shardSet == "" {
+					return fmt.Errorf("invalid topic: empty shard set in filter for consumer %s", cs.ServiceID().String())
+				}
+			}
+
+			percentageFilter := filterConfig.PercentageFilter()
+			if percentageFilter != nil {
+				percentage := percentageFilter.Percentage()
+				if percentage < 0 || percentage > 1 {
+					return fmt.Errorf("invalid topic: invalid percentage in filter for consumer %s", cs.ServiceID().String())
+				}
+			}
+
+			storagePolicyFilter := filterConfig.StoragePolicyFilter()
+			if storagePolicyFilter != nil {
+				storagePolicies := storagePolicyFilter.StoragePolicies()
+				if len(storagePolicies) == 0 {
+					return fmt.Errorf("invalid topic: empty storage policy filter for consumer %s", cs.ServiceID().String())
+				}
+			}
+		}
 	}
+
 	return nil
 }
 
@@ -209,20 +237,44 @@ func ToProto(t Topic) (*topicpb.Topic, error) {
 	}, nil
 }
 
-type percentageFilter struct {
-	percentage float64
+type filterConfig struct {
+	shardSetFilterConfig      *shardSetFilter
+	percentageFilterConfig    *percentageFilter
+	storagePolicyFilterConfig *storagePolicyFilter
 }
 
-func (filter *percentageFilter) Percentage() float64 {
-	return filter.percentage
+func NewFilterConfig() FilterConfig {
+	return new(filterConfig)
 }
 
-type storagePolicyFilter struct {
-	storagePolicies []string
+func (fc *filterConfig) ShardSetFilter() ShardSetFilter {
+	return fc.shardSetFilterConfig
 }
 
-func (filter *storagePolicyFilter) StoragePolicies() []string {
-	return filter.storagePolicies
+func (fc *filterConfig) SetShardSetFilter(value ShardSetFilter) FilterConfig {
+	newfc := *fc
+	newfc.shardSetFilterConfig = value.(*shardSetFilter)
+	return &newfc
+}
+
+func (fc *filterConfig) PercentageFilter() PercentageFilter {
+	return fc.percentageFilterConfig
+}
+
+func (fc *filterConfig) SetPercentageFilter(value PercentageFilter) FilterConfig {
+	newfc := *fc
+	newfc.percentageFilterConfig = value.(*percentageFilter)
+	return &newfc
+}
+
+func (fc *filterConfig) StoragePolicyFilter() StoragePolicyFilter {
+	return fc.storagePolicyFilterConfig
+}
+
+func (fc *filterConfig) SetStoragePolicyFilter(value StoragePolicyFilter) FilterConfig {
+	newfc := *fc
+	newfc.storagePolicyFilterConfig = value.(*storagePolicyFilter)
+	return &newfc
 }
 
 type shardSetFilter struct {
@@ -233,22 +285,32 @@ func (filter *shardSetFilter) ShardSet() string {
 	return filter.shardSet
 }
 
-type filterConfig struct {
-	shardSetFilterConfig      *shardSetFilter
-	percentageFilterConfig    *percentageFilter
-	storagePolicyFilterConfig *storagePolicyFilter
+func NewShardSetFilter(shardSet string) ShardSetFilter {
+	return &shardSetFilter{shardSet: shardSet}
 }
 
-func (fc *filterConfig) ShardSetFilter() ShardSetFilter {
-	return fc.shardSetFilterConfig
+type percentageFilter struct {
+	percentage float64
 }
 
-func (fc *filterConfig) PercentageFilter() PercentageFilter {
-	return fc.percentageFilterConfig
+func NewPercentageFilter(percentage float64) PercentageFilter {
+	return &percentageFilter{percentage: percentage}
 }
 
-func (fc *filterConfig) StoragePolicyFilter() StoragePolicyFilter {
-	return fc.storagePolicyFilterConfig
+func (filter *percentageFilter) Percentage() float64 {
+	return filter.percentage
+}
+
+type storagePolicyFilter struct {
+	storagePolicies []string
+}
+
+func NewStoragePolicyFilter(storagePolicies []string) StoragePolicyFilter {
+	return &storagePolicyFilter{storagePolicies: storagePolicies}
+}
+
+func (filter *storagePolicyFilter) StoragePolicies() []string {
+	return filter.storagePolicies
 }
 
 type consumerService struct {
@@ -346,6 +408,17 @@ func (cs *consumerService) String() string {
 	buf.WriteString(fmt.Sprintf("service: %s, consumption type: %s", cs.sid.String(), cs.ct.String()))
 	if cs.ttlNanos != 0 {
 		buf.WriteString(fmt.Sprintf(", ttl: %v", time.Duration(cs.ttlNanos)))
+	}
+	if cs.filterConfigs != nil {
+		if cs.filterConfigs.shardSetFilterConfig != nil {
+			buf.WriteString(fmt.Sprintf(", shard set filter: %s", cs.filterConfigs.shardSetFilterConfig.shardSet))
+		}
+		if cs.filterConfigs.percentageFilterConfig != nil {
+			buf.WriteString(fmt.Sprintf(", percentage filter: %v", cs.filterConfigs.percentageFilterConfig.percentage))
+		}
+		if cs.filterConfigs.storagePolicyFilterConfig != nil {
+			buf.WriteString(fmt.Sprintf(", storage policy filter: %v", cs.filterConfigs.storagePolicyFilterConfig.storagePolicies))
+		}
 	}
 	buf.WriteString("}")
 	return buf.String()

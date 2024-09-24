@@ -30,6 +30,7 @@ import (
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/mem"
@@ -684,6 +685,45 @@ func TestConsumerServiceCloseShardWritersConcurrently(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		require.FailNow(t, "taking too long to close consumer service writer")
 	}
+}
+
+func TestConsumerServiceWriterMetrics(t *testing.T) {
+	testScope := tally.NewTestScope("test", nil)
+
+	acceptedMetadata := producer.FilterFuncMetadata{FilterType: producer.ShardSetFilter, SourceType: producer.DynamicConfig}
+	notAcceptedMetadata := producer.FilterFuncMetadata{FilterType: producer.PercentageFilter, SourceType: producer.DynamicConfig}
+
+	m := newConsumerServiceWriterMetrics(testScope)
+	m.getFilterAcceptedGranularCounter(acceptedMetadata).Inc(1)
+	m.getFilterNotAcceptedGranularCounter(notAcceptedMetadata).Inc(1)
+
+	accepetKey := m.getGranularFilterCounterMapKey(acceptedMetadata)
+	notAcceptKey := m.getGranularFilterCounterMapKey(notAcceptedMetadata)
+
+	_, ok := m.filterAcceptedGranular[accepetKey]
+	require.True(t, ok)
+
+	_, ok = m.filterAcceptedGranular[notAcceptKey]
+	require.True(t, ok)
+
+	gotValue := false
+	snap := testScope.Snapshot()
+	for _, c := range snap.Counters() {
+		if c.Name() == "test.filter-accepted-granular" {
+			require.Equal(t, "config-source", c.Tags()["DynamicConfig"])
+			require.Equal(t, "filter-type", c.Tags()["ShardSetFilter"])
+			require.Equal(t, int64(1), c.Value())
+			gotValue = true
+		}
+
+		if c.Name() == "test.filter-not-accepted-granular" {
+			require.Equal(t, "config-source", c.Tags()["DynamicConfig"])
+			require.Equal(t, "filter-type", c.Tags()["PercentageFilter"])
+			require.Equal(t, int64(1), c.Value())
+			gotValue = true
+		}
+	}
+	require.True(t, gotValue)
 }
 
 func testPlacementService(store kv.Store, sid services.ServiceID) placement.Service {

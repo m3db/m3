@@ -145,6 +145,12 @@ func TestTopicUpdateConsumer(t *testing.T) {
 }
 
 func TestTopicString(t *testing.T) {
+	percentageFilter := NewPercentageFilter(0.5)
+	shardSetFilter := NewShardSetFilter("[10..23]")
+	storagePolicyFilter := NewStoragePolicyFilter([]string{"1m:40d"})
+
+	filterConfig := NewFilterConfig().SetPercentageFilter(percentageFilter).SetShardSetFilter(shardSetFilter).SetStoragePolicyFilter(storagePolicyFilter)
+
 	cs1 := NewConsumerService().
 		SetConsumptionType(Shared).
 		SetServiceID(services.NewServiceID().
@@ -159,7 +165,8 @@ func TestTopicString(t *testing.T) {
 			SetEnvironment("env2").
 			SetZone("zone2"),
 		).
-		SetMessageTTLNanos(int64(time.Minute))
+		SetMessageTTLNanos(int64(time.Minute)).
+		SetDynamicFilterConfigs(filterConfig)
 	tpc := NewTopic().
 		SetName("testName").
 		SetNumberOfShards(1024).
@@ -174,7 +181,7 @@ func TestTopicString(t *testing.T) {
 	numOfShards: 1024
 	consumerServices: {
 		{service: [name: s1, env: env1, zone: zone1], consumption type: shared}
-		{service: [name: s2, env: env2, zone: zone2], consumption type: shared, ttl: 1m0s}
+	{service: [name: s2, env: env2, zone: zone2], consumption type: shared, ttl: 1m0s, shard set filter: [10..23], storage policy filter: [1m:40d], percentage filter: 0.5}
 	}
 }
 `
@@ -222,6 +229,30 @@ func TestTopicValidation(t *testing.T) {
 	})
 	err = topic.Validate()
 	require.NoError(t, err)
+
+	topic = topic.SetConsumerServices([]ConsumerService{
+		cs1.SetDynamicFilterConfigs(NewFilterConfig().SetPercentageFilter(NewPercentageFilter(0.4)).SetStoragePolicyFilter(NewStoragePolicyFilter([]string{"1m:40d"})).SetShardSetFilter(NewShardSetFilter("[10..23]"))),
+	})
+	err = topic.Validate()
+	require.NoError(t, err)
+
+	topic = topic.SetConsumerServices([]ConsumerService{
+		cs1.SetDynamicFilterConfigs(NewFilterConfig().SetPercentageFilter(NewPercentageFilter(9999))),
+	})
+	err = topic.Validate()
+	require.Contains(t, err.Error(), "invalid percentage")
+
+	topic = topic.SetConsumerServices([]ConsumerService{
+		cs1.SetDynamicFilterConfigs(NewFilterConfig().SetShardSetFilter(NewShardSetFilter(""))),
+	})
+	err = topic.Validate()
+	require.Contains(t, err.Error(), "empty shard set")
+
+	topic = topic.SetConsumerServices([]ConsumerService{
+		cs1.SetDynamicFilterConfigs(NewFilterConfig().SetStoragePolicyFilter(NewStoragePolicyFilter([]string{}))),
+	})
+	err = topic.Validate()
+	require.Contains(t, err.Error(), "empty storage policy")
 }
 
 func TestConsumerService(t *testing.T) {

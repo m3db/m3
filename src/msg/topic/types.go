@@ -102,11 +102,20 @@ type FilterConfig interface {
 	// StoragePolicyFilter returns the storage policy data filter of the consumer service.
 	StoragePolicyFilter() StoragePolicyFilter
 
+	// SetStoragePolicyFilter sets the storage policy data filter of the consumer service.
+	SetStoragePolicyFilter(value StoragePolicyFilter) FilterConfig
+
 	// PercentageFilter returns the percentage data filter of the consumer service.
 	PercentageFilter() PercentageFilter
 
+	// SetPercentageFilter sets the percentage data filter of the consumer service.
+	SetPercentageFilter(value PercentageFilter) FilterConfig
+
 	// ShardSetFilter returns the shard set data filter of the consumer service.
 	ShardSetFilter() ShardSetFilter
+
+	// SetShardSetFilter sets the shard set data filter of the consumer service.
+	SetShardSetFilter(value ShardSetFilter) FilterConfig
 }
 
 type PercentageFilter interface {

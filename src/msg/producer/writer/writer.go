@@ -184,21 +184,21 @@ func (w *writer) process(update interface{}) error {
 			newConsumerServiceWriters[key] = csw
 
 			if cs.DynamicFilterConfigs() != nil {
+				w.logger.Debug("registering dynamic filters", zap.String("consumer-service", cs.String()))
 				// NOTE: do we need to delete the ones from the static config ????
+
 				consumerServicesWithDynamicFilterConfig[key] = true
 				err := RegisterDynamicFilters(csw, cs.DynamicFilterConfigs())
 				if err != nil {
 					w.logger.Error("could not register dynamic filters",
 						zap.String("writer", cs.String()), zap.Error(err))
 
-					// NOTE: emit metric !!
 					multiErr = multiErr.Add(err)
 				}
 			}
 
 			continue
 		}
-		// NOTE: we should be able to use this scope later when doing metrics !!!
 		scope := iOpts.MetricsScope().Tagged(map[string]string{
 			"consumer-service-name": cs.ServiceID().Name(),
 			"consumer-service-zone": cs.ServiceID().Zone(),
@@ -208,13 +208,14 @@ func (w *writer) process(update interface{}) error {
 		csw, err := newConsumerServiceWriter(cs, t.NumberOfShards(), w.opts.SetInstrumentOptions(iOpts.SetMetricsScope(scope)))
 
 		if cs.DynamicFilterConfigs() != nil {
+			w.logger.Debug("registering dynamic filters", zap.Any("dynamic-filter-configs", cs.DynamicFilterConfigs()))
+
 			consumerServicesWithDynamicFilterConfig[key] = true
 			err := RegisterDynamicFilters(csw, cs.DynamicFilterConfigs())
 			if err != nil {
 				w.logger.Error("could not register dynamic filters",
 					zap.String("writer", cs.String()), zap.Error(err))
 
-				// NOTE: emit metric !!
 				multiErr = multiErr.Add(err)
 			}
 		}
@@ -352,15 +353,7 @@ func RegisterDynamicFilters(csw consumerServiceWriter, filterConfig topic.Filter
 }
 
 func RegisterShardSetFilterFromTopicUpdate(csw consumerServiceWriter, ssf topic.ShardSetFilter) error {
-	if ssf == nil {
-		return errors.New("nil shard set filter")
-	}
-
 	shardSetString := ssf.ShardSet()
-
-	if len(shardSetString) == 0 {
-		return errors.New("no shard set string specified in filter")
-	}
 
 	shardSet, err := sharding.ParseShardSet(shardSetString)
 
@@ -374,15 +367,7 @@ func RegisterShardSetFilterFromTopicUpdate(csw consumerServiceWriter, ssf topic.
 }
 
 func RegisterStoragePolicyFilterFromTopicUpdate(csw consumerServiceWriter, spf topic.StoragePolicyFilter) error {
-	if spf == nil {
-		return errors.New("nil storage policy filter")
-	}
-
 	storagePolicies := spf.StoragePolicies()
-
-	if len(storagePolicies) == 0 {
-		return errors.New("no storage policies specified in filter")
-	}
 
 	parsedPolicies := make([]policy.StoragePolicy, len(storagePolicies))
 	for _, storagePolicyString := range storagePolicies {
@@ -401,16 +386,7 @@ func RegisterStoragePolicyFilterFromTopicUpdate(csw consumerServiceWriter, spf t
 }
 
 func RegisterPercentageFilterFromFromTopicUpdate(csw consumerServiceWriter, pf topic.PercentageFilter) error {
-
-	if pf == nil {
-		return errors.New("nil percentage filter")
-	}
-
 	percentage := pf.Percentage()
-
-	if percentage == 0 {
-		return errors.New("no percentage specified in filter")
-	}
 
 	csw.RegisterFilter(filter.NewPercentageFilter(percentage, producer.DynamicConfig))
 
