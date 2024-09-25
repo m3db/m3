@@ -89,7 +89,6 @@ type consumerServiceWriter interface {
 }
 
 type ConsumerServiceWriterMetrics struct {
-	scope                         tally.Scope
 	placementError                tally.Counter
 	placementUpdate               tally.Counter
 	queueSize                     tally.Gauge
@@ -99,6 +98,7 @@ type ConsumerServiceWriterMetrics struct {
 	filterAcceptedGranularLock    sync.RWMutex
 	filterNotAcceptedGranular     map[string]tally.Counter
 	filterNotAcceptedGranularLock sync.RWMutex
+	scope                         tally.Scope
 }
 
 func (cswm *ConsumerServiceWriterMetrics) getGranularFilterCounterMapKey(metadata producer.FilterFuncMetadata) string {
@@ -178,7 +178,6 @@ type consumerServiceWriterImpl struct {
 	wg              sync.WaitGroup
 	m               ConsumerServiceWriterMetrics
 	cm              consumerWriterMetrics
-	shardSet        string
 
 	processFn watch.ProcessFn
 }
@@ -392,14 +391,6 @@ func (w *consumerServiceWriterImpl) SetMessageTTLNanos(value int64) {
 	for _, sw := range w.shardWriters {
 		sw.SetMessageTTLNanos(value)
 	}
-}
-
-func (w *consumerServiceWriterImpl) GetShardSet() string {
-	return w.shardSet
-}
-
-func (w *consumerServiceWriterImpl) SetShardSet(value string) {
-	w.shardSet = value
 }
 
 func (w *consumerServiceWriterImpl) RegisterFilter(filter producer.FilterFunc) {

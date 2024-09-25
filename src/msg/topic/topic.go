@@ -201,7 +201,7 @@ func (t *topic) Validate() error {
 			percentageFilter := filterConfig.PercentageFilter()
 			if percentageFilter != nil {
 				percentage := percentageFilter.Percentage()
-				if percentage < 0 || percentage > 1 {
+				if percentage < 0 || percentage > 100 {
 					return fmt.Errorf("invalid topic: invalid percentage in filter for consumer %s", cs.ServiceID().String())
 				}
 			}
@@ -211,6 +211,12 @@ func (t *topic) Validate() error {
 				storagePolicies := storagePolicyFilter.StoragePolicies()
 				if len(storagePolicies) == 0 {
 					return fmt.Errorf("invalid topic: empty storage policy filter for consumer %s", cs.ServiceID().String())
+				}
+
+				for _, storagePolicy := range storagePolicies {
+					if storagePolicy == "" {
+						return fmt.Errorf("invalid topic: empty storage policy in filter for consumer %s", cs.ServiceID().String())
+					}
 				}
 			}
 		}
@@ -317,7 +323,6 @@ type consumerService struct {
 	sid           services.ServiceID
 	ct            ConsumptionType
 	ttlNanos      int64
-	shardSet      string
 	filterConfigs *filterConfig
 }
 
@@ -382,16 +387,6 @@ func (cs *consumerService) SetMessageTTLNanos(value int64) ConsumerService {
 	return &newcs
 }
 
-func (cs *consumerService) ShardSet() string {
-	return cs.shardSet
-}
-
-func (cs *consumerService) SetShardSet(value string) ConsumerService {
-	newcs := *cs
-	newcs.shardSet = value
-	return &newcs
-}
-
 func (cs *consumerService) DynamicFilterConfigs() FilterConfig {
 	return cs.filterConfigs
 }
@@ -438,12 +433,13 @@ func ServiceIDToProto(sid services.ServiceID) *topicpb.ServiceID {
 	}
 }
 
-// NewDynamicFilterConfigFromProto creates filters from a proto.
+// NewDynamicFilterConfigFromProto creates filter config from a proto.
 func NewDynamicFilterConfigFromProto(filterProto *topicpb.Filters) FilterConfig {
 	if filterProto == nil {
 		return nil
 	}
-	var filter filterConfig
+
+	filter := filterConfig{}
 	if filterProto.ShardSetFilter != nil {
 		filter.shardSetFilterConfig = &shardSetFilter{shardSet: filterProto.ShardSetFilter.ShardSet}
 	}

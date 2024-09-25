@@ -852,7 +852,7 @@ func TestWriterNumShards(t *testing.T) {
 }
 
 // Consumer service has no staticly configured filters, topic update comes in with dynamic filters.
-// Expected: Dynamic filters override static and are the only filters present.
+// Expected: Dynamic filters present on csw.
 func TestTopicUpdateWithDynamicFiltersNoStaticFilters(t *testing.T) {
 	defer leaktest.Check(t)()
 
@@ -870,10 +870,9 @@ func TestTopicUpdateWithDynamicFiltersNoStaticFilters(t *testing.T) {
 
 	sid1 := services.NewServiceID().SetName("s1")
 
-	// NOTE: set these to actual values
 	percentageFilter := topic.NewPercentageFilter(50)
-	shardSetFilter := topic.NewShardSetFilter("")
-	storagePolicyFilter := topic.NewStoragePolicyFilter([]string{})
+	shardSetFilter := topic.NewShardSetFilter("[1..5]")
+	storagePolicyFilter := topic.NewStoragePolicyFilter([]string{"1m:40d"})
 
 	filterConfig := topic.NewFilterConfig().SetPercentageFilter(percentageFilter).SetShardSetFilter(shardSetFilter).SetStoragePolicyFilter(storagePolicyFilter)
 
@@ -956,7 +955,7 @@ func TestTopicUpdateWithDynamicFiltersNoStaticFilters(t *testing.T) {
 }
 
 // Consumer service has staticly configured filters, topic update comes in with dynamic filters.
-// Expected: Dynamic filters override static and are the only filters present.
+// Expected: Dynamic filters override static and are the only filters present on csw.
 func TestTopicUpdateWithDynamicFiltersHasStaticFilters(t *testing.T) {
 	defer leaktest.Check(t)()
 
@@ -974,10 +973,9 @@ func TestTopicUpdateWithDynamicFiltersHasStaticFilters(t *testing.T) {
 
 	sid1 := services.NewServiceID().SetName("s1")
 
-	// NOTE: set these to actual values
 	percentageFilter := topic.NewPercentageFilter(50)
-	shardSetFilter := topic.NewShardSetFilter("")
-	storagePolicyFilter := topic.NewStoragePolicyFilter([]string{})
+	shardSetFilter := topic.NewShardSetFilter("[1..5]")
+	storagePolicyFilter := topic.NewStoragePolicyFilter([]string{"1m:40d"})
 
 	filterConfig := topic.NewFilterConfig().SetPercentageFilter(percentageFilter).SetShardSetFilter(shardSetFilter).SetStoragePolicyFilter(storagePolicyFilter)
 
@@ -1064,6 +1062,8 @@ func TestTopicUpdateWithDynamicFiltersHasStaticFilters(t *testing.T) {
 	w.Close()
 }
 
+// Consumer service has staticly configured filters, topic update comes in with no dynamic filters.
+// Expected: Static filters remain on the csw.
 func TestTopicUpdateNoDynamicFiltersHasStaticFilters(t *testing.T) {
 	defer leaktest.Check(t)()
 
@@ -1164,6 +1164,8 @@ func TestTopicUpdateNoDynamicFiltersHasStaticFilters(t *testing.T) {
 	w.Close()
 }
 
+// Consumer service has no static filters, topic update comes adding dynamic filters. Another topic update comes in changing the dynamic filters.
+// Expected: Dynamic filters are updated on csw.
 func TestTopicUpdateWithDynamicFilter2Updates(t *testing.T) {
 	defer leaktest.Check(t)()
 
@@ -1181,10 +1183,9 @@ func TestTopicUpdateWithDynamicFilter2Updates(t *testing.T) {
 
 	sid1 := services.NewServiceID().SetName("s1")
 
-	// NOTE: set these to actual values
 	percentageFilter := topic.NewPercentageFilter(50)
-	shardSetFilter := topic.NewShardSetFilter("")
-	storagePolicyFilter := topic.NewStoragePolicyFilter([]string{})
+	shardSetFilter := topic.NewShardSetFilter("[1..5]")
+	storagePolicyFilter := topic.NewStoragePolicyFilter([]string{"1m:40d"})
 
 	filterConfig := topic.NewFilterConfig().SetPercentageFilter(percentageFilter).SetShardSetFilter(shardSetFilter).SetStoragePolicyFilter(storagePolicyFilter)
 
@@ -1286,6 +1287,8 @@ func TestTopicUpdateWithDynamicFilter2Updates(t *testing.T) {
 	w.Close()
 }
 
+// Consumer service has no static filters, topic update comes adding dynamic filters that that incurs parsing error.
+// Expected: Topic update fails.
 func TestTopicUpdateWithDynamicFiltersInvalidFilter(t *testing.T) {
 	defer leaktest.Check(t)()
 
@@ -1303,7 +1306,7 @@ func TestTopicUpdateWithDynamicFiltersInvalidFilter(t *testing.T) {
 
 	sid1 := services.NewServiceID().SetName("s1")
 
-	shardSetFilter := topic.NewShardSetFilter("")
+	shardSetFilter := topic.NewShardSetFilter("randomstringstrinxyz123abc")
 
 	filterConfig := topic.NewFilterConfig().SetShardSetFilter(shardSetFilter)
 

@@ -703,27 +703,31 @@ func TestConsumerServiceWriterMetrics(t *testing.T) {
 	_, ok := m.filterAcceptedGranular[accepetKey]
 	require.True(t, ok)
 
-	_, ok = m.filterAcceptedGranular[notAcceptKey]
+	_, ok = m.filterNotAcceptedGranular[notAcceptKey]
 	require.True(t, ok)
 
-	gotValue := false
+	gotAcceptedValue := false
+	gotNotAcceptedValue := false
+
 	snap := testScope.Snapshot()
 	for _, c := range snap.Counters() {
 		if c.Name() == "test.filter-accepted-granular" {
 			require.Equal(t, "config-source", c.Tags()["DynamicConfig"])
 			require.Equal(t, "filter-type", c.Tags()["ShardSetFilter"])
 			require.Equal(t, int64(1), c.Value())
-			gotValue = true
+			gotAcceptedValue = true
 		}
 
 		if c.Name() == "test.filter-not-accepted-granular" {
 			require.Equal(t, "config-source", c.Tags()["DynamicConfig"])
 			require.Equal(t, "filter-type", c.Tags()["PercentageFilter"])
 			require.Equal(t, int64(1), c.Value())
-			gotValue = true
+			gotNotAcceptedValue = true
 		}
 	}
-	require.True(t, gotValue)
+
+	require.True(t, gotAcceptedValue)
+	require.True(t, gotNotAcceptedValue)
 }
 
 func testPlacementService(store kv.Store, sid services.ServiceID) placement.Service {

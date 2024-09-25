@@ -186,7 +186,6 @@ func (c *DynamicBackendConfiguration) newProtobufHandler(
 		return nil, err
 	}
 	logger := instrumentOpts.Logger()
-	// NOTE: where we setup the static filters
 	for _, filter := range c.ShardSetFilters {
 		sid, f := filter.NewConsumerServiceFilter()
 		p.RegisterFilter(sid, f)

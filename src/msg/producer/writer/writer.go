@@ -181,7 +181,6 @@ func (w *writer) process(update interface{}) error {
 		csw, ok := w.consumerServiceWriters[key]
 		if ok {
 			csw.SetMessageTTLNanos(cs.MessageTTLNanos())
-			newConsumerServiceWriters[key] = csw
 
 			if cs.DynamicFilterConfigs() != nil {
 				w.logger.Debug("registering dynamic filters", zap.String("consumer-service", cs.String()))
@@ -196,6 +195,8 @@ func (w *writer) process(update interface{}) error {
 					multiErr = multiErr.Add(err)
 				}
 			}
+
+			newConsumerServiceWriters[key] = csw
 
 			continue
 		}
@@ -235,7 +236,6 @@ func (w *writer) process(update interface{}) error {
 			continue
 		}
 		csw.SetMessageTTLNanos(cs.MessageTTLNanos())
-
 		newConsumerServiceWriters[key] = csw
 		w.logger.Info("initialized consumer service writer", zap.String("writer", cs.String()))
 	}

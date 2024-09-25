@@ -37,7 +37,7 @@ func TestPercentageFilter(t *testing.T) {
 	f0 := NewPercentageFilter(0, producer.StaticConfig)
 	require.False(t, f0.Function((mm)))
 
-	f1 := NewPercentageFilter(1, producer.StaticConfig)
+	f1 := NewPercentageFilter(1, producer.DynamicConfig)
 	require.True(t, f1.Function(mm))
 }
 
