@@ -105,6 +105,20 @@ func (mr *MockconsumerServiceWriterMockRecorder) SetMessageTTLNanos(value interf
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMessageTTLNanos", reflect.TypeOf((*MockconsumerServiceWriter)(nil).SetMessageTTLNanos), value)
 }
 
+// GetDataFilter mocks base method.
+func (m *MockconsumerServiceWriter) GetDataFilters() []producer.FilterFunc {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDataFilters")
+	
+	ret0, _ := ret[0].([]producer.FilterFunc)
+	return ret0
+}
+
+// GetDataFilters indicates an expected call of GetDataFilters.
+func (mr *MockconsumerServiceWriterMockRecorder) GetDataFilters() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDataFilters", reflect.TypeOf((*MockconsumerServiceWriter)(nil).GetDataFilters()))
+}
 // SetShardSet mocks base method.
 func (m *MockconsumerServiceWriter) SetShardSet(value string) {
 	m.ctrl.T.Helper()
