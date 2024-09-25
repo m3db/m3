@@ -146,7 +146,7 @@ func TestTopicUpdateConsumer(t *testing.T) {
 
 func TestTopicString(t *testing.T) {
 	percentageFilter := NewPercentageFilter(0.5)
-	shardSetFilter := NewShardSetFilter("[10..23]")
+	shardSetFilter := NewShardSetFilter("10..23")
 	storagePolicyFilter := NewStoragePolicyFilter([]string{"1m:40d"})
 
 	filterConfig := NewFilterConfig().SetPercentageFilter(percentageFilter).SetShardSetFilter(shardSetFilter).SetStoragePolicyFilter(storagePolicyFilter)

@@ -162,6 +162,7 @@ func (w *writer) process(update interface{}) error {
 	if err := t.Validate(); err != nil {
 		return err
 	}
+
 	// We don't allow changing number of shards for topics, it will be
 	// prevented on topic service side, but also being defensive here as well.
 	numShards := w.NumShards()
@@ -179,14 +180,14 @@ func (w *writer) process(update interface{}) error {
 	for _, cs := range t.ConsumerServices() {
 		key := cs.ServiceID().String()
 		csw, ok := w.consumerServiceWriters[key]
+
 		if ok {
 			csw.SetMessageTTLNanos(cs.MessageTTLNanos())
 
 			if cs.DynamicFilterConfigs() != nil {
-				w.logger.Debug("registering dynamic filters", zap.String("consumer-service", cs.String()))
-				// NOTE: do we need to delete the ones from the static config ????
-
 				consumerServicesWithDynamicFilterConfig[key] = true
+
+				csw.UnregisterFilters()
 				err := RegisterDynamicFilters(csw, cs.DynamicFilterConfigs())
 				if err != nil {
 					w.logger.Error("could not register dynamic filters",
@@ -197,6 +198,8 @@ func (w *writer) process(update interface{}) error {
 			}
 
 			newConsumerServiceWriters[key] = csw
+
+			w.logger.Debug("Updated consumer service writer", zap.String("consumer-service", cs.String()))
 
 			continue
 		}
@@ -209,8 +212,6 @@ func (w *writer) process(update interface{}) error {
 		csw, err := newConsumerServiceWriter(cs, t.NumberOfShards(), w.opts.SetInstrumentOptions(iOpts.SetMetricsScope(scope)))
 
 		if cs.DynamicFilterConfigs() != nil {
-			w.logger.Debug("registering dynamic filters", zap.Any("dynamic-filter-configs", cs.DynamicFilterConfigs()))
-
 			consumerServicesWithDynamicFilterConfig[key] = true
 			err := RegisterDynamicFilters(csw, cs.DynamicFilterConfigs())
 			if err != nil {

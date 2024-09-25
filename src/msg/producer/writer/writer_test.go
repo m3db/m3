@@ -851,502 +851,284 @@ func TestWriterNumShards(t *testing.T) {
 	require.Equal(t, 2, int(w.NumShards()))
 }
 
-// Consumer service has no staticly configured filters, topic update comes in with dynamic filters.
-// Expected: Dynamic filters present on csw.
-func TestTopicUpdateWithDynamicFiltersNoStaticFilters(t *testing.T) {
-	defer leaktest.Check(t)()
+func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
+	testDynamicFilterConfig := topic.NewFilterConfig().
+		SetPercentageFilter(
+			topic.NewPercentageFilter(50),
+		).
+		SetShardSetFilter(
+			topic.NewShardSetFilter("1..5"),
+		).
+		SetStoragePolicyFilter(
+			topic.NewStoragePolicyFilter([]string{"1m:40d"}),
+		)
 
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	store := mem.NewStore()
-	cs := client.NewMockClient(ctrl)
-	cs.EXPECT().Store(gomock.Any()).Return(store, nil)
-
-	ts, err := topic.NewService(topic.NewServiceOptions().SetConfigService(cs))
-	require.NoError(t, err)
-
-	opts := testOptions().SetTopicService(ts)
-
-	sid1 := services.NewServiceID().SetName("s1")
-
-	percentageFilter := topic.NewPercentageFilter(50)
-	shardSetFilter := topic.NewShardSetFilter("[1..5]")
-	storagePolicyFilter := topic.NewStoragePolicyFilter([]string{"1m:40d"})
-
-	filterConfig := topic.NewFilterConfig().SetPercentageFilter(percentageFilter).SetShardSetFilter(shardSetFilter).SetStoragePolicyFilter(storagePolicyFilter)
-
-	cs1 := topic.NewConsumerService().SetConsumptionType(topic.Replicated).SetServiceID(sid1).SetDynamicFilterConfigs(filterConfig)
-
-	testTopic := topic.NewTopic().
-		SetName(opts.TopicName()).
-		SetNumberOfShards(1).
-		SetConsumerServices([]topic.ConsumerService{cs1})
-	_, err = ts.CheckAndSet(testTopic, kv.UninitializedVersion)
-	require.NoError(t, err)
-
-	sd := services.NewMockServices(ctrl)
-	opts = opts.SetServiceDiscovery(sd)
-	ps1 := testPlacementService(store, sid1)
-	sd.EXPECT().PlacementService(sid1, gomock.Any()).Return(ps1, nil)
-
-	p1 := placement.NewPlacement().
-		SetInstances([]placement.Instance{
-			placement.NewInstance().
-				SetID("i1").
-				SetEndpoint("i1").
-				SetShards(shard.NewShards([]shard.Shard{
-					shard.NewShard(0).SetState(shard.Available),
-				})),
-		}).
-		SetShards([]uint32{0}).
-		SetReplicaFactor(1).
-		SetIsSharded(true)
-	_, err = ps1.Set(p1)
-	require.NoError(t, err)
-
-	w := NewWriter(opts).(*writer)
-
-	called := atomic.NewInt32(0)
-	w.processFn = func(update interface{}) error {
-		called.Inc()
-		return w.process(update)
+	type testTopicUpdate struct {
+		dynamicFilterConfig topic.FilterConfig
+		expectedDataFilters []producer.FilterFuncMetadata
+		expectError         bool
 	}
-	require.NoError(t, w.Init())
-	require.Equal(t, 1, int(called.Load()))
-	require.Equal(t, 1, len(w.consumerServiceWriters))
 
-	csw, ok := w.consumerServiceWriters[cs1.ServiceID().String()]
-	require.True(t, ok)
+	type testCase struct {
+		name          string
+		staticFilters []producer.FilterFuncType
+		topicUpdate1  testTopicUpdate
+		topicUpdate2  *testTopicUpdate
+	}
 
-	dataFilters := csw.GetDataFilters()
-	require.Equal(t, 4, len(dataFilters))
+	tests := []testCase{
+		{
+			name:          "No_Static_Filters_One_Topic_Update_With_Dynamic_Filters",
+			staticFilters: []producer.FilterFuncType{},
+			topicUpdate1: testTopicUpdate{
+				dynamicFilterConfig: testDynamicFilterConfig,
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					{FilterType: producer.PercentageFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.ShardSetFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.StoragePolicyFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+				},
+			},
+			topicUpdate2: nil,
+		},
 
-	foundPercentageFilter := false
-	foundShardSetFilter := false
-	foundStoragePolicyFilter := false
-	foundAcceptAllFilter := false
+		{
+			name:          "Has_Static_Filters_One_Topic_Update_With_Dynamic_Filters",
+			staticFilters: []producer.FilterFuncType{producer.PercentageFilter, producer.ShardSetFilter, producer.StoragePolicyFilter},
+			topicUpdate1: testTopicUpdate{
+				dynamicFilterConfig: testDynamicFilterConfig,
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					{FilterType: producer.PercentageFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.ShardSetFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.StoragePolicyFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+				},
+			},
+			topicUpdate2: nil,
+		},
 
-	for _, filter := range dataFilters {
-		switch filter.Metadata.FilterType {
-		case producer.PercentageFilter:
-			foundPercentageFilter = true
-			require.Equal(t, filter.Metadata.SourceType, producer.DynamicConfig)
-		case producer.ShardSetFilter:
-			foundShardSetFilter = true
-			require.Equal(t, filter.Metadata.SourceType, producer.DynamicConfig)
-		case producer.StoragePolicyFilter:
-			foundStoragePolicyFilter = true
-			require.Equal(t, filter.Metadata.SourceType, producer.DynamicConfig)
-		case producer.AcceptAllFilter:
-			foundAcceptAllFilter = true
-			require.Equal(t, filter.Metadata.SourceType, producer.StaticConfig)
+		{
+			name:          "Has_Static_Filters_Two_Topic_Updates_With_No_Dynamic_Filters",
+			staticFilters: []producer.FilterFuncType{producer.PercentageFilter, producer.ShardSetFilter, producer.StoragePolicyFilter},
+			topicUpdate1: testTopicUpdate{
+				dynamicFilterConfig: nil,
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					{FilterType: producer.PercentageFilter, SourceType: producer.StaticConfig},
+					{FilterType: producer.ShardSetFilter, SourceType: producer.StaticConfig},
+					{FilterType: producer.StoragePolicyFilter, SourceType: producer.StaticConfig},
+					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+				},
+			},
+			topicUpdate2: &testTopicUpdate{
+				dynamicFilterConfig: nil,
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					{FilterType: producer.PercentageFilter, SourceType: producer.StaticConfig},
+					{FilterType: producer.ShardSetFilter, SourceType: producer.StaticConfig},
+					{FilterType: producer.StoragePolicyFilter, SourceType: producer.StaticConfig},
+					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+				},
+			},
+		},
+
+		{
+			name:          "No_Static_Config_Two_Topic_Updates_With_Different_Dynamic_Filters",
+			staticFilters: []producer.FilterFuncType{},
+			topicUpdate1: testTopicUpdate{
+				dynamicFilterConfig: testDynamicFilterConfig,
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					{FilterType: producer.PercentageFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.ShardSetFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.StoragePolicyFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+				},
+			},
+			topicUpdate2: &testTopicUpdate{
+				dynamicFilterConfig: topic.NewFilterConfig().SetPercentageFilter(topic.NewPercentageFilter(75)),
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					{FilterType: producer.PercentageFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+				},
+			},
+		},
+
+		{
+			name:          "No_Static_Config_One_Topic_Update_With_Invalid_Dynamic_Filter",
+			staticFilters: []producer.FilterFuncType{},
+			topicUpdate1: testTopicUpdate{
+				dynamicFilterConfig: topic.NewFilterConfig().SetShardSetFilter(topic.NewShardSetFilter("randomstringstrinxyz123abc")),
+				expectedDataFilters: nil, // NOTE: comeback to this
+				expectError:         true,
+			},
+			topicUpdate2: nil,
+		},
+
+		{
+			name:          "No_Static_Config_Two_Topic_Updates_First_Update_Adds_Dynamic_Filters_Second_Update_Removes_Dynamic_Filters",
+			staticFilters: []producer.FilterFuncType{},
+			topicUpdate1: testTopicUpdate{
+				dynamicFilterConfig: testDynamicFilterConfig,
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					{FilterType: producer.PercentageFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.ShardSetFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.StoragePolicyFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+				},
+			},
+			topicUpdate2: &testTopicUpdate{
+				dynamicFilterConfig: nil,
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			defer leaktest.Check(t)()
+
+			ctrl := xtest.NewController(t)
+			defer ctrl.Finish()
+
+			store := mem.NewStore()
+			cs := client.NewMockClient(ctrl)
+			cs.EXPECT().Store(gomock.Any()).Return(store, nil)
+
+			ts, err := topic.NewService(topic.NewServiceOptions().SetConfigService(cs))
+			require.NoError(t, err)
+
+			opts := testOptions().SetTopicService(ts)
+
+			sid1 := services.NewServiceID().SetName("s1")
+
+			cs1 := topic.NewConsumerService().SetConsumptionType(topic.Replicated).SetServiceID(sid1)
+
+			if test.topicUpdate1.dynamicFilterConfig != nil {
+				cs1 = cs1.SetDynamicFilterConfigs(test.topicUpdate1.dynamicFilterConfig)
+			}
+
+			testTopic := topic.NewTopic().
+				SetName(opts.TopicName()).
+				SetNumberOfShards(1).
+				SetConsumerServices([]topic.ConsumerService{cs1})
+			_, err = ts.CheckAndSet(testTopic, kv.UninitializedVersion)
+
+			if test.topicUpdate1.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			sd := services.NewMockServices(ctrl)
+			opts = opts.SetServiceDiscovery(sd)
+			ps1 := testPlacementService(store, sid1)
+			sd.EXPECT().PlacementService(sid1, gomock.Any()).Return(ps1, nil)
+
+			p1 := placement.NewPlacement().
+				SetInstances([]placement.Instance{
+					placement.NewInstance().
+						SetID("i1").
+						SetEndpoint("i1").
+						SetShards(shard.NewShards([]shard.Shard{
+							shard.NewShard(0).SetState(shard.Available),
+						})),
+				}).
+				SetShards([]uint32{0}).
+				SetReplicaFactor(1).
+				SetIsSharded(true)
+			_, err = ps1.Set(p1)
+			require.NoError(t, err)
+
+			w := NewWriter(opts).(*writer)
+
+			for _, filterType := range test.staticFilters {
+				w.RegisterFilter(sid1, producer.NewFilterFunc(func(producer.Message) bool { return true }, filterType, producer.StaticConfig))
+			}
+
+			called := atomic.NewInt32(0)
+			w.processFn = func(update interface{}) error {
+				called.Inc()
+				return w.process(update)
+			}
+
+			require.NoError(t, w.Init())
+			require.Equal(t, 1, int(called.Load()))
+			require.Equal(t, 1, len(w.consumerServiceWriters))
+
+			csw, ok := w.consumerServiceWriters[cs1.ServiceID().String()]
+			require.True(t, ok)
+
+			actualDataFilterFuncs := csw.GetDataFilters()
+			actualDataFilterMetadatas := make([]producer.FilterFuncMetadata, len(actualDataFilterFuncs))
+			for _, filter := range actualDataFilterFuncs {
+				actualDataFilterMetadatas = append(actualDataFilterMetadatas, filter.Metadata)
+			}
+
+			require.True(t, testAreFilterFuncMetadataSlicesEqual(actualDataFilterMetadatas, test.topicUpdate1.expectedDataFilters))
+
+			if test.topicUpdate2 != nil {
+				cs1.SetDynamicFilterConfigs(nil)
+
+				if test.topicUpdate2.dynamicFilterConfig != nil {
+					cs1 = cs1.SetDynamicFilterConfigs(test.topicUpdate2.dynamicFilterConfig)
+				}
+
+				testTopic = testTopic.
+					SetConsumerServices([]topic.ConsumerService{cs1}).
+					SetVersion(1)
+				_, err = ts.CheckAndSet(testTopic, 1)
+
+				if test.topicUpdate2.expectError {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
+				}
+
+				for called.Load() != 2 {
+					time.Sleep(50 * time.Millisecond)
+				}
+
+				csw, ok = w.consumerServiceWriters[cs1.ServiceID().String()]
+				require.True(t, ok)
+
+				actualDataFilterFuncs = csw.GetDataFilters()
+				actualDataFilterMetadatas = make([]producer.FilterFuncMetadata, len(actualDataFilterFuncs))
+				for _, filter := range actualDataFilterFuncs {
+					actualDataFilterMetadatas = append(actualDataFilterMetadatas, filter.Metadata)
+				}
+
+				require.True(t, testAreFilterFuncMetadataSlicesEqual(actualDataFilterMetadatas, test.topicUpdate2.expectedDataFilters))
+			}
+
+			defer csw.Close()
+
+			w.Close()
+		})
+	}
+}
+
+func testAreFilterFuncMetadataSlicesEqual(slice1, slice2 []producer.FilterFuncMetadata) bool {
+	if len(slice1) != len(slice2) {
+		return false
+	}
+
+	countMap := make(map[producer.FilterFuncMetadata]int)
+	for _, item := range slice1 {
+		countMap[item]++
+	}
+
+	for _, item := range slice2 {
+		if countMap[item] == 0 {
+			return false
+		}
+		countMap[item]--
+	}
+
+	for _, count := range countMap {
+		if count != 0 {
+			return false
 		}
 	}
 
-	require.True(t, foundPercentageFilter)
-	require.True(t, foundShardSetFilter)
-	require.True(t, foundStoragePolicyFilter)
-	require.True(t, foundAcceptAllFilter)
-
-	defer csw.Close()
-
-	w.Close()
-}
-
-// Consumer service has staticly configured filters, topic update comes in with dynamic filters.
-// Expected: Dynamic filters override static and are the only filters present on csw.
-func TestTopicUpdateWithDynamicFiltersHasStaticFilters(t *testing.T) {
-	defer leaktest.Check(t)()
-
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	store := mem.NewStore()
-	cs := client.NewMockClient(ctrl)
-	cs.EXPECT().Store(gomock.Any()).Return(store, nil)
-
-	ts, err := topic.NewService(topic.NewServiceOptions().SetConfigService(cs))
-	require.NoError(t, err)
-
-	opts := testOptions().SetTopicService(ts)
-
-	sid1 := services.NewServiceID().SetName("s1")
-
-	percentageFilter := topic.NewPercentageFilter(50)
-	shardSetFilter := topic.NewShardSetFilter("[1..5]")
-	storagePolicyFilter := topic.NewStoragePolicyFilter([]string{"1m:40d"})
-
-	filterConfig := topic.NewFilterConfig().SetPercentageFilter(percentageFilter).SetShardSetFilter(shardSetFilter).SetStoragePolicyFilter(storagePolicyFilter)
-
-	cs1 := topic.NewConsumerService().SetConsumptionType(topic.Replicated).SetServiceID(sid1).SetDynamicFilterConfigs(filterConfig)
-
-	testTopic := topic.NewTopic().
-		SetName(opts.TopicName()).
-		SetNumberOfShards(1).
-		SetConsumerServices([]topic.ConsumerService{cs1})
-	_, err = ts.CheckAndSet(testTopic, kv.UninitializedVersion)
-	require.NoError(t, err)
-
-	sd := services.NewMockServices(ctrl)
-	opts = opts.SetServiceDiscovery(sd)
-	ps1 := testPlacementService(store, sid1)
-	sd.EXPECT().PlacementService(sid1, gomock.Any()).Return(ps1, nil)
-
-	p1 := placement.NewPlacement().
-		SetInstances([]placement.Instance{
-			placement.NewInstance().
-				SetID("i1").
-				SetEndpoint("i1").
-				SetShards(shard.NewShards([]shard.Shard{
-					shard.NewShard(0).SetState(shard.Available),
-				})),
-		}).
-		SetShards([]uint32{0}).
-		SetReplicaFactor(1).
-		SetIsSharded(true)
-	_, err = ps1.Set(p1)
-	require.NoError(t, err)
-
-	w := NewWriter(opts).(*writer)
-
-	// Register static filters for the consumer service.
-	w.RegisterFilter(sid1, producer.NewFilterFunc(func(producer.Message) bool { return true }, producer.PercentageFilter, producer.StaticConfig))
-	w.RegisterFilter(sid1, producer.NewFilterFunc(func(producer.Message) bool { return true }, producer.StoragePolicyFilter, producer.StaticConfig))
-	w.RegisterFilter(sid1, producer.NewFilterFunc(func(producer.Message) bool { return true }, producer.ShardSetFilter, producer.StaticConfig))
-
-	called := atomic.NewInt32(0)
-	w.processFn = func(update interface{}) error {
-		called.Inc()
-		return w.process(update)
-	}
-	require.NoError(t, w.Init())
-	require.Equal(t, 1, int(called.Load()))
-	require.Equal(t, 1, len(w.consumerServiceWriters))
-
-	csw, ok := w.consumerServiceWriters[cs1.ServiceID().String()]
-	require.True(t, ok)
-
-	dataFilters := csw.GetDataFilters()
-	require.Equal(t, 4, len(dataFilters))
-
-	foundPercentageFilter := false
-	foundShardSetFilter := false
-	foundStoragePolicyFilter := false
-	foundAcceptAllFilter := false
-
-	for _, filter := range dataFilters {
-		switch filter.Metadata.FilterType {
-		case producer.PercentageFilter:
-			foundPercentageFilter = true
-			require.Equal(t, filter.Metadata.SourceType, producer.DynamicConfig)
-		case producer.ShardSetFilter:
-			foundShardSetFilter = true
-			require.Equal(t, filter.Metadata.SourceType, producer.DynamicConfig)
-		case producer.StoragePolicyFilter:
-			foundStoragePolicyFilter = true
-			require.Equal(t, filter.Metadata.SourceType, producer.DynamicConfig)
-		case producer.AcceptAllFilter:
-			foundAcceptAllFilter = true
-			require.Equal(t, filter.Metadata.SourceType, producer.StaticConfig)
-		}
-	}
-
-	require.True(t, foundPercentageFilter)
-	require.True(t, foundShardSetFilter)
-	require.True(t, foundStoragePolicyFilter)
-	require.True(t, foundAcceptAllFilter)
-
-	defer csw.Close()
-
-	w.Close()
-}
-
-// Consumer service has staticly configured filters, topic update comes in with no dynamic filters.
-// Expected: Static filters remain on the csw.
-func TestTopicUpdateNoDynamicFiltersHasStaticFilters(t *testing.T) {
-	defer leaktest.Check(t)()
-
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	store := mem.NewStore()
-	cs := client.NewMockClient(ctrl)
-	cs.EXPECT().Store(gomock.Any()).Return(store, nil)
-
-	ts, err := topic.NewService(topic.NewServiceOptions().SetConfigService(cs))
-	require.NoError(t, err)
-
-	opts := testOptions().SetTopicService(ts)
-
-	sid1 := services.NewServiceID().SetName("s1")
-
-	cs1 := topic.NewConsumerService().SetConsumptionType(topic.Replicated).SetServiceID(sid1)
-
-	testTopic := topic.NewTopic().
-		SetName(opts.TopicName()).
-		SetNumberOfShards(1).
-		SetConsumerServices([]topic.ConsumerService{cs1})
-	_, err = ts.CheckAndSet(testTopic, kv.UninitializedVersion)
-	require.NoError(t, err)
-
-	sd := services.NewMockServices(ctrl)
-	opts = opts.SetServiceDiscovery(sd)
-	ps1 := testPlacementService(store, sid1)
-	sd.EXPECT().PlacementService(sid1, gomock.Any()).Return(ps1, nil)
-
-	p1 := placement.NewPlacement().
-		SetInstances([]placement.Instance{
-			placement.NewInstance().
-				SetID("i1").
-				SetEndpoint("i1").
-				SetShards(shard.NewShards([]shard.Shard{
-					shard.NewShard(0).SetState(shard.Available),
-				})),
-		}).
-		SetShards([]uint32{0}).
-		SetReplicaFactor(1).
-		SetIsSharded(true)
-	_, err = ps1.Set(p1)
-	require.NoError(t, err)
-
-	w := NewWriter(opts).(*writer)
-
-	// Register static filters for the consumer service.
-	w.RegisterFilter(sid1, producer.NewFilterFunc(func(producer.Message) bool { return true }, producer.PercentageFilter, producer.StaticConfig))
-	w.RegisterFilter(sid1, producer.NewFilterFunc(func(producer.Message) bool { return true }, producer.StoragePolicyFilter, producer.StaticConfig))
-	w.RegisterFilter(sid1, producer.NewFilterFunc(func(producer.Message) bool { return true }, producer.ShardSetFilter, producer.StaticConfig))
-
-	called := atomic.NewInt32(0)
-	w.processFn = func(update interface{}) error {
-		called.Inc()
-		return w.process(update)
-	}
-	require.NoError(t, w.Init())
-	require.Equal(t, 1, int(called.Load()))
-	require.Equal(t, 1, len(w.consumerServiceWriters))
-
-	csw, ok := w.consumerServiceWriters[cs1.ServiceID().String()]
-	require.True(t, ok)
-
-	dataFilters := csw.GetDataFilters()
-	require.Equal(t, 4, len(dataFilters))
-
-	foundPercentageFilter := false
-	foundShardSetFilter := false
-	foundStoragePolicyFilter := false
-	foundAcceptAllFilter := false
-
-	for _, filter := range dataFilters {
-		switch filter.Metadata.FilterType {
-		case producer.PercentageFilter:
-			foundPercentageFilter = true
-			require.Equal(t, filter.Metadata.SourceType, producer.StaticConfig)
-		case producer.ShardSetFilter:
-			foundShardSetFilter = true
-			require.Equal(t, filter.Metadata.SourceType, producer.StaticConfig)
-		case producer.StoragePolicyFilter:
-			foundStoragePolicyFilter = true
-			require.Equal(t, filter.Metadata.SourceType, producer.StaticConfig)
-		case producer.AcceptAllFilter:
-			foundAcceptAllFilter = true
-			require.Equal(t, filter.Metadata.SourceType, producer.StaticConfig)
-		}
-	}
-
-	require.True(t, foundPercentageFilter)
-	require.True(t, foundShardSetFilter)
-	require.True(t, foundStoragePolicyFilter)
-	require.True(t, foundAcceptAllFilter)
-
-	defer csw.Close()
-
-	w.Close()
-}
-
-// Consumer service has no static filters, topic update comes adding dynamic filters. Another topic update comes in changing the dynamic filters.
-// Expected: Dynamic filters are updated on csw.
-func TestTopicUpdateWithDynamicFilter2Updates(t *testing.T) {
-	defer leaktest.Check(t)()
-
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	store := mem.NewStore()
-	cs := client.NewMockClient(ctrl)
-	cs.EXPECT().Store(gomock.Any()).Return(store, nil)
-
-	ts, err := topic.NewService(topic.NewServiceOptions().SetConfigService(cs))
-	require.NoError(t, err)
-
-	opts := testOptions().SetTopicService(ts)
-
-	sid1 := services.NewServiceID().SetName("s1")
-
-	percentageFilter := topic.NewPercentageFilter(50)
-	shardSetFilter := topic.NewShardSetFilter("[1..5]")
-	storagePolicyFilter := topic.NewStoragePolicyFilter([]string{"1m:40d"})
-
-	filterConfig := topic.NewFilterConfig().SetPercentageFilter(percentageFilter).SetShardSetFilter(shardSetFilter).SetStoragePolicyFilter(storagePolicyFilter)
-
-	cs1 := topic.NewConsumerService().SetConsumptionType(topic.Replicated).SetServiceID(sid1).SetDynamicFilterConfigs(filterConfig)
-
-	testTopic := topic.NewTopic().
-		SetName(opts.TopicName()).
-		SetNumberOfShards(1).
-		SetConsumerServices([]topic.ConsumerService{cs1})
-	_, err = ts.CheckAndSet(testTopic, kv.UninitializedVersion)
-	require.NoError(t, err)
-
-	sd := services.NewMockServices(ctrl)
-	opts = opts.SetServiceDiscovery(sd)
-	ps1 := testPlacementService(store, sid1)
-	sd.EXPECT().PlacementService(sid1, gomock.Any()).Return(ps1, nil)
-
-	p1 := placement.NewPlacement().
-		SetInstances([]placement.Instance{
-			placement.NewInstance().
-				SetID("i1").
-				SetEndpoint("i1").
-				SetShards(shard.NewShards([]shard.Shard{
-					shard.NewShard(0).SetState(shard.Available),
-				})),
-		}).
-		SetShards([]uint32{0}).
-		SetReplicaFactor(1).
-		SetIsSharded(true)
-	_, err = ps1.Set(p1)
-	require.NoError(t, err)
-
-	w := NewWriter(opts).(*writer)
-
-	called := atomic.NewInt32(0)
-	w.processFn = func(update interface{}) error {
-		called.Inc()
-		return w.process(update)
-	}
-	require.NoError(t, w.Init())
-	require.Equal(t, 1, int(called.Load()))
-	require.Equal(t, 1, len(w.consumerServiceWriters))
-
-	csw, ok := w.consumerServiceWriters[cs1.ServiceID().String()]
-	require.True(t, ok)
-
-	dataFilters := csw.GetDataFilters()
-	require.Equal(t, 4, len(dataFilters))
-
-	foundPercentageFilter := false
-	foundShardSetFilter := false
-	foundStoragePolicyFilter := false
-	foundAcceptAllFilter := false
-
-	for _, filter := range dataFilters {
-		switch filter.Metadata.FilterType {
-		case producer.PercentageFilter:
-			foundPercentageFilter = true
-			require.Equal(t, filter.Metadata.SourceType, producer.DynamicConfig)
-		case producer.ShardSetFilter:
-			foundShardSetFilter = true
-			require.Equal(t, filter.Metadata.SourceType, producer.DynamicConfig)
-		case producer.StoragePolicyFilter:
-			foundStoragePolicyFilter = true
-			require.Equal(t, filter.Metadata.SourceType, producer.DynamicConfig)
-		case producer.AcceptAllFilter:
-			foundAcceptAllFilter = true
-			require.Equal(t, filter.Metadata.SourceType, producer.StaticConfig)
-		}
-	}
-
-	require.True(t, foundPercentageFilter)
-	require.True(t, foundShardSetFilter)
-	require.True(t, foundStoragePolicyFilter)
-	require.True(t, foundAcceptAllFilter)
-
-	// change the dynamic filters for topic
-	cs1.SetDynamicFilterConfigs(topic.NewFilterConfig().SetPercentageFilter(topic.NewPercentageFilter(75)))
-
-	testTopic = testTopic.
-		SetConsumerServices([]topic.ConsumerService{cs1}).
-		SetVersion(1)
-	_, err = ts.CheckAndSet(testTopic, 1)
-	require.NoError(t, err)
-
-	for called.Load() != 2 {
-		time.Sleep(50 * time.Millisecond)
-	}
-
-	csw, ok = w.consumerServiceWriters[cs1.ServiceID().String()]
-	require.True(t, ok)
-
-	require.Equal(t, 1, len(dataFilters))
-	require.Equal(t, producer.PercentageFilter, dataFilters[0].Metadata.FilterType)
-	require.Equal(t, producer.DynamicConfig, dataFilters[0].Metadata.SourceType)
-
-	defer csw.Close()
-
-	w.Close()
-}
-
-// Consumer service has no static filters, topic update comes adding dynamic filters that that incurs parsing error.
-// Expected: Topic update fails.
-func TestTopicUpdateWithDynamicFiltersInvalidFilter(t *testing.T) {
-	defer leaktest.Check(t)()
-
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	store := mem.NewStore()
-	cs := client.NewMockClient(ctrl)
-	cs.EXPECT().Store(gomock.Any()).Return(store, nil)
-
-	ts, err := topic.NewService(topic.NewServiceOptions().SetConfigService(cs))
-	require.NoError(t, err)
-
-	opts := testOptions().SetTopicService(ts)
-
-	sid1 := services.NewServiceID().SetName("s1")
-
-	shardSetFilter := topic.NewShardSetFilter("randomstringstrinxyz123abc")
-
-	filterConfig := topic.NewFilterConfig().SetShardSetFilter(shardSetFilter)
-
-	cs1 := topic.NewConsumerService().SetConsumptionType(topic.Replicated).SetServiceID(sid1).SetDynamicFilterConfigs(filterConfig)
-
-	testTopic := topic.NewTopic().
-		SetName(opts.TopicName()).
-		SetNumberOfShards(1).
-		SetConsumerServices([]topic.ConsumerService{cs1})
-	_, err = ts.CheckAndSet(testTopic, kv.UninitializedVersion)
-	require.NoError(t, err)
-
-	sd := services.NewMockServices(ctrl)
-	opts = opts.SetServiceDiscovery(sd)
-	ps1 := testPlacementService(store, sid1)
-	sd.EXPECT().PlacementService(sid1, gomock.Any()).Return(ps1, nil)
-
-	p1 := placement.NewPlacement().
-		SetInstances([]placement.Instance{
-			placement.NewInstance().
-				SetID("i1").
-				SetEndpoint("i1").
-				SetShards(shard.NewShards([]shard.Shard{
-					shard.NewShard(0).SetState(shard.Available),
-				})),
-		}).
-		SetShards([]uint32{0}).
-		SetReplicaFactor(1).
-		SetIsSharded(true)
-	_, err = ps1.Set(p1)
-	require.NoError(t, err)
-
-	w := NewWriter(opts).(*writer)
-
-	called := atomic.NewInt32(0)
-	w.processFn = func(update interface{}) error {
-		called.Inc()
-		return w.process(update)
-	}
-	require.Error(t, w.Init())
-
-	w.Close()
+	return true
 }

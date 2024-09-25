@@ -201,7 +201,7 @@ func (t *topic) Validate() error {
 			percentageFilter := filterConfig.PercentageFilter()
 			if percentageFilter != nil {
 				percentage := percentageFilter.Percentage()
-				if percentage < 0 || percentage > 100 {
+				if percentage <= 0 || percentage >= 100 {
 					return fmt.Errorf("invalid topic: invalid percentage in filter for consumer %s", cs.ServiceID().String())
 				}
 			}
@@ -372,6 +372,7 @@ func ConsumerServiceToProto(cs ConsumerService) (*topicpb.ConsumerService, error
 		ConsumptionType: ct,
 		ServiceId:       ServiceIDToProto(cs.ServiceID()),
 		MessageTtlNanos: cs.MessageTTLNanos(),
+		Filters:         DynamicFilterConfigToProto(cs.DynamicFilterConfigs()),
 	}, nil
 }
 
@@ -475,4 +476,40 @@ func NewDynamicFilterConfigFromProto(filterProto *topicpb.Filters) FilterConfig 
 	}
 
 	return &filter
+}
+
+func DynamicFilterConfigToProto(filter FilterConfig) *topicpb.Filters {
+	if filter == nil {
+		return nil
+	}
+
+	return &topicpb.Filters{
+		ShardSetFilter:      ShardSetFilterToProto(filter.ShardSetFilter()),
+		PercentageFilter:    PercentageFilterToProto(filter.PercentageFilter()),
+		StoragePolicyFilter: StoragePolicyFilterToProto(filter.StoragePolicyFilter()),
+	}
+}
+
+func ShardSetFilterToProto(filter ShardSetFilter) *topicpb.ShardSetFilter {
+	if filter == nil {
+		return nil
+	}
+
+	return &topicpb.ShardSetFilter{ShardSet: filter.ShardSet()}
+}
+
+func PercentageFilterToProto(filter PercentageFilter) *topicpb.PercentageFilter {
+	if filter == nil {
+		return nil
+	}
+
+	return &topicpb.PercentageFilter{Percentage: filter.Percentage()}
+}
+
+func StoragePolicyFilterToProto(filter StoragePolicyFilter) *topicpb.StoragePolicyFilter {
+	if filter == nil {
+		return nil
+	}
+
+	return &topicpb.StoragePolicyFilter{StoragePolicies: filter.StoragePolicies()}
 }
