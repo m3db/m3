@@ -254,32 +254,50 @@ func NewFilterConfig() FilterConfig {
 }
 
 func (fc *filterConfig) ShardSetFilter() ShardSetFilter {
+	if fc.shardSetFilterConfig == nil {
+		return nil
+	}
+
 	return fc.shardSetFilterConfig
 }
 
 func (fc *filterConfig) SetShardSetFilter(value ShardSetFilter) FilterConfig {
 	newfc := *fc
-	newfc.shardSetFilterConfig = value.(*shardSetFilter)
+	if value != nil {
+		newfc.shardSetFilterConfig = value.(*shardSetFilter)
+	}
 	return &newfc
 }
 
 func (fc *filterConfig) PercentageFilter() PercentageFilter {
+	if fc.percentageFilterConfig == nil {
+		return nil
+	}
+
 	return fc.percentageFilterConfig
 }
 
 func (fc *filterConfig) SetPercentageFilter(value PercentageFilter) FilterConfig {
 	newfc := *fc
-	newfc.percentageFilterConfig = value.(*percentageFilter)
+	if value != nil {
+		newfc.percentageFilterConfig = value.(*percentageFilter)
+	}
 	return &newfc
 }
 
 func (fc *filterConfig) StoragePolicyFilter() StoragePolicyFilter {
+	if fc.storagePolicyFilterConfig == nil {
+		return nil
+	}
+
 	return fc.storagePolicyFilterConfig
 }
 
 func (fc *filterConfig) SetStoragePolicyFilter(value StoragePolicyFilter) FilterConfig {
 	newfc := *fc
-	newfc.storagePolicyFilterConfig = value.(*storagePolicyFilter)
+	if value != nil {
+		newfc.storagePolicyFilterConfig = value.(*storagePolicyFilter)
+	}
 	return &newfc
 }
 
@@ -388,12 +406,18 @@ func (cs *consumerService) SetMessageTTLNanos(value int64) ConsumerService {
 }
 
 func (cs *consumerService) DynamicFilterConfigs() FilterConfig {
+	if cs.filterConfigs == nil {
+		return nil
+	}
+
 	return cs.filterConfigs
 }
 
 func (cs *consumerService) SetDynamicFilterConfigs(value FilterConfig) ConsumerService {
 	newcs := *cs
-	newcs.filterConfigs = value.(*filterConfig)
+	if value != nil {
+		newcs.filterConfigs = value.(*filterConfig)
+	}
 	return &newcs
 }
 

@@ -181,7 +181,7 @@ func TestTopicString(t *testing.T) {
 	numOfShards: 1024
 	consumerServices: {
 		{service: [name: s1, env: env1, zone: zone1], consumption type: shared}
-		{service: [name: s2, env: env2, zone: zone2], consumption type: shared, ttl: 1m0s, shard set filter: [10..23], storage policy filter: [1m:40d], percentage filter: 0.5}
+		{service: [name: s2, env: env2, zone: zone2], consumption type: shared, ttl: 1m0s, shard set filter: [10..23], percentage filter: 0.5, storage policy filter: [1m:40d]}
 	}
 }
 `
