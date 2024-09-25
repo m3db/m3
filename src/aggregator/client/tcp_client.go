@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"math"
 	"time"
+	"unsafe"
 
 	"github.com/uber-go/tally"
 
@@ -301,7 +302,9 @@ func (c *TCPClient) write(
 			multiErr = multiErr.Add(err)
 			continue
 		}
-
+		// using unsfae.Sizeof to avoid the overhead of marshaling the payload to bytes
+		// tradeoff is that this is not 100% accurate, but should be close enough
+		c.metrics.totalBytesSent.Inc(int64(unsafe.Sizeof(payload)))
 		oneOrMoreSucceeded = true
 	}
 
@@ -347,6 +350,7 @@ type tcpClientMetrics struct {
 	shardNotOwned          tally.Counter
 	shardNotWriteable      tally.Counter
 	dropped                tally.Counter
+	totalBytesSent         tally.Counter
 }
 
 func newTCPClientMetrics(
@@ -362,5 +366,6 @@ func newTCPClientMetrics(
 		shardNotOwned:          scope.Counter("shard-not-owned"),
 		shardNotWriteable:      scope.Counter("shard-not-writeable"),
 		dropped:                scope.Counter("dropped"),
+		totalBytesSent:         scope.Counter("total-bytes-sent"),
 	}
 }
