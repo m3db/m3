@@ -105,6 +105,7 @@ func (cswm *consumerServiceWriterMetrics) getGranularFilterCounterMapKey(metadat
 	return fmt.Sprintf("%s::%s", metadata.FilterType.String(), metadata.SourceType.String())
 }
 
+//nolint:dupl
 func (cswm *consumerServiceWriterMetrics) getFilterAcceptedGranularCounter(metadata producer.FilterFuncMetadata) tally.Counter {
 	key := cswm.getGranularFilterCounterMapKey(metadata)
 
@@ -126,6 +127,7 @@ func (cswm *consumerServiceWriterMetrics) getFilterAcceptedGranularCounter(metad
 	return val
 }
 
+//nolint:dupl
 func (cswm *consumerServiceWriterMetrics) getFilterNotAcceptedGranularCounter(metadata producer.FilterFuncMetadata) tally.Counter {
 	key := cswm.getGranularFilterCounterMapKey(metadata)
 

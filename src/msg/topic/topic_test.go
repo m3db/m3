@@ -149,7 +149,10 @@ func TestTopicString(t *testing.T) {
 	shardSetFilter := NewShardSetFilter("10..23")
 	storagePolicyFilter := NewStoragePolicyFilter([]string{"1m:40d"})
 
-	filterConfig := NewFilterConfig().SetPercentageFilter(percentageFilter).SetShardSetFilter(shardSetFilter).SetStoragePolicyFilter(storagePolicyFilter)
+	filterConfig := NewFilterConfig().
+		SetPercentageFilter(percentageFilter).
+		SetShardSetFilter(shardSetFilter).
+		SetStoragePolicyFilter(storagePolicyFilter)
 
 	cs1 := NewConsumerService().
 		SetConsumptionType(Shared).
@@ -174,6 +177,7 @@ func TestTopicString(t *testing.T) {
 		SetConsumerServices(
 			[]ConsumerService{cs1, cs2},
 		)
+	//nolint:lll
 	str := `
 {
 	version: 5
@@ -231,7 +235,11 @@ func TestTopicValidation(t *testing.T) {
 	require.NoError(t, err)
 
 	topic = topic.SetConsumerServices([]ConsumerService{
-		cs1.SetDynamicFilterConfigs(NewFilterConfig().SetPercentageFilter(NewPercentageFilter(0.4)).SetStoragePolicyFilter(NewStoragePolicyFilter([]string{"1m:40d"})).SetShardSetFilter(NewShardSetFilter("[10..23]"))),
+		cs1.SetDynamicFilterConfigs(
+			NewFilterConfig().
+				SetPercentageFilter(NewPercentageFilter(0.4)).
+				SetStoragePolicyFilter(NewStoragePolicyFilter([]string{"1m:40d"})).
+				SetShardSetFilter(NewShardSetFilter("[10..23]"))),
 	})
 	err = topic.Validate()
 	require.NoError(t, err)

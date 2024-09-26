@@ -211,8 +211,15 @@ func TestWriterRegisterFilter(t *testing.T) {
 	csw1 := NewMockconsumerServiceWriter(ctrl)
 
 	sid2 := services.NewServiceID().SetName("s2")
-	filter := producer.NewFilterFunc(func(producer.Message) bool { return false }, producer.UnspecifiedFilter, producer.StaticConfig)
-	filter2 := producer.NewFilterFunc(func(producer.Message) bool { return true }, producer.UnspecifiedFilter, producer.StaticConfig)
+	filter := producer.NewFilterFunc(
+		func(producer.Message) bool { return false },
+		producer.UnspecifiedFilter,
+		producer.StaticConfig)
+
+	filter2 := producer.NewFilterFunc(
+		func(producer.Message) bool { return true },
+		producer.UnspecifiedFilter,
+		producer.StaticConfig)
 
 	w := NewWriter(opts).(*writer)
 	w.consumerServiceWriters[cs1.ServiceID().String()] = csw1
@@ -898,8 +905,12 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 		},
 
 		{
-			name:          "Has_Static_Filters_One_Topic_Update_With_Dynamic_Filters",
-			staticFilters: []producer.FilterFuncType{producer.PercentageFilter, producer.ShardSetFilter, producer.StoragePolicyFilter},
+			name: "Has_Static_Filters_One_Topic_Update_With_Dynamic_Filters",
+			staticFilters: []producer.FilterFuncType{
+				producer.PercentageFilter,
+				producer.ShardSetFilter,
+				producer.StoragePolicyFilter},
+
 			topicUpdate1: testTopicUpdate{
 				dynamicFilterConfig: testDynamicFilterConfig,
 				expectedDataFilters: []producer.FilterFuncMetadata{
@@ -914,8 +925,11 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 		},
 
 		{
-			name:          "Has_Static_Filters_Two_Topic_Updates_With_No_Dynamic_Filters",
-			staticFilters: []producer.FilterFuncType{producer.PercentageFilter, producer.ShardSetFilter, producer.StoragePolicyFilter},
+			name: "Has_Static_Filters_Two_Topic_Updates_With_No_Dynamic_Filters",
+			staticFilters: []producer.FilterFuncType{
+				producer.PercentageFilter,
+				producer.ShardSetFilter,
+				producer.StoragePolicyFilter},
 			topicUpdate1: testTopicUpdate{
 				dynamicFilterConfig: nil,
 				expectedDataFilters: []producer.FilterFuncMetadata{
@@ -965,7 +979,8 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 			name:          "No_Static_Config_One_Topic_Update_With_Invalid_Dynamic_Shard_Set_Filter",
 			staticFilters: []producer.FilterFuncType{},
 			topicUpdate1: testTopicUpdate{
-				dynamicFilterConfig:    topic.NewFilterConfig().SetShardSetFilter(topic.NewShardSetFilter("randomstringstrinxyz123abc")),
+				dynamicFilterConfig: topic.NewFilterConfig().
+					SetShardSetFilter(topic.NewShardSetFilter("randomstringstrinxyz123abc")),
 				expectedDataFilters:    []producer.FilterFuncMetadata{},
 				expectTopicUpdateError: true,
 				expectedCswCount:       0,
@@ -986,10 +1001,12 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 		},
 
 		{
+			// nolint:lll
 			name:          "No_Static_Config_First_Topic_Update_With_Dynamic_Storage_Policy_Filter_Second_Topic_Update_With_Invalid_Dynamic_Shard_Set_Filter",
 			staticFilters: []producer.FilterFuncType{},
 			topicUpdate1: testTopicUpdate{
-				dynamicFilterConfig: topic.NewFilterConfig().SetStoragePolicyFilter(topic.NewStoragePolicyFilter([]string{"1m:40d"})),
+				dynamicFilterConfig: topic.NewFilterConfig().
+					SetStoragePolicyFilter(topic.NewStoragePolicyFilter([]string{"1m:40d"})),
 				expectedDataFilters: []producer.FilterFuncMetadata{
 					{FilterType: producer.StoragePolicyFilter, SourceType: producer.DynamicConfig},
 					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
@@ -997,7 +1014,8 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 				expectedCswCount: 1,
 			},
 			topicUpdate2: &testTopicUpdate{
-				dynamicFilterConfig: topic.NewFilterConfig().SetShardSetFilter(topic.NewShardSetFilter("randomstringstrinxyz123abc")),
+				dynamicFilterConfig: topic.NewFilterConfig().
+					SetShardSetFilter(topic.NewShardSetFilter("randomstringstrinxyz123abc")),
 				expectedDataFilters: []producer.FilterFuncMetadata{
 					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
 					{FilterType: producer.StoragePolicyFilter, SourceType: producer.DynamicConfig}, // second update should not be applied
@@ -1007,6 +1025,7 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 		},
 
 		{
+			// nolint:lll
 			name:          "No_Static_Config_Two_Topic_Updates_First_Update_Adds_Dynamic_Filters_Second_Update_Removes_Dynamic_Filters",
 			staticFilters: []producer.FilterFuncType{},
 			topicUpdate1: testTopicUpdate{
@@ -1062,9 +1081,8 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 			if test.topicUpdate1.expectTopicValidationError {
 				require.Error(t, err, "expect error after setting topic")
 				return
-			} else {
-				require.NoError(t, err, "expect no error after setting topic")
 			}
+			require.NoError(t, err, "expect no error after setting topic")
 
 			sd := services.NewMockServices(ctrl)
 			opts = opts.SetServiceDiscovery(sd)
@@ -1089,7 +1107,9 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 			w := NewWriter(opts).(*writer)
 
 			for _, filterType := range test.staticFilters {
-				w.RegisterFilter(sid1, producer.NewFilterFunc(func(producer.Message) bool { return true }, filterType, producer.StaticConfig))
+				w.RegisterFilter(
+					sid1,
+					producer.NewFilterFunc(func(producer.Message) bool { return true }, filterType, producer.StaticConfig))
 			}
 
 			called := atomic.NewInt32(0)
@@ -1107,7 +1127,11 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 			}
 
 			require.Equal(t, 1, int(called.Load()), "expect processFn to be called once")
-			require.Equal(t, test.topicUpdate1.expectedCswCount, len(w.consumerServiceWriters), "expect csw count to match after 1st topic update")
+			require.Equal(
+				t,
+				test.topicUpdate1.expectedCswCount,
+				len(w.consumerServiceWriters),
+				"expect csw count to match after 1st topic update")
 
 			if test.topicUpdate1.expectedCswCount > 0 {
 				csw, ok := w.consumerServiceWriters[cs1.ServiceID().String()]
@@ -1119,7 +1143,13 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 					actualDataFilterMetadatas = append(actualDataFilterMetadatas, filter.Metadata)
 				}
 
-				require.True(t, testAreFilterFuncMetadataSlicesEqual(actualDataFilterMetadatas, test.topicUpdate1.expectedDataFilters), "expect data filters to match after 1st topic update", actualDataFilterMetadatas, test.topicUpdate1.expectedDataFilters)
+				require.True(t,
+					testAreFilterFuncMetadataSlicesEqual(
+						actualDataFilterMetadatas,
+						test.topicUpdate1.expectedDataFilters),
+					"expect data filters to match after 1st topic update",
+					actualDataFilterMetadatas,
+					test.topicUpdate1.expectedDataFilters)
 
 				if test.topicUpdate2 == nil {
 					csw.Close()
@@ -1137,6 +1167,7 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 					SetConsumerServices([]topic.ConsumerService{cs1}).
 					SetVersion(1)
 				_, err = ts.CheckAndSet(testTopic, 1)
+				require.NoError(t, err, "expect no error after 2nd topic update")
 
 				for called.Load() != 2 {
 					time.Sleep(50 * time.Millisecond)
