@@ -388,7 +388,9 @@ func ParseDynamicFilters(csw consumerServiceWriter, filterConfig topic.FilterCon
 }
 
 // ParseShardSetFilterFromTopicUpdate parses a shard set filter from a topic update.
-func ParseShardSetFilterFromTopicUpdate(csw consumerServiceWriter, ssf topic.ShardSetFilter) (producer.FilterFunc, error) {
+func ParseShardSetFilterFromTopicUpdate(
+	csw consumerServiceWriter,
+	ssf topic.ShardSetFilter) (producer.FilterFunc, error) {
 	var filterFunc producer.FilterFunc
 
 	shardSetString := ssf.ShardSet()
@@ -405,17 +407,19 @@ func ParseShardSetFilterFromTopicUpdate(csw consumerServiceWriter, ssf topic.Sha
 }
 
 // ParseStoragePolicyFilterFromTopicUpdate parses a storage policy filter from a topic update.
-func ParseStoragePolicyFilterFromTopicUpdate(csw consumerServiceWriter, spf topic.StoragePolicyFilter) (producer.FilterFunc, error) {
+func ParseStoragePolicyFilterFromTopicUpdate(
+	csw consumerServiceWriter,
+	spf topic.StoragePolicyFilter) (producer.FilterFunc, error) {
 	var filterFunc producer.FilterFunc
 
 	storagePolicies := spf.StoragePolicies()
 
-	parsedPolicies := make([]policy.StoragePolicy, len(storagePolicies))
+	parsedPolicies := []policy.StoragePolicy{}
 	for _, storagePolicyString := range storagePolicies {
 		parsedPolicy, err := policy.ParseStoragePolicy(storagePolicyString)
 
 		if err != nil {
-			return filterFunc, fmt.Errorf("Error parsing storage policy: %v", err)
+			return filterFunc, fmt.Errorf("Error parsing storage policy: %w", err)
 		}
 
 		parsedPolicies = append(parsedPolicies, parsedPolicy)
@@ -427,8 +431,10 @@ func ParseStoragePolicyFilterFromTopicUpdate(csw consumerServiceWriter, spf topi
 }
 
 // ParsePercentageFilterFromFromTopicUpdate parses a percentage filter from a topic update.
-func ParsePercentageFilterFromFromTopicUpdate(csw consumerServiceWriter, pf topic.PercentageFilter) (producer.FilterFunc, error) {
-	filterFunc := producer.FilterFunc{}
+func ParsePercentageFilterFromFromTopicUpdate(
+	csw consumerServiceWriter,
+	pf topic.PercentageFilter) (producer.FilterFunc, error) {
+	var filterFunc producer.FilterFunc
 
 	percentage := pf.Percentage()
 

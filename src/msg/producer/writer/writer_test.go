@@ -1018,7 +1018,8 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 					SetShardSetFilter(topic.NewShardSetFilter("randomstringstrinxyz123abc")),
 				expectedDataFilters: []producer.FilterFuncMetadata{
 					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
-					{FilterType: producer.StoragePolicyFilter, SourceType: producer.DynamicConfig}, // second update should not be applied
+					// second update should not be applied
+					{FilterType: producer.StoragePolicyFilter, SourceType: producer.DynamicConfig},
 				},
 				expectedCswCount: 1,
 			},
@@ -1173,7 +1174,11 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 					time.Sleep(50 * time.Millisecond)
 				}
 
-				require.Equal(t, test.topicUpdate1.expectedCswCount, len(w.consumerServiceWriters), "expect csw count to match after 2nd topic update")
+				require.Equal(
+					t,
+					test.topicUpdate1.expectedCswCount,
+					len(w.consumerServiceWriters),
+					"expect csw count to match after 2nd topic update")
 
 				if test.topicUpdate2.expectedCswCount == 0 {
 					return
@@ -1188,7 +1193,13 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 					actualDataFilterMetadatas = append(actualDataFilterMetadatas, filter.Metadata)
 				}
 
-				require.True(t, testAreFilterFuncMetadataSlicesEqual(actualDataFilterMetadatas, test.topicUpdate2.expectedDataFilters), "expect data filters to match after 2nd topic update", actualDataFilterMetadatas, test.topicUpdate2.expectedDataFilters)
+				require.True(t,
+					testAreFilterFuncMetadataSlicesEqual(
+						actualDataFilterMetadatas,
+						test.topicUpdate2.expectedDataFilters),
+					"expect data filters to match after 2nd topic update",
+					actualDataFilterMetadatas,
+					test.topicUpdate2.expectedDataFilters)
 
 				csw.Close()
 			}

@@ -106,7 +106,8 @@ func (cswm *consumerServiceWriterMetrics) getGranularFilterCounterMapKey(metadat
 }
 
 //nolint:dupl
-func (cswm *consumerServiceWriterMetrics) getFilterAcceptedGranularCounter(metadata producer.FilterFuncMetadata) tally.Counter {
+func (cswm *consumerServiceWriterMetrics) getFilterAcceptedGranularCounter(
+	metadata producer.FilterFuncMetadata) tally.Counter {
 	key := cswm.getGranularFilterCounterMapKey(metadata)
 
 	cswm.filterAcceptedGranularLock.RLock()
@@ -128,7 +129,8 @@ func (cswm *consumerServiceWriterMetrics) getFilterAcceptedGranularCounter(metad
 }
 
 //nolint:dupl
-func (cswm *consumerServiceWriterMetrics) getFilterNotAcceptedGranularCounter(metadata producer.FilterFuncMetadata) tally.Counter {
+func (cswm *consumerServiceWriterMetrics) getFilterNotAcceptedGranularCounter(
+	metadata producer.FilterFuncMetadata) tally.Counter {
 	key := cswm.getGranularFilterCounterMapKey(metadata)
 
 	cswm.filterNotAcceptedGranularLock.RLock()

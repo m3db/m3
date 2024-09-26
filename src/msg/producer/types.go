@@ -141,13 +141,16 @@ func (f FilterFuncConfigSourceType) String() string {
 	return "Unknown"
 }
 
+// FilterFuncMetadata contains metadata about a filter function.
 type FilterFuncMetadata struct {
 	FilterType FilterFuncType
 	SourceType FilterFuncConfigSourceType
 }
 
 // NewFilterFuncMetadata creates a new filter function metadata.
-func NewFilterFuncMetadata(filterType FilterFuncType, sourceType FilterFuncConfigSourceType) FilterFuncMetadata {
+func NewFilterFuncMetadata(
+	filterType FilterFuncType,
+	sourceType FilterFuncConfigSourceType) FilterFuncMetadata {
 	return FilterFuncMetadata{
 		FilterType: filterType,
 		SourceType: sourceType,
@@ -161,7 +164,10 @@ type FilterFunc struct {
 }
 
 // NewFilterFunc creates a new filter function.
-func NewFilterFunc(function func(m Message) bool, filterType FilterFuncType, sourceType FilterFuncConfigSourceType) FilterFunc {
+func NewFilterFunc(
+	function func(m Message) bool,
+	filterType FilterFuncType,
+	sourceType FilterFuncConfigSourceType) FilterFunc {
 	return FilterFunc{
 		Function: function,
 		Metadata: NewFilterFuncMetadata(filterType, sourceType),
