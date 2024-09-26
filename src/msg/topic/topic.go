@@ -418,6 +418,8 @@ func (cs *consumerService) SetDynamicFilterConfigs(value FilterConfig) ConsumerS
 	newcs := *cs
 	if value != nil {
 		newcs.filterConfigs = value.(*filterConfig)
+	} else {
+		newcs.filterConfigs = nil
 	}
 	return &newcs
 }
