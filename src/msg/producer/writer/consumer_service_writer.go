@@ -88,7 +88,7 @@ type consumerServiceWriter interface {
 	GetDataFilters() []producer.FilterFunc
 }
 
-type ConsumerServiceWriterMetrics struct {
+type consumerServiceWriterMetrics struct {
 	placementError                tally.Counter
 	placementUpdate               tally.Counter
 	queueSize                     tally.Gauge
@@ -101,11 +101,11 @@ type ConsumerServiceWriterMetrics struct {
 	scope                         tally.Scope
 }
 
-func (cswm *ConsumerServiceWriterMetrics) getGranularFilterCounterMapKey(metadata producer.FilterFuncMetadata) string {
+func (cswm *consumerServiceWriterMetrics) getGranularFilterCounterMapKey(metadata producer.FilterFuncMetadata) string {
 	return fmt.Sprintf("%s::%s", metadata.FilterType.String(), metadata.SourceType.String())
 }
 
-func (cswm *ConsumerServiceWriterMetrics) getFilterAcceptedGranularCounter(metadata producer.FilterFuncMetadata) tally.Counter {
+func (cswm *consumerServiceWriterMetrics) getFilterAcceptedGranularCounter(metadata producer.FilterFuncMetadata) tally.Counter {
 	key := cswm.getGranularFilterCounterMapKey(metadata)
 
 	cswm.filterAcceptedGranularLock.RLock()
@@ -126,7 +126,7 @@ func (cswm *ConsumerServiceWriterMetrics) getFilterAcceptedGranularCounter(metad
 	return val
 }
 
-func (cswm *ConsumerServiceWriterMetrics) getFilterNotAcceptedGranularCounter(metadata producer.FilterFuncMetadata) tally.Counter {
+func (cswm *consumerServiceWriterMetrics) getFilterNotAcceptedGranularCounter(metadata producer.FilterFuncMetadata) tally.Counter {
 	key := cswm.getGranularFilterCounterMapKey(metadata)
 
 	cswm.filterNotAcceptedGranularLock.RLock()
@@ -147,8 +147,8 @@ func (cswm *ConsumerServiceWriterMetrics) getFilterNotAcceptedGranularCounter(me
 	return val
 }
 
-func newConsumerServiceWriterMetrics(scope tally.Scope) ConsumerServiceWriterMetrics {
-	return ConsumerServiceWriterMetrics{
+func newConsumerServiceWriterMetrics(scope tally.Scope) consumerServiceWriterMetrics {
+	return consumerServiceWriterMetrics{
 		placementUpdate:           scope.Counter("placement-update"),
 		placementError:            scope.Counter("placement-error"),
 		filterAccepted:            scope.Counter("filter-accepted"),
@@ -176,7 +176,7 @@ type consumerServiceWriterImpl struct {
 	closed          bool
 	doneCh          chan struct{}
 	wg              sync.WaitGroup
-	m               ConsumerServiceWriterMetrics
+	m               consumerServiceWriterMetrics
 	cm              consumerWriterMetrics
 
 	processFn watch.ProcessFn

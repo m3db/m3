@@ -171,35 +171,48 @@ func (w *writer) process(update interface{}) error {
 		return fmt.Errorf("invalid topic update with %d shards, expecting %d", t.NumberOfShards(), numShards)
 	}
 	var (
-		iOpts                                   = w.opts.InstrumentOptions()
-		newConsumerServiceWriters               = make(map[string]consumerServiceWriter, len(t.ConsumerServices()))
-		toBeClosed                              []consumerServiceWriter
-		multiErr                                xerrors.MultiError
-		consumerServicesWithDynamicFilterConfig = make(map[string]bool, len(t.ConsumerServices()))
+		iOpts                     = w.opts.InstrumentOptions()
+		newConsumerServiceWriters = make(map[string]consumerServiceWriter, len(t.ConsumerServices()))
+		toBeClosed                []consumerServiceWriter
+		multiErr                  xerrors.MultiError
 	)
 	for _, cs := range t.ConsumerServices() {
 		key := cs.ServiceID().String()
 		csw, ok := w.consumerServiceWriters[key]
 
 		if ok {
+			// update existing consumer service writer
+
 			csw.SetMessageTTLNanos(cs.MessageTTLNanos())
 
 			if cs.DynamicFilterConfigs() != nil {
-				consumerServicesWithDynamicFilterConfig[key] = true
+				dynamicFilters, err := ParseDynamicFilters(csw, cs.DynamicFilterConfigs())
 
-				csw.UnregisterFilters()
-				err := RegisterDynamicFilters(csw, cs.DynamicFilterConfigs())
 				if err != nil {
-					w.logger.Error("could not register dynamic filters",
+					w.logger.Error("could not update dynamic filters on consumer service writer, error registering dynamic filters",
 						zap.String("writer", cs.String()), zap.Error(err))
 
 					multiErr = multiErr.Add(err)
+				} else {
+					// unregister all filters and register the new ones
+					csw.UnregisterFilters()
+					for _, dynamicFilter := range dynamicFilters {
+						csw.RegisterFilter(dynamicFilter)
+					}
+				}
+			} else {
+				// sending no dynamic filters means we should remove all filters, unless there are static filters
+				// if there are no static filters, remove all filters
+				_, ok := w.filterRegistry[key]
+
+				if !ok {
+					csw.UnregisterFilters()
 				}
 			}
 
 			newConsumerServiceWriters[key] = csw
 
-			w.logger.Debug("Updated consumer service writer", zap.String("consumer-service", cs.String()))
+			w.logger.Info("Updated consumer service writer", zap.String("consumer-service", cs.String()))
 
 			continue
 		}
@@ -209,18 +222,9 @@ func (w *writer) process(update interface{}) error {
 			"consumer-service-env":  cs.ServiceID().Environment(),
 			"consumption-type":      cs.ConsumptionType().String(),
 		})
+
+		// create new consumer service writer
 		csw, err := newConsumerServiceWriter(cs, t.NumberOfShards(), w.opts.SetInstrumentOptions(iOpts.SetMetricsScope(scope)))
-
-		if cs.DynamicFilterConfigs() != nil {
-			consumerServicesWithDynamicFilterConfig[key] = true
-			err := RegisterDynamicFilters(csw, cs.DynamicFilterConfigs())
-			if err != nil {
-				w.logger.Error("could not register dynamic filters",
-					zap.String("writer", cs.String()), zap.Error(err))
-
-				multiErr = multiErr.Add(err)
-			}
-		}
 
 		if err != nil {
 			w.logger.Error("could not create consumer service writer",
@@ -228,6 +232,32 @@ func (w *writer) process(update interface{}) error {
 			multiErr = multiErr.Add(err)
 			continue
 		}
+
+		// if there are dynamicly configured filters, they are the source of truth
+		if cs.DynamicFilterConfigs() != nil {
+			dynamicFilters, err := ParseDynamicFilters(csw, cs.DynamicFilterConfigs())
+
+			if err != nil {
+				w.logger.Error("could not create consumer service writer, error registering dynamic filters",
+					zap.String("writer", cs.String()), zap.Error(err))
+
+				multiErr = multiErr.Add(err)
+				continue
+			} else {
+				for _, dynamicFilter := range dynamicFilters {
+					csw.RegisterFilter(dynamicFilter)
+				}
+			}
+
+		} else {
+			// if there are no dynamicly configured filters, static filters are the source of truth
+			if staticFilters, ok := w.filterRegistry[key]; ok {
+				for _, staticFilter := range staticFilters {
+					csw.RegisterFilter(staticFilter)
+				}
+			}
+		}
+
 		if err = csw.Init(w.initType); err != nil {
 			w.logger.Error("could not init consumer service writer",
 				zap.String("writer", cs.String()), zap.Error(err))
@@ -256,17 +286,6 @@ func (w *writer) process(update interface{}) error {
 
 	// Apply the new consumer service writers.
 	w.Lock()
-
-	for key, csw := range newConsumerServiceWriters {
-		_, usingDynamicConfigForFilters := consumerServicesWithDynamicFilterConfig[key]
-		if !usingDynamicConfigForFilters {
-			if filters, ok := w.filterRegistry[key]; ok {
-				for _, filter := range filters {
-					csw.RegisterFilter(filter)
-				}
-			}
-		}
-	}
 
 	w.consumerServiceWriters = newConsumerServiceWriters
 	w.numShards = t.NumberOfShards()
@@ -327,47 +346,65 @@ func (w *writer) UnregisterFilters(sid services.ServiceID) {
 	}
 }
 
-func RegisterDynamicFilters(csw consumerServiceWriter, filterConfig topic.FilterConfig) error {
+func ParseDynamicFilters(csw consumerServiceWriter, filterConfig topic.FilterConfig) ([]producer.FilterFunc, error) {
+	filterFuncs := []producer.FilterFunc{}
+
 	if filterConfig == nil {
-		return errors.New("nil filter config")
+		return filterFuncs, errors.New("nil filter config")
 	}
 
 	if filterConfig.ShardSetFilter() != nil {
-		if err := RegisterShardSetFilterFromTopicUpdate(csw, filterConfig.ShardSetFilter()); err != nil {
-			return fmt.Errorf("Error registering shard set filter: %v", err)
+		shardSetFilterFunc, err := ParseShardSetFilterFromTopicUpdate(csw, filterConfig.ShardSetFilter())
+
+		if err != nil {
+			return filterFuncs, fmt.Errorf("Error registering shard set filter: %v", err)
 		}
+
+		filterFuncs = append(filterFuncs, shardSetFilterFunc)
 	}
 
 	if filterConfig.StoragePolicyFilter() != nil {
-		if err := RegisterStoragePolicyFilterFromTopicUpdate(csw, filterConfig.StoragePolicyFilter()); err != nil {
-			return fmt.Errorf("Error registering storage policy filter: %v", err)
+		storagePolicyFilterFunc, err := ParseStoragePolicyFilterFromTopicUpdate(csw, filterConfig.StoragePolicyFilter())
+
+		if err != nil {
+			return filterFuncs, fmt.Errorf("Error registering storage policy filter: %v", err)
 		}
+
+		filterFuncs = append(filterFuncs, storagePolicyFilterFunc)
 	}
 
 	if filterConfig.PercentageFilter() != nil {
-		if err := RegisterPercentageFilterFromFromTopicUpdate(csw, filterConfig.PercentageFilter()); err != nil {
-			return fmt.Errorf("Error registering percentage filter: %v", err)
+		percentageFilterFunc, err := ParsePercentageFilterFromFromTopicUpdate(csw, filterConfig.PercentageFilter())
+
+		if err != nil {
+			return filterFuncs, fmt.Errorf("Error registering percentage filter: %v", err)
 		}
+
+		filterFuncs = append(filterFuncs, percentageFilterFunc)
 	}
 
-	return nil
+	return filterFuncs, nil
 }
 
-func RegisterShardSetFilterFromTopicUpdate(csw consumerServiceWriter, ssf topic.ShardSetFilter) error {
+func ParseShardSetFilterFromTopicUpdate(csw consumerServiceWriter, ssf topic.ShardSetFilter) (producer.FilterFunc, error) {
+	filterFunc := producer.FilterFunc{}
+
 	shardSetString := ssf.ShardSet()
 
 	shardSet, err := sharding.ParseShardSet(shardSetString)
 
 	if err != nil {
-		return errors.New("Error parsing shard set")
+		return filterFunc, errors.New("Error parsing shard set")
 	}
 
-	csw.RegisterFilter(filter.NewShardSetFilter(shardSet, producer.DynamicConfig))
+	filterFunc = filter.NewShardSetFilter(shardSet, producer.DynamicConfig)
 
-	return nil
+	return filterFunc, nil
 }
 
-func RegisterStoragePolicyFilterFromTopicUpdate(csw consumerServiceWriter, spf topic.StoragePolicyFilter) error {
+func ParseStoragePolicyFilterFromTopicUpdate(csw consumerServiceWriter, spf topic.StoragePolicyFilter) (producer.FilterFunc, error) {
+	filterFunc := producer.FilterFunc{}
+
 	storagePolicies := spf.StoragePolicies()
 
 	parsedPolicies := make([]policy.StoragePolicy, len(storagePolicies))
@@ -375,21 +412,23 @@ func RegisterStoragePolicyFilterFromTopicUpdate(csw consumerServiceWriter, spf t
 		parsedPolicy, err := policy.ParseStoragePolicy(storagePolicyString)
 
 		if err != nil {
-			return fmt.Errorf("Error parsing storage policy: %v", err)
+			return filterFunc, fmt.Errorf("Error parsing storage policy: %v", err)
 		}
 
 		parsedPolicies = append(parsedPolicies, parsedPolicy)
 
-		csw.RegisterFilter(handlerWriter.NewStoragePolicyFilter(parsedPolicies, producer.DynamicConfig))
+		filterFunc = handlerWriter.NewStoragePolicyFilter(parsedPolicies, producer.DynamicConfig)
 	}
 
-	return nil
+	return filterFunc, nil
 }
 
-func RegisterPercentageFilterFromFromTopicUpdate(csw consumerServiceWriter, pf topic.PercentageFilter) error {
+func ParsePercentageFilterFromFromTopicUpdate(csw consumerServiceWriter, pf topic.PercentageFilter) (producer.FilterFunc, error) {
+	filterFunc := producer.FilterFunc{}
+
 	percentage := pf.Percentage()
 
-	csw.RegisterFilter(filter.NewPercentageFilter(percentage, producer.DynamicConfig))
+	filterFunc = filter.NewPercentageFilter(percentage, producer.DynamicConfig)
 
-	return nil
+	return filterFunc, nil
 }
