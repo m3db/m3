@@ -369,7 +369,7 @@ func TestTreeGetData(t *testing.T) {
 	less := func(a, b string) bool { return a < b }
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tree := New[*Rule, string]()
+			tree := New[*Rule]()
 			for _, rule := range tt.rules {
 				for _, tagFilter := range rule.TagFilters {
 					err := tree.AddTagFilter(tagFilter, &rule)
@@ -377,13 +377,21 @@ func TestTreeGetData(t *testing.T) {
 				}
 			}
 
-			actual := tree.Match(tt.inputTags)
+			actual, err := tree.Match(tt.inputTags)
+			resolved := make([]string, 0, len(actual))
+			for _, r := range actual {
+				ns, err := r.Resolve(tt.inputTags)
+				require.NoError(t, err)
+				resolved = append(resolved, ns)
+			}
+
+			require.NoError(t, err)
 			if len(tt.expected) == 0 {
 				require.Empty(t, actual)
 				return
 			}
 
-			actualNamespaces := uniqueNamespaces(actual)
+			actualNamespaces := uniqueNamespaces(resolved)
 			require.Equal(t, "", cmp.Diff(tt.expected, actualNamespaces, cmpopts.SortSlices(less)))
 		})
 	}
@@ -391,8 +399,8 @@ func TestTreeGetData(t *testing.T) {
 
 func uniqueNamespaces(input []string) []string {
 	unique := make(map[string]struct{})
-	for _, ns := range input {
-		unique[ns] = struct{}{}
+	for _, r := range input {
+		unique[r] = struct{}{}
 	}
 
 	output := make([]string, 0, len(unique))

@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	_numFilters = 100
+	_numFilters = 1000000
 )
 
 // Predefined tag names and values for benchmarks
@@ -39,7 +39,7 @@ func BenchmarkTagFilterTreeMatch(b *testing.B) {
 		"tag4": "value4",
 		"tag5": "value5",
 	}
-	tree := New[*Rule, string]()
+	tree := New[*Rule]()
 	data := &Rule{}
 
 	for _, f := range filters {
@@ -49,7 +49,7 @@ func BenchmarkTagFilterTreeMatch(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = tree.Match(input)
+		_, _ = tree.Match(input)
 	}
 }
 

@@ -59,14 +59,24 @@ func (a *attributor) Match(metricID []byte) ([]rules.Result, error) {
 	}
 
 	ruleMap = make(map[string]rules.Result)
-	for _, rule := range customMatcher.Match(metricID) {
+	customMatchedRules, err := customMatcher.Match(metricID)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, rule := range customMatchedRules {
 		if rule.Rule == nil {
 			return nil, errors.New("custom rule is nil")
 		}
 		ruleMap[rule.Rule.Name()] = rule
 	}
 
-	for _, rule := range a.defaultMatcher.Match(metricID) {
+	defaultMatchedRules, err := a.defaultMatcher.Match(metricID)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, rule := range defaultMatchedRules {
 		if rule.Rule == nil {
 			return nil, errors.New("default rule is nil")
 		}

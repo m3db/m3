@@ -493,7 +493,7 @@ func newTestAttributorWithRuleSet(
 type testDefaultRuleMatcher struct {
 }
 
-func (m *testDefaultRuleMatcher) Match(_ []byte) []rules.Result {
+func (m *testDefaultRuleMatcher) Match(_ []byte) ([]rules.Result, error) {
 	return []rules.Result{
 		{
 			Rule: rules.NewRule().
@@ -502,7 +502,7 @@ func (m *testDefaultRuleMatcher) Match(_ []byte) []rules.Result {
 			PrimaryNS:   "global",
 			SecondaryNS: "",
 		},
-	}
+	}, nil
 }
 
 func (m *testDefaultRuleMatcher) Update(_ rules.RuleSet) error {

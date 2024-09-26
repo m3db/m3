@@ -2,6 +2,7 @@ package tagfiltertree
 
 import (
 	"strings"
+	"unsafe"
 
 	"github.com/m3db/m3/src/metrics/filters"
 )
@@ -12,9 +13,9 @@ const (
 )
 
 type Tag struct {
-	Name  string
-	Value filters.Filter
-	Var   string
+	Name string
+	Val  string
+	Var  string
 }
 
 // Resolvable is an interface for types that can be stored in the tree.
@@ -25,26 +26,31 @@ type Resolvable[R any] interface {
 }
 
 // Tree is a tree data structure for tag filters.
-type Tree[T Resolvable[R], R any] struct {
-	Nodes map[string]*node[T, R]
+type Tree[T any] struct {
+	Nodes []*node[T]
 }
 
-type node[T Resolvable[R], R any] struct {
-	Name string
-	// key=tagValue
-	Values map[filters.Filter]*Tree[T, R]
+type NodeValue[T any] struct {
+	Val    string
+	Filter filters.Filter
+	Tree   *Tree[T]
+}
+
+type node[T any] struct {
+	Name   string
+	Values []NodeValue[T]
 	Data   []T
 }
 
 // New creates a new tree.
-func New[T Resolvable[R], R any]() *Tree[T, R] {
-	return &Tree[T, R]{
-		Nodes: make(map[string]*node[T, R]),
+func New[T any]() *Tree[T] {
+	return &Tree[T]{
+		Nodes: make([]*node[T], 0),
 	}
 }
 
 // AddTagFilter adds a tag filter to the tree.
-func (t *Tree[T, R]) AddTagFilter(tagFilter string, data T) error {
+func (t *Tree[T]) AddTagFilter(tagFilter string, data T) error {
 	tags, err := TagsFromTagFilter(tagFilter)
 	if err != nil {
 		return err
@@ -52,30 +58,54 @@ func (t *Tree[T, R]) AddTagFilter(tagFilter string, data T) error {
 	return addNode(t, tags, 0, data)
 }
 
-func (n *node[T, R]) addValue(value filters.Filter) (*Tree[T, R], error) {
-	if _, ok := n.Values[value]; !ok {
-		n.Values[value] = &Tree[T, R]{
-			Nodes: make(map[string]*node[T, R]),
+func (n *node[T]) addValue(filter string) (*Tree[T], error) {
+	for _, v := range n.Values {
+		if v.Val == filter {
+			return v.Tree, nil
 		}
 	}
-	return n.Values[value], nil
+
+	f, err := filters.NewFilter([]byte(filter))
+	if err != nil {
+		return nil, err
+	}
+
+	t := &Tree[T]{
+		Nodes: make([]*node[T], 0),
+	}
+
+	n.Values = append(n.Values, NodeValue[T]{
+		Val:    filter,
+		Filter: f,
+		Tree:   t,
+	})
+
+	return t, nil
 }
 
-func addNode[T Resolvable[R], R any](t *Tree[T, R], tags []Tag, idx int, data T) error {
+func addNode[T any](t *Tree[T], tags []Tag, idx int, data T) error {
 	if idx >= len(tags) {
 		return nil
 	}
 
 	tag := tags[idx]
-	if _, ok := t.Nodes[tag.Name]; !ok {
-		t.Nodes[tag.Name] = &node[T, R]{
-			Name:   tag.Name,
-			Values: make(map[filters.Filter]*Tree[T, R]),
-			Data:   make([]T, 0),
+	nodeIdx := -1
+	for i, t := range t.Nodes {
+		if t.Name == tag.Name {
+			nodeIdx = i
+			break
 		}
 	}
-	node := t.Nodes[tag.Name]
-	childTree, err := node.addValue(tag.Value)
+	if nodeIdx == -1 {
+		t.Nodes = append(t.Nodes, &node[T]{
+			Name:   tag.Name,
+			Values: make([]NodeValue[T], 0),
+			Data:   make([]T, 0),
+		})
+		nodeIdx = len(t.Nodes) - 1
+	}
+	node := t.Nodes[nodeIdx]
+	childTree, err := node.addValue(tag.Val)
 	if err != nil {
 		return err
 	}
@@ -95,20 +125,25 @@ func addNode[T Resolvable[R], R any](t *Tree[T, R], tags []Tag, idx int, data T)
 }
 
 // Match returns the data for the given tags.
-func (t *Tree[T, R]) Match(tags map[string]string) []R {
-	return match(t, tags)
+func (t *Tree[T]) Match(tags map[string]string) ([]T, error) {
+	data := make([]T, 0)
+	if err := match(t, tags, &data); err != nil {
+		return nil, err
+	}
+	return data, nil
 }
 
-func match[T Resolvable[R], R any](
-	t *Tree[T, R],
+func match[T any](
+	t *Tree[T],
 	tags map[string]string,
-) []R {
+	data *[]T,
+) error {
 	if len(tags) == 0 || t == nil {
 		return nil
 	}
 
-	data := make([]R, 0)
-	for name, node := range t.Nodes {
+	for _, node := range t.Nodes {
+		name := node.Name
 		negate := false
 		if IsMatchNoneTag(name) {
 			name = name[1:]
@@ -116,27 +151,20 @@ func match[T Resolvable[R], R any](
 		}
 		tagValue, tagNameFound := tags[name]
 		if tagNameFound != negate {
-			// for each of the nodes values, recurse if:
-			// - the tag value matches the node value
-			// - the node value is a variable
-			// - the node value is a matchall
-			for nodeValue, subTree := range node.Values {
-				if nodeValue.Matches([]byte(tagValue)) {
-					for _, d := range node.Data {
-						resolvedData, err := d.Resolve(tags)
-						if err != nil {
-							// TODO: trickle up the error.
-							continue
-						}
-						data = append(data, resolvedData)
+			for _, v := range node.Values {
+				d := unsafe.StringData(tagValue)
+				b := unsafe.Slice(d, len(tagValue))
+				if v.Filter.Matches(b) {
+					*data = append(*data, node.Data...)
+					if err := match(v.Tree, tags, data); err != nil {
+						return err
 					}
-					data = append(data, match(subTree, tags)...)
 				}
 			}
 		}
 	}
 
-	return data
+	return nil
 }
 
 // TagsFromTagFilter creates tags from a tag filter.
@@ -164,15 +192,11 @@ func TagsFromTagFilter(tf string) ([]Tag, error) {
 				Pattern: _matchall,
 			}
 		}
-		valueFilter, err := filters.NewFilterFromFilterValue(value)
-		if err != nil {
-			return nil, err
-		}
 
 		tags = append(tags, Tag{
-			Name:  name,
-			Value: valueFilter,
-			Var:   varName,
+			Name: name,
+			Val:  value.Pattern,
+			Var:  varName,
 		})
 	}
 
@@ -203,3 +227,18 @@ func IsMatchNoneTag(tagName string) bool {
 	}
 	return tagName[0] == '!'
 }
+
+/*
+tag1:value1 tag2:value2 tag3:value3
+tag1:foo1 tag4:* tag8:val*
+
+tag1 -> value1 ---->
+			tag2 -> value2 ---->
+						tag3 -> value3 D-> R1
+        foo1 ---->
+			tag4 -> * ---->
+						tag8 -> val* D-> R2
+
+input:
+	tag1:foo1 tag4:foobar tag8:value8
+*/
