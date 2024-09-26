@@ -712,15 +712,15 @@ func TestConsumerServiceWriterMetrics(t *testing.T) {
 	snap := testScope.Snapshot()
 	for _, c := range snap.Counters() {
 		if c.Name() == "test.filter-accepted-granular" {
-			require.Equal(t, "config-source", c.Tags()["DynamicConfig"])
-			require.Equal(t, "filter-type", c.Tags()["ShardSetFilter"])
+			require.Equal(t, "DynamicConfig", c.Tags()["config-source"])
+			require.Equal(t, "ShardSetFilter", c.Tags()["filter-type"])
 			require.Equal(t, int64(1), c.Value())
 			gotAcceptedValue = true
 		}
 
 		if c.Name() == "test.filter-not-accepted-granular" {
-			require.Equal(t, "config-source", c.Tags()["DynamicConfig"])
-			require.Equal(t, "filter-type", c.Tags()["PercentageFilter"])
+			require.Equal(t, "DynamicConfig", c.Tags()["config-source"])
+			require.Equal(t, "PercentageFilter", c.Tags()["filter-type"])
 			require.Equal(t, int64(1), c.Value())
 			gotNotAcceptedValue = true
 		}
