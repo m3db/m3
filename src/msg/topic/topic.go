@@ -479,7 +479,8 @@ func NewDynamicFilterConfigFromProto(filterProto *topicpb.Filters) FilterConfig 
 		filter.percentageFilterConfig = &percentageFilter{percentage: filterProto.PercentageFilter.Percentage}
 	}
 	if filterProto.StoragePolicyFilter != nil {
-		filter.storagePolicyFilterConfig = &storagePolicyFilter{storagePolicies: filterProto.StoragePolicyFilter.StoragePolicies}
+		filter.storagePolicyFilterConfig = &storagePolicyFilter{
+			storagePolicies: filterProto.StoragePolicyFilter.StoragePolicies}
 	}
 
 	return &filter

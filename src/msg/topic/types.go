@@ -124,7 +124,8 @@ type PercentageFilter interface {
 	Percentage() float64
 }
 
-// StoragePolicyFilter is the storage policy filter for a consumer service, filters metrics based on their storage policies.
+// StoragePolicyFilter is the storage policy filter for a consumer service,
+// filters metrics based on their storage policies.
 type StoragePolicyFilter interface {
 	StoragePolicies() []string
 }
