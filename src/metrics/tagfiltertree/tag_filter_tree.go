@@ -37,9 +37,10 @@ type NodeValue[T any] struct {
 }
 
 type node[T any] struct {
-	Name   string
-	Values []NodeValue[T]
-	Data   []T
+	Name           string
+	AbsoluteValues map[string]NodeValue[T]
+	PatternValues  []NodeValue[T]
+	Data           []T
 }
 
 // New creates a new tree.
@@ -59,7 +60,24 @@ func (t *Tree[T]) AddTagFilter(tagFilter string, data T) error {
 }
 
 func (n *node[T]) addValue(filter string) (*Tree[T], error) {
-	for _, v := range n.Values {
+	if IsAbsoluteValue(filter) {
+		if n.AbsoluteValues == nil {
+			n.AbsoluteValues = make(map[string]NodeValue[T], 0)
+		}
+		if v, found := n.AbsoluteValues[filter]; found {
+			return v.Tree, nil
+		}
+
+		newNodeValue := NewNodeValue[T](filter, nil)
+		n.AbsoluteValues[filter] = newNodeValue
+
+		return newNodeValue.Tree, nil
+	}
+
+	if n.PatternValues == nil {
+		n.PatternValues = make([]NodeValue[T], 0)
+	}
+	for _, v := range n.PatternValues {
 		if v.Val == filter {
 			return v.Tree, nil
 		}
@@ -70,17 +88,22 @@ func (n *node[T]) addValue(filter string) (*Tree[T], error) {
 		return nil, err
 	}
 
+	newNodeValue := NewNodeValue[T](filter, f)
+	n.PatternValues = append(n.PatternValues, newNodeValue)
+
+	return newNodeValue.Tree, nil
+}
+
+func NewNodeValue[T any](val string, filter filters.Filter) NodeValue[T] {
 	t := &Tree[T]{
 		Nodes: make([]*node[T], 0),
 	}
 
-	n.Values = append(n.Values, NodeValue[T]{
-		Val:    filter,
-		Filter: f,
+	return NodeValue[T]{
+		Val:    val,
+		Filter: filter,
 		Tree:   t,
-	})
-
-	return t, nil
+	}
 }
 
 func addNode[T any](t *Tree[T], tags []Tag, idx int, data T) error {
@@ -98,9 +121,7 @@ func addNode[T any](t *Tree[T], tags []Tag, idx int, data T) error {
 	}
 	if nodeIdx == -1 {
 		t.Nodes = append(t.Nodes, &node[T]{
-			Name:   tag.Name,
-			Values: make([]NodeValue[T], 0),
-			Data:   make([]T, 0),
+			Name: tag.Name,
 		})
 		nodeIdx = len(t.Nodes) - 1
 	}
@@ -112,6 +133,9 @@ func addNode[T any](t *Tree[T], tags []Tag, idx int, data T) error {
 
 	// Add the data to the childTree if this is the last tag.
 	if idx == len(tags)-1 {
+		if node.Data == nil {
+			node.Data = make([]T, 0)
+		}
 		node.Data = append(node.Data, data)
 	}
 
@@ -150,8 +174,15 @@ func match[T any](
 			negate = true
 		}
 		tagValue, tagNameFound := tags[name]
+		absVal, absValFound := node.AbsoluteValues[tagValue]
+		if tagNameFound && absValFound {
+			*data = append(*data, node.Data...)
+			if err := match(absVal.Tree, tags, data); err != nil {
+				return err
+			}
+		}
 		if tagNameFound != negate {
-			for _, v := range node.Values {
+			for _, v := range node.PatternValues {
 				d := unsafe.StringData(tagValue)
 				b := unsafe.Slice(d, len(tagValue))
 				if v.Filter.Matches(b) {
@@ -226,6 +257,10 @@ func IsMatchNoneTag(tagName string) bool {
 		return false
 	}
 	return tagName[0] == '!'
+}
+
+func IsAbsoluteValue(val string) bool {
+	return !strings.ContainsAny(val, "{!*")
 }
 
 /*

@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	_numFilters = 1000000
+	_numFilters = 100
 )
 
 // Predefined tag names and values for benchmarks

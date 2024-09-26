@@ -91,6 +91,50 @@ func TestTreeGetData(t *testing.T) {
 			expected: []string{"namespace1", "namespace2", "namespace3"},
 		},
 		{
+			name: "multiple input tags, multiple filters, multiple rules, multiple values, match",
+			inputTags: map[string]string{
+				"tag1": "value1",
+				"tag2": "value2",
+				"tag3": "value3",
+				"tag4": "value4",
+				"tag5": "value5",
+			},
+			rules: []Rule{
+				{
+					TagFilters: []string{
+						"tag1:value1 tag2:value2",
+					},
+					Namespace: "namespace1",
+				},
+				{
+					TagFilters: []string{
+						"tag1:val1 tag4:value4 tag5:value5",
+					},
+					Namespace: "namespaceA",
+				},
+				{
+					TagFilters: []string{
+						"tag1:val* tag4:value4 tag5:value5",
+					},
+					Namespace: "namespace2",
+				},
+				{
+					TagFilters: []string{
+						"tag5:*",
+					},
+					Namespace: "namespace3",
+				},
+				{
+					TagFilters: []string{
+						"tag8:value8 tag9:value9",
+						"tag5:value5 tag6:value6",
+					},
+					Namespace: "namespace4",
+				},
+			},
+			expected: []string{"namespace1", "namespace2", "namespace3"},
+		},
+		{
 			name: "single rule, all negation, match",
 			inputTags: map[string]string{
 				"tag1": "value1",
