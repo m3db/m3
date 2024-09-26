@@ -249,6 +249,7 @@ type filterConfig struct {
 	storagePolicyFilterConfig *storagePolicyFilter
 }
 
+// NewFilterConfig creates a new filter config.
 func NewFilterConfig() FilterConfig {
 	return new(filterConfig)
 }
@@ -309,6 +310,7 @@ func (filter *shardSetFilter) ShardSet() string {
 	return filter.shardSet
 }
 
+// NewShardSetFilter creates a new shard set filter.
 func NewShardSetFilter(shardSet string) ShardSetFilter {
 	return &shardSetFilter{shardSet: shardSet}
 }
@@ -317,6 +319,7 @@ type percentageFilter struct {
 	percentage float64
 }
 
+// NewPercentageFilter creates a new percentage filter.
 func NewPercentageFilter(percentage float64) PercentageFilter {
 	return &percentageFilter{percentage: percentage}
 }
@@ -329,6 +332,7 @@ type storagePolicyFilter struct {
 	storagePolicies []string
 }
 
+// NewStoragePolicyFilter creates a new storage policy filter.
 func NewStoragePolicyFilter(storagePolicies []string) StoragePolicyFilter {
 	return &storagePolicyFilter{storagePolicies: storagePolicies}
 }
@@ -439,7 +443,8 @@ func (cs *consumerService) String() string {
 			buf.WriteString(fmt.Sprintf(", percentage filter: %v", cs.filterConfigs.percentageFilterConfig.percentage))
 		}
 		if cs.filterConfigs.storagePolicyFilterConfig != nil {
-			buf.WriteString(fmt.Sprintf(", storage policy filter: %v", cs.filterConfigs.storagePolicyFilterConfig.storagePolicies))
+			buf.WriteString(
+				fmt.Sprintf(", storage policy filter: %v", cs.filterConfigs.storagePolicyFilterConfig.storagePolicies))
 		}
 	}
 	buf.WriteString("}")
@@ -480,6 +485,7 @@ func NewDynamicFilterConfigFromProto(filterProto *topicpb.Filters) FilterConfig 
 	return &filter
 }
 
+// DynamicFilterConfigToProto creates proto from a filter config.
 func DynamicFilterConfigToProto(filter FilterConfig) *topicpb.Filters {
 	if filter == nil {
 		return nil
@@ -492,6 +498,7 @@ func DynamicFilterConfigToProto(filter FilterConfig) *topicpb.Filters {
 	}
 }
 
+// ShardSetFilterToProto creates proto from a shard set filter.
 func ShardSetFilterToProto(filter ShardSetFilter) *topicpb.ShardSetFilter {
 	if filter == nil {
 		return nil
@@ -500,6 +507,7 @@ func ShardSetFilterToProto(filter ShardSetFilter) *topicpb.ShardSetFilter {
 	return &topicpb.ShardSetFilter{ShardSet: filter.ShardSet()}
 }
 
+// PercentageFilterToProto creates proto from a percentage filter.
 func PercentageFilterToProto(filter PercentageFilter) *topicpb.PercentageFilter {
 	if filter == nil {
 		return nil
@@ -508,6 +516,7 @@ func PercentageFilterToProto(filter PercentageFilter) *topicpb.PercentageFilter 
 	return &topicpb.PercentageFilter{Percentage: filter.Percentage()}
 }
 
+// StoragePolicyFilterToProto creates proto from a storage policy filter.
 func StoragePolicyFilterToProto(filter StoragePolicyFilter) *topicpb.StoragePolicyFilter {
 	if filter == nil {
 		return nil

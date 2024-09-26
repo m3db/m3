@@ -98,6 +98,7 @@ type ConsumerService interface {
 	String() string
 }
 
+// FilterConfig is the filter configuration for a consumer service.
 type FilterConfig interface {
 	// StoragePolicyFilter returns the storage policy data filter of the consumer service.
 	StoragePolicyFilter() StoragePolicyFilter
@@ -118,14 +119,17 @@ type FilterConfig interface {
 	SetShardSetFilter(value ShardSetFilter) FilterConfig
 }
 
+// PercentageFilter is sampling percentage filter for a consumer service.
 type PercentageFilter interface {
 	Percentage() float64
 }
 
+// StoragePolicyFilter is the storage policy filter for a consumer service, filters metrics based on their storage policies.
 type StoragePolicyFilter interface {
 	StoragePolicies() []string
 }
 
+// ShardSetFilter is the shard set filter for a consumer service, filters metrics based on specified shard sets.
 type ShardSetFilter interface {
 	ShardSet() string
 }

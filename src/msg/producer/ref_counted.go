@@ -51,12 +51,17 @@ func NewRefCountedMessage(m Message, fn OnFinalizeFn) *RefCountedMessage {
 	}
 }
 
-// Not a fan of passing function pointers here, but passing ConsumerServiceWriterMetrics to RefCountedMessage.Accept will cause a cyclical depdenency. ¯\_(ツ)_/¯
+// Not a fan of passing function pointers here,
+// but passing ConsumerServiceWriterMetrics
+// to RefCountedMessage.Accept will cause a cyclical depdenency. ¯\_(ツ)_/¯
 type filterAcceptCounterFn func(metadata FilterFuncMetadata) tally.Counter
 type filterDenyCounterFn func(metadata FilterFuncMetadata) tally.Counter
 
 // Accept returns true if the message can be accepted by the filter.
-func (rm *RefCountedMessage) Accept(fn []FilterFunc, acceptCounterFn filterAcceptCounterFn, denyCounterFn filterDenyCounterFn) bool {
+func (rm *RefCountedMessage) Accept(
+	fn []FilterFunc,
+	acceptCounterFn filterAcceptCounterFn,
+	denyCounterFn filterDenyCounterFn) bool {
 	if len(fn) == 0 {
 		return false
 	}

@@ -346,6 +346,7 @@ func (w *writer) UnregisterFilters(sid services.ServiceID) {
 	}
 }
 
+// ParseDynamicFilters parses the dynamic filters for a consumer service from a topic update.
 func ParseDynamicFilters(csw consumerServiceWriter, filterConfig topic.FilterConfig) ([]producer.FilterFunc, error) {
 	filterFuncs := []producer.FilterFunc{}
 
@@ -357,7 +358,7 @@ func ParseDynamicFilters(csw consumerServiceWriter, filterConfig topic.FilterCon
 		shardSetFilterFunc, err := ParseShardSetFilterFromTopicUpdate(csw, filterConfig.ShardSetFilter())
 
 		if err != nil {
-			return filterFuncs, fmt.Errorf("Error registering shard set filter: %v", err)
+			return filterFuncs, fmt.Errorf("Error registering shard set filter: %w", err)
 		}
 
 		filterFuncs = append(filterFuncs, shardSetFilterFunc)
@@ -367,7 +368,7 @@ func ParseDynamicFilters(csw consumerServiceWriter, filterConfig topic.FilterCon
 		storagePolicyFilterFunc, err := ParseStoragePolicyFilterFromTopicUpdate(csw, filterConfig.StoragePolicyFilter())
 
 		if err != nil {
-			return filterFuncs, fmt.Errorf("Error registering storage policy filter: %v", err)
+			return filterFuncs, fmt.Errorf("Error registering storage policy filter: %w", err)
 		}
 
 		filterFuncs = append(filterFuncs, storagePolicyFilterFunc)
@@ -377,7 +378,7 @@ func ParseDynamicFilters(csw consumerServiceWriter, filterConfig topic.FilterCon
 		percentageFilterFunc, err := ParsePercentageFilterFromFromTopicUpdate(csw, filterConfig.PercentageFilter())
 
 		if err != nil {
-			return filterFuncs, fmt.Errorf("Error registering percentage filter: %v", err)
+			return filterFuncs, fmt.Errorf("Error registering percentage filter: %w", err)
 		}
 
 		filterFuncs = append(filterFuncs, percentageFilterFunc)
@@ -386,8 +387,9 @@ func ParseDynamicFilters(csw consumerServiceWriter, filterConfig topic.FilterCon
 	return filterFuncs, nil
 }
 
+// ParseShardSetFilterFromTopicUpdate parses a shard set filter from a topic update.
 func ParseShardSetFilterFromTopicUpdate(csw consumerServiceWriter, ssf topic.ShardSetFilter) (producer.FilterFunc, error) {
-	filterFunc := producer.FilterFunc{}
+	var filterFunc producer.FilterFunc
 
 	shardSetString := ssf.ShardSet()
 
@@ -402,8 +404,9 @@ func ParseShardSetFilterFromTopicUpdate(csw consumerServiceWriter, ssf topic.Sha
 	return filterFunc, nil
 }
 
+// ParseStoragePolicyFilterFromTopicUpdate parses a storage policy filter from a topic update.
 func ParseStoragePolicyFilterFromTopicUpdate(csw consumerServiceWriter, spf topic.StoragePolicyFilter) (producer.FilterFunc, error) {
-	filterFunc := producer.FilterFunc{}
+	var filterFunc producer.FilterFunc
 
 	storagePolicies := spf.StoragePolicies()
 
@@ -423,6 +426,7 @@ func ParseStoragePolicyFilterFromTopicUpdate(csw consumerServiceWriter, spf topi
 	return filterFunc, nil
 }
 
+// ParsePercentageFilterFromFromTopicUpdate parses a percentage filter from a topic update.
 func ParsePercentageFilterFromFromTopicUpdate(csw consumerServiceWriter, pf topic.PercentageFilter) (producer.FilterFunc, error) {
 	filterFunc := producer.FilterFunc{}
 

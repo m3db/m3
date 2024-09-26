@@ -522,7 +522,10 @@ func TestConsumerServiceWriterFilter(t *testing.T) {
 	sw1.EXPECT().Write(gomock.Any())
 	csw.Write(producer.NewRefCountedMessage(mm1, nil))
 
-	csw.RegisterFilter(producer.NewFilterFunc(func(m producer.Message) bool { return m.Shard() == uint32(0) }, producer.UnspecifiedFilter, producer.StaticConfig))
+	csw.RegisterFilter(producer.NewFilterFunc(
+		func(m producer.Message) bool { return m.Shard() == uint32(0) },
+		producer.UnspecifiedFilter,
+		producer.StaticConfig))
 	// Write is not expected due to mm1 shard != 0
 	csw.Write(producer.NewRefCountedMessage(mm1, nil))
 
@@ -530,7 +533,10 @@ func TestConsumerServiceWriterFilter(t *testing.T) {
 	// Write is expected due to mm0 shard == 0
 	csw.Write(producer.NewRefCountedMessage(mm0, nil))
 
-	csw.RegisterFilter(producer.NewFilterFunc(func(m producer.Message) bool { return m.Size() == 3 }, producer.UnspecifiedFilter, producer.StaticConfig))
+	csw.RegisterFilter(producer.NewFilterFunc(
+		func(m producer.Message) bool { return m.Size() == 3 },
+		producer.UnspecifiedFilter,
+		producer.StaticConfig))
 	sw0.EXPECT().Write(gomock.Any())
 	// Write is expected because to mm0 shard == 0 and mm0 size == 3
 	csw.Write(producer.NewRefCountedMessage(mm0, nil))
@@ -690,8 +696,13 @@ func TestConsumerServiceCloseShardWritersConcurrently(t *testing.T) {
 func TestConsumerServiceWriterMetrics(t *testing.T) {
 	testScope := tally.NewTestScope("test", nil)
 
-	acceptedMetadata := producer.FilterFuncMetadata{FilterType: producer.ShardSetFilter, SourceType: producer.DynamicConfig}
-	notAcceptedMetadata := producer.FilterFuncMetadata{FilterType: producer.PercentageFilter, SourceType: producer.DynamicConfig}
+	acceptedMetadata := producer.FilterFuncMetadata{
+		FilterType: producer.ShardSetFilter,
+		SourceType: producer.DynamicConfig}
+
+	notAcceptedMetadata := producer.FilterFuncMetadata{
+		FilterType: producer.PercentageFilter,
+		SourceType: producer.DynamicConfig}
 
 	m := newConsumerServiceWriterMetrics(testScope)
 	m.getFilterAcceptedGranularCounter(acceptedMetadata).Inc(1)
