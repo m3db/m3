@@ -195,10 +195,14 @@ func (w *writer) process(update interface{}) error {
 					multiErr = multiErr.Add(err)
 				} else {
 					// unregister all filters and register the new ones
+					w.Lock()
+
 					csw.UnregisterFilters()
 					for _, dynamicFilter := range dynamicFilters {
 						csw.RegisterFilter(dynamicFilter)
 					}
+
+					w.Unlock()
 				}
 			} else {
 				// sending no dynamic filters means we should remove all filters, unless there are static filters
@@ -206,7 +210,9 @@ func (w *writer) process(update interface{}) error {
 				_, ok := w.filterRegistry[key]
 
 				if !ok {
+					w.Lock()
 					csw.UnregisterFilters()
+					w.Unlock()
 				}
 			}
 
@@ -244,18 +250,26 @@ func (w *writer) process(update interface{}) error {
 				multiErr = multiErr.Add(err)
 				continue
 			} else {
+				w.Lock()
+
 				for _, dynamicFilter := range dynamicFilters {
 					csw.RegisterFilter(dynamicFilter)
 				}
+
+				w.Unlock()
 			}
 
 		} else {
+			w.Lock()
+
 			// if there are no dynamicly configured filters, static filters are the source of truth
 			if staticFilters, ok := w.filterRegistry[key]; ok {
 				for _, staticFilter := range staticFilters {
 					csw.RegisterFilter(staticFilter)
 				}
 			}
+
+			w.Unlock()
 		}
 
 		if err = csw.Init(w.initType); err != nil {
