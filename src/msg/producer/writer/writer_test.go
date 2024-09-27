@@ -1171,14 +1171,18 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 				require.NoError(t, err, "expect no error after 2nd topic update")
 
 				for called.Load() != 2 {
-					time.Sleep(50 * time.Millisecond)
+					time.Sleep(100 * time.Millisecond)
 				}
+
+				w.RLock()
 
 				require.Equal(
 					t,
 					test.topicUpdate1.expectedCswCount,
 					len(w.consumerServiceWriters),
 					"expect csw count to match after 2nd topic update")
+
+				w.RUnlock()
 
 				if test.topicUpdate2.expectedCswCount == 0 {
 					return
