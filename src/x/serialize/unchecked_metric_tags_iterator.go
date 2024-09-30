@@ -66,5 +66,5 @@ func (it *uncheckedMetricTagsIter) Err() error {
 }
 
 func (it *uncheckedMetricTagsIter) Close() {
-	panic("should not close")
+	return
 }
