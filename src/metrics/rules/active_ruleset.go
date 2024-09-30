@@ -534,7 +534,7 @@ func (as *activeRuleSet) matchRollupTarget(
 		includeTagNames = as.includeTagKeys
 	)
 
-	sortedTagIter  := matchOpts.SortedTagIteratorFn(sortedTagPairBytes)
+	sortedTagIter := matchOpts.SortedTagIteratorFn(sortedTagPairBytes)
 	defer sortedTagIter.Close()
 
 	switch rollupOp.Type {
