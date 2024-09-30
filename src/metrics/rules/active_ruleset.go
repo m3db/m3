@@ -534,6 +534,7 @@ func (as *activeRuleSet) matchRollupTarget(
 		nameTagValue    []byte
 		includeTagNames = as.includeTagKeys
 	)
+	defer sortedTagIter.Close()
 
 	switch rollupOp.Type {
 	case mpipeline.GroupByRollupType:
