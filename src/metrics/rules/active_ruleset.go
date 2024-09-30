@@ -528,12 +528,13 @@ func (as *activeRuleSet) matchRollupTarget(
 
 	var (
 		rollupTags      = rollupOp.Tags
-		sortedTagIter   = matchOpts.SortedTagIteratorFn(sortedTagPairBytes)
 		matchTagIdx     = 0
 		nameTagName     = as.tagsFilterOpts.NameTagKey
 		nameTagValue    []byte
 		includeTagNames = as.includeTagKeys
 	)
+
+	sortedTagIter  := matchOpts.SortedTagIteratorFn(sortedTagPairBytes)
 	defer sortedTagIter.Close()
 
 	switch rollupOp.Type {
