@@ -319,7 +319,7 @@ func TestShardFetchBlocksMetadata(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			opts := DefaultTestOptions().SetSeriesCachePolicy(series.CacheRecentlyRead)
 			shard := testDatabaseShard(t, opts)
-			defer shard.Close()
+			defer shard.Close() //nolint:errcheck
 			nowFn := opts.ClockOptions().NowFn()
 			start := nowFn()
 			writeTestData(t, tc.numOfActiveSeries, tc.WriteBatchSize, shard, opts)
@@ -353,7 +353,8 @@ func writeTestData(t *testing.T, numOfActiveSeries int, writeBatchSize int, shar
 	wg.Wait()
 }
 
-func verifyFetchedBlockMetadata(t *testing.T, numOfActiveSeries int, readBatchSize int, shard *dbShard, opts Options, start, end time.Time) {
+func verifyFetchedBlockMetadata(t *testing.T, numOfActiveSeries int,
+	readBatchSize int, shard *dbShard, opts Options, start, end time.Time) {
 	ctx := opts.ContextPool().Get()
 	var (
 		encodedPageToken PageToken
@@ -371,7 +372,8 @@ func verifyFetchedBlockMetadata(t *testing.T, numOfActiveSeries int, readBatchSi
 
 	for i := 0; i < numOfActiveSeries; i += readBatchSize {
 		if fetchMetadata {
-			result, encodedPageToken, err = shard.FetchBlocksMetadataV2(ctx, xtime.ToUnixNano(start), xtime.ToUnixNano(end), int64(readBatchSize), encodedPageToken, fetchOpts)
+			result, encodedPageToken, err = shard.FetchBlocksMetadataV2(ctx, xtime.ToUnixNano(start), xtime.ToUnixNano(end),
+				int64(readBatchSize), encodedPageToken, fetchOpts)
 			require.NoError(t, err)
 			for _, res := range result.Results() {
 				observedIds[res.ID.String()]++
@@ -385,7 +387,7 @@ func verifyFetchedBlockMetadata(t *testing.T, numOfActiveSeries int, readBatchSi
 	}
 
 	require.Equal(t, numOfActiveSeries, len(observedIds))
-	for id, _ := range observedIds {
+	for id := range observedIds {
 		require.Equal(t, 1, observedIds[id])
 	}
 }

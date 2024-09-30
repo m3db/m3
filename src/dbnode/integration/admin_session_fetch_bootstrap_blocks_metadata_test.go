@@ -2,16 +2,18 @@ package integration
 
 import (
 	"fmt"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/stretchr/testify/require"
-	"sync"
-	"testing"
-	"time"
 )
 
 func TestAdminSessionFetchBootstrapBlocksMetadataFromPeer(t *testing.T) {
@@ -24,7 +26,8 @@ func TestAdminSessionFetchBootstrapBlocksMetadataFromPeer(t *testing.T) {
 	writeBatchSize := 7
 	readBatchSize := 13
 
-	testOpts := NewTestOptions(t).SetUseTChannelClientForWriting(true).SetNumShards(1).SetFetchSeriesBlocksBatchSize(readBatchSize)
+	testOpts := NewTestOptions(t).SetUseTChannelClientForWriting(true).
+		SetNumShards(1).SetFetchSeriesBlocksBatchSize(readBatchSize)
 	testSetup, err := NewTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.Close()
@@ -49,16 +52,18 @@ func TestAdminSessionFetchBootstrapBlocksMetadataFromPeer(t *testing.T) {
 	end := testSetup.NowFn()()
 
 	// Fetch and verify metadata
-	observedSeries := newTestSetupBootstrapBlocksMetadata(t, testSetup, testNamespaces[0], start, end)
+	observedSeries := newTestSetupBootstrapBlocksMetadata(t, testSetup, testNamespaces[0],
+		start, end)
 	verifySeriesMetadata(t, numOfActiveSeries, observedSeries)
 }
 
-func writeTestData(t *testing.T, testSetup TestSetup, namespace ident.ID, start xtime.UnixNano, numOfSeries int, batchSize int) {
+func writeTestData(t *testing.T, testSetup TestSetup, namespace ident.ID, start xtime.UnixNano,
+	numOfSeries int, batchSize int) {
 	var wg sync.WaitGroup
 
 	for i := 0; i < numOfSeries; i += batchSize {
 		wg.Add(1)
-		go func() {
+		go func(i int) {
 			defer wg.Done()
 			size := batchSize
 			if numOfSeries-i < batchSize {
@@ -70,7 +75,7 @@ func writeTestData(t *testing.T, testSetup TestSetup, namespace ident.ID, start 
 				testData := generate.Block(currInput)
 				require.NoError(t, testSetup.WriteBatch(namespace, testData))
 			}
-		}()
+		}(i)
 	}
 	wg.Wait()
 }
