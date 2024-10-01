@@ -97,12 +97,12 @@ func (w *writer) Write(shard uint32, payload payloadUnion) (int, error) {
 	// Read lock to check if the writer is closed and try to get the encoder.
 	w.RLock()
 	if w.closed {
-		w.RUnlock()
+		w.RUnlock() // Manually unlock read lock
 		return 0, errInstanceWriterClosed
 	}
 
 	encoder, exists := w.encodersByShard[shard]
-	w.RUnlock()
+	w.RUnlock() // Manually unlock read lock
 
 	if exists {
 		// If the encoder exists, encode without acquiring the write lock.
@@ -111,9 +111,8 @@ func (w *writer) Write(shard uint32, payload payloadUnion) (int, error) {
 
 	// Acquire the write lock if the encoder doesn't exist.
 	w.Lock()
-	defer w.Unlock()
-
 	if w.closed {
+		w.Unlock() // Manually unlock write lock
 		return 0, errInstanceWriterClosed
 	}
 
@@ -126,7 +125,12 @@ func (w *writer) Write(shard uint32, payload payloadUnion) (int, error) {
 	}
 
 	// Now encode with the lock held.
-	return w.encodeWithLock(encoder, payload)
+	result, err := w.encodeWithLock(encoder, payload)
+
+	// Unlock the write lock after encoding
+	w.Unlock()
+
+	return result, err
 }
 
 
