@@ -109,7 +109,6 @@ func TestWriterWriteUntimedCounterEncoderExists(t *testing.T) {
 			},
 		}).Return(nil),
 		encoder.EXPECT().Len().Return(4),
-		encoder.EXPECT().Len().Return(4),
 	)
 	w.encodersByShard[0] = &lockedEncoder{UnaggregatedEncoder: encoder}
 
@@ -140,7 +139,6 @@ func TestWriterWriteUntimedCounterEncoderDoesNotExist(t *testing.T) {
 				StagedMetadatas: testStagedMetadatas,
 			},
 		}).Return(nil),
-		encoder.EXPECT().Len().Return(7),
 		encoder.EXPECT().Len().Return(7),
 	)
 	w := newInstanceWriter(testPlacementInstance, testOptions()).(*writer)
@@ -179,7 +177,6 @@ func TestWriterWriteUntimedCounterWithFlushingZeroSizeBefore(t *testing.T) {
 				StagedMetadatas: testStagedMetadatas,
 			},
 		}).Return(nil),
-		encoder.EXPECT().Len().Return(7),
 		encoder.EXPECT().Len().Return(7),
 		encoder.EXPECT().Relinquish().Return(stream),
 	)
@@ -231,7 +228,6 @@ func TestWriterWriteUntimedCounterWithFlushingPositiveSizeBefore(t *testing.T) {
 				StagedMetadatas: testStagedMetadatas,
 			},
 		}).Return(nil),
-		encoder.EXPECT().Len().Return(7),
 		encoder.EXPECT().Len().Return(7),
 		encoder.EXPECT().Relinquish().Return(stream),
 	)
@@ -291,7 +287,6 @@ func TestWriterWriteUntimedBatchTimerNoBatchSizeLimit(t *testing.T) {
 			},
 		}).Return(nil),
 		encoder.EXPECT().Len().Return(7),
-		encoder.EXPECT().Len().Return(7),
 	)
 	opts := testOptions().SetMaxTimerBatchSize(0)
 	w := newInstanceWriter(testPlacementInstance, opts).(*writer)
@@ -325,7 +320,6 @@ func TestWriterWriteUntimedBatchTimerSmallBatchSize(t *testing.T) {
 				StagedMetadatas: testStagedMetadatas,
 			},
 		}).Return(nil),
-		encoder.EXPECT().Len().Return(7),
 		encoder.EXPECT().Len().Return(7),
 	)
 	opts := testOptions().SetMaxTimerBatchSize(140)
@@ -562,7 +556,6 @@ func TestWriterWriteUntimedGauge(t *testing.T) {
 			},
 		}).Return(nil),
 		encoder.EXPECT().Len().Return(7),
-		encoder.EXPECT().Len().Return(7),
 	)
 	w := newInstanceWriter(testPlacementInstance, testOptions()).(*writer)
 	w.newLockedEncoderFn = func(protobuf.UnaggregatedOptions) *lockedEncoder {
@@ -598,7 +591,6 @@ func TestWriterWriteForwardedWithFlushingZeroSizeBefore(t *testing.T) {
 				ForwardMetadata: testForwardMetadata,
 			},
 		}).Return(nil),
-		encoder.EXPECT().Len().Return(7),
 		encoder.EXPECT().Len().Return(7),
 		encoder.EXPECT().Relinquish().Return(stream),
 	)
@@ -650,7 +642,6 @@ func TestWriterWriteForwardedWithFlushingPositiveSizeBefore(t *testing.T) {
 				ForwardMetadata: testForwardMetadata,
 			},
 		}).Return(nil),
-		encoder.EXPECT().Len().Return(7),
 		encoder.EXPECT().Len().Return(7),
 		encoder.EXPECT().Relinquish().Return(stream),
 	)

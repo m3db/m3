@@ -102,13 +102,14 @@ func (w *writer) Write(shard uint32, payload payloadUnion) (int, error) {
 	}
 
 	encoder, exists := w.encodersByShard[shard]
-	w.RUnlock() // Manually unlock read lock
 
 	if exists {
 		// If the encoder exists, encode without acquiring the write lock.
-		return w.encodeWithLock(encoder, payload)
+		bytesAdded, err := w.encodeWithLock(encoder, payload)
+		w.RUnlock()
+		return bytesAdded, err
 	}
-
+	w.RUnlock()
 	// Acquire the write lock if the encoder doesn't exist.
 	w.Lock()
 	if w.closed {
@@ -120,11 +121,11 @@ func (w *writer) Write(shard uint32, payload payloadUnion) (int, error) {
 	encoder, exists = w.encodersByShard[shard]
 	if !exists {
 		// Create a new encoder if it doesn't exist.
+
 		encoder = w.newLockedEncoderFn(w.encoderOpts)
 		w.encodersByShard[shard] = encoder
 	}
 
-	// Now encode with the lock held.
 	result, err := w.encodeWithLock(encoder, payload)
 
 	// Unlock the write lock after encoding
@@ -132,7 +133,6 @@ func (w *writer) Write(shard uint32, payload payloadUnion) (int, error) {
 
 	return result, err
 }
-
 
 func (w *writer) Flush() error {
 	w.RLock()
@@ -173,8 +173,8 @@ func (w *writer) encodeWithLock(
 	payload payloadUnion,
 ) (int, error) {
 	encoder.Lock()
-	defer encoder.Unlock()
 
+	// Save the encoder's size before the encoding operation.
 	sizeBefore := encoder.Len()
 	var err error
 
@@ -195,7 +195,7 @@ func (w *writer) encodeWithLock(
 	}
 
 	if err != nil {
-		// Log the error and rewind the encoder buffer.
+		// Log the error and rewind the encoder buffer if encoding fails.
 		w.metrics.encodeErrors.Inc(1)
 		w.log.Error("encode metric error",
 			zap.Any("payload", payload),
@@ -203,21 +203,25 @@ func (w *writer) encodeWithLock(
 			zap.Error(err),
 		)
 		encoder.Truncate(sizeBefore) //nolint:errcheck
+		encoder.Unlock()
 		return 0, err
 	}
 
-	bytesAdded := encoder.Len() - sizeBefore
-	// Return early if buffer size is still under the max batch size.
-	if encoder.Len() < w.maxBatchSize {
+	sizeAfter := encoder.Len()
+	// Calculate the bytes added by this encoding operation.
+	bytesAdded := sizeAfter - sizeBefore
+
+	// Return early if the buffer size is still under the maximum batch size.
+	if sizeAfter < w.maxBatchSize {
+		encoder.Unlock()
 		return bytesAdded, nil
 	}
 
-	// relinquish the buffer and enqueue it.
+	// Relinquish the buffer and enqueue it if the batch size exceeds the limit.
 	buffer := encoder.Relinquish()
+	encoder.Unlock()
 	return bytesAdded, w.enqueueBuffer(buffer)
 }
-
-
 
 func (w *writer) encodeUntimedWithLock(
 	encoder *lockedEncoder,
