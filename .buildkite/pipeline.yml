@@ -66,6 +66,9 @@ steps:
         volumes:
           - .:/go/src/github.com/m3db/m3
           - /var/run/docker.sock:/var/run/docker.sock
+        securityContext:
+          privileged: true
+          allowPrivilegeEscalation: true
       kubernetes:
         <<: *kubernetes
         podSpec:
