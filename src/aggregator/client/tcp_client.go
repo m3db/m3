@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"math"
 	"time"
-	"unsafe"
 
 	"github.com/uber-go/tally"
 
@@ -298,13 +297,13 @@ func (c *TCPClient) write(
 			c.metrics.shardNotWriteable.Inc(1)
 			continue
 		}
-		if err = c.writerMgr.Write(instance, shardID, payload); err != nil {
+		bytesAdded, err := c.writerMgr.Write(instance, shardID, payload)
+		if err != nil {
 			multiErr = multiErr.Add(err)
 			continue
 		}
-		// using unsfae.Sizeof to avoid the overhead of marshaling the payload to bytes
-		// tradeoff is that this is not 100% accurate, but should be close enough
-		c.metrics.totalBytesSent.Inc(int64(unsafe.Sizeof(payload)))
+	
+		c.metrics.totalBytesSent.Inc(int64(bytesAdded))
 		oneOrMoreSucceeded = true
 	}
 

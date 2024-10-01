@@ -47,7 +47,7 @@ var (
 
 type instanceWriter interface {
 	// Write writes a metric payload for a given shard.
-	Write(shard uint32, payload payloadUnion) error
+	Write(shard uint32, payload payloadUnion) (int, error)
 
 	// Flush flushes any buffered metrics.
 	Flush() error
@@ -93,38 +93,42 @@ func newInstanceWriter(instance placement.Instance, opts Options) instanceWriter
 	return w
 }
 
-func (w *writer) Write(shard uint32, payload payloadUnion) error {
+func (w *writer) Write(shard uint32, payload payloadUnion) (int, error) {
+	// Read lock to check if the writer is closed and try to get the encoder.
 	w.RLock()
 	if w.closed {
 		w.RUnlock()
-		return errInstanceWriterClosed
+		return 0, errInstanceWriterClosed
 	}
+
 	encoder, exists := w.encodersByShard[shard]
-	if exists {
-		err := w.encodeWithLock(encoder, payload)
-		w.RUnlock()
-		return err
-	}
 	w.RUnlock()
 
-	w.Lock()
-	if w.closed {
-		w.Unlock()
-		return errInstanceWriterClosed
-	}
-	encoder, exists = w.encodersByShard[shard]
 	if exists {
-		err := w.encodeWithLock(encoder, payload)
-		w.Unlock()
-		return err
+		// If the encoder exists, encode without acquiring the write lock.
+		return w.encodeWithLock(encoder, payload)
 	}
-	encoder = w.newLockedEncoderFn(w.encoderOpts)
-	w.encodersByShard[shard] = encoder
-	err := w.encodeWithLock(encoder, payload)
-	w.Unlock()
 
-	return err
+	// Acquire the write lock if the encoder doesn't exist.
+	w.Lock()
+	defer w.Unlock()
+
+	if w.closed {
+		return 0, errInstanceWriterClosed
+	}
+
+	// Check again after acquiring the write lock (to avoid race conditions).
+	encoder, exists = w.encodersByShard[shard]
+	if !exists {
+		// Create a new encoder if it doesn't exist.
+		encoder = w.newLockedEncoderFn(w.encoderOpts)
+		w.encodersByShard[shard] = encoder
+	}
+
+	// Now encode with the lock held.
+	return w.encodeWithLock(encoder, payload)
 }
+
 
 func (w *writer) Flush() error {
 	w.RLock()
@@ -163,13 +167,12 @@ func (w *writer) QueueSize() int {
 func (w *writer) encodeWithLock(
 	encoder *lockedEncoder,
 	payload payloadUnion,
-) error {
+) (int, error) {
 	encoder.Lock()
+	defer encoder.Unlock()
 
-	var (
-		sizeBefore = encoder.Len()
-		err        error
-	)
+	sizeBefore := encoder.Len()
+	var err error
 
 	switch payload.payloadType {
 	case untimedType:
@@ -188,28 +191,29 @@ func (w *writer) encodeWithLock(
 	}
 
 	if err != nil {
+		// Log the error and rewind the encoder buffer.
 		w.metrics.encodeErrors.Inc(1)
-		w.log.Error("encode untimed metric error",
+		w.log.Error("encode metric error",
 			zap.Any("payload", payload),
 			zap.Int("payloadType", int(payload.payloadType)),
 			zap.Error(err),
 		)
-		// Rewind buffer and clear out the encoder error.
 		encoder.Truncate(sizeBefore) //nolint:errcheck
-		encoder.Unlock()
-		return err
+		return 0, err
 	}
 
+	bytesAdded := encoder.Len() - sizeBefore
+	// Return early if buffer size is still under the max batch size.
 	if encoder.Len() < w.maxBatchSize {
-		encoder.Unlock()
-		return nil
+		return bytesAdded, nil
 	}
 
+	// relinquish the buffer and enqueue it.
 	buffer := encoder.Relinquish()
-	encoder.Unlock()
-
-	return w.enqueueBuffer(buffer)
+	return bytesAdded, w.enqueueBuffer(buffer)
 }
+
+
 
 func (w *writer) encodeUntimedWithLock(
 	encoder *lockedEncoder,
