@@ -190,22 +190,22 @@ func (mgr *writerManager) Write(
 	payload payloadUnion,
 ) (int, error) {
 	mgr.RLock()
-
 	if mgr.closed {
-		mgr.RUnlock() // Manually unlock read lock
+		mgr.RUnlock() 
 		return 0, errInstanceWriterManagerClosed
 	}
 
 	id := instance.ID()
 	writer, exists := mgr.writers[id]
-	mgr.RUnlock() // Manually unlock read lock
-
 	if !exists {
+		mgr.RUnlock() 
 		return 0, fmt.Errorf("writer for instance %s not found", id)
 	}
 
 	writer.dirty.Store(true)
-	return writer.Write(shardID, payload)
+	bytesAdded, err := writer.Write(shardID, payload)
+	mgr.RUnlock()
+	return bytesAdded, err
 }
 
 func (mgr *writerManager) Flush() error {
