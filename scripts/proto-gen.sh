@@ -31,7 +31,9 @@ for i in "${GOPATH}/src/${PROTO_SRC}"/*; do
 
     echo "$(ls ./test)"
 
-    protoc --gogofaster_out=${resolve_protos},plugins=grpc:/src \
-      -I/src -I/src/github.com/m3db/m3/vendor ${proto_files}
+
+    which protoc
+    which protoc-gen-gogofaster
+    protoc --gogofaster_out=${resolve_protos},plugins=grpc:/src ${proto_files}
 	fi
 done
