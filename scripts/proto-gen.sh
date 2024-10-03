@@ -32,6 +32,7 @@ for i in "${GOPATH}/src/${PROTO_SRC}"/*; do
     echo "$(ls ./test)"
 
 
+    which sh
     which protoc
     which protoc-gen-gogofaster
     protoc --gogofaster_out=${resolve_protos},plugins=grpc:/src ${proto_files}
