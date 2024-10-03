@@ -191,14 +191,14 @@ func (mgr *writerManager) Write(
 ) (int, error) {
 	mgr.RLock()
 	if mgr.closed {
-		mgr.RUnlock() 
+		mgr.RUnlock()
 		return 0, errInstanceWriterManagerClosed
 	}
 
 	id := instance.ID()
 	writer, exists := mgr.writers[id]
 	if !exists {
-		mgr.RUnlock() 
+		mgr.RUnlock()
 		return 0, fmt.Errorf("writer for instance %s not found", id)
 	}
 

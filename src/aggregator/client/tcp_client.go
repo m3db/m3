@@ -302,7 +302,7 @@ func (c *TCPClient) write(
 			multiErr = multiErr.Add(err)
 			continue
 		}
-	
+
 		c.metrics.totalBytesSent.Inc(int64(bytesAdded))
 		oneOrMoreSucceeded = true
 	}

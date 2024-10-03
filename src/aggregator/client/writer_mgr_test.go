@@ -190,7 +190,7 @@ func TestWriterManagerWriteUntimedSuccess(t *testing.T) {
 		DoAndReturn(func(
 			shard uint32,
 			payload payloadUnion,
-		) (int,error) {
+		) (int, error) {
 			shardRes = shard
 			payloadRes = payload
 			return 0, nil
