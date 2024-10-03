@@ -283,11 +283,11 @@ func TestTCPClientWriteUntimedMetricSuccess(t *testing.T) {
 			instance placement.Instance,
 			shardID uint32,
 			payload payloadUnion,
-		) error {
+		) (int, error) {
 			instancesRes = append(instancesRes, instance)
 			shardRes = shardID
 			payloadRes = payload
-			return nil
+			return 0, nil
 		}).
 		MinTimes(1)
 	watcher := placement.NewMockWatcher(ctrl)
@@ -343,14 +343,14 @@ func TestTCPClientWriteUntimedMetricPartialError(t *testing.T) {
 			instance placement.Instance,
 			shardID uint32,
 			payload payloadUnion,
-		) error {
+		) (int, error) {
 			if instance.ID() == testPlacementInstances[0].ID() {
-				return errInstanceWrite
+				return 0, errInstanceWrite
 			}
 			instancesRes = append(instancesRes, instance)
 			shardRes = shardID
 			payloadRes = payload
-			return nil
+			return 0, nil
 		}).
 		MinTimes(1)
 	watcher := placement.NewMockWatcher(ctrl)
@@ -425,11 +425,11 @@ func TestTCPClientWriteTimedMetricSuccess(t *testing.T) {
 			instance placement.Instance,
 			shardID uint32,
 			payload payloadUnion,
-		) error {
+		) (int, error) {
 			instancesRes = append(instancesRes, instance)
 			shardRes = shardID
 			payloadRes = payload
-			return nil
+			return 0, nil
 		}).
 		MinTimes(1)
 	watcher := placement.NewMockWatcher(ctrl)
@@ -471,14 +471,14 @@ func TestTCPClientWriteTimedMetricPartialError(t *testing.T) {
 			instance placement.Instance,
 			shardID uint32,
 			payload payloadUnion,
-		) error {
+		) (int, error) {
 			if instance.ID() == testPlacementInstances[0].ID() {
-				return errInstanceWrite
+				return 0, errInstanceWrite
 			}
 			instancesRes = append(instancesRes, instance)
 			shardRes = shardID
 			payloadRes = payload
-			return nil
+			return 0, nil
 		}).
 		MinTimes(1)
 	watcher := placement.NewMockWatcher(ctrl)
@@ -519,11 +519,11 @@ func TestTCPClientWriteForwardedMetricSuccess(t *testing.T) {
 			instance placement.Instance,
 			shardID uint32,
 			payload payloadUnion,
-		) error {
+		) (int, error) {
 			instancesRes = append(instancesRes, instance)
 			shardRes = shardID
 			payloadRes = payload
-			return nil
+			return 0, nil
 		}).
 		MinTimes(1)
 	watcher := placement.NewMockWatcher(ctrl)
@@ -565,14 +565,14 @@ func TestTCPClientWriteForwardedMetricPartialError(t *testing.T) {
 			instance placement.Instance,
 			shardID uint32,
 			payload payloadUnion,
-		) error {
+		) (int, error) {
 			if instance.ID() == testPlacementInstances[0].ID() {
-				return errInstanceWrite
+				return 0, errInstanceWrite
 			}
 			instancesRes = append(instancesRes, instance)
 			shardRes = shardID
 			payloadRes = payload
-			return nil
+			return 0, nil
 		}).
 		MinTimes(1)
 	watcher := placement.NewMockWatcher(ctrl)
@@ -613,11 +613,11 @@ func TestTCPClientWritePassthroughMetricSuccess(t *testing.T) {
 			instance placement.Instance,
 			shardID uint32,
 			payload payloadUnion,
-		) error {
+		) (int, error) {
 			instancesRes = append(instancesRes, instance)
 			shardRes = shardID
 			payloadRes = payload
-			return nil
+			return 0, nil
 		}).
 		MinTimes(1)
 	watcher := placement.NewMockWatcher(ctrl)
@@ -659,14 +659,14 @@ func TestTCPClientWritePassthroughMetricPartialError(t *testing.T) {
 			instance placement.Instance,
 			shardID uint32,
 			payload payloadUnion,
-		) error {
+		) (int, error) {
 			if instance.ID() == testPlacementInstances[0].ID() {
-				return errInstanceWrite
+				return 0, errInstanceWrite
 			}
 			instancesRes = append(instancesRes, instance)
 			shardRes = shardID
 			payloadRes = payload
-			return nil
+			return 0, nil
 		}).
 		MinTimes(1)
 	watcher := placement.NewMockWatcher(ctrl)
