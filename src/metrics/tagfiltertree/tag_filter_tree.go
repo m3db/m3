@@ -34,13 +34,13 @@ type NodeValue[T any] struct {
 	Val    string
 	Filter filters.Filter
 	Tree   *Tree[T]
+	Data   []T
 }
 
 type node[T any] struct {
 	Name           string
 	AbsoluteValues map[string]NodeValue[T]
 	PatternValues  []NodeValue[T]
-	Data           []T
 }
 
 // New creates a new tree.
@@ -59,7 +59,7 @@ func (t *Tree[T]) AddTagFilter(tagFilter string, data T) error {
 	return addNode(t, tags, 0, data)
 }
 
-func (n *node[T]) addValue(filter string) (*Tree[T], error) {
+func (n *node[T]) addValue(filter string, data *T) (*Tree[T], error) {
 	if IsAbsoluteValue(filter) {
 		if n.AbsoluteValues == nil {
 			n.AbsoluteValues = make(map[string]NodeValue[T], 0)
@@ -68,7 +68,7 @@ func (n *node[T]) addValue(filter string) (*Tree[T], error) {
 			return v.Tree, nil
 		}
 
-		newNodeValue := NewNodeValue[T](filter, nil)
+		newNodeValue := NewNodeValue[T](filter, nil, data)
 		n.AbsoluteValues[filter] = newNodeValue
 
 		return newNodeValue.Tree, nil
@@ -88,22 +88,32 @@ func (n *node[T]) addValue(filter string) (*Tree[T], error) {
 		return nil, err
 	}
 
-	newNodeValue := NewNodeValue[T](filter, f)
+	newNodeValue := NewNodeValue[T](filter, f, data)
 	n.PatternValues = append(n.PatternValues, newNodeValue)
 
 	return newNodeValue.Tree, nil
 }
 
-func NewNodeValue[T any](val string, filter filters.Filter) NodeValue[T] {
+func NewNodeValue[T any](val string, filter filters.Filter, data *T) NodeValue[T] {
 	t := &Tree[T]{
 		Nodes: make([]*node[T], 0),
 	}
 
-	return NodeValue[T]{
+	v := NodeValue[T]{
 		Val:    val,
 		Filter: filter,
 		Tree:   t,
+		Data:   nil,
 	}
+
+	if data != nil {
+		if v.Data == nil {
+			v.Data = make([]T, 0)
+		}
+		v.Data = append(v.Data, *data)
+	}
+
+	return v
 }
 
 func addNode[T any](t *Tree[T], tags []Tag, idx int, data T) error {
@@ -126,17 +136,16 @@ func addNode[T any](t *Tree[T], tags []Tag, idx int, data T) error {
 		nodeIdx = len(t.Nodes) - 1
 	}
 	node := t.Nodes[nodeIdx]
-	childTree, err := node.addValue(tag.Val)
-	if err != nil {
-		return err
-	}
 
 	// Add the data to the childTree if this is the last tag.
+	var dataToAdd *T
 	if idx == len(tags)-1 {
-		if node.Data == nil {
-			node.Data = make([]T, 0)
-		}
-		node.Data = append(node.Data, data)
+		dataToAdd = &data
+	}
+
+	childTree, err := node.addValue(tag.Val, dataToAdd)
+	if err != nil {
+		return err
 	}
 
 	// Recurse to the next tag.
@@ -176,7 +185,7 @@ func match[T any](
 		tagValue, tagNameFound := tags[name]
 		absVal, absValFound := node.AbsoluteValues[tagValue]
 		if tagNameFound && absValFound {
-			*data = append(*data, node.Data...)
+			*data = append(*data, absVal.Data...)
 			if err := match(absVal.Tree, tags, data); err != nil {
 				return err
 			}
@@ -186,7 +195,7 @@ func match[T any](
 				d := unsafe.StringData(tagValue)
 				b := unsafe.Slice(d, len(tagValue))
 				if v.Filter.Matches(b) {
-					*data = append(*data, node.Data...)
+					*data = append(*data, v.Data...)
 					if err := match(v.Tree, tags, data); err != nil {
 						return err
 					}
