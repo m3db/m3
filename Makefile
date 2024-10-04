@@ -252,7 +252,6 @@ config-gen: install-tools
 SUBDIR_TARGETS := \
 	mock-gen        \
 	thrift-gen      \
-	proto-gen       \
 	asset-gen       \
 	genny-gen       \
 	license-gen     \
@@ -415,6 +414,7 @@ go-mod-tidy:
 .PHONY: all-gen
 all-gen: \
 	install-tools \
+	$(foreach SUBDIR_TARGET, $(filter-out lint all-gen,$(SUBDIR_TARGETS)), $(SUBDIR_TARGET)) \
 	kube-gen-all \
 	go-mod-tidy
 
