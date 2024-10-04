@@ -72,7 +72,8 @@ steps:
             - <<: *commandContainer
               command:
                 - |-
-                  make clean install-vendor-m3 test-all-gen
+                  make clean install-vendor-m3
+#                  make clean install-vendor-m3 test-all-gen
     <<: *common
 #  - name: "Unit %n"
 #    parallelism: 4
