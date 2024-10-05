@@ -287,7 +287,7 @@ func IsMatchNoneTag(tagName string) bool {
 }
 
 func IsAbsoluteValue(val string) bool {
-	return !strings.ContainsAny(val, "{!*")
+	return !strings.ContainsAny(val, "{!*[")
 }
 
 /*
