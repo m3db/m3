@@ -114,6 +114,52 @@ func TestTreeGetData(t *testing.T) {
 			expected: []string{"namespace1"},
 		},
 		{
+			name: "multiple input tags, common prefix tags, existing value, match one",
+			inputTags: map[string]string{
+				"tag1": "value1",
+				"tag2": "value2",
+				"tag3": "apple",
+			},
+			rules: []Rule{
+				{
+					TagFilters: []string{
+						"tag1:value1 tag2:value2 tag3:apple tag4:banana",
+					},
+					Namespace: "namespace1",
+				},
+				{
+					TagFilters: []string{
+						"tag1:value1 tag2:value2 tag3:apple",
+					},
+					Namespace: "namespace2",
+				},
+			},
+			expected: []string{"namespace2"},
+		},
+		{
+			name: "multiple input tags, common prefix tags, existing value with wildcard, match one",
+			inputTags: map[string]string{
+				"tag1": "value1",
+				"tag2": "value2",
+				"tag3": "apple",
+			},
+			rules: []Rule{
+				{
+					TagFilters: []string{
+						"tag1:value1 tag2:value2 tag3:* tag4:banana",
+					},
+					Namespace: "namespace1",
+				},
+				{
+					TagFilters: []string{
+						"tag1:value1 tag2:value2 tag3:*",
+					},
+					Namespace: "namespace2",
+				},
+			},
+			expected: []string{"namespace2"},
+		},
+		{
 			name: "multiple input tags, multiple filters, multiple rules, multiple values, match",
 			inputTags: map[string]string{
 				"tag1": "value1",

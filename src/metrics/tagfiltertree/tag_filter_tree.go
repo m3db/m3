@@ -1,6 +1,7 @@
 package tagfiltertree
 
 import (
+	"fmt"
 	"strings"
 	"unsafe"
 
@@ -65,6 +66,13 @@ func (n *node[T]) addValue(filter string, data *T) (*Tree[T], error) {
 			n.AbsoluteValues = make(map[string]NodeValue[T], 0)
 		}
 		if v, found := n.AbsoluteValues[filter]; found {
+			if data != nil {
+				if v.Data == nil {
+					v.Data = make([]T, 0)
+				}
+				v.Data = append(v.Data, *data)
+				n.AbsoluteValues[filter] = v
+			}
 			return v.Tree, nil
 		}
 
@@ -77,8 +85,15 @@ func (n *node[T]) addValue(filter string, data *T) (*Tree[T], error) {
 	if n.PatternValues == nil {
 		n.PatternValues = make([]NodeValue[T], 0)
 	}
-	for _, v := range n.PatternValues {
+	for i, v := range n.PatternValues {
 		if v.Val == filter {
+			if data != nil {
+				if v.Data == nil {
+					v.Data = make([]T, 0)
+				}
+				v.Data = append(v.Data, *data)
+				n.PatternValues[i] = v
+			}
 			return v.Tree, nil
 		}
 	}
@@ -212,30 +227,33 @@ func match[T any](
 // "foo" OR "{foo,bar,baz}" OR "{{Variable}}"
 // There cannot be a mix of value formats like "simpleValue, {foo,bar}" etc.
 func TagsFromTagFilter(tf string) ([]Tag, error) {
-	tagFilterMap, err := filters.ParseTagFilterValueMap(tf)
-	if err != nil {
-		return nil, err
-	}
-
-	tags := make([]Tag, 0, len(tagFilterMap))
-	for name, value := range tagFilterMap {
-		varName := ""
-		if IsVarTagValue(value.Pattern) {
-			varName = value.Pattern
-			value = filters.FilterValue{
-				Pattern: _matchall,
-			}
+	tags := make([]Tag, 0)
+	tfSanitized := strings.TrimSpace(tf)
+	tagValuePairs := strings.Split(tfSanitized, " ")
+	for _, tagValuePair := range tagValuePairs {
+		tagAndValue := strings.Split(tagValuePair, ":")
+		if len(tagAndValue) != 2 {
+			return nil, fmt.Errorf("invalid tag filter: %s", tf)
 		}
-		if value.Pattern == _matchNone {
-			name = "!" + name
-			value = filters.FilterValue{
-				Pattern: _matchall,
-			}
+		tag := tagAndValue[0]
+		val := tagAndValue[1]
+		if len(tag) == 0 || len(val) == 0 {
+			return nil, fmt.Errorf("invalid tag filter: %s", tf)
+		}
+
+		varName := ""
+		if IsVarTagValue(val) {
+			varName = val
+			val = _matchall
+		}
+		if val == _matchNone {
+			tag = "!" + tag
+			val = _matchall
 		}
 
 		tags = append(tags, Tag{
-			Name: name,
-			Val:  value.Pattern,
+			Name: tag,
+			Val:  val,
 			Var:  varName,
 		})
 	}
