@@ -22,6 +22,7 @@
 package server
 
 import (
+	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -32,6 +33,7 @@ import (
 
 	xnet "github.com/m3db/m3/src/x/net"
 	"github.com/m3db/m3/src/x/retry"
+	xtls "github.com/m3db/m3/src/x/tls"
 )
 
 // Server is a server capable of listening to incoming traffic and closing itself
@@ -60,12 +62,14 @@ type Handler interface {
 }
 
 type serverMetrics struct {
-	openConnections tally.Gauge
+	openConnections    tally.Gauge
+	upgradeToTLSErrors tally.Counter
 }
 
 func newServerMetrics(scope tally.Scope) serverMetrics {
 	return serverMetrics{
-		openConnections: scope.Gauge("open-connections"),
+		openConnections:    scope.Gauge("open-connections"),
+		upgradeToTLSErrors: scope.Counter("upgrade-to-tls-errors"),
 	}
 }
 
@@ -83,14 +87,15 @@ type server struct {
 	tcpConnectionKeepAlive       bool
 	tcpConnectionKeepAlivePeriod time.Duration
 
-	closed       bool
-	closedChan   chan struct{}
-	numConns     int32
-	conns        []net.Conn
-	wgConns      sync.WaitGroup
-	metrics      serverMetrics
-	handler      Handler
-	listenerOpts xnet.ListenerOptions
+	closed           bool
+	closedChan       chan struct{}
+	numConns         int32
+	conns            []net.Conn
+	wgConns          sync.WaitGroup
+	metrics          serverMetrics
+	handler          Handler
+	listenerOpts     xnet.ListenerOptions
+	tlsConfigManager xtls.ConfigManager
 
 	addConnectionFn    addConnectionFn
 	removeConnectionFn removeConnectionFn
@@ -112,6 +117,7 @@ func NewServer(address string, handler Handler, opts Options) Server {
 		metrics:                      newServerMetrics(scope),
 		handler:                      handler,
 		listenerOpts:                 opts.ListenerOptions(),
+		tlsConfigManager:             xtls.NewConfigManager(opts.TLSOptions(), instrumentOpts),
 	}
 
 	// Set up the connection functions.
@@ -140,11 +146,32 @@ func (s *server) Serve(l net.Listener) error {
 	return nil
 }
 
+func (s *server) maybeUpgradeToTLS(conn *securedConn) (*securedConn, error) {
+	if s.tlsConfigManager.ServerMode() == xtls.Disabled {
+		return conn, nil
+	}
+	isTLSConnection, err := conn.IsTLS()
+	if err != nil {
+		return nil, err
+	}
+	if !isTLSConnection && s.tlsConfigManager.ServerMode() == xtls.Enforced {
+		return nil, fmt.Errorf("not a tls connection")
+	} else if !isTLSConnection {
+		return conn, nil
+	}
+	tlsConfig, err := s.tlsConfigManager.TLSConfig()
+	if err != nil {
+		return nil, err
+	}
+	conn = conn.UpgradeToTLS(tlsConfig)
+	return conn, nil
+}
+
 func (s *server) serve() {
 	connCh, errCh := xnet.StartForeverAcceptLoop(s.listener, s.retryOpts)
 	for conn := range connCh {
-		conn := conn
-		if tcpConn, ok := conn.(*net.TCPConn); ok {
+		conn := newSecuredConn(conn)
+		if tcpConn, ok := conn.Conn.(*net.TCPConn); ok {
 			tcpConn.SetKeepAlive(s.tcpConnectionKeepAlive)
 			if s.tcpConnectionKeepAlivePeriod != 0 {
 				tcpConn.SetKeepAlivePeriod(s.tcpConnectionKeepAlivePeriod)
@@ -155,11 +182,17 @@ func (s *server) serve() {
 		} else {
 			s.wgConns.Add(1)
 			go func() {
-				s.handler.Handle(conn)
+				defer conn.Close() // nolint: errcheck
+				defer s.removeConnectionFn(conn)
+				defer s.wgConns.Done()
 
-				conn.Close()
-				s.removeConnectionFn(conn)
-				s.wgConns.Done()
+				securedConn, err := s.maybeUpgradeToTLS(conn)
+				if err != nil {
+					s.metrics.upgradeToTLSErrors.Inc(1)
+					s.log.Error("unable to upgrade connection to TLS", zap.Error(err))
+					return
+				}
+				s.handler.Handle(securedConn)
 			}()
 		}
 	}
