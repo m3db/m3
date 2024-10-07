@@ -297,11 +297,13 @@ func (c *TCPClient) write(
 			c.metrics.shardNotWriteable.Inc(1)
 			continue
 		}
-		if err = c.writerMgr.Write(instance, shardID, payload); err != nil {
+		bytesAdded, err := c.writerMgr.Write(instance, shardID, payload)
+		if err != nil {
 			multiErr = multiErr.Add(err)
 			continue
 		}
 
+		c.metrics.totalBytesSent.Inc(int64(bytesAdded))
 		oneOrMoreSucceeded = true
 	}
 
@@ -347,6 +349,7 @@ type tcpClientMetrics struct {
 	shardNotOwned          tally.Counter
 	shardNotWriteable      tally.Counter
 	dropped                tally.Counter
+	totalBytesSent         tally.Counter
 }
 
 func newTCPClientMetrics(
@@ -362,5 +365,6 @@ func newTCPClientMetrics(
 		shardNotOwned:          scope.Counter("shard-not-owned"),
 		shardNotWriteable:      scope.Counter("shard-not-writeable"),
 		dropped:                scope.Counter("dropped"),
+		totalBytesSent:         scope.Counter("total-bytes-sent"),
 	}
 }
