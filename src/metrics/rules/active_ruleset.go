@@ -528,12 +528,13 @@ func (as *activeRuleSet) matchRollupTarget(
 
 	var (
 		rollupTags      = rollupOp.Tags
-		sortedTagIter   = matchOpts.SortedTagIteratorFn(sortedTagPairBytes)
 		matchTagIdx     = 0
 		nameTagName     = as.tagsFilterOpts.NameTagKey
 		nameTagValue    []byte
 		includeTagNames = as.includeTagKeys
 	)
+
+	sortedTagIter := matchOpts.SortedTagIteratorFn(sortedTagPairBytes)
 
 	switch rollupOp.Type {
 	case mpipeline.GroupByRollupType:
@@ -579,6 +580,7 @@ func (as *activeRuleSet) matchRollupTarget(
 
 			// If one of the target tags is not found in the ID, this is considered  a non-match so return immediately.
 			if res > 0 {
+				sortedTagIter.Close()
 				return nil, false, nil
 			}
 		}
@@ -629,11 +631,13 @@ func (as *activeRuleSet) matchRollupTarget(
 		}
 	}
 
-	if sortedTagIter.Err() != nil {
-		return nil, false, sortedTagIter.Err()
+	if err := sortedTagIter.Err(); err != nil {
+		sortedTagIter.Close()
+		return nil, false, err
 	}
 
 	if !targetOpts.generateRollupID {
+		sortedTagIter.Close()
 		return nil, true, nil
 	}
 
@@ -645,6 +649,7 @@ func (as *activeRuleSet) matchRollupTarget(
 	}
 
 	newName := rollupOp.NewName(nameTagValue)
+	sortedTagIter.Close()
 	return as.newRollupIDFn(newName, tagPairs), true, nil
 }
 
