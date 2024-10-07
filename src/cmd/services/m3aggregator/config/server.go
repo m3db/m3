@@ -79,6 +79,9 @@ type RawTCPServerConfiguration struct {
 
 	// Protobuf iterator configuration.
 	ProtobufIterator protobufUnaggregatedIteratorConfiguration `yaml:"protobufIterator"`
+
+	// TLS configuration
+	TLS *xserver.TLSConfiguration `yaml:"tls"`
 }
 
 // NewServerOptions create a new set of raw TCP server options.
@@ -96,6 +99,9 @@ func (c *RawTCPServerConfiguration) NewServerOptions(
 	}
 	if c.KeepAlivePeriod != nil {
 		serverOpts = serverOpts.SetTCPConnectionKeepAlivePeriod(*c.KeepAlivePeriod)
+	}
+	if c.TLS != nil {
+		serverOpts = serverOpts.SetTLSOptions(c.TLS.NewOptions())
 	}
 	opts = opts.SetServerOptions(serverOpts)
 
