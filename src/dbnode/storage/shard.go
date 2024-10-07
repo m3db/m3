@@ -65,6 +65,7 @@ import (
 const (
 	shardIterateBatchPercent = 0.01
 	shardIterateBatchMinSize = 16
+	metricLabelName          = "__name__"
 )
 
 var (
@@ -655,7 +656,7 @@ func (s *dbShard) Close() error {
 	// causes the GC to impact performance when closing shards the deadline
 	// should be increased.
 	cancellable := context.NewNoOpCanncellable()
-	_, err := s.tickAndExpire(cancellable, tickPolicyCloseShard, namespace.Context{})
+	_, err := s.tickAndExpire(cancellable, tickPolicyCloseShard, namespace.Context{}, TickOptions{TopMetricsToTrack: 0})
 	return err
 }
 
@@ -674,15 +675,21 @@ func (s *dbShard) isClosingWithLock() bool {
 	return s.state == dbShardStateClosing
 }
 
-func (s *dbShard) Tick(c context.Cancellable, startTime xtime.UnixNano, nsCtx namespace.Context) (tickResult, error) {
+func (s *dbShard) Tick(
+	c context.Cancellable,
+	startTime xtime.UnixNano,
+	nsCtx namespace.Context,
+	tickOptions TickOptions,
+) (tickResult, error) {
 	s.removeAnyFlushStatesTooEarly(startTime)
-	return s.tickAndExpire(c, tickPolicyRegular, nsCtx)
+	return s.tickAndExpire(c, tickPolicyRegular, nsCtx, tickOptions)
 }
 
 func (s *dbShard) tickAndExpire(
 	c context.Cancellable,
 	policy tickPolicy,
 	nsCtx namespace.Context,
+	tickOptions TickOptions,
 ) (tickResult, error) {
 	s.Lock()
 	// ensure only one tick can execute at a time
@@ -715,7 +722,7 @@ func (s *dbShard) tickAndExpire(
 	}()
 
 	var (
-		r                             tickResult
+		r                             = &tickResult{}
 		terminatedTickingDueToClosing bool
 		i                             int
 		slept                         time.Duration
@@ -730,6 +737,16 @@ func (s *dbShard) tickAndExpire(
 	// future read lock attempts.
 	blockStates := s.blockStatesSnapshotWithRLock()
 	s.RUnlock()
+	topMetricsToTrack := tickOptions.TopMetricsToTrack
+	maxMapLenForTracking := tickOptions.MaxMapLenForTracking
+	shouldTrackTopMetrics := topMetricsToTrack > 0 && maxMapLenForTracking > 0
+
+	if shouldTrackTopMetrics {
+		// Make 'r' ready to track top metrics.
+		r.trackTopMetrics()
+	}
+
+	// NB: no lock is held when the func is called. See the implementation of forEachShardEntryBatch().
 	s.forEachShardEntryBatch(func(currEntries []*Entry) bool {
 		// re-using `expired` to amortize allocs, still need to reset it
 		// to be safe for re-use.
@@ -778,6 +795,18 @@ func (s *dbShard) tickAndExpire(
 				if err != nil {
 					r.errors++
 				}
+				if shouldTrackTopMetrics {
+					// TODO: find a cheaper way to get the metric name. 'Get()' iterates on all labels.
+					if metricNameBytes, ok := entry.Series.Metadata().Get([]byte(metricLabelName)); ok {
+						nameHash, metric := newMetricCardinality(metricNameBytes, 1)
+						// We don't handle hash collisions here, since we are not looking for precise top metrics/candinality.
+						if currentMetric, ok := r.metricToCardinality[nameHash]; ok {
+							currentMetric.cardinality++
+						} else if len(r.metricToCardinality) < maxMapLenForTracking {
+							r.metricToCardinality[nameHash] = metric
+						}
+					}
+				}
 			}
 			r.activeBlocks += result.ActiveBlocks
 			r.wiredBlocks += result.WiredBlocks
@@ -787,6 +816,7 @@ func (s *dbShard) tickAndExpire(
 			r.madeUnwiredBlocks += result.MadeUnwiredBlocks
 			r.mergedOutOfOrderBlocks += result.MergedOutOfOrderBlocks
 			r.evictedBuckets += result.EvictedBuckets
+			r.truncateTopMetrics(topMetricsToTrack)
 			i++
 		}
 
@@ -803,10 +833,11 @@ func (s *dbShard) tickAndExpire(
 	})
 
 	if terminatedTickingDueToClosing {
+		s.logger.Debug("Returning empty tick result due to closing")
 		return tickResult{}, errShardClosingTickTerminated
 	}
 
-	return r, nil
+	return *r, nil
 }
 
 // NB(prateek): purgeExpiredSeries requires that all entries passed to it have at least one reader/writer,
