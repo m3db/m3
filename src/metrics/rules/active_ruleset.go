@@ -631,7 +631,7 @@ func (as *activeRuleSet) matchRollupTarget(
 		}
 	}
 
-	if err = sortedTagIter.Err(); err != nil {
+	if err := sortedTagIter.Err(); err != nil {
 		sortedTagIter.Close()
 		return nil, false, err
 	}
