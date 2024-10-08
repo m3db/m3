@@ -65,6 +65,6 @@ func (it *uncheckedMetricTagsIter) Err() error {
 	return it.decoder.err
 }
 
-// No-op
 func (it *uncheckedMetricTagsIter) Close() {
+	panic("should not close")
 }
