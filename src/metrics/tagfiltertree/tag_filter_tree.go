@@ -173,9 +173,9 @@ func addNode[T any](t *Tree[T], tags []Tag, idx int, data T) error {
 }
 
 // Match returns the data for the given tags.
-func (t *Tree[T]) Match(tags map[string]string) ([]T, error) {
-	data := make([]T, 0)
-	if err := match(t, tags, &data); err != nil {
+func (t *Tree[T]) Match(tags map[string]string, isMatchAny bool) ([]T, error) {
+	data := make([]T, 0, 10)
+	if err := match(t, tags, &data, isMatchAny); err != nil {
 		return nil, err
 	}
 	return data, nil
@@ -185,6 +185,7 @@ func match[T any](
 	t *Tree[T],
 	tags map[string]string,
 	data *[]T,
+	isMatchAny bool,
 ) error {
 	if len(tags) == 0 || t == nil {
 		return nil
@@ -201,8 +202,15 @@ func match[T any](
 		absVal, absValFound := node.AbsoluteValues[tagValue]
 		if tagNameFound && absValFound {
 			*data = append(*data, absVal.Data...)
-			if err := match(absVal.Tree, tags, data); err != nil {
+			if isMatchAny && len(absVal.Data) > 0 {
+				return nil
+			}
+			err := match(absVal.Tree, tags, data, isMatchAny)
+			if err != nil {
 				return err
+			}
+			if isMatchAny && len(*data) > 0 {
+				return nil
 			}
 		}
 		if tagNameFound != negate {
@@ -211,8 +219,15 @@ func match[T any](
 				b := unsafe.Slice(d, len(tagValue))
 				if v.Filter.Matches(b) {
 					*data = append(*data, v.Data...)
-					if err := match(v.Tree, tags, data); err != nil {
+					if isMatchAny && len(v.Data) > 0 {
+						return nil
+					}
+					err := match(v.Tree, tags, data, isMatchAny)
+					if err != nil {
 						return err
+					}
+					if isMatchAny && len(*data) > 0 {
+						return nil
 					}
 				}
 			}

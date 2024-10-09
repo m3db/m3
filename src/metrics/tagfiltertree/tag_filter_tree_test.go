@@ -490,7 +490,8 @@ func TestTreeGetData(t *testing.T) {
 				}
 			}
 
-			actual, err := tree.Match(tt.inputTags)
+			// check all match
+			actual, err := tree.Match(tt.inputTags, false)
 			resolved := make([]string, 0, len(actual))
 			for _, r := range actual {
 				ns, err := r.Resolve(tt.inputTags)
@@ -506,6 +507,10 @@ func TestTreeGetData(t *testing.T) {
 
 			actualNamespaces := uniqueNamespaces(resolved)
 			require.Equal(t, "", cmp.Diff(tt.expected, actualNamespaces, cmpopts.SortSlices(less)))
+
+			// check any match
+			anyMatched, err := tree.Match(tt.inputTags, true)
+			require.Equal(t, len(tt.expected) > 0, len(anyMatched) > 0)
 		})
 	}
 }

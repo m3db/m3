@@ -26,6 +26,11 @@ const (
 	COMPOSITE = 3
 )
 
+/*
+ * Benchmark results:
+ * MatchAll:   678950	      1653.0 ns/op	      80 B/op	       1 allocs/op
+ * MatchAny:  7879844	       152.6 ns/op	      80 B/op	       1 allocs/op
+ */
 func BenchmarkTagFilterTreeMatch(b *testing.B) {
 	// Generate a benchmark set of tag filters with varying complexity
 	filters := make([]string, 0)
@@ -49,7 +54,7 @@ func BenchmarkTagFilterTreeMatch(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = tree.Match(input)
+		_, _ = tree.Match(input, false)
 	}
 }
 
