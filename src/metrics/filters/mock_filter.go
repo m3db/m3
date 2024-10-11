@@ -54,13 +54,18 @@ func tagsToPairs(tags []byte) []mockTagPair {
 
 // NewMockSortedTagIterator creates a mock SortedTagIterator based on given ID.
 func NewMockSortedTagIterator(tags []byte) id.SortedTagIterator {
-	pairs := tagsToPairs(tags)
-	return &mockSortedTagIterator{idx: -1, pairs: pairs}
+	iter := &mockSortedTagIterator{}
+	iter.Reset(tags)
+	return iter
 }
 
 func (it *mockSortedTagIterator) Reset(tags []byte) {
 	it.idx = -1
 	it.err = nil
+	it.pairs = nil
+	if len(tags) == 0 {
+		return
+	}
 	it.pairs = tagsToPairs(tags)
 }
 
