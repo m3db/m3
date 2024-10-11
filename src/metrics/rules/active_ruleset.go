@@ -50,6 +50,11 @@ type activeRuleSet struct {
 	includeTagKeys  map[uint64]struct{}
 }
 
+type optimizedMatchOptions struct {
+	MatchOptions
+	SortedTagIterator metricid.SortedTagIterator
+}
+
 func newActiveRuleSet(
 	version int,
 	mappingRules []*mappingRule,
@@ -111,7 +116,12 @@ func (as *activeRuleSet) ForwardMatch(
 	fromNanos, toNanos int64,
 	opts MatchOptions,
 ) (MatchResult, error) {
-	currMatchRes, err := as.forwardMatchAt(id.Bytes(), fromNanos, opts)
+	optimizedOpts := optimizedMatchOptions{
+		MatchOptions:      opts,
+		SortedTagIterator: opts.SortedTagIteratorFn(nil),
+	}
+
+	currMatchRes, err := as.forwardMatchAt(id.Bytes(), fromNanos, optimizedOpts)
 	if err != nil {
 		return MatchResult{}, err
 	}
@@ -124,7 +134,7 @@ func (as *activeRuleSet) ForwardMatch(
 	)
 
 	for nextIdx < len(as.cutoverTimesAsc) && nextCutoverNanos < toNanos {
-		nextMatchRes, err := as.forwardMatchAt(id.Bytes(), nextCutoverNanos, opts)
+		nextMatchRes, err := as.forwardMatchAt(id.Bytes(), nextCutoverNanos, optimizedOpts)
 		if err != nil {
 			return MatchResult{}, err
 		}
@@ -164,6 +174,14 @@ func (as *activeRuleSet) ReverseMatch(
 		keepOriginal     bool
 	)
 
+	optimizedMatchOpts := optimizedMatchOptions{
+		MatchOptions: MatchOptions{
+			NameAndTagsFn:       as.tagsFilterOpts.NameAndTagsFn,
+			SortedTagIteratorFn: as.tagsFilterOpts.SortedTagIteratorFn,
+		},
+		SortedTagIterator: as.tagsFilterOpts.SortedTagIteratorFn(nil),
+	}
+
 	// Determine whether the ID is a rollup metric ID.
 	name, tags, err := as.tagsFilterOpts.NameAndTagsFn(id.Bytes())
 	if err == nil {
@@ -180,6 +198,7 @@ func (as *activeRuleSet) ReverseMatch(
 		at,
 		isMultiAggregationTypesAllowed,
 		aggTypesOpts,
+		optimizedMatchOpts,
 	)
 	if err != nil {
 		return MatchResult{}, err
@@ -202,6 +221,7 @@ func (as *activeRuleSet) ReverseMatch(
 			at,
 			isMultiAggregationTypesAllowed,
 			aggTypesOpts,
+			optimizedMatchOpts,
 		)
 		if err != nil {
 			return MatchResult{}, err
@@ -229,13 +249,13 @@ func (as *activeRuleSet) ReverseMatch(
 func (as *activeRuleSet) forwardMatchAt(
 	id []byte,
 	timeNanos int64,
-	matchOpts MatchOptions,
+	optimizedMatchOpts optimizedMatchOptions,
 ) (forwardMatchResult, error) {
-	mappingResults, err := as.mappingsForNonRollupID(id, timeNanos, matchOpts)
+	mappingResults, err := as.mappingsForNonRollupID(id, timeNanos, optimizedMatchOpts)
 	if err != nil {
 		return forwardMatchResult{}, err
 	}
-	rollupResults, err := as.rollupResultsFor(id, timeNanos, matchOpts)
+	rollupResults, err := as.rollupResultsFor(id, timeNanos, optimizedMatchOpts)
 	if err != nil {
 		return forwardMatchResult{}, err
 	}
@@ -263,7 +283,7 @@ func (as *activeRuleSet) forwardMatchAt(
 func (as *activeRuleSet) mappingsForNonRollupID(
 	id []byte,
 	timeNanos int64,
-	matchOpts MatchOptions,
+	optimizedMatchOpts optimizedMatchOptions,
 ) (mappingResults, error) {
 	var (
 		cutoverNanos int64
@@ -275,8 +295,9 @@ func (as *activeRuleSet) mappingsForNonRollupID(
 			continue
 		}
 		matches, err := snapshot.filter.Matches(id, filters.TagMatchOptions{
-			SortedTagIteratorFn: matchOpts.SortedTagIteratorFn,
-			NameAndTagsFn:       matchOpts.NameAndTagsFn,
+			// TODO: this needs the change to not use the alloc
+			SortedTagIteratorFn: optimizedMatchOpts.SortedTagIteratorFn,
+			NameAndTagsFn:       optimizedMatchOpts.NameAndTagsFn,
 		})
 		if err != nil {
 			return mappingResults{}, err
@@ -336,7 +357,11 @@ func (as *activeRuleSet) LatestRollupRules(_ []byte, timeNanos int64) ([]view.Ro
 	return out, nil
 }
 
-func (as *activeRuleSet) rollupResultsFor(id []byte, timeNanos int64, matchOpts MatchOptions) (rollupResults, error) {
+func (as *activeRuleSet) rollupResultsFor(
+	id []byte,
+	timeNanos int64,
+	optimizedMatchOpts optimizedMatchOptions,
+) (rollupResults, error) {
 	var (
 		cutoverNanos  int64
 		rollupTargets []rollupTarget
@@ -350,8 +375,9 @@ func (as *activeRuleSet) rollupResultsFor(id []byte, timeNanos int64, matchOpts 
 			continue
 		}
 		match, err := snapshot.filter.Matches(id, filters.TagMatchOptions{
-			NameAndTagsFn:       matchOpts.NameAndTagsFn,
-			SortedTagIteratorFn: matchOpts.SortedTagIteratorFn,
+			// TODO: same comment, different line
+			SortedTagIteratorFn: optimizedMatchOpts.SortedTagIteratorFn,
+			NameAndTagsFn:       optimizedMatchOpts.NameAndTagsFn,
 		})
 		if err != nil {
 			return rollupResults{}, err
@@ -382,7 +408,7 @@ func (as *activeRuleSet) rollupResultsFor(id []byte, timeNanos int64, matchOpts 
 		}
 	}
 	// NB: could log the matching error here if needed.
-	res, _ := as.toRollupResults(id, cutoverNanos, rollupTargets, keepOriginal, tags, matchOpts)
+	res, _ := as.toRollupResults(id, cutoverNanos, rollupTargets, keepOriginal, tags, optimizedMatchOpts)
 	return res, nil
 }
 
@@ -399,7 +425,7 @@ func (as *activeRuleSet) toRollupResults(
 	targets []rollupTarget,
 	keepOriginal bool,
 	tags [][]models.Tag,
-	matchOpts MatchOptions,
+	optimizedMatchOpts optimizedMatchOptions,
 ) (rollupResults, error) {
 	if len(targets) == 0 {
 		return rollupResults{}, nil
@@ -407,7 +433,7 @@ func (as *activeRuleSet) toRollupResults(
 
 	// If we cannot extract tags from the id, this is likely an invalid
 	// metric and we bail early.
-	_, sortedTagPairBytes, err := matchOpts.NameAndTagsFn(id)
+	_, sortedTagPairBytes, err := optimizedMatchOpts.NameAndTagsFn(id)
 	if err != nil {
 		return rollupResults{}, err
 	}
@@ -456,7 +482,7 @@ func (as *activeRuleSet) toRollupResults(
 				tagPairs,
 				tags[idx],
 				matchRollupTargetOptions{generateRollupID: true},
-				matchOpts)
+				optimizedMatchOpts)
 			if err != nil {
 				multiErr = multiErr.Add(err)
 				continue
@@ -473,7 +499,7 @@ func (as *activeRuleSet) toRollupResults(
 			continue
 		}
 		tagPairs = tagPairs[:0]
-		applied, err := as.applyIDToPipeline(sortedTagPairBytes, toApply, tagPairs, tags[idx], matchOpts)
+		applied, err := as.applyIDToPipeline(sortedTagPairBytes, toApply, tagPairs, tags[idx], optimizedMatchOpts)
 		if err != nil {
 			err = fmt.Errorf("failed to apply id %s to pipeline %v: %v", id, toApply, err)
 			multiErr = multiErr.Add(err)
@@ -518,7 +544,7 @@ func (as *activeRuleSet) matchRollupTarget(
 	tagPairs []metricid.TagPair, // buffer for reuse to generate rollup ID across calls
 	tags []models.Tag,
 	targetOpts matchRollupTargetOptions,
-	matchOpts MatchOptions,
+	optimizedMatchOpts optimizedMatchOptions,
 ) ([]byte, bool, error) {
 	if rollupOp.Type == mpipeline.ExcludeByRollupType && !targetOpts.generateRollupID {
 		// Exclude by tag always matches, if not generating rollup ID
@@ -528,12 +554,13 @@ func (as *activeRuleSet) matchRollupTarget(
 
 	var (
 		rollupTags      = rollupOp.Tags
-		sortedTagIter   = matchOpts.SortedTagIteratorFn(sortedTagPairBytes)
 		matchTagIdx     = 0
+		sortedTagIter   = optimizedMatchOpts.SortedTagIterator
 		nameTagName     = as.tagsFilterOpts.NameTagKey
 		nameTagValue    []byte
 		includeTagNames = as.includeTagKeys
 	)
+	sortedTagIter.Reset(sortedTagPairBytes)
 
 	switch rollupOp.Type {
 	case mpipeline.GroupByRollupType:
@@ -653,7 +680,7 @@ func (as *activeRuleSet) applyIDToPipeline(
 	pipeline mpipeline.Pipeline,
 	tagPairs []metricid.TagPair, // buffer for reuse across calls
 	tags []models.Tag,
-	matchOpts MatchOptions,
+	optimizedMatchOpts optimizedMatchOptions,
 ) (applied.Pipeline, error) {
 	operations := make([]applied.OpUnion, 0, pipeline.Len())
 	for i := 0; i < pipeline.Len(); i++ {
@@ -674,7 +701,7 @@ func (as *activeRuleSet) applyIDToPipeline(
 				tagPairs,
 				tags,
 				matchRollupTargetOptions{generateRollupID: true},
-				matchOpts)
+				optimizedMatchOpts)
 			if err != nil {
 				return applied.Pipeline{}, err
 			}
@@ -702,11 +729,12 @@ func (as *activeRuleSet) reverseMappingsFor(
 	at aggregation.Type,
 	isMultiAggregationTypesAllowed bool,
 	aggTypesOpts aggregation.TypesOptions,
+	optimizedMatchOpts optimizedMatchOptions,
 ) (reverseMatchResult, bool, error) {
 	if !isRollupID {
-		return as.reverseMappingsForNonRollupID(id, timeNanos, mt, at, aggTypesOpts)
+		return as.reverseMappingsForNonRollupID(id, timeNanos, mt, at, aggTypesOpts, optimizedMatchOpts)
 	}
-	return as.reverseMappingsForRollupID(name, tags, timeNanos, mt, at, isMultiAggregationTypesAllowed, aggTypesOpts)
+	return as.reverseMappingsForRollupID(name, tags, timeNanos, mt, at, isMultiAggregationTypesAllowed, aggTypesOpts, optimizedMatchOpts)
 }
 
 type reverseMatchResult struct {
@@ -722,11 +750,9 @@ func (as *activeRuleSet) reverseMappingsForNonRollupID(
 	mt metric.Type,
 	at aggregation.Type,
 	aggTypesOpts aggregation.TypesOptions,
+	optimizedMatchOpts optimizedMatchOptions,
 ) (reverseMatchResult, bool, error) {
-	mapping, err := as.mappingsForNonRollupID(id, timeNanos, MatchOptions{
-		NameAndTagsFn:       as.tagsFilterOpts.NameAndTagsFn,
-		SortedTagIteratorFn: as.tagsFilterOpts.SortedTagIteratorFn,
-	})
+	mapping, err := as.mappingsForNonRollupID(id, timeNanos, optimizedMatchOpts)
 	if err != nil {
 		return reverseMatchResult{}, false, err
 	}
@@ -769,6 +795,7 @@ func (as *activeRuleSet) reverseMappingsForRollupID(
 	at aggregation.Type,
 	isMultiAggregationTypesAllowed bool,
 	aggTypesOpts aggregation.TypesOptions,
+	optimizedMatchOpts optimizedMatchOptions,
 ) (reverseMatchResult, bool, error) {
 	for _, rollupRule := range as.rollupRules {
 		snapshot := rollupRule.activeSnapshot(timeNanos)
@@ -792,10 +819,7 @@ func (as *activeRuleSet) reverseMappingsForRollupID(
 					nil,
 					nil,
 					matchRollupTargetOptions{generateRollupID: false},
-					MatchOptions{
-						NameAndTagsFn:       as.tagsFilterOpts.NameAndTagsFn,
-						SortedTagIteratorFn: as.tagsFilterOpts.SortedTagIteratorFn,
-					},
+					optimizedMatchOpts,
 				)
 				if err != nil {
 					return reverseMatchResult{}, false, err
