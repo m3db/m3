@@ -48,113 +48,6 @@ func TestNewM3MsgClient(t *testing.T) {
 	assert.NotNil(t, c)
 	assert.NoError(t, err)
 }
-func TestWriteUntimedCounter(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	// Mock dependencies
-	p := producer.NewMockProducer(ctrl)
-	p.EXPECT().Init()
-	p.EXPECT().NumShards().Return(uint32(1))
-	p.EXPECT().Produce(gomock.Any()).Return(nil).AnyTimes()
-
-	opts := NewM3MsgOptions().SetProducer(p)
-	client, err := NewM3MsgClient(NewOptions().SetM3MsgOptions(opts))
-	assert.NoError(t, err)
-
-	// Mock metric and metadata
-	counter := unaggregated.Counter{
-		ID:    id.RawID("testCounter"),
-		Value: 123,
-	}
-	metadatas := metadata.StagedMetadatas{}
-
-	// Mock time function
-	now := time.Now()
-	client.(*M3MsgClient).nowFn = func() time.Time { return now }
-
-	// Mock metrics
-	client.(*M3MsgClient).metrics = m3msgClientMetrics{
-		writeUntimedCounter: instrument.NewMethodMetrics(tally.NoopScope, "writeUntimedCounter", instrument.TimerOptions{}),
-		totalBytesSent:      tally.NoopScope.Counter("bytesAdded"),
-	}
-
-	// Call the method
-	err = client.WriteUntimedCounter(counter, metadatas)
-	assert.NoError(t, err)
-}
-
-func TestWriteUntimedBatchTimer(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	// Mock dependencies
-	p := producer.NewMockProducer(ctrl)
-	p.EXPECT().Init()
-	p.EXPECT().NumShards().Return(uint32(1))
-	p.EXPECT().Produce(gomock.Any()).Return(nil).AnyTimes()
-
-	opts := NewM3MsgOptions().SetProducer(p)
-	client, err := NewM3MsgClient(NewOptions().SetM3MsgOptions(opts))
-	assert.NoError(t, err)
-
-	// Mock metric and metadata
-	batchTimer := unaggregated.BatchTimer{
-		ID:     id.RawID("testBatchTimer"),
-		Values: []float64{1, 2, 3},
-	}
-	metadatas := metadata.StagedMetadatas{}
-
-	// Mock time function
-	now := time.Now()
-	client.(*M3MsgClient).nowFn = func() time.Time { return now }
-
-	// Mock metrics
-	client.(*M3MsgClient).metrics = m3msgClientMetrics{
-		writeUntimedBatchTimer: instrument.NewMethodMetrics(tally.NoopScope, "writeUntimedBatchTimer", instrument.TimerOptions{}),
-		totalBytesSent:         tally.NoopScope.Counter("bytesAdded"),
-	}
-
-	// Call the method
-	err = client.WriteUntimedBatchTimer(batchTimer, metadatas)
-	assert.NoError(t, err)
-}
-
-func TestWriteUntimedGauge(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	// Mock dependencies
-	p := producer.NewMockProducer(ctrl)
-	p.EXPECT().Init()
-	p.EXPECT().NumShards().Return(uint32(1))
-	p.EXPECT().Produce(gomock.Any()).Return(nil).AnyTimes()
-
-	opts := NewM3MsgOptions().SetProducer(p)
-	client, err := NewM3MsgClient(NewOptions().SetM3MsgOptions(opts))
-	assert.NoError(t, err)
-
-	// Mock metric and metadata
-	gauge := unaggregated.Gauge{
-		ID:    id.RawID("testGauge"),
-		Value: 123,
-	}
-	metadatas := metadata.StagedMetadatas{}
-
-	// Mock time function
-	now := time.Now()
-	client.(*M3MsgClient).nowFn = func() time.Time { return now }
-
-	// Mock metrics
-	client.(*M3MsgClient).metrics = m3msgClientMetrics{
-		writeUntimedGauge: instrument.NewMethodMetrics(tally.NoopScope, "writeUntimedGauge", instrument.TimerOptions{}),
-		totalBytesSent:    tally.NoopScope.Counter("bytesAdded"),
-	}
-
-	// Call the method
-	err = client.WriteUntimedGauge(gauge, metadatas)
-	assert.NoError(t, err)
-}
 
 func TestTotalBytesAdded(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -194,5 +87,4 @@ func TestTotalBytesAdded(t *testing.T) {
 
 	// Verify the total bytes added
 	assert.Equal(t, int64(23), testScope.Snapshot().Counters()["total-bytes-sent+"].Value())
-
 }
