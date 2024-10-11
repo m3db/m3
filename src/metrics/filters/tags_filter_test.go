@@ -282,8 +282,8 @@ func TestValidateTagsFilterError(t *testing.T) {
 
 func testTagsMatchOptions() TagMatchOptions {
 	return TagMatchOptions{
-		NameAndTagsFn:       func(b []byte) ([]byte, []byte, error) { return nil, b, nil },
-		SortedTagIteratorFn: NewMockSortedTagIterator,
+		NameAndTagsFn:     func(b []byte) ([]byte, []byte, error) { return nil, b, nil },
+		SortedTagIterator: NewMockSortedTagIterator(nil),
 	}
 }
 
@@ -304,6 +304,6 @@ func testTagsMatchOptionsWithNameTag() TagMatchOptions {
 			}
 			return b[:idx], b[idx+1:], nil
 		},
-		SortedTagIteratorFn: NewMockSortedTagIterator,
+		SortedTagIterator: NewMockSortedTagIterator(nil),
 	}
 }

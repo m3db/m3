@@ -36,9 +36,9 @@ var benchmarkCases = []struct {
 // pkg: github.com/m3db/m3/src/metrics/rules
 // BenchmarkActiveRuleSet_ReverseMatch
 // BenchmarkActiveRuleSet_ReverseMatch/rollup_ID
-// BenchmarkActiveRuleSet_ReverseMatch/rollup_ID-10         	      21	  52730040 ns/op	43040917 B/op	  360008 allocs/op
+// BenchmarkActiveRuleSet_ReverseMatch/rollup_ID-10         	      24	  47689491 ns/op	32960651 B/op	  270005 allocs/op
 // BenchmarkActiveRuleSet_ReverseMatch/mapping_ID
-// BenchmarkActiveRuleSet_ReverseMatch/mapping_ID-10        	       2	 533871292 ns/op	1089136572 B/op	 4670173 allocs/op
+// BenchmarkActiveRuleSet_ReverseMatch/mapping_ID-10        	       3	 485627903 ns/op	866253224 B/op	 2680138 allocs/op
 // PASS
 func BenchmarkActiveRuleSet_ReverseMatch(b *testing.B) {
 	for _, tc := range benchmarkCases {
