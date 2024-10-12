@@ -173,12 +173,13 @@ func addNode[T any](t *Tree[T], tags []Tag, idx int, data T) error {
 }
 
 // Match returns the data for the given tags.
-func (t *Tree[T]) Match(tags map[string]string, isMatchAny bool) ([]T, error) {
-	data := make([]T, 0, 10)
-	if err := match(t, tags, &data, isMatchAny); err != nil {
-		return nil, err
+func (t *Tree[T]) Match(tags map[string]string, data *[]T) (bool, error) {
+	isMatchAny := false
+	if data == nil || *data == nil {
+		isMatchAny = true
 	}
-	return data, nil
+	return match(t, tags, data, isMatchAny)
+
 }
 
 func match[T any](
@@ -186,9 +187,9 @@ func match[T any](
 	tags map[string]string,
 	data *[]T,
 	isMatchAny bool,
-) error {
+) (bool, error) {
 	if len(tags) == 0 || t == nil {
-		return nil
+		return false, nil
 	}
 
 	for _, node := range t.Nodes {
@@ -201,16 +202,19 @@ func match[T any](
 		tagValue, tagNameFound := tags[name]
 		absVal, absValFound := node.AbsoluteValues[tagValue]
 		if tagNameFound && absValFound {
-			*data = append(*data, absVal.Data...)
+			if data != nil && *data != nil {
+				*data = append(*data, absVal.Data...)
+			}
 			if isMatchAny && len(absVal.Data) > 0 {
-				return nil
+				return true, nil
 			}
-			err := match(absVal.Tree, tags, data, isMatchAny)
+
+			matched, err := match(absVal.Tree, tags, data, isMatchAny)
 			if err != nil {
-				return err
+				return false, err
 			}
-			if isMatchAny && len(*data) > 0 {
-				return nil
+			if isMatchAny && matched {
+				return true, nil
 			}
 		}
 		if tagNameFound != negate {
@@ -218,23 +222,25 @@ func match[T any](
 				d := unsafe.StringData(tagValue)
 				b := unsafe.Slice(d, len(tagValue))
 				if v.Filter.Matches(b) {
-					*data = append(*data, v.Data...)
+					if data != nil && *data != nil {
+						*data = append(*data, v.Data...)
+					}
 					if isMatchAny && len(v.Data) > 0 {
-						return nil
+						return true, nil
 					}
-					err := match(v.Tree, tags, data, isMatchAny)
+					matched, err := match(v.Tree, tags, data, isMatchAny)
 					if err != nil {
-						return err
+						return false, err
 					}
-					if isMatchAny && len(*data) > 0 {
-						return nil
+					if isMatchAny && matched {
+						return true, nil
 					}
 				}
 			}
 		}
 	}
 
-	return nil
+	return false, nil
 }
 
 // TagsFromTagFilter creates tags from a tag filter.

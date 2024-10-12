@@ -27,9 +27,9 @@ const (
 )
 
 /*
- * Benchmark results:
- * MatchAll:   678950	      1653.0 ns/op	      80 B/op	       1 allocs/op
- * MatchAny:  7879844	       152.6 ns/op	      80 B/op	       1 allocs/op
+* Benchmark results:
+* BenchmarkTagFilterTreeMatch/MatchAll-10      673851	      1561 ns/op	     190 B/op	       0 allocs/op
+* BenchmarkTagFilterTreeMatch/MatchAny-10     4203621	       256.0 ns/op	       0 B/op	       0 allocs/op
  */
 func BenchmarkTagFilterTreeMatch(b *testing.B) {
 	// Generate a benchmark set of tag filters with varying complexity
@@ -53,9 +53,19 @@ func BenchmarkTagFilterTreeMatch(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, _ = tree.Match(input, false)
-	}
+	b.Run("MatchAll", func(b *testing.B) {
+		resultData := make([]*Rule, 0, 10)
+		for i := 0; i < b.N; i++ {
+			_, _ = tree.Match(input, &resultData)
+		}
+	})
+
+	b.ResetTimer()
+	b.Run("MatchAny", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_, _ = tree.Match(input, nil)
+		}
+	})
 }
 
 // Seeded random number generator for deterministic results
