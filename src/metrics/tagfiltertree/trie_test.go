@@ -206,7 +206,7 @@ func TestTrieMatch(t *testing.T) {
 			expectedData:  []string{"data1", "data2"},
 		},
 		{
-			name: "multiple intersecting composite, wildcard and absolute match, single match",
+			name: "multiple intersecting composite, wildcard and absolute match, all match",
 			patterns: []Pattern{
 				{
 					pattern: "!{*foo*,*bal*}",
@@ -220,6 +220,38 @@ func TestTrieMatch(t *testing.T) {
 			input:         "batbaz",
 			expectedMatch: true,
 			expectedData:  []string{"data1", "data2"},
+		},
+		{
+			name: "multiple intersecting composite, wildcard and absolute match, single match",
+			patterns: []Pattern{
+				{
+					pattern: "!{*foo*,*bal*}",
+					data:    "data1",
+				},
+				{
+					pattern: "!{*bal*,gaz*}",
+					data:    "data2",
+				},
+			},
+			input:         "foo",
+			expectedMatch: true,
+			expectedData:  []string{"data2"},
+		},
+		{
+			name: "multiple intersecting composite, wildcard and absolute match, no match",
+			patterns: []Pattern{
+				{
+					pattern: "!{*foo*,*bal*}",
+					data:    "data1",
+				},
+				{
+					pattern: "!{*bal*,gaz*}",
+					data:    "data2",
+				},
+			},
+			input:         "banbalabal",
+			expectedMatch: false,
+			expectedData:  []string{},
 		},
 		{
 			name: "multiple negations with wildcard, single match",
@@ -267,6 +299,14 @@ func TestTrieMatch(t *testing.T) {
 				return
 			}
 
+			if len(tt.expectedData) == 0 {
+				require.Empty(t, data)
+				return
+			}
+
+			// dedup data.
+			data = deduplicateData(data)
+
 			// check data.
 			sort.Slice(data, func(i, j int) bool {
 				return data[i] < data[j]
@@ -274,14 +314,27 @@ func TestTrieMatch(t *testing.T) {
 			sort.Slice(tt.expectedData, func(i, j int) bool {
 				return tt.expectedData[i] < tt.expectedData[j]
 			})
-			require.Equal(t, reflect.DeepEqual(data, tt.expectedData), true)
+
+			require.Equal(t, true, reflect.DeepEqual(data, tt.expectedData))
 		}
 
 		t.Run(tt.name+"_with_data", func(t *testing.T) {
 			runTest(true)
 		})
-		// t.Run(tt.name+"_without_data", func(t *testing.T) {
-		// 	runTest(false)
-		// })
+		t.Run(tt.name+"_without_data", func(t *testing.T) {
+			runTest(false)
+		})
 	}
+}
+
+func deduplicateData(data []string) []string {
+	dataMap := make(map[string]struct{})
+	for i := range data {
+		dataMap[data[i]] = struct{}{}
+	}
+	data = make([]string, 0, len(dataMap))
+	for k := range dataMap {
+		data = append(data, k)
+	}
+	return data
 }
