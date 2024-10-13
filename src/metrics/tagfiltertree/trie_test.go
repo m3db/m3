@@ -286,7 +286,11 @@ func TestTrieMatch(t *testing.T) {
 				trie.Insert(rule.pattern, data)
 			}
 
-			data, matched, err := trie.Match(tt.input)
+			var data []string
+			if withData {
+				data = make([]string, 0)
+			}
+			matched, err := trie.Match(tt.input, &data)
 			require.NoError(t, err)
 
 			// check match.

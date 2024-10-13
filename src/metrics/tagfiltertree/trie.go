@@ -201,17 +201,15 @@ func hashPattern(pattern string) int {
 	return hash
 }
 
-func (tr *Trie[T]) Match(input string) ([]T, bool, error) {
-	var data []T
+func (tr *Trie[T]) Match(input string, data *[]T) (bool, error) {
 	matchedNodes := make([]*TrieNode[T], 0, 4)
 	ok, err := matchHelper(tr.root, input, 0, &matchedNodes)
-	for _, node := range matchedNodes {
-		if len(node.data) > 0 && data == nil {
-			data = make([]T, 0, len(node.data))
+	if data != nil && *data != nil {
+		for _, node := range matchedNodes {
+			*data = append(*data, node.data...)
 		}
-		data = append(data, node.data...)
 	}
-	return data, ok, err
+	return ok, err
 }
 
 func matchHelper[T any](
