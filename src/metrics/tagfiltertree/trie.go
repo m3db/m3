@@ -5,10 +5,10 @@ import (
 	"strings"
 )
 
-type TrieNode struct {
+type TrieNode[T any] struct {
 	ch       byte
-	children []*TrieNode
-	data     []string
+	children []*TrieNode[T]
+	data     []T
 	isEnd    bool
 	// a '!' node will store all the leaf nodes
 	// of all the patterns that are negated.
@@ -18,14 +18,14 @@ type TrieNode struct {
 	// for instance, for "!foo" the '!' node will store
 	// the leaf node of "foo" which is last 'o' with the
 	// isEnd flag set to true.
-	negatedNodes      map[*TrieNode]struct{}
+	negatedNodes      map[*TrieNode[T]]struct{}
 	negatedPatternIDs []int
 }
 
-func NewEmptyNode(ch byte) *TrieNode {
-	return &TrieNode{
+func NewEmptyNode[T any](ch byte) *TrieNode[T] {
+	return &TrieNode[T]{
 		ch:                ch,
-		children:          make([]*TrieNode, 256),
+		children:          make([]*TrieNode[T], 256),
 		data:              nil,
 		isEnd:             false,
 		negatedNodes:      nil,
@@ -33,23 +33,23 @@ func NewEmptyNode(ch byte) *TrieNode {
 	}
 }
 
-type Trie struct {
-	root *TrieNode
+type Trie[T any] struct {
+	root *TrieNode[T]
 }
 
-func NewTrie() *Trie {
-	return &Trie{
+func NewTrie[T any]() *Trie[T] {
+	return &Trie[T]{
 		root: nil,
 	}
 }
 
-func (tr *Trie) Insert(pattern string, data string) error {
+func (tr *Trie[T]) Insert(pattern string, data T) error {
 	if err := ValidatePattern(pattern); err != nil {
 		return err
 	}
 
 	if tr.root == nil {
-		tr.root = NewEmptyNode('^')
+		tr.root = NewEmptyNode[T]('^')
 	}
 
 	return insertHelper(tr.root, pattern, 0, len(pattern), data, nil, -1)
@@ -100,13 +100,13 @@ func ValidatePattern(pattern string) error {
 	return nil
 }
 
-func insertHelper(
-	root *TrieNode,
+func insertHelper[T any](
+	root *TrieNode[T],
 	pattern string,
 	startIdx int,
 	endIdx int,
-	data string,
-	negatedNodes map[*TrieNode]struct{},
+	data T,
+	negatedNodes map[*TrieNode[T]]struct{},
 	negatedPatternID int,
 ) error {
 	if root == nil {
@@ -148,14 +148,14 @@ func insertHelper(
 
 	node := root.children[pattern[startIdx]]
 	if node == nil {
-		node = NewEmptyNode(pattern[startIdx])
+		node = NewEmptyNode[T](pattern[startIdx])
 	}
 
 	if node.ch == '!' {
 		// allocate the negatedNodes map and pass it to the children.
 		//assert(negatedNodes == nil, "negatedNodes should be nil")
 		if node.negatedNodes == nil {
-			node.negatedNodes = make(map[*TrieNode]struct{}, 4)
+			node.negatedNodes = make(map[*TrieNode[T]]struct{}, 4)
 		}
 
 		// set the negatedNodes here so that
@@ -201,24 +201,24 @@ func hashPattern(pattern string) int {
 	return hash
 }
 
-func (tr *Trie) Match(input string) ([]string, bool, error) {
-	var data []string
-	matchedNodes := make([]*TrieNode, 0, 4)
+func (tr *Trie[T]) Match(input string) ([]T, bool, error) {
+	var data []T
+	matchedNodes := make([]*TrieNode[T], 0, 4)
 	ok, err := matchHelper(tr.root, input, 0, &matchedNodes)
 	for _, node := range matchedNodes {
 		if len(node.data) > 0 && data == nil {
-			data = make([]string, 0, len(node.data))
+			data = make([]T, 0, len(node.data))
 		}
 		data = append(data, node.data...)
 	}
 	return data, ok, err
 }
 
-func matchHelper(
-	root *TrieNode,
+func matchHelper[T any](
+	root *TrieNode[T],
 	input string,
 	startIdx int,
-	matchedNodes *[]*TrieNode,
+	matchedNodes *[]*TrieNode[T],
 ) (bool, error) {
 	if root == nil {
 		return false, nil
@@ -264,7 +264,7 @@ func matchHelper(
 
 	child = root.children['!']
 	if child != nil {
-		matchedNegatedNodes := make([]*TrieNode, 0)
+		matchedNegatedNodes := make([]*TrieNode[T], 0)
 		_, err := matchHelper(child, input, startIdx, &matchedNegatedNodes)
 		if err != nil {
 			return false, err
@@ -305,7 +305,7 @@ func matchHelper(
 	return matched, nil
 }
 
-func containsPatternID(nodes []*TrieNode, patternIDs []int) bool {
+func containsPatternID[T any](nodes []*TrieNode[T], patternIDs []int) bool {
 	for _, n := range nodes {
 		for _, patternID := range patternIDs {
 			for _, negatedPatternID := range n.negatedPatternIDs {

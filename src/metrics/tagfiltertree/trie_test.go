@@ -277,7 +277,7 @@ func TestTrieMatch(t *testing.T) {
 
 	for _, tt := range tests {
 		runTest := func(withData bool) {
-			trie := NewTrie()
+			trie := NewTrie[string]()
 			for _, rule := range tt.patterns {
 				data := ""
 				if withData {
