@@ -10,26 +10,14 @@ type TrieNode[T any] struct {
 	children []*TrieNode[T]
 	data     []T
 	isEnd    bool
-	// a '!' node will store all the leaf nodes
-	// of all the patterns that are negated.
-	// During a Match() call, we will take the difference
-	// between the data within the negated nodes and the
-	// matched nodes.
-	// for instance, for "!foo" the '!' node will store
-	// the leaf node of "foo" which is last 'o' with the
-	// isEnd flag set to true.
-	negatedNodes      map[*TrieNode[T]]struct{}
-	negatedPatternIDs []int
 }
 
 func NewEmptyNode[T any](ch byte) *TrieNode[T] {
 	return &TrieNode[T]{
-		ch:                ch,
-		children:          make([]*TrieNode[T], 256),
-		data:              nil,
-		isEnd:             false,
-		negatedNodes:      nil,
-		negatedPatternIDs: nil,
+		ch:       ch,
+		children: make([]*TrieNode[T], 256),
+		data:     nil,
+		isEnd:    false,
 	}
 }
 
@@ -159,19 +147,6 @@ func insertHelper[T any](
 		if data != nil {
 			node.data = append(node.data, *data)
 		}
-		// allocate the negatedNodes map and pass it to the children.
-		//assert(negatedNodes == nil, "negatedNodes should be nil")
-		if node.negatedNodes == nil {
-			node.negatedNodes = make(map[*TrieNode[T]]struct{}, 4)
-		}
-
-		// set the negatedNodes here so that
-		// the children can add themselves to the parent's negatedNodes.
-		// note that this node '!' is the parent node.
-		negatedNodes = node.negatedNodes
-
-		// compute the negatedPatternID.
-		negatedPatternID = hashPattern(pattern)
 	}
 
 	root.children[pattern[startIdx]] = node
@@ -182,32 +157,9 @@ func insertHelper[T any](
 		if data != nil {
 			node.data = append(node.data, *data)
 		}
-
-		if negatedPatternID != -1 {
-			// this is a negated node.
-			if node.negatedPatternIDs == nil {
-				node.negatedPatternIDs = make([]int, 0, 4)
-			}
-			// set the negatedPatternID in this node.
-			node.negatedPatternIDs = append(node.negatedPatternIDs, negatedPatternID)
-
-			if negatedNodes != nil {
-				// add the node to the negatedNodes of the parent.
-				negatedNodes[node] = struct{}{}
-			}
-		}
 	}
 
 	return insertHelper(node, pattern, startIdx+1, endIdx, data, negatedNodes, negatedPatternID)
-}
-
-func hashPattern(pattern string) int {
-	// simple hash function.
-	hash := 0
-	for i := 0; i < len(pattern); i++ {
-		hash = hash*31 + int(pattern[i])
-	}
-	return hash
 }
 
 func (tr *Trie[T]) Match(input string, data *[]T) (bool, error) {
@@ -266,7 +218,6 @@ func matchHelper[T any](
 
 	child = root.children['!']
 	if child != nil {
-		//matchedNegatedNodes := make([]*TrieNode[T], 0)
 		matchedNegate, err := matchHelper(child, input, startIdx, nil)
 		if err != nil {
 			return false, err
@@ -299,17 +250,4 @@ func matchHelper[T any](
 	}
 
 	return matched, nil
-}
-
-func containsPatternID[T any](nodes []*TrieNode[T], patternIDs []int) bool {
-	for _, n := range nodes {
-		for _, patternID := range patternIDs {
-			for _, negatedPatternID := range n.negatedPatternIDs {
-				if negatedPatternID == patternID {
-					return true
-				}
-			}
-		}
-	}
-	return false
 }
