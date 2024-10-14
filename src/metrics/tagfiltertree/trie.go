@@ -72,6 +72,11 @@ func ValidatePattern(pattern string) error {
 		}
 	}
 
+	// we do not support certain special chars in the pattern.
+	if strings.ContainsAny(pattern, "[]?") {
+		return fmt.Errorf("invalid pattern")
+	}
+
 	return nil
 }
 
@@ -91,28 +96,12 @@ func insertHelper[T any](
 	}
 
 	if pattern[startIdx] == '{' {
-		endIdx = startIdx + 1
-		for endIdx < len(pattern) && pattern[endIdx] != '}' {
-			endIdx++
-		}
-		if endIdx == len(pattern) {
-			return fmt.Errorf("invalid pattern")
+		options, err := ParseCompositePattern(pattern)
+		if err != nil {
+			return err
 		}
 
-		// extract the composite pattern.
-		optionStr := pattern[startIdx+1 : endIdx]
-
-		optionSuffix := ""
-		if endIdx < len(pattern)-1 {
-			// extract the segment after the '}'
-			// this segment will be concatenated to each of the
-			// options within the composite pattern.
-			optionSuffix = pattern[endIdx+1:]
-		}
-
-		options := strings.Split(optionStr, ",")
-		for _, o := range options {
-			option := o + optionSuffix
+		for _, option := range options {
 			if err := insertHelper(
 				root,
 				option,
@@ -243,4 +232,34 @@ func matchHelper[T any](
 	}
 
 	return matched, nil
+}
+
+// ParseCompositePattern extracts the options from a composite pattern.
+// It appends the suffix (the segment after the '}' character) to each option.
+// It does not check for other invalid chars in the pattern. Those checks should
+// be done before calling this function.
+func ParseCompositePattern(pattern string) ([]string, error) {
+	openIdx := strings.Index(pattern, "{")
+	closeIdx := strings.Index(pattern, "}")
+
+	if openIdx == -1 || closeIdx == -1 {
+		return nil, fmt.Errorf("invalid pattern")
+	}
+
+	if closeIdx != strings.LastIndex(pattern, "}") {
+		return nil, fmt.Errorf("invalid pattern")
+	}
+
+	optionStr := pattern[openIdx+1 : closeIdx]
+	optionSuffix := ""
+	if closeIdx < len(pattern)-1 {
+		optionSuffix = pattern[closeIdx+1:]
+	}
+
+	options := strings.Split(optionStr, ",")
+	for i := range options {
+		options[i] = options[i] + optionSuffix
+	}
+
+	return options, nil
 }
