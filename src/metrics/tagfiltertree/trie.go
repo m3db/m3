@@ -43,7 +43,7 @@ func NewTrie[T any]() *Trie[T] {
 	}
 }
 
-func (tr *Trie[T]) Insert(pattern string, data T) error {
+func (tr *Trie[T]) Insert(pattern string, data *T) error {
 	if err := ValidatePattern(pattern); err != nil {
 		return err
 	}
@@ -105,7 +105,7 @@ func insertHelper[T any](
 	pattern string,
 	startIdx int,
 	endIdx int,
-	data T,
+	data *T,
 	negatedNodes map[*TrieNode[T]]struct{},
 	negatedPatternID int,
 ) error {
@@ -152,6 +152,13 @@ func insertHelper[T any](
 	}
 
 	if node.ch == '!' {
+		if node.data == nil {
+			node.data = make([]T, 0, 2)
+		}
+
+		if data != nil {
+			node.data = append(node.data, *data)
+		}
 		// allocate the negatedNodes map and pass it to the children.
 		//assert(negatedNodes == nil, "negatedNodes should be nil")
 		if node.negatedNodes == nil {
@@ -172,7 +179,9 @@ func insertHelper[T any](
 	if startIdx == len(pattern)-1 {
 		// found the leaf node.
 		node.isEnd = true
-		node.data = append(node.data, data)
+		if data != nil {
+			node.data = append(node.data, *data)
+		}
 
 		if negatedPatternID != -1 {
 			// this is a negated node.
@@ -202,21 +211,14 @@ func hashPattern(pattern string) int {
 }
 
 func (tr *Trie[T]) Match(input string, data *[]T) (bool, error) {
-	matchedNodes := make([]*TrieNode[T], 0, 4)
-	ok, err := matchHelper(tr.root, input, 0, &matchedNodes)
-	if data != nil && *data != nil {
-		for _, node := range matchedNodes {
-			*data = append(*data, node.data...)
-		}
-	}
-	return ok, err
+	return matchHelper(tr.root, input, 0, data)
 }
 
 func matchHelper[T any](
 	root *TrieNode[T],
 	input string,
 	startIdx int,
-	matchedNodes *[]*TrieNode[T],
+	data *[]T,
 ) (bool, error) {
 	if root == nil {
 		return false, nil
@@ -226,7 +228,9 @@ func matchHelper[T any](
 		// looks for patterns that end with a '*'.
 		child := root.children['*']
 		if child != nil && child.isEnd {
-			*matchedNodes = append(*matchedNodes, child)
+			if data != nil {
+				*data = append(*data, child.data...)
+			}
 			return true, nil
 		}
 
@@ -243,7 +247,7 @@ func matchHelper[T any](
 		if startIdx < len(input) {
 			subChild := child.children[input[startIdx]]
 			if subChild != nil {
-				matchedOne, err := matchHelper(subChild, input, startIdx+1, matchedNodes)
+				matchedOne, err := matchHelper(subChild, input, startIdx+1, data)
 				if err != nil {
 					return false, err
 				}
@@ -252,7 +256,7 @@ func matchHelper[T any](
 		}
 
 		// stay on the '*'.
-		matchedAll, err := matchHelper(root, input, startIdx+1, matchedNodes)
+		matchedAll, err := matchHelper(root, input, startIdx+1, data)
 		if err != nil {
 			return false, err
 		}
@@ -262,31 +266,23 @@ func matchHelper[T any](
 
 	child = root.children['!']
 	if child != nil {
-		matchedNegatedNodes := make([]*TrieNode[T], 0)
-		_, err := matchHelper(child, input, startIdx, &matchedNegatedNodes)
+		//matchedNegatedNodes := make([]*TrieNode[T], 0)
+		matchedNegate, err := matchHelper(child, input, startIdx, nil)
 		if err != nil {
 			return false, err
 		}
 
-		// take difference between child.data and dataNegate.
-		for negatedNode := range child.negatedNodes {
-			// multiple leaf nodes might be part of the same pattern.
-			// for example in case of "!{foo*,bar*}", both "foo*" and "bar*"
-			// will be part of the same pattern.
-			// therefore the '*' from "foo*" and the '*' from "bar*" will be
-			// will both be unique leaf nodes but will have the same data.
-			// Our goal is to remove all the nodes belonging to the same pattern
-			// as any of the matchedNegatedNodes.
-			if !containsPatternID(matchedNegatedNodes, negatedNode.negatedPatternIDs) {
-				matched = true
-				*matchedNodes = append(*matchedNodes, negatedNode)
+		matched = matched || !matchedNegate
+		if !matchedNegate {
+			if data != nil {
+				*data = append(*data, child.data...)
 			}
 		}
 	}
 
 	subChild := root.children[input[startIdx]]
 	if subChild != nil {
-		matchedOne, err := matchHelper(subChild, input, startIdx+1, matchedNodes)
+		matchedOne, err := matchHelper(subChild, input, startIdx+1, data)
 		if err != nil {
 			return false, err
 		}
@@ -294,7 +290,9 @@ func matchHelper[T any](
 
 		if startIdx == len(input)-1 {
 			if subChild.isEnd {
-				*matchedNodes = append(*matchedNodes, subChild)
+				if data != nil {
+					*data = append(*data, subChild.data...)
+				}
 				matched = true
 			}
 		}

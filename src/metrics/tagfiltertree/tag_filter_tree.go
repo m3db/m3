@@ -3,9 +3,6 @@ package tagfiltertree
 import (
 	"fmt"
 	"strings"
-	"unsafe"
-
-	"github.com/m3db/m3/src/metrics/filters"
 )
 
 const (
@@ -32,10 +29,10 @@ type Tree[T any] struct {
 }
 
 type NodeValue[T any] struct {
-	Val    string
-	Filter filters.Filter
-	Tree   *Tree[T]
-	Data   []T
+	Val         string
+	PatternTrie *Trie[T]
+	Tree        *Tree[T]
+	Data        []T
 }
 
 type node[T any] struct {
@@ -98,27 +95,28 @@ func (n *node[T]) addValue(filter string, data *T) (*Tree[T], error) {
 		}
 	}
 
-	f, err := filters.NewFilter([]byte(filter))
+	t := NewTrie[T]()
+	err := t.Insert(filter, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	newNodeValue := NewNodeValue[T](filter, f, data)
+	newNodeValue := NewNodeValue[T](filter, t, data)
 	n.PatternValues = append(n.PatternValues, newNodeValue)
 
 	return newNodeValue.Tree, nil
 }
 
-func NewNodeValue[T any](val string, filter filters.Filter, data *T) NodeValue[T] {
+func NewNodeValue[T any](val string, patternTrie *Trie[T], data *T) NodeValue[T] {
 	t := &Tree[T]{
 		Nodes: make([]*node[T], 0),
 	}
 
 	v := NodeValue[T]{
-		Val:    val,
-		Filter: filter,
-		Tree:   t,
-		Data:   nil,
+		Val:         val,
+		PatternTrie: patternTrie,
+		Tree:        t,
+		Data:        nil,
 	}
 
 	if data != nil {
@@ -219,9 +217,11 @@ func match[T any](
 		}
 		if tagNameFound != negate {
 			for _, v := range node.PatternValues {
-				d := unsafe.StringData(tagValue)
-				b := unsafe.Slice(d, len(tagValue))
-				if v.Filter.Matches(b) {
+				matched, err := v.PatternTrie.Match(tagValue, nil)
+				if err != nil {
+					return false, err
+				}
+				if matched {
 					if data != nil && *data != nil {
 						*data = append(*data, v.Data...)
 					}
