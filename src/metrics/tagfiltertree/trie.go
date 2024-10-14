@@ -96,7 +96,7 @@ func insertHelper[T any](
 	}
 
 	if pattern[startIdx] == '{' {
-		options, err := ParseCompositePattern(pattern)
+		options, err := ParseCompositePattern(pattern[startIdx:])
 		if err != nil {
 			return err
 		}
@@ -255,10 +255,11 @@ func ParseCompositePattern(pattern string) ([]string, error) {
 	if closeIdx < len(pattern)-1 {
 		optionSuffix = pattern[closeIdx+1:]
 	}
+	optionPrefix := pattern[:openIdx]
 
 	options := strings.Split(optionStr, ",")
 	for i := range options {
-		options[i] = options[i] + optionSuffix
+		options[i] = optionPrefix + options[i] + optionSuffix
 	}
 
 	return options, nil
