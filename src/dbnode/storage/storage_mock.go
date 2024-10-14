@@ -2290,7 +2290,7 @@ func (mr *MockdatabaseShardMockRecorder) Snapshot(blockStart, snapshotStart, flu
 }
 
 // Tick mocks base method.
-func (m *MockdatabaseShard) Tick(c context.Cancellable, startTime time0.UnixNano, nsCtx namespace.Context) (tickResult, error) {
+func (m *MockdatabaseShard) Tick(c context.Cancellable, startTime time0.UnixNano, nsCtx namespace.Context, tickOptions TickOptions) (tickResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Tick", c, startTime, nsCtx)
 	ret0, _ := ret[0].(tickResult)
@@ -3868,6 +3868,15 @@ func NewMockOptions(ctrl *gomock.Controller) *MockOptions {
 	mock.recorder = &MockOptionsMockRecorder{mock}
 	return mock
 }
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockOptions) SetTickOptions(TickOptions) Options {
+	return m
+}
+func (m *MockOptions) TickOptions() TickOptions {
+	return TickOptions{}
+}
+
 
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockOptions) EXPECT() *MockOptionsMockRecorder {
