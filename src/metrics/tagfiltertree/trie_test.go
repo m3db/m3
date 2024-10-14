@@ -167,6 +167,18 @@ func TestTrieMatch(t *testing.T) {
 			expectedData:  []string{"data1"},
 		},
 		{
+			name: "composite starting middle, wildcards, single match",
+			patterns: []Pattern{
+				{
+					pattern: "*choco{*foo*,*bar*}late*",
+					data:    "data1",
+				},
+			},
+			input:         "123chocobarlate456",
+			expectedMatch: true,
+			expectedData:  []string{"data1"},
+		},
+		{
 			name: "composite, wildcard match, single match",
 			patterns: []Pattern{
 				{

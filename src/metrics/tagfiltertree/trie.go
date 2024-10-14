@@ -40,7 +40,7 @@ func (tr *Trie[T]) Insert(pattern string, data *T) error {
 		tr.root = NewEmptyNode[T]('^')
 	}
 
-	return insertHelper(tr.root, pattern, 0, len(pattern), data, nil, -1)
+	return insertHelper(tr.root, pattern, 0, len(pattern), data)
 }
 
 func ValidatePattern(pattern string) error {
@@ -61,28 +61,15 @@ func ValidatePattern(pattern string) error {
 		return fmt.Errorf("invalid pattern")
 	}
 
-	if strings.Contains(pattern, "{") {
-		// '}' should always be the last character in the pattern.
-		if strings.Index(pattern, "}") != len(pattern)-1 {
-			return fmt.Errorf("invalid pattern")
+	openIdx := strings.Index(pattern, "{")
+	if openIdx != -1 {
+		closeIdx := strings.Index(pattern, "}")
+		if closeIdx != -1 {
+			// we do not support negation within composite patterns.
+			if strings.Contains(pattern[openIdx:closeIdx], "!") {
+				return fmt.Errorf("invalid pattern")
+			}
 		}
-	}
-
-	// a '{' if present can only be the first or second character.
-	if strings.Index(pattern, "{") > 1 {
-		return fmt.Errorf("invalid pattern")
-	}
-
-	// if '{' is the second char, then the first char can only be '!'.
-	if strings.Index(pattern, "{") == 1 {
-		if pattern[0] != '!' {
-			return fmt.Errorf("invalid pattern")
-		}
-	}
-
-	// as of now we don't support '!' within a composite pattern.
-	if strings.Index(pattern, "!") > 0 {
-		return fmt.Errorf("invalid pattern")
 	}
 
 	return nil
@@ -94,8 +81,6 @@ func insertHelper[T any](
 	startIdx int,
 	endIdx int,
 	data *T,
-	negatedNodes map[*TrieNode[T]]struct{},
-	negatedPatternID int,
 ) error {
 	if root == nil {
 		return nil
@@ -114,18 +99,26 @@ func insertHelper[T any](
 			return fmt.Errorf("invalid pattern")
 		}
 
-		// insert the pattern
+		// extract the composite pattern.
 		optionStr := pattern[startIdx+1 : endIdx]
+
+		optionSuffix := ""
+		if endIdx < len(pattern)-1 {
+			// extract the segment after the '}'
+			// this segment will be concatenated to each of the
+			// options within the composite pattern.
+			optionSuffix = pattern[endIdx+1:]
+		}
+
 		options := strings.Split(optionStr, ",")
-		for _, option := range options {
+		for _, o := range options {
+			option := o + optionSuffix
 			if err := insertHelper(
 				root,
 				option,
 				0,
 				len(option),
 				data,
-				negatedNodes,
-				negatedPatternID,
 			); err != nil {
 				return err
 			}
@@ -159,7 +152,7 @@ func insertHelper[T any](
 		}
 	}
 
-	return insertHelper(node, pattern, startIdx+1, endIdx, data, negatedNodes, negatedPatternID)
+	return insertHelper(node, pattern, startIdx+1, endIdx, data)
 }
 
 func (tr *Trie[T]) Match(input string, data *[]T) (bool, error) {
