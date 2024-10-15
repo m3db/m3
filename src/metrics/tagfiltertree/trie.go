@@ -5,42 +5,16 @@ import (
 	"strings"
 )
 
-type trieChar struct {
-	ch byte
-}
-
-func (c *trieChar) String() string {
-	return string(c.ch)
-}
-
-func (c *trieChar) SetEnd() {
-	c.ch |= 0x01
-}
-
-func (c *trieChar) IsEnd() bool {
-	return c.ch&0x01 == 0x01
-}
-
-func NewTrieChar(ch byte) trieChar {
-	return trieChar{
-		ch: ch << 1,
-	}
-}
-
-func (c *trieChar) Char() byte {
-	return c.ch >> 1
-}
-
 type TrieNode[T any] struct {
 	ch       trieChar
-	children []*TrieNode[T]
+	children trieChildren[TrieNode[T]]
 	data     []T
 }
 
 func NewEmptyNode[T any](ch byte) *TrieNode[T] {
 	return &TrieNode[T]{
 		ch:       NewTrieChar(ch),
-		children: make([]*TrieNode[T], 128),
+		children: newTrieChildren[TrieNode[T]](),
 		data:     nil,
 	}
 }
@@ -146,7 +120,10 @@ func insertHelper[T any](
 		return nil
 	}
 
-	node := root.children[pattern[startIdx]]
+	var node *TrieNode[T]
+	if root.children.IsSet(pattern[startIdx]) {
+		node = root.children.Get(pattern[startIdx])
+	}
 	if node == nil {
 		node = NewEmptyNode[T](pattern[startIdx])
 	}
@@ -157,7 +134,7 @@ func insertHelper[T any](
 		}
 	}
 
-	root.children[pattern[startIdx]] = node
+	root.children.Insert(pattern[startIdx], node)
 
 	if startIdx == len(pattern)-1 {
 		// found the leaf node.
@@ -186,7 +163,10 @@ func matchHelper[T any](
 
 	if startIdx == len(input) {
 		// looks for patterns that end with a '*'.
-		child := root.children['*']
+		var child *TrieNode[T]
+		if root.children.IsSet('*') {
+			child = root.children.Get('*')
+		}
 		if child != nil && child.ch.IsEnd() {
 			if data != nil {
 				*data = append(*data, child.data...)
@@ -199,13 +179,19 @@ func matchHelper[T any](
 
 	matched := false
 	// check matchAll case.
-	child := root.children['*']
+	var child *TrieNode[T]
+	if root.children.IsSet('*') {
+		child = root.children.Get('*')
+	}
 	if child != nil {
 		var err error
 
 		// move forward in the pattern and input.
 		if startIdx < len(input) {
-			subChild := child.children[input[startIdx]]
+			var subChild *TrieNode[T]
+			if child.children.IsSet(input[startIdx]) {
+				subChild = child.children.Get(input[startIdx])
+			}
 			if subChild != nil {
 				matchedOne, err := matchHelper(subChild, input, startIdx+1, data)
 				if err != nil {
@@ -224,7 +210,10 @@ func matchHelper[T any](
 		matched = matched || matchedAll
 	}
 
-	child = root.children['!']
+	child = nil
+	if root.children.IsSet('!') {
+		child = root.children.Get('!')
+	}
 	if child != nil {
 		matchedNegate, err := matchHelper(child, input, startIdx, nil)
 		if err != nil {
@@ -239,7 +228,10 @@ func matchHelper[T any](
 		}
 	}
 
-	subChild := root.children[input[startIdx]]
+	var subChild *TrieNode[T]
+	if root.children.IsSet(input[startIdx]) {
+		subChild = root.children.Get(input[startIdx])
+	}
 	if subChild != nil {
 		matchedOne, err := matchHelper(subChild, input, startIdx+1, data)
 		if err != nil {
