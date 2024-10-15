@@ -15,7 +15,7 @@ type TrieNode[T any] struct {
 func NewEmptyNode[T any](ch byte) *TrieNode[T] {
 	return &TrieNode[T]{
 		ch:       ch,
-		children: make([]*TrieNode[T], 256),
+		children: make([]*TrieNode[T], 128),
 		data:     nil,
 		isEnd:    false,
 	}
@@ -122,10 +122,6 @@ func insertHelper[T any](
 	}
 
 	if node.ch == '!' {
-		if node.data == nil {
-			node.data = make([]T, 0, 2)
-		}
-
 		if data != nil {
 			node.data = append(node.data, *data)
 		}
