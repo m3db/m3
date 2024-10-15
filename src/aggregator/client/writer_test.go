@@ -57,7 +57,8 @@ func TestWriterWriteClosed(t *testing.T) {
 	}
 	w := newInstanceWriter(testPlacementInstance, testOptions()).(*writer)
 	w.closed = true
-	require.Equal(t, errInstanceWriterClosed, w.Write(0, payload))
+	_, err := w.Write(0, payload)
+	require.Equal(t, errInstanceWriterClosed, err)
 }
 
 func TestWriterWriteUntimedCounterEncodeError(t *testing.T) {
@@ -87,7 +88,9 @@ func TestWriterWriteUntimedCounterEncodeError(t *testing.T) {
 			metadatas: testStagedMetadatas,
 		},
 	}
-	require.Equal(t, errTestEncodeMetric, w.Write(0, payload))
+	bytesWritten, err := w.Write(0, payload)
+	require.Equal(t, errTestEncodeMetric, err)
+	require.Equal(t, 0, bytesWritten)
 }
 
 func TestWriterWriteUntimedCounterEncoderExists(t *testing.T) {
@@ -116,8 +119,10 @@ func TestWriterWriteUntimedCounterEncoderExists(t *testing.T) {
 			metadatas: testStagedMetadatas,
 		},
 	}
-	require.NoError(t, w.Write(0, payload))
+	bytesAdded, err := w.Write(0, payload)
+	require.NoError(t, err)
 	require.Equal(t, 1, len(w.encodersByShard))
+	require.Equal(t, 4, bytesAdded)
 }
 
 func TestWriterWriteUntimedCounterEncoderDoesNotExist(t *testing.T) {
@@ -148,7 +153,10 @@ func TestWriterWriteUntimedCounterEncoderDoesNotExist(t *testing.T) {
 			metadatas: testStagedMetadatas,
 		},
 	}
-	require.NoError(t, w.Write(0, payload))
+	bytesAdded, err := w.Write(0, payload)
+	require.NoError(t, err)
+	require.Equal(t, 4, bytesAdded)
+
 }
 
 func TestWriterWriteUntimedCounterWithFlushingZeroSizeBefore(t *testing.T) {
@@ -192,7 +200,8 @@ func TestWriterWriteUntimedCounterWithFlushingZeroSizeBefore(t *testing.T) {
 			metadatas: testStagedMetadatas,
 		},
 	}
-	require.NoError(t, w.Write(0, payload))
+	_, err := w.Write(0, payload)
+	require.NoError(t, err)
 
 	enc, exists := w.encodersByShard[0]
 	require.True(t, exists)
@@ -242,7 +251,9 @@ func TestWriterWriteUntimedCounterWithFlushingPositiveSizeBefore(t *testing.T) {
 			metadatas: testStagedMetadatas,
 		},
 	}
-	require.NoError(t, w.Write(0, payload))
+	bytesAdded, err := w.Write(0, payload)
+	require.NoError(t, err)
+	require.Equal(t, 4, bytesAdded)
 
 	enc, exists := w.encodersByShard[0]
 	require.True(t, exists)
@@ -290,7 +301,9 @@ func TestWriterWriteUntimedBatchTimerNoBatchSizeLimit(t *testing.T) {
 			metadatas: testStagedMetadatas,
 		},
 	}
-	require.NoError(t, w.Write(0, payload))
+	bytesWritten, err := w.Write(0, payload)
+	require.NoError(t, err)
+	require.Equal(t, 4, bytesWritten)
 }
 
 func TestWriterWriteUntimedBatchTimerSmallBatchSize(t *testing.T) {
@@ -322,7 +335,8 @@ func TestWriterWriteUntimedBatchTimerSmallBatchSize(t *testing.T) {
 			metadatas: testStagedMetadatas,
 		},
 	}
-	require.NoError(t, w.Write(0, payload))
+	_, err := w.Write(0, payload)
+	require.NoError(t, err)
 }
 
 func TestWriterWriteUntimedBatchTimerLargeBatchSize(t *testing.T) {
@@ -374,7 +388,8 @@ func TestWriterWriteUntimedBatchTimerLargeBatchSize(t *testing.T) {
 			metadatas: testStagedMetadatas,
 		},
 	}
-	require.NoError(t, w.Write(0, payload))
+	_, err := w.Write(0, payload)
+	require.NoError(t, err)
 	require.NoError(t, w.Flush())
 
 	var (
@@ -441,7 +456,9 @@ func TestWriterWriteUntimedLargeBatchTimerUsesMultipleBuffers(t *testing.T) {
 		return nil
 	}
 
-	require.NoError(t, w.Write(0, payload))
+	bytesAdded, err := w.Write(0, payload)
+	require.NoError(t, err)
+	require.Equal(t, 35000, bytesAdded)
 	require.NoError(t, w.Flush())
 	time.Sleep(1 * time.Second) // TODO: remove once queue is sync
 	require.NoError(t, w.Close())
@@ -495,7 +512,9 @@ func TestWriterWriteUntimedBatchTimerWriteError(t *testing.T) {
 			metadatas: testStagedMetadatas,
 		},
 	}
-	require.Equal(t, errTestWrite, w.Write(0, payload))
+	bytesWritten, err := w.Write(0, payload)
+	require.Equal(t, errTestWrite, err)
+	require.Equal(t, 0, bytesWritten)
 }
 
 func TestWriterWriteUntimedBatchTimerEnqueueError(t *testing.T) {
@@ -518,7 +537,8 @@ func TestWriterWriteUntimedBatchTimerEnqueueError(t *testing.T) {
 			metadatas: testStagedMetadatas,
 		},
 	}
-	require.Equal(t, errTestEnqueue, w.Write(0, payload))
+	_, err := w.Write(0, payload)
+	require.Equal(t, errTestEnqueue, err)
 }
 
 func TestWriterWriteUntimedGauge(t *testing.T) {
@@ -549,7 +569,8 @@ func TestWriterWriteUntimedGauge(t *testing.T) {
 			metadatas: testStagedMetadatas,
 		},
 	}
-	require.NoError(t, w.Write(0, payload))
+	_, err := w.Write(0, payload)
+	require.NoError(t, err)
 }
 
 func TestWriterWriteForwardedWithFlushingZeroSizeBefore(t *testing.T) {
@@ -593,7 +614,8 @@ func TestWriterWriteForwardedWithFlushingZeroSizeBefore(t *testing.T) {
 			metadata: testForwardMetadata,
 		},
 	}
-	require.NoError(t, w.Write(0, payload))
+	_, err := w.Write(0, payload)
+	require.NoError(t, err)
 
 	enc, exists := w.encodersByShard[0]
 	require.True(t, exists)
@@ -643,7 +665,8 @@ func TestWriterWriteForwardedWithFlushingPositiveSizeBefore(t *testing.T) {
 			metadata: testForwardMetadata,
 		},
 	}
-	require.NoError(t, w.Write(0, payload))
+	_, err := w.Write(0, payload)
+	require.NoError(t, err)
 
 	enc, exists := w.encodersByShard[0]
 	require.True(t, exists)
@@ -679,7 +702,8 @@ func TestWriterWriteForwardedEncodeError(t *testing.T) {
 			metadata: testForwardMetadata,
 		},
 	}
-	require.Equal(t, errTestEncodeMetric, w.Write(0, payload))
+	_, err := w.Write(0, payload)
+	require.Equal(t, errTestEncodeMetric, err)
 }
 
 func TestWriterWriteForwardedEnqueueError(t *testing.T) {
@@ -702,7 +726,8 @@ func TestWriterWriteForwardedEnqueueError(t *testing.T) {
 			metadata: testForwardMetadata,
 		},
 	}
-	require.Equal(t, errTestEnqueue, w.Write(0, payload))
+	_, err := w.Write(0, payload)
+	require.Equal(t, errTestEnqueue, err)
 }
 
 func TestWriterFlushClosed(t *testing.T) {
@@ -902,7 +927,8 @@ func testWriterConcurrentWriteStress(
 					metadatas: testStagedMetadatas,
 				},
 			}
-			require.NoError(t, w.Write(shard, payload))
+			_, err := w.Write(shard, payload)
+			require.NoError(t, err)
 		}
 	}()
 
@@ -922,7 +948,8 @@ func testWriterConcurrentWriteStress(
 					metadatas: testStagedMetadatas,
 				},
 			}
-			require.NoError(t, w.Write(shard, payload))
+			_, err := w.Write(shard, payload)
+			require.NoError(t, err)
 		}
 	}()
 
@@ -942,7 +969,8 @@ func testWriterConcurrentWriteStress(
 					metadatas: testStagedMetadatas,
 				},
 			}
-			require.NoError(t, w.Write(shard, payload))
+			_, err := w.Write(shard, payload)
+			require.NoError(t, err)
 		}
 	}()
 
@@ -957,7 +985,8 @@ func testWriterConcurrentWriteStress(
 					metadata: testForwardMetadata,
 				},
 			}
-			require.NoError(t, w.Write(shard, payload))
+			_, err := w.Write(shard, payload)
+			require.NoError(t, err)
 		}
 	}()
 
@@ -972,7 +1001,8 @@ func testWriterConcurrentWriteStress(
 					storagePolicy: testPassthroughMetadata,
 				},
 			}
-			require.NoError(t, w.Write(shard, payload))
+			_, err := w.Write(shard, payload)
+			require.NoError(t, err)
 		}
 	}()
 
