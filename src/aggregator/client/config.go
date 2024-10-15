@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/x/net"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
+	xtls "github.com/m3db/m3/src/x/tls"
 )
 
 var errNoM3MsgOptions = errors.New("m3msg aggregator client: missing m3msg options")
@@ -208,6 +209,28 @@ func (c *Configuration) NewClientOptions(
 	return opts, nil
 }
 
+// TLSConfiguration contains the TLS configuration
+type TLSConfiguration struct {
+	Enabled            bool          `yaml:"enabled"`
+	InsecureSkipVerify bool          `yaml:"insecureSkipVerify"`
+	ServerName         string        `yaml:"serverName"`
+	CAFile             string        `yaml:"caFile"`
+	CertFile           string        `yaml:"certFile"`
+	KeyFile            string        `yaml:"keyFile"`
+	CertificatesTTL    time.Duration `yaml:"certificatesTTL"`
+}
+
+// NewTLSOptions creates new TLS options
+func (c *TLSConfiguration) NewTLSOptions() xtls.Options {
+	return xtls.NewOptions().
+		SetClientEnabled(c.Enabled).
+		SetInsecureSkipVerify(c.InsecureSkipVerify).
+		SetServerName(c.ServerName).
+		SetCAFile(c.CAFile).
+		SetCertFile(c.CertFile).
+		SetKeyFile(c.KeyFile)
+}
+
 // ConnectionConfiguration contains the connection configuration.
 type ConnectionConfiguration struct {
 	ConnectionTimeout            time.Duration        `yaml:"connectionTimeout"`
@@ -218,6 +241,7 @@ type ConnectionConfiguration struct {
 	ReconnectThresholdMultiplier int                  `yaml:"reconnectThresholdMultiplier"`
 	MaxReconnectDuration         *time.Duration       `yaml:"maxReconnectDuration"`
 	WriteRetries                 *retry.Configuration `yaml:"writeRetries"`
+	TLS                          *TLSConfiguration    `yaml:"tls"`
 	ContextDialerFn              net.ContextDialerFn  `yaml:"-"`
 }
 
@@ -248,6 +272,9 @@ func (c *ConnectionConfiguration) NewConnectionOptions(scope tally.Scope) Connec
 	if c.WriteRetries != nil {
 		retryOpts := c.WriteRetries.NewOptions(scope)
 		opts = opts.SetWriteRetryOptions(retryOpts)
+	}
+	if c.TLS != nil {
+		opts = opts.SetTLSOptions(c.TLS.NewTLSOptions())
 	}
 	if c.ContextDialerFn != nil {
 		opts = opts.SetContextDialer(c.ContextDialerFn)
