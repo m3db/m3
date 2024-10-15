@@ -5,19 +5,43 @@ import (
 	"strings"
 )
 
+type trieChar struct {
+	ch byte
+}
+
+func (c *trieChar) String() string {
+	return string(c.ch)
+}
+
+func (c *trieChar) SetEnd() {
+	c.ch |= 0x01
+}
+
+func (c *trieChar) IsEnd() bool {
+	return c.ch&0x01 == 0x01
+}
+
+func NewTrieChar(ch byte) trieChar {
+	return trieChar{
+		ch: ch << 1,
+	}
+}
+
+func (c *trieChar) Char() byte {
+	return c.ch >> 1
+}
+
 type TrieNode[T any] struct {
-	ch       byte
+	ch       trieChar
 	children []*TrieNode[T]
 	data     []T
-	isEnd    bool
 }
 
 func NewEmptyNode[T any](ch byte) *TrieNode[T] {
 	return &TrieNode[T]{
-		ch:       ch,
+		ch:       NewTrieChar(ch),
 		children: make([]*TrieNode[T], 128),
 		data:     nil,
-		isEnd:    false,
 	}
 }
 
@@ -58,7 +82,7 @@ func ValidatePattern(pattern string) error {
 
 	// pattern cannot have more than one pair of '{' and '}'.
 	if strings.Count(pattern, "{") > 1 || strings.Count(pattern, "}") > 1 {
-		return fmt.Errorf("invalid pattern")
+		return fmt.Errorf("multiple composite patterns not supported")
 	}
 
 	openIdx := strings.Index(pattern, "{")
@@ -67,14 +91,20 @@ func ValidatePattern(pattern string) error {
 		if closeIdx != -1 {
 			// we do not support negation within composite patterns.
 			if strings.Contains(pattern[openIdx:closeIdx], "!") {
-				return fmt.Errorf("invalid pattern")
+				return fmt.Errorf("negation not supported in composite patterns")
 			}
 		}
 	}
 
 	// we do not support certain special chars in the pattern.
 	if strings.ContainsAny(pattern, "[]?") {
-		return fmt.Errorf("invalid pattern")
+		return fmt.Errorf("invalid special chars in pattern")
+	}
+
+	for _, ch := range pattern {
+		if ch > 127 {
+			return fmt.Errorf("invalid character in pattern %c", ch)
+		}
 	}
 
 	return nil
@@ -121,7 +151,7 @@ func insertHelper[T any](
 		node = NewEmptyNode[T](pattern[startIdx])
 	}
 
-	if node.ch == '!' {
+	if node.ch.Char() == '!' {
 		if data != nil {
 			node.data = append(node.data, *data)
 		}
@@ -131,7 +161,7 @@ func insertHelper[T any](
 
 	if startIdx == len(pattern)-1 {
 		// found the leaf node.
-		node.isEnd = true
+		node.ch.SetEnd()
 		if data != nil {
 			node.data = append(node.data, *data)
 		}
@@ -157,7 +187,7 @@ func matchHelper[T any](
 	if startIdx == len(input) {
 		// looks for patterns that end with a '*'.
 		child := root.children['*']
-		if child != nil && child.isEnd {
+		if child != nil && child.ch.IsEnd() {
 			if data != nil {
 				*data = append(*data, child.data...)
 			}
@@ -218,7 +248,7 @@ func matchHelper[T any](
 		matched = matched || matchedOne
 
 		if startIdx == len(input)-1 {
-			if subChild.isEnd {
+			if subChild.ch.IsEnd() {
 				if data != nil {
 					*data = append(*data, subChild.data...)
 				}
