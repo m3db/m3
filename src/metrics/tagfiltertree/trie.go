@@ -121,7 +121,7 @@ func insertHelper[T any](
 	}
 
 	var node *TrieNode[T]
-	if root.children.IsSet(pattern[startIdx]) {
+	if root.children.Exists(pattern[startIdx]) {
 		node = root.children.Get(pattern[startIdx])
 	}
 	if node == nil {
@@ -164,7 +164,7 @@ func matchHelper[T any](
 	if startIdx == len(input) {
 		// looks for patterns that end with a '*'.
 		var child *TrieNode[T]
-		if root.children.IsSet('*') {
+		if root.children.Exists('*') {
 			child = root.children.Get('*')
 		}
 		if child != nil && child.ch.IsEnd() {
@@ -180,7 +180,7 @@ func matchHelper[T any](
 	matched := false
 	// check matchAll case.
 	var child *TrieNode[T]
-	if root.children.IsSet('*') {
+	if root.children.Exists('*') {
 		child = root.children.Get('*')
 	}
 	if child != nil {
@@ -189,7 +189,7 @@ func matchHelper[T any](
 		// move forward in the pattern and input.
 		if startIdx < len(input) {
 			var subChild *TrieNode[T]
-			if child.children.IsSet(input[startIdx]) {
+			if child.children.Exists(input[startIdx]) {
 				subChild = child.children.Get(input[startIdx])
 			}
 			if subChild != nil {
@@ -211,7 +211,7 @@ func matchHelper[T any](
 	}
 
 	child = nil
-	if root.children.IsSet('!') {
+	if root.children.Exists('!') {
 		child = root.children.Get('!')
 	}
 	if child != nil {
@@ -229,7 +229,7 @@ func matchHelper[T any](
 	}
 
 	var subChild *TrieNode[T]
-	if root.children.IsSet(input[startIdx]) {
+	if root.children.Exists(input[startIdx]) {
 		subChild = root.children.Get(input[startIdx])
 	}
 	if subChild != nil {

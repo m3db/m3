@@ -45,6 +45,6 @@ func (tc *trieChildren[T]) Get(ch byte) *T {
 	return tc.children[childIdx]
 }
 
-func (tc *trieChildren[T]) IsSet(ch byte) bool {
+func (tc *trieChildren[T]) Exists(ch byte) bool {
 	return tc.pointerSet.IsSet(ch)
 }

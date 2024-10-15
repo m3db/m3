@@ -15,15 +15,6 @@ func (ps *PointerSet) Set(i byte) {
 	}
 }
 
-// Clear removes a pointer at index i.
-func (ps *PointerSet) Clear(i byte) {
-	if i < 64 {
-		ps.bits[0] &= ^(1 << i)
-	} else {
-		ps.bits[1] &= ^(1 << (i - 64))
-	}
-}
-
 // IsSet checks if a pointer is present at index i.
 func (ps *PointerSet) IsSet(i byte) bool {
 	if i < 64 {
@@ -44,15 +35,4 @@ func (ps *PointerSet) CountSetBitsUntil(i byte) int {
 		count += bits.OnesCount64(ps.bits[1] & ((1 << (i - 64 + 1)) - 1))
 		return count
 	}
-}
-
-// Bits returns a slice of bytes representing the indices of set pointers.
-func (ps *PointerSet) Bits() []byte {
-	bits := make([]byte, 0, 128)
-	for i := byte(0); i < 128; i++ {
-		if ps.IsSet(i) {
-			bits = append(bits, i)
-		}
-	}
-	return bits
 }
