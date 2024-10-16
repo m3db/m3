@@ -1,0 +1,61 @@
+version: "3.5"
+services:
+  dbnode01:
+    expose:
+      - "9000-9004"
+      - "2379-2380"
+      - "7201"
+    ports:
+      - "0.0.0.0:9000-9004:9000-9004"
+      - "0.0.0.0:2379-2380:2379-2380"
+      - "0.0.0.0:7201:7201"
+    networks:
+      - backend
+    image: "m3dbnode_integration:${REVISION}"
+  m3coordinator01:
+    expose:
+      - "7202"
+      - "7203"
+      - "7204"
+    ports:
+      - "0.0.0.0:7202:7202"
+      - "0.0.0.0:7203:7203"
+      - "0.0.0.0:7204:7204"
+    networks:
+      - backend
+    image: "m3coordinator_integration:${REVISION}"
+    volumes:
+      - "./m3coordinator.yml:/etc/m3coordinator/m3coordinator.yml"
+      - "./client.crt:/tmp/client.crt"
+      - "./client.key:/tmp/client.key"
+      - "./rootCA.crt:/tmp/rootCA.crt"
+  m3aggregator01:
+    expose:
+      - "6001"
+      - "6000"
+    ports:
+      - "127.0.0.1:6001:6001"
+      - "127.0.0.1:6000:6000"
+    networks:
+      - backend
+    environment:
+      - M3AGGREGATOR_HOST_ID=m3aggregator01
+    image: "m3aggregator_integration:${REVISION}"
+    volumes:
+      - "./m3aggregator.yml:/etc/m3aggregator/m3aggregator.yml"
+      - "./server.crt:/tmp/server.crt"
+      - "./server.key:/tmp/server.key"
+      - "./rootCA.crt:/tmp/rootCA.crt"
+  m3aggregator02:
+    networks:
+      - backend
+    environment:
+      - M3AGGREGATOR_HOST_ID=m3aggregator02
+    image: "m3aggregator_integration:${REVISION}"
+    volumes:
+      - "./m3aggregator.yml:/etc/m3aggregator/m3aggregator.yml"
+      - "./server.crt:/tmp/server.crt"
+      - "./server.key:/tmp/server.key"
+      - "./rootCA.crt:/tmp/rootCA.crt"
+networks:
+  backend:

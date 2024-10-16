@@ -22,6 +22,7 @@ package client
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"math/rand"
 	"net"
@@ -34,6 +35,7 @@ import (
 	xio "github.com/m3db/m3/src/x/io"
 	xnet "github.com/m3db/m3/src/x/net"
 	"github.com/m3db/m3/src/x/retry"
+	xtls "github.com/m3db/m3/src/x/tls"
 )
 
 const (
@@ -77,6 +79,7 @@ type connection struct {
 	mtx                     sync.Mutex
 	keepAlive               bool
 	dialer                  xnet.ContextDialerFn
+	tlsConfigManager        xtls.ConfigManager
 }
 
 // newConnection creates a new connection.
@@ -100,7 +103,8 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 			uninitWriter,
 			xio.ResettableWriterOptions{WriteBufferSize: 0},
 		),
-		metrics: newConnectionMetrics(opts.InstrumentOptions().MetricsScope()),
+		metrics:          newConnectionMetrics(opts.InstrumentOptions().MetricsScope()),
+		tlsConfigManager: xtls.NewConfigManager(opts.TLSOptions(), opts.InstrumentOptions()),
 	}
 	c.connectWithLockFn = c.connectWithLock
 	c.writeWithLockFn = c.writeWithLock
@@ -152,6 +156,14 @@ func (c *connection) Close() {
 	c.mtx.Unlock()
 }
 
+func (c *connection) upgradeToTLS(conn net.Conn) (net.Conn, error) {
+	tlsConfig, err := c.tlsConfigManager.TLSConfig()
+	if err != nil {
+		return nil, err
+	}
+	return tls.Client(conn, tlsConfig), nil
+}
+
 // writeAttemptWithLock attempts to establish a new connection and writes raw bytes
 // to the connection while holding the write lock.
 // If the write succeeds, c.conn is guaranteed to be a valid connection on return.
@@ -190,6 +202,16 @@ func (c *connection) connectWithLock() error {
 		if err := tcpConn.SetKeepAlive(c.keepAlive); err != nil {
 			c.metrics.setKeepAliveError.Inc(1)
 		}
+	}
+
+	if c.tlsConfigManager.ClientEnabled() {
+		securedConn, err := c.upgradeToTLS(conn)
+		if err != nil {
+			c.metrics.connectError.Inc(1)
+			conn.Close() // nolint: errcheck
+			return err
+		}
+		conn = securedConn
 	}
 
 	if c.conn != nil {

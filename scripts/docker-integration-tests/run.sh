@@ -8,6 +8,7 @@ TESTS=(
 	scripts/docker-integration-tests/carbon/test.sh
 	scripts/docker-integration-tests/aggregator/test.sh
 	scripts/docker-integration-tests/aggregator_legacy/test.sh
+	scripts/docker-integration-tests/aggregator_tls/test.sh
 	scripts/docker-integration-tests/query_fanout/test.sh
 	scripts/docker-integration-tests/repair/test.sh
 	scripts/docker-integration-tests/replication/test.sh

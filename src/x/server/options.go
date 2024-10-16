@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xnet "github.com/m3db/m3/src/x/net"
 	"github.com/m3db/m3/src/x/retry"
+	xtls "github.com/m3db/m3/src/x/tls"
 )
 
 const (
@@ -71,6 +72,12 @@ type Options interface {
 
 	// ListenerOptions sets the listener options for the server.
 	ListenerOptions() xnet.ListenerOptions
+
+	// SetTLSOptions sets the tls options for the server
+	SetTLSOptions(value xtls.Options) Options
+
+	// TLSOptions returns the tls options for the server
+	TLSOptions() xtls.Options
 }
 
 type options struct {
@@ -79,6 +86,7 @@ type options struct {
 	tcpConnectionKeepAlive       bool
 	tcpConnectionKeepAlivePeriod time.Duration
 	listenerOpts                 xnet.ListenerOptions
+	tlsOptions                   xtls.Options
 }
 
 // NewOptions creates a new set of server options
@@ -89,6 +97,7 @@ func NewOptions() Options {
 		tcpConnectionKeepAlive:       defaultTCPConnectionKeepAlive,
 		tcpConnectionKeepAlivePeriod: defaultTCPConnectionKeepAlivePeriod,
 		listenerOpts:                 xnet.NewListenerOptions(),
+		tlsOptions:                   xtls.NewOptions(),
 	}
 }
 
@@ -140,4 +149,14 @@ func (o *options) SetListenerOptions(value xnet.ListenerOptions) Options {
 
 func (o *options) ListenerOptions() xnet.ListenerOptions {
 	return o.listenerOpts
+}
+
+func (o *options) SetTLSOptions(value xtls.Options) Options {
+	opts := *o
+	opts.tlsOptions = value
+	return &opts
+}
+
+func (o *options) TLSOptions() xtls.Options {
+	return o.tlsOptions
 }
