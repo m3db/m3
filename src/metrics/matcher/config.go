@@ -119,7 +119,7 @@ func (cfg *Configuration) NewOptions(
 	}
 
 	isRollupIDFn := func(name []byte, tags []byte) bool {
-		return m3.IsRollupID(name, tags, sortedTagIteratorPool)
+		return m3.IsRollupID(name, tags)
 	}
 
 	includeTagKeys := createIncludeTagKeysMap(cfg.IncludeTagKeys)
