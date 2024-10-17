@@ -4,10 +4,6 @@ type trieChar struct {
 	ch byte
 }
 
-func (c *trieChar) String() string {
-	return string(c.ch)
-}
-
 func (c *trieChar) SetEnd() {
 	c.ch |= 0x01
 }

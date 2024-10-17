@@ -179,6 +179,18 @@ func TestTrieMatch(t *testing.T) {
 			expectedData:  []string{"data1"},
 		},
 		{
+			name: "char range, wildcards, single match",
+			patterns: []Pattern{
+				{
+					pattern: "[a-d]*",
+					data:    "data1",
+				},
+			},
+			input:         "chocolate",
+			expectedMatch: true,
+			expectedData:  []string{"data1"},
+		},
+		{
 			name: "composite, wildcard match, single match",
 			patterns: []Pattern{
 				{
@@ -201,6 +213,42 @@ func TestTrieMatch(t *testing.T) {
 			input:         "bar",
 			expectedMatch: false,
 			expectedData:  []string{},
+		},
+		{
+			name: "composite, char range, wildcards, single match",
+			patterns: []Pattern{
+				{
+					pattern: "{abc, [1-4]*, *foo*}",
+					data:    "data1",
+				},
+			},
+			input:         "30000000",
+			expectedMatch: true,
+			expectedData:  []string{"data1"},
+		},
+		{
+			name: "char range without dash, wildcards, no match",
+			patterns: []Pattern{
+				{
+					pattern: "[14]*",
+					data:    "data1",
+				},
+			},
+			input:         "30000000",
+			expectedMatch: false,
+			expectedData:  []string{},
+		},
+		{
+			name: "char range without dash, wildcards, match",
+			patterns: []Pattern{
+				{
+					pattern: "[14]*",
+					data:    "data1",
+				},
+			},
+			input:         "40000000",
+			expectedMatch: true,
+			expectedData:  []string{"data1"},
 		},
 		{
 			name: "multiple composite, wildcard and absolute match, single match",

@@ -70,8 +70,17 @@ func ValidatePattern(pattern string) error {
 		}
 	}
 
+	if strings.Contains(pattern, "[") != strings.Contains(pattern, "]") {
+		return fmt.Errorf("invalid pattern")
+	}
+
+	// at the moment we only support single char ranges.
+	if strings.Count(pattern, "[") > 1 || strings.Count(pattern, "]") > 1 {
+		return fmt.Errorf("multiple char range patterns not supported")
+	}
+
 	// we do not support certain special chars in the pattern.
-	if strings.ContainsAny(pattern, "[]?") {
+	if strings.ContainsAny(pattern, "?") {
 		return fmt.Errorf("invalid special chars in pattern")
 	}
 
@@ -99,24 +108,39 @@ func insertHelper[T any](
 		return nil
 	}
 
+	var (
+		err     error
+		options []string
+	)
+
 	if pattern[startIdx] == '{' {
-		options, err := ParseCompositePattern(pattern[startIdx:])
+		options, err = ParseCompositePattern(pattern[startIdx:])
 		if err != nil {
 			return err
 		}
+	}
 
-		for _, option := range options {
-			if err := insertHelper(
-				root,
-				option,
-				0,
-				len(option),
-				data,
-			); err != nil {
-				return err
-			}
+	if pattern[startIdx] == '[' {
+		options, err = ParseCharRange(pattern[startIdx:])
+		if err != nil {
+			return err
 		}
+	}
 
+	for _, option := range options {
+		if err := insertHelper(
+			root,
+			option,
+			0,
+			len(option),
+			data,
+		); err != nil {
+			return err
+		}
+	}
+
+	if len(options) > 0 {
+		// matched composite or char range pattern.
 		return nil
 	}
 
@@ -277,7 +301,46 @@ func ParseCompositePattern(pattern string) ([]string, error) {
 
 	options := strings.Split(optionStr, ",")
 	for i := range options {
-		options[i] = optionPrefix + options[i] + optionSuffix
+		option := strings.TrimSpace(options[i])
+		options[i] = optionPrefix + option + optionSuffix
+	}
+
+	return options, nil
+}
+
+// ParseCharRange extracts the options from a char range pattern.
+// It does not check for other invalid chars in the pattern. Those checks should
+// be done before calling this function.
+func ParseCharRange(pattern string) ([]string, error) {
+	openIdx := strings.Index(pattern, "[")
+	closeIdx := strings.Index(pattern, "]")
+
+	if openIdx == -1 || closeIdx == -1 {
+		return nil, fmt.Errorf("invalid pattern")
+	}
+
+	if closeIdx != strings.LastIndex(pattern, "]") {
+		return nil, fmt.Errorf("invalid pattern")
+	}
+
+	optionStr := pattern[openIdx+1 : closeIdx]
+	optionSuffix := ""
+	if closeIdx < len(pattern)-1 {
+		optionSuffix = pattern[closeIdx+1:]
+	}
+	optionPrefix := pattern[:openIdx]
+
+	options := make([]string, 0)
+	for i := 0; i < len(optionStr); i++ {
+		if i+2 < len(optionStr) && optionStr[i+1] == '-' {
+			for ch := optionStr[i]; ch <= optionStr[i+2]; ch++ {
+				options = append(options, optionPrefix+string(ch)+optionSuffix)
+			}
+			i += 2
+			continue
+		}
+
+		options = append(options, optionPrefix+string(optionStr[i])+optionSuffix)
 	}
 
 	return options, nil
