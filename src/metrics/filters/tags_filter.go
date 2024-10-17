@@ -206,6 +206,7 @@ func (f *tagsFilter) Matches(id []byte, opts TagMatchOptions) (bool, error) {
 	}
 
 	iter := opts.SortedTagIteratorFn(tags)
+	defer iter.Close()
 
 	currIdx := 0
 

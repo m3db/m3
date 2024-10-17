@@ -104,7 +104,7 @@ func (mr *MockMatcherMockRecorder) LatestRollupRules(arg0, arg1 interface{}) *go
 }
 
 // ReverseMatch mocks base method.
-func (m *MockMatcher) ReverseMatch(arg0 id.ID, arg1, arg2 int64, arg3 metric.Type, arg4 aggregation.Type, arg5 bool, arg6 aggregation.TypesOptions) (rules.MatchResult, error) {
+func (m *MockMatcher) ReverseMatch(id id.ID, fromNanos int64, toNanos int64, mt metric.Type, at aggregation.Type, isMultiAggregationTypesAllowed bool, aggTypesOpts aggregation.TypesOptions, matchOpts rules.MatchOptions, ) (rules.MatchResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReverseMatch", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 	ret0, _ := ret[0].(rules.MatchResult)
