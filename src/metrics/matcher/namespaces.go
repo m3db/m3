@@ -202,18 +202,29 @@ func (n *namespaces) ForwardMatch(id id.ID, fromNanos, toNanos int64,
 
 func (n *namespaces) ReverseMatch(
 	id id.ID,
-	fromNanos, toNanos int64,
+	fromNanos int64,
+	toNanos int64,
 	mt metric.Type,
 	at aggregation.Type,
 	isMultiAggregationTypesAllowed bool,
 	aggTypesOpts aggregation.TypesOptions,
+	matchOpts rules.MatchOptions,
 ) (rules.MatchResult, error) {
 	namespace := n.nsResolver.Resolve(id)
 	ruleSet, exists := n.ruleSet(namespace)
 	if !exists {
 		return rules.EmptyMatchResult, nil
 	}
-	return ruleSet.ReverseMatch(id, fromNanos, toNanos, mt, at, isMultiAggregationTypesAllowed, aggTypesOpts)
+	return ruleSet.ReverseMatch(
+		id,
+		fromNanos,
+		toNanos,
+		mt,
+		at,
+		isMultiAggregationTypesAllowed,
+		aggTypesOpts,
+		matchOpts,
+	)
 }
 
 func (n *namespaces) ruleSet(namespace []byte) (RuleSet, bool) {
