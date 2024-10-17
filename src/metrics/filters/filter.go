@@ -92,10 +92,11 @@ type TagMatchOptions struct {
 	// Function to extract name and tags from an id.
 	NameAndTagsFn id.NameAndTagsFn
 
-	// Function to get a sorted tag iterator from id tags.
-	// The caller of Matches is the owner of the Iterator and is responsible for closing it, this allows reusing the
-	// same Iterator across many Matches.
-	SortedTagIteratorFn id.SortedTagIteratorFn
+	// SortedTagIterator is an iterator for use in interpreting an []byte ID.
+	// Match functions will mutate this iterator. The caller passes this down in order to allow reuse of
+	// the iterator across calls, without pooling (which was expensive in previous versions of this code).
+	// N.B.: this is an iteration of https://github.com/m3db/m3/pull/3988.
+	SortedTagIterator id.SortedTagIterator
 }
 
 type filter interface {
