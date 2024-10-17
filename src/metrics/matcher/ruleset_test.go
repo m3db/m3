@@ -100,8 +100,7 @@ func TestRuleSetReverseMatchWithMatcher(t *testing.T) {
 		aggTypesOpts                   = aggregation.NewTypesOptions()
 	)
 
-	res, err := rs.ReverseMatch(testID("foo"), fromNanos, toNanos, metric.CounterType, aggregation.Sum,
-		isMultiAggregationTypesAllowed, aggTypesOpts)
+	res, err := rs.ReverseMatch(testID("foo"), fromNanos, toNanos, metric.CounterType, aggregation.Sum, isMultiAggregationTypesAllowed, aggTypesOpts, matchOpts)
 	require.NoError(t, err)
 	require.Equal(t, mockMatcher.res, res)
 	require.Equal(t, []byte("foo"), mockMatcher.id)
@@ -259,14 +258,7 @@ func (mm *mockMatcher) ForwardMatch(
 	return mm.res, nil
 }
 
-func (mm *mockMatcher) ReverseMatch(
-	id id.ID,
-	fromNanos, toNanos int64,
-	mt metric.Type,
-	at aggregation.Type,
-	isMultiAggregationTypesAllowed bool,
-	aggTypesOpts aggregation.TypesOptions,
-) (rules.MatchResult, error) {
+func (mm *mockMatcher) ReverseMatch(id id.ID, fromNanos int64, toNanos int64, mt metric.Type, at aggregation.Type, isMultiAggregationTypesAllowed bool, aggTypesOpts aggregation.TypesOptions, matchOpts rules.MatchOptions) (rules.MatchResult, error) {
 	mm.id = id.Bytes()
 	mm.fromNanos = fromNanos
 	mm.toNanos = toNanos
