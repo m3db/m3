@@ -2218,7 +2218,6 @@ func testTagsFilterOptions() filters.TagsFilterOptions {
 			}
 			return b[:idx], b[idx+1:], nil
 		},
-		SortedTagIteratorFn: filters.NewMockSortedTagIterator,
 	}
 }
 

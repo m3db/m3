@@ -50,10 +50,10 @@ func BenchmarkActiveRuleSet_ReverseMatch(b *testing.B) {
 		b.Run(tc.name, func(b *testing.B) {
 			b.ReportAllocs()
 
-			id := m3.NewID([]byte(tc.id), nil)
+			mid := m3.NewID([]byte(tc.id), nil)
 
 			deps := setupActiveRuleSetBenchmark(b)
-			sanityCheckBenchmark(b, deps, id)
+			sanityCheckBenchmark(b, deps, mid)
 
 			// N.B.: this is actually a heavy alloc, it turns out.
 			typesOptions := aggregation.NewTypesOptions()
@@ -63,7 +63,7 @@ func BenchmarkActiveRuleSet_ReverseMatch(b *testing.B) {
 			var benchResult MatchResult
 			for i := 0; i < b.N; i++ {
 				r, _ := deps.RuleSet.ReverseMatch(
-					id,
+					mid,
 					0,
 					// max int
 					math.MaxInt64,
@@ -71,6 +71,7 @@ func BenchmarkActiveRuleSet_ReverseMatch(b *testing.B) {
 					aggregation.Sum,
 					false,
 					typesOptions,
+					deps.MatchOptions,
 				)
 				benchResult = r
 			}
@@ -93,6 +94,7 @@ func TestActiveRuleSet_Benchmark(t *testing.T) {
 
 type ruleSetBenchmarkDeps struct {
 	RuleSet        *activeRuleSet
+	MatchOptions   MatchOptions
 	AggTypeOptions aggregation.TypesOptions
 }
 
@@ -101,22 +103,33 @@ func setupActiveRuleSetBenchmark(t testing.TB) ruleSetBenchmarkDeps {
 	mappingRules := newBenchmarkMappingRules(t, 20, 10)
 	activeRules := newActiveRuleSet(0, mappingRules, rollupRules,
 		filters.TagsFilterOptions{
-			NameTagKey:          []byte("name"),
-			NameAndTagsFn:       m3.NameAndTags,
-			SortedTagIteratorFn: m3.NewSortedTagIterator,
+			NameTagKey:    []byte("name"),
+			NameAndTagsFn: m3.NameAndTags,
 		},
 		m3.NewRollupID,
 		m3.IsRollupID,
 		map[uint64]struct{}{},
 	)
 
+	// We reuse the same iterator for each run.
+	iter := m3.NewSortedTagIterator(nil)
+	matchOpts := MatchOptions{
+		NameAndTagsFn: m3.NameAndTags,
+		SortedTagIteratorFn: func(tags []byte) metricid.SortedTagIterator {
+			iter.Reset(tags)
+			return iter
+		},
+	}
+
 	return ruleSetBenchmarkDeps{
 		RuleSet:        activeRules,
 		AggTypeOptions: aggregation.NewTypesOptions(),
+		MatchOptions:   matchOpts,
 	}
 }
 
 func sanityCheckBenchmark(t testing.TB, deps ruleSetBenchmarkDeps, id metricid.ID) {
+
 	matchResult, err := deps.RuleSet.ReverseMatch(
 		id,
 		0,
@@ -126,6 +139,7 @@ func sanityCheckBenchmark(t testing.TB, deps ruleSetBenchmarkDeps, id metricid.I
 		aggregation.Sum,
 		false,
 		deps.AggTypeOptions,
+		deps.MatchOptions,
 	)
 	require.NoError(t, err)
 
@@ -175,9 +189,8 @@ func newBenchmarkMappingRuleSnapshot(t testing.TB) *mappingRuleSnapshot {
 		},
 		filters.Conjunction,
 		filters.TagsFilterOptions{
-			NameTagKey:          []byte("name"),
-			NameAndTagsFn:       m3.NameAndTags,
-			SortedTagIteratorFn: m3.NewSortedTagIterator,
+			NameTagKey:    []byte("name"),
+			NameAndTagsFn: m3.NameAndTags,
 		},
 	)
 	require.NoError(t, err)
