@@ -44,7 +44,8 @@ func (m *customRuleMatcher) Match(
 	m.ruleTreeLock.RLock()
 	defer m.ruleTreeLock.RUnlock()
 
-	matchedRules, err := m.ruleTree.Match(tags)
+	matchedRules := make([]*rules.Rule, 0)
+	_, err := m.ruleTree.Match(tags, &matchedRules)
 	if err != nil {
 		return nil, err
 	}
