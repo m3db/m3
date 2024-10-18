@@ -186,12 +186,12 @@ func (f *tagsFilter) String() string {
 	return buf.String()
 }
 
-func (f *tagsFilter) Matches(id []byte, opts TagMatchOptions) (bool, error) {
+func (f *tagsFilter) Matches(idBytes []byte, opts TagMatchOptions) (bool, error) {
 	if f.nameFilter == nil && len(f.tagFilters) == 0 {
 		return true, nil
 	}
 
-	name, tags, err := opts.NameAndTagsFn(id)
+	name, tags, err := opts.NameAndTagsFn(idBytes)
 	if err != nil {
 		return false, err
 	}
@@ -205,7 +205,8 @@ func (f *tagsFilter) Matches(id []byte, opts TagMatchOptions) (bool, error) {
 		}
 	}
 
-	iter := opts.SortedTagIteratorFn(tags)
+	iter := opts.SortedTagIterator
+	iter.Reset(tags)
 
 	currIdx := 0
 
