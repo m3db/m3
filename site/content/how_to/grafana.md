@@ -12,7 +12,7 @@ When using the Prometheus integration with Grafana, there are two different ways
 Alternatively, you can configure Grafana to read metrics directly from M3Coordinator in which case you will bypass Prometheus entirely and use M3's PromQL engine instead. To set this up, follow the same instructions from the previous step, but set the url to: http://<M3_COORDINATOR_HOST_NAME>:7201.
 
 ### Querying
-M3 supports the the majority of graphite query functions and can be used to query metrics that were ingested via the ingestion pathway described above.
+M3 supports the majority of graphite query functions and can be used to query metrics that were ingested via the ingestion pathway described above.
 
 ### Grafana
 M3Coordinator implements the Graphite source interface, so you can add it as a graphite source in Grafana by following these instructions.
