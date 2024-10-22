@@ -120,9 +120,6 @@ type TagsFilterOptions struct {
 
 	// Function to extract name and tags from an id.
 	NameAndTagsFn id.NameAndTagsFn
-
-	// Function to create a new sorted tag iterator from id tags.
-	SortedTagIteratorFn id.SortedTagIteratorFn
 }
 
 // tagsFilter contains a list of tag filters.

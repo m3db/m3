@@ -100,8 +100,16 @@ func TestRuleSetReverseMatchWithMatcher(t *testing.T) {
 		aggTypesOpts                   = aggregation.NewTypesOptions()
 	)
 
-	res, err := rs.ReverseMatch(testID("foo"), fromNanos, toNanos, metric.CounterType, aggregation.Sum,
-		isMultiAggregationTypesAllowed, aggTypesOpts)
+	res, err := rs.ReverseMatch(
+		testID("foo"),
+		fromNanos,
+		toNanos,
+		metric.CounterType,
+		aggregation.Sum,
+		isMultiAggregationTypesAllowed,
+		aggTypesOpts,
+		rules.MatchOptions{},
+	)
 	require.NoError(t, err)
 	require.Equal(t, mockMatcher.res, res)
 	require.Equal(t, []byte("foo"), mockMatcher.id)
@@ -148,11 +156,41 @@ func TestToRuleSetSuccess(t *testing.T) {
 func TestRuleSetProcessNamespaceNotRegistered(t *testing.T) {
 	var (
 		inputs = []rules.RuleSet{
-			&mockRuleSet{namespace: "ns1", version: 1, cutoverNanos: 1234, tombstoned: false, matcher: &mockMatcher{}},
-			&mockRuleSet{namespace: "ns2", version: 2, cutoverNanos: 1235, tombstoned: true, matcher: &mockMatcher{}},
-			&mockRuleSet{namespace: "ns3", version: 3, cutoverNanos: 1236, tombstoned: false, matcher: &mockMatcher{}},
-			&mockRuleSet{namespace: "ns4", version: 4, cutoverNanos: 1237, tombstoned: true, matcher: &mockMatcher{}},
-			&mockRuleSet{namespace: "ns5", version: 5, cutoverNanos: 1238, tombstoned: false, matcher: &mockMatcher{}},
+			&mockRuleSet{
+				namespace:    "ns1",
+				version:      1,
+				cutoverNanos: 1234,
+				tombstoned:   false,
+				matcher:      &mockMatcher{},
+			},
+			&mockRuleSet{
+				namespace:    "ns2",
+				version:      2,
+				cutoverNanos: 1235,
+				tombstoned:   true,
+				matcher:      &mockMatcher{},
+			},
+			&mockRuleSet{
+				namespace:    "ns3",
+				version:      3,
+				cutoverNanos: 1236,
+				tombstoned:   false,
+				matcher:      &mockMatcher{},
+			},
+			&mockRuleSet{
+				namespace:    "ns4",
+				version:      4,
+				cutoverNanos: 1237,
+				tombstoned:   true,
+				matcher:      &mockMatcher{},
+			},
+			&mockRuleSet{
+				namespace:    "ns5",
+				version:      5,
+				cutoverNanos: 1238,
+				tombstoned:   false,
+				matcher:      &mockMatcher{},
+			},
 		}
 	)
 
@@ -173,11 +211,41 @@ func TestRuleSetProcessNamespaceNotRegistered(t *testing.T) {
 func TestRuleSetProcessStaleUpdate(t *testing.T) {
 	var (
 		inputs = []rules.RuleSet{
-			&mockRuleSet{namespace: "ns1", version: 1, cutoverNanos: 1234, tombstoned: false, matcher: &mockMatcher{}},
-			&mockRuleSet{namespace: "ns2", version: 2, cutoverNanos: 1235, tombstoned: true, matcher: &mockMatcher{}},
-			&mockRuleSet{namespace: "ns3", version: 3, cutoverNanos: 1236, tombstoned: false, matcher: &mockMatcher{}},
-			&mockRuleSet{namespace: "ns4", version: 4, cutoverNanos: 1237, tombstoned: true, matcher: &mockMatcher{}},
-			&mockRuleSet{namespace: "ns5", version: 5, cutoverNanos: 1238, tombstoned: false, matcher: &mockMatcher{}},
+			&mockRuleSet{
+				namespace:    "ns1",
+				version:      1,
+				cutoverNanos: 1234,
+				tombstoned:   false,
+				matcher:      &mockMatcher{},
+			},
+			&mockRuleSet{
+				namespace:    "ns2",
+				version:      2,
+				cutoverNanos: 1235,
+				tombstoned:   true,
+				matcher:      &mockMatcher{},
+			},
+			&mockRuleSet{
+				namespace:    "ns3",
+				version:      3,
+				cutoverNanos: 1236,
+				tombstoned:   false,
+				matcher:      &mockMatcher{},
+			},
+			&mockRuleSet{
+				namespace:    "ns4",
+				version:      4,
+				cutoverNanos: 1237,
+				tombstoned:   true,
+				matcher:      &mockMatcher{},
+			},
+			&mockRuleSet{
+				namespace:    "ns5",
+				version:      5,
+				cutoverNanos: 1238,
+				tombstoned:   false,
+				matcher:      &mockMatcher{},
+			},
 		}
 	)
 
@@ -203,11 +271,41 @@ func TestRuleSetProcessStaleUpdate(t *testing.T) {
 func TestRuleSetProcessSuccess(t *testing.T) {
 	var (
 		inputs = []rules.RuleSet{
-			&mockRuleSet{namespace: "ns1", version: 1, cutoverNanos: 1234, tombstoned: false, matcher: &mockMatcher{}},
-			&mockRuleSet{namespace: "ns2", version: 2, cutoverNanos: 1235, tombstoned: true, matcher: &mockMatcher{}},
-			&mockRuleSet{namespace: "ns3", version: 3, cutoverNanos: 1236, tombstoned: false, matcher: &mockMatcher{}},
-			&mockRuleSet{namespace: "ns4", version: 4, cutoverNanos: 1237, tombstoned: true, matcher: &mockMatcher{}},
-			&mockRuleSet{namespace: "ns5", version: 5, cutoverNanos: 1238, tombstoned: false, matcher: &mockMatcher{}},
+			&mockRuleSet{
+				namespace:    "ns1",
+				version:      1,
+				cutoverNanos: 1234,
+				tombstoned:   false,
+				matcher:      &mockMatcher{},
+			},
+			&mockRuleSet{
+				namespace:    "ns2",
+				version:      2,
+				cutoverNanos: 1235,
+				tombstoned:   true,
+				matcher:      &mockMatcher{},
+			},
+			&mockRuleSet{
+				namespace:    "ns3",
+				version:      3,
+				cutoverNanos: 1236,
+				tombstoned:   false,
+				matcher:      &mockMatcher{},
+			},
+			&mockRuleSet{
+				namespace:    "ns4",
+				version:      4,
+				cutoverNanos: 1237,
+				tombstoned:   true,
+				matcher:      &mockMatcher{},
+			},
+			&mockRuleSet{
+				namespace:    "ns5",
+				version:      5,
+				cutoverNanos: 1238,
+				tombstoned:   false,
+				matcher:      &mockMatcher{},
+			},
 		}
 	)
 
@@ -261,11 +359,13 @@ func (mm *mockMatcher) ForwardMatch(
 
 func (mm *mockMatcher) ReverseMatch(
 	id id.ID,
-	fromNanos, toNanos int64,
+	fromNanos int64,
+	toNanos int64,
 	mt metric.Type,
 	at aggregation.Type,
 	isMultiAggregationTypesAllowed bool,
 	aggTypesOpts aggregation.TypesOptions,
+	matchOpts rules.MatchOptions,
 ) (rules.MatchResult, error) {
 	mm.id = id.Bytes()
 	mm.fromNanos = fromNanos

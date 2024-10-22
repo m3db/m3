@@ -183,11 +183,13 @@ func (r *ruleSet) ForwardMatch(id id.ID, fromNanos, toNanos int64, opts rules.Ma
 
 func (r *ruleSet) ReverseMatch(
 	id id.ID,
-	fromNanos, toNanos int64,
+	fromNanos int64,
+	toNanos int64,
 	mt metric.Type,
 	at aggregation.Type,
 	isMultiAggregationTypesAllowed bool,
 	aggTypesOpts aggregation.TypesOptions,
+	matchOpts rules.MatchOptions,
 ) (rules.MatchResult, error) {
 	callStart := r.nowFn()
 	r.RLock()
@@ -196,7 +198,16 @@ func (r *ruleSet) ReverseMatch(
 		r.metrics.nilMatcher.Inc(1)
 		return rules.EmptyMatchResult, nil
 	}
-	res, err := r.activeSet.ReverseMatch(id, fromNanos, toNanos, mt, at, isMultiAggregationTypesAllowed, aggTypesOpts)
+	res, err := r.activeSet.ReverseMatch(
+		id,
+		fromNanos,
+		toNanos,
+		mt,
+		at,
+		isMultiAggregationTypesAllowed,
+		aggTypesOpts,
+		matchOpts,
+	)
 	r.RUnlock()
 	if err != nil {
 		return rules.MatchResult{}, err
