@@ -37,8 +37,14 @@ import (
 
 var (
 	acceptAllFilter = producer.FilterFunc(
-		func(m producer.Message) bool {
-			return true
+		producer.FilterFunc{
+			Function: func(m producer.Message) bool {
+				return true
+			},
+			Metadata: producer.FilterFuncMetadata{
+				FilterType: producer.AcceptAllFilter,
+				SourceType: producer.StaticConfig,
+			},
 		},
 	)
 
@@ -77,23 +83,84 @@ type consumerServiceWriter interface {
 
 	// UnregisterFilters unregisters the filters for the consumer service.
 	UnregisterFilters()
+
+	// GetDataFilter returns the data filters on the consumer service writer.
+	GetDataFilters() []producer.FilterFunc
 }
 
 type consumerServiceWriterMetrics struct {
-	placementError    tally.Counter
-	placementUpdate   tally.Counter
-	filterAccepted    tally.Counter
-	filterNotAccepted tally.Counter
-	queueSize         tally.Gauge
+	placementError                tally.Counter
+	placementUpdate               tally.Counter
+	queueSize                     tally.Gauge
+	filterAccepted                tally.Counter
+	filterNotAccepted             tally.Counter
+	filterAcceptedGranular        map[string]tally.Counter
+	filterAcceptedGranularLock    sync.RWMutex
+	filterNotAcceptedGranular     map[string]tally.Counter
+	filterNotAcceptedGranularLock sync.RWMutex
+	scope                         tally.Scope
+}
+
+func (cswm *consumerServiceWriterMetrics) getGranularFilterCounterMapKey(metadata producer.FilterFuncMetadata) string {
+	return fmt.Sprintf("%s::%s", metadata.FilterType.String(), metadata.SourceType.String())
+}
+
+//nolint:dupl
+func (cswm *consumerServiceWriterMetrics) getFilterAcceptedGranularCounter(
+	metadata producer.FilterFuncMetadata) tally.Counter {
+	key := cswm.getGranularFilterCounterMapKey(metadata)
+
+	cswm.filterAcceptedGranularLock.RLock()
+	val, ok := cswm.filterAcceptedGranular[key]
+	cswm.filterAcceptedGranularLock.RUnlock()
+
+	if !ok {
+		val = cswm.scope.Tagged(map[string]string{
+			"config-source": metadata.SourceType.String(),
+			"filter-type":   metadata.FilterType.String(),
+		}).Counter("filter-accepted-granular")
+
+		cswm.filterAcceptedGranularLock.Lock()
+		cswm.filterAcceptedGranular[key] = val
+		cswm.filterAcceptedGranularLock.Unlock()
+	}
+
+	return val
+}
+
+//nolint:dupl
+func (cswm *consumerServiceWriterMetrics) getFilterNotAcceptedGranularCounter(
+	metadata producer.FilterFuncMetadata) tally.Counter {
+	key := cswm.getGranularFilterCounterMapKey(metadata)
+
+	cswm.filterNotAcceptedGranularLock.RLock()
+	val, ok := cswm.filterNotAcceptedGranular[key]
+	cswm.filterNotAcceptedGranularLock.RUnlock()
+
+	if !ok {
+		val = cswm.scope.Tagged(map[string]string{
+			"config-source": metadata.SourceType.String(),
+			"filter-type":   metadata.FilterType.String(),
+		}).Counter("filter-not-accepted-granular")
+
+		cswm.filterNotAcceptedGranularLock.Lock()
+		cswm.filterNotAcceptedGranular[key] = val
+		cswm.filterNotAcceptedGranularLock.Unlock()
+	}
+
+	return val
 }
 
 func newConsumerServiceWriterMetrics(scope tally.Scope) consumerServiceWriterMetrics {
 	return consumerServiceWriterMetrics{
-		placementUpdate:   scope.Counter("placement-update"),
-		placementError:    scope.Counter("placement-error"),
-		filterAccepted:    scope.Counter("filter-accepted"),
-		filterNotAccepted: scope.Counter("filter-not-accepted"),
-		queueSize:         scope.Gauge("queue-size"),
+		placementUpdate:           scope.Counter("placement-update"),
+		placementError:            scope.Counter("placement-error"),
+		filterAccepted:            scope.Counter("filter-accepted"),
+		filterNotAccepted:         scope.Counter("filter-not-accepted"),
+		scope:                     scope,
+		filterAcceptedGranular:    make(map[string]tally.Counter),
+		filterNotAcceptedGranular: make(map[string]tally.Counter),
+		queueSize:                 scope.Gauge("queue-size"),
 	}
 }
 
@@ -178,8 +245,12 @@ func initShardWriters(
 	return sws
 }
 
+func (w *consumerServiceWriterImpl) GetDataFilters() []producer.FilterFunc {
+	return w.dataFilters
+}
+
 func (w *consumerServiceWriterImpl) Write(rm *producer.RefCountedMessage) {
-	if rm.Accept(w.dataFilters) {
+	if rm.Accept(w.dataFilters, w.m.getFilterAcceptedGranularCounter, w.m.getFilterNotAcceptedGranularCounter) {
 		w.shardWriters[rm.Shard()].Write(rm)
 		w.m.filterAccepted.Inc(1)
 		return
