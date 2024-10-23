@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # paranoia, ftw
-set -e
+set -ex
 
 # ensure docker is running
 docker run --rm hello-world >/dev/null
