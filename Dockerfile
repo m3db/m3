@@ -1,6 +1,6 @@
 FROM quay.io/m3db/thrift-gen:latest as thriftgen
 
-RUN find / -type f -name "thrift-gen"
+RUN find / -type f -name "thrift-gen" 1>&2
 
 FROM golang:1.22-bullseye
 
