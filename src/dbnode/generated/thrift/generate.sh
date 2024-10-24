@@ -15,9 +15,11 @@ if [[ -n "$BUILDKITE" ]]; then
 	UID_FLAGS="-u root"
 fi
 
-docker run --rm -v "$(pwd):/data" $UID_FLAGS    \
-  "$THRIFT_IMAGE_VERSION" --generateThrift      \
-  --inputFile /data/rpc.thrift --outputDir /data
+thrift-gen --generateThrift --inputFile rpc.thrift --outputDir ../rpc
+
+#docker run --rm -v "$(pwd):/data" $UID_FLAGS    \
+#  "$THRIFT_IMAGE_VERSION" --generateThrift      \
+#  --inputFile /data/rpc.thrift --outputDir /data
 
 # ensure formatting is correct
 go fmt github.com/m3db/m3/src/dbnode/generated/thrift/rpc
