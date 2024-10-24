@@ -1,3 +1,5 @@
+FROM quay.io/m3db/thrift-gen:latest as thrift-gen
+
 FROM golang:1.22-bullseye
 
 RUN apt-get update && apt-get install -y lsof netcat-openbsd docker.io jq protobuf-compiler
