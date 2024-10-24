@@ -567,9 +567,6 @@ func (n *dbNamespace) assignShardSet(
 	if br := n.blockRetriever; br != nil {
 		br.AssignShardSet(shardSet)
 	}
-	if mgr := n.namespaceReaderMgr; mgr != nil {
-		mgr.assignShardSet(shardSet)
-	}
 
 	n.Unlock()
 	n.closeShards(closing, false)
@@ -612,7 +609,12 @@ func (n *dbNamespace) closeShards(shards []databaseShard, blockUntilClosed bool)
 
 func (n *dbNamespace) Tick(c context.Cancellable, startTime xtime.UnixNano) error {
 	// Allow the reader cache to tick.
-	n.namespaceReaderMgr.tick()
+	{
+		n.RLock()
+		shardSet := n.shardSet
+		n.RUnlock()
+		n.namespaceReaderMgr.tick(shardSet)
+	}
 
 	// Fetch the owned shards.
 	shards := n.OwnedShards()
