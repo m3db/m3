@@ -15,10 +15,6 @@ if [[ -n "$BUILDKITE" ]]; then
 	UID_FLAGS="-u root"
 fi
 
-THRIFT_GEN_BINARY_PATH=$(docker run --rm "$THRIFT_IMAGE_VERSION" which thrift-gen)
-
-echo "$THRIFT_GEN_BINARY_PATH"
-
 docker run --rm -v "$(pwd):/data" $UID_FLAGS    \
   "$THRIFT_IMAGE_VERSION" --generateThrift      \
   --inputFile /data/rpc.thrift --outputDir /data
