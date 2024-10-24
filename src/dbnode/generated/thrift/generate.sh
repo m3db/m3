@@ -5,6 +5,14 @@ set -ex
 
 echo "Current PATH: $PATH"
 
+echo "Checking if thrift is in PATH..."
+if command -v thrift >/dev/null 2>&1; then
+    echo "thrift found at: $(command -v thrift)"
+else
+    echo "thrift not found in PATH. Exiting."
+    exit 1
+fi
+
 echo "Checking if thrift-gen is in PATH..."
 if command -v thrift-gen >/dev/null 2>&1; then
     echo "thrift-gen found at: $(command -v thrift-gen)"
