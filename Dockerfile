@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y lsof netcat-openbsd docker.io jq protob
 RUN go install github.com/gogo/protobuf/protoc-gen-gogofaster@latest
 
 COPY --from=thriftgen /bin/thrift-gen /bin/thrift-gen
-COPY --from=protoc /bin/protoc /bin/protoc
+COPY --from=protoc /go/bin/protoc /go/bin/protoc
 
 ENV GOBIN=/go/bin
 ENV PATH=$PATH:/go/bin
