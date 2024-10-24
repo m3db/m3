@@ -9,4 +9,4 @@ ENV PATH=$PATH:/go/bin
 
 RUN go install github.com/gogo/protobuf/protoc-gen-gogofaster@latest
 
-COPY --from=thrift-gen /go/bin/thrift-gen /go/bin/thrift-gen
+COPY --from=thrift-gen /bin/thrift-gen /go/bin/thrift-gen
