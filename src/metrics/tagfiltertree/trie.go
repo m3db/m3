@@ -15,7 +15,7 @@ type TrieNode[T any] struct {
 // NewEmptyNode creates a new empty node with the given character.
 func NewEmptyNode[T any](ch byte) *TrieNode[T] {
 	return &TrieNode[T]{
-		ch:       NewTrieChar(ch),
+		ch:       newTrieChar(ch),
 		children: newTrieChildren[TrieNode[T]](),
 		data:     nil,
 	}

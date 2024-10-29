@@ -14,8 +14,8 @@ func (c *trieChar) IsEnd() bool {
 	return c.ch&0x01 == 0x01
 }
 
-// NewTrieChar creates a new trie character.
-func NewTrieChar(ch byte) trieChar {
+// newTrieChar creates a new trie character.
+func newTrieChar(ch byte) trieChar {
 	return trieChar{
 		ch: ch << 1,
 	}

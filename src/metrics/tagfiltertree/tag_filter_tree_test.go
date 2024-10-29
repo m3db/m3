@@ -524,7 +524,7 @@ func uniqueNamespaces(input []string) []string {
 	}
 
 	output := make([]string, 0, len(unique))
-	for ns, _ := range unique {
+	for ns := range unique {
 		output = append(output, ns)
 	}
 	return output

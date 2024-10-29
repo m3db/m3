@@ -355,7 +355,9 @@ func TestTrieMatch(t *testing.T) {
 				if withData {
 					data = &rule.data
 				}
-				trie.Insert(rule.pattern, data)
+
+				err := trie.Insert(rule.pattern, data)
+				require.NoError(t, err)
 			}
 
 			var data []string
