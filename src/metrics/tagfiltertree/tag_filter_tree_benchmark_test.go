@@ -83,10 +83,10 @@ func generateTagValuePair(idx int, tagType int) string {
 	case NEGATION:
 		if rnd.Intn(2) == 0 {
 			return fmt.Sprintf("%s:!*", tag) // tag should not exist
-		} else {
-			value := values[rnd.Intn(len(values))]
-			return fmt.Sprintf("%s:!%s", tag, value) // tag should not have this value
 		}
+
+		value := values[rnd.Intn(len(values))]
+		return fmt.Sprintf("%s:!%s", tag, value) // tag should not have this value
 	case COMPOSITE:
 		value1 := values[rnd.Intn(len(values))]
 		value2 := values[rnd.Intn(len(values))]

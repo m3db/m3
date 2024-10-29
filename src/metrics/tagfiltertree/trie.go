@@ -5,12 +5,14 @@ import (
 	"strings"
 )
 
+// TrieNode represents a node in the trie.
 type TrieNode[T any] struct {
 	ch       trieChar
 	children trieChildren[TrieNode[T]]
 	data     []T
 }
 
+// NewEmptyNode creates a new empty node with the given character.
 func NewEmptyNode[T any](ch byte) *TrieNode[T] {
 	return &TrieNode[T]{
 		ch:       NewTrieChar(ch),
@@ -19,16 +21,19 @@ func NewEmptyNode[T any](ch byte) *TrieNode[T] {
 	}
 }
 
+// Trie represents a trie data structure.
 type Trie[T any] struct {
 	root *TrieNode[T]
 }
 
+// NewTrie creates a new trie.
 func NewTrie[T any]() *Trie[T] {
 	return &Trie[T]{
 		root: nil,
 	}
 }
 
+// Insert inserts a new pattern and data into the trie.
 func (tr *Trie[T]) Insert(pattern string, data *T) error {
 	if err := ValidatePattern(pattern); err != nil {
 		return err
@@ -41,6 +46,7 @@ func (tr *Trie[T]) Insert(pattern string, data *T) error {
 	return insertHelper(tr.root, pattern, 0, len(pattern), data)
 }
 
+// ValidatePattern validates the given pattern.
 func ValidatePattern(pattern string) error {
 	if len(pattern) == 0 {
 		return fmt.Errorf("empty pattern")
@@ -158,7 +164,9 @@ func insertHelper[T any](
 		}
 	}
 
-	root.children.Insert(pattern[startIdx], node)
+	if err := root.children.Insert(pattern[startIdx], node); err != nil {
+		return err
+	}
 
 	if startIdx == len(pattern)-1 {
 		// found the leaf node.
@@ -171,6 +179,7 @@ func insertHelper[T any](
 	return insertHelper(node, pattern, startIdx+1, endIdx, data)
 }
 
+// Match matches the given input against the trie.
 func (tr *Trie[T]) Match(input string, data *[]T) (bool, error) {
 	return matchHelper(tr.root, input, 0, data)
 }

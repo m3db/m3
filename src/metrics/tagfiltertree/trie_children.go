@@ -1,7 +1,5 @@
 package tagfiltertree
 
-import "fmt"
-
 type trieChildren[T any] struct {
 	children   []*T
 	pointerSet PointerSet
@@ -13,9 +11,11 @@ func newTrieChildren[T any]() trieChildren[T] {
 	}
 }
 
+// Insert inserts a new child with the given byte and data.
 func (tc *trieChildren[T]) Insert(ch byte, data *T) error {
 	if tc.pointerSet.IsSet(ch) {
-		return fmt.Errorf("character already exists")
+		// already exists.
+		return nil
 	}
 
 	newIdx := tc.pointerSet.CountSetBitsUntil(ch)
@@ -45,6 +45,7 @@ func (tc *trieChildren[T]) Get(ch byte) *T {
 	return tc.children[childIdx]
 }
 
+// Exists returns true if the child with the given byte exists.
 func (tc *trieChildren[T]) Exists(ch byte) bool {
 	return tc.pointerSet.IsSet(ch)
 }

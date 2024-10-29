@@ -15,11 +15,11 @@ type Pattern struct {
 
 func TestTrieMatch(t *testing.T) {
 	tests := []struct {
-		name          string
 		patterns      []Pattern
+		expectedData  []string
+		name          string
 		input         string
 		expectedMatch bool
-		expectedData  []string
 		isDisabled    bool
 	}{
 		{

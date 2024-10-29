@@ -2,6 +2,8 @@ package tagfiltertree
 
 import "math/bits"
 
+// PointerSet is a set of pointers backed by a bitmap to
+// represent a sparse set of at most 127 pointers.
 type PointerSet struct {
 	bits [2]uint64 // Using 2 uint64 gives us 128 bits (0 to 127).
 }
@@ -28,11 +30,11 @@ func (ps *PointerSet) CountSetBitsUntil(i byte) int {
 	if i < 64 {
 		// Count bits in the first uint64 up to index i.
 		return bits.OnesCount64(ps.bits[0] & ((1 << (i + 1)) - 1))
-	} else {
-		// Count all bits in the first uint64.
-		count := bits.OnesCount64(ps.bits[0])
-		// Count bits in the second uint64 up to index i - 64.
-		count += bits.OnesCount64(ps.bits[1] & ((1 << (i - 64 + 1)) - 1))
-		return count
 	}
+
+	// Count all bits in the first uint64.
+	count := bits.OnesCount64(ps.bits[0])
+	// Count bits in the second uint64 up to index i - 64.
+	count += bits.OnesCount64(ps.bits[1] & ((1 << (i - 64 + 1)) - 1))
+	return count
 }

@@ -10,6 +10,7 @@ const (
 	_matchNone = "!*"
 )
 
+// Tag represents a tag with name, value and variable.
 type Tag struct {
 	Name string
 	Val  string
@@ -28,6 +29,7 @@ type Tree[T any] struct {
 	Nodes []*node[T]
 }
 
+// NodeValue represents a value in a node of the Tree.
 type NodeValue[T any] struct {
 	Val         string
 	PatternTrie *Trie[T]
@@ -107,6 +109,7 @@ func (n *node[T]) addValue(filter string, data *T) (*Tree[T], error) {
 	return newNodeValue.Tree, nil
 }
 
+// NewNodeValue creates a new NodeValue.
 func NewNodeValue[T any](val string, patternTrie *Trie[T], data *T) NodeValue[T] {
 	t := &Tree[T]{
 		Nodes: make([]*node[T], 0),
@@ -282,6 +285,7 @@ func TagsFromTagFilter(tf string) ([]Tag, error) {
 	return tags, nil
 }
 
+// IsVarTagValue returns true if the value is a variable tag value.
 func IsVarTagValue(value string) bool {
 	if len(value) < 4 {
 		return false
@@ -300,6 +304,7 @@ func IsVarTagValue(value string) bool {
 	return false
 }
 
+// IsMatchNoneTag returns true if the tag is a match none tag.
 func IsMatchNoneTag(tagName string) bool {
 	if len(tagName) == 0 {
 		return false
@@ -307,21 +312,7 @@ func IsMatchNoneTag(tagName string) bool {
 	return tagName[0] == '!'
 }
 
+// IsAbsoluteValue returns true if the value is an absolute value.
 func IsAbsoluteValue(val string) bool {
 	return !strings.ContainsAny(val, "{!*[")
 }
-
-/*
-tag1:value1 tag2:value2 tag3:value3
-tag1:foo1 tag4:* tag8:val*
-
-tag1 -> value1 ---->
-			tag2 -> value2 ---->
-						tag3 -> value3 D-> R1
-        foo1 ---->
-			tag4 -> * ---->
-						tag8 -> val* D-> R2
-
-input:
-	tag1:foo1 tag4:foobar tag8:value8
-*/

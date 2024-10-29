@@ -511,6 +511,7 @@ func TestTreeGetData(t *testing.T) {
 
 			// check any match
 			anyMatched, err := tree.Match(tt.inputTags, nil)
+			require.NoError(t, err)
 			require.Equal(t, len(tt.expected) > 0, anyMatched)
 		})
 	}

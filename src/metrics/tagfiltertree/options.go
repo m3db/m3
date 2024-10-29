@@ -17,10 +17,12 @@ func NewOptions() Options {
 	return &options{}
 }
 
+// TagFilterOptions returns the tag filter options.
 func (o *options) TagFilterOptions() filters.TagsFilterOptions {
 	return o.tagFilterOptions
 }
 
+// SetTagFilterOptions sets the tag filter options.
 func (o *options) SetTagFilterOptions(tf filters.TagsFilterOptions) Options {
 	opts := *o
 	opts.tagFilterOptions = tf
