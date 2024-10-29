@@ -1,0 +1,347 @@
+package tagfiltertree
+
+import (
+	"fmt"
+	"strings"
+)
+
+type TrieNode[T any] struct {
+	ch       trieChar
+	children trieChildren[TrieNode[T]]
+	data     []T
+}
+
+func NewEmptyNode[T any](ch byte) *TrieNode[T] {
+	return &TrieNode[T]{
+		ch:       NewTrieChar(ch),
+		children: newTrieChildren[TrieNode[T]](),
+		data:     nil,
+	}
+}
+
+type Trie[T any] struct {
+	root *TrieNode[T]
+}
+
+func NewTrie[T any]() *Trie[T] {
+	return &Trie[T]{
+		root: nil,
+	}
+}
+
+func (tr *Trie[T]) Insert(pattern string, data *T) error {
+	if err := ValidatePattern(pattern); err != nil {
+		return err
+	}
+
+	if tr.root == nil {
+		tr.root = NewEmptyNode[T]('^')
+	}
+
+	return insertHelper(tr.root, pattern, 0, len(pattern), data)
+}
+
+func ValidatePattern(pattern string) error {
+	if len(pattern) == 0 {
+		return fmt.Errorf("empty pattern")
+	}
+
+	if strings.Contains(pattern, "**") {
+		return fmt.Errorf("invalid pattern")
+	}
+
+	if strings.Contains(pattern, "{") != strings.Contains(pattern, "}") {
+		return fmt.Errorf("invalid pattern")
+	}
+
+	// pattern cannot have more than one pair of '{' and '}'.
+	if strings.Count(pattern, "{") > 1 || strings.Count(pattern, "}") > 1 {
+		return fmt.Errorf("multiple composite patterns not supported")
+	}
+
+	openIdx := strings.Index(pattern, "{")
+	if openIdx != -1 {
+		closeIdx := strings.Index(pattern, "}")
+		if closeIdx != -1 {
+			// we do not support negation within composite patterns.
+			if strings.Contains(pattern[openIdx:closeIdx], "!") {
+				return fmt.Errorf("negation not supported in composite patterns")
+			}
+		}
+	}
+
+	if strings.Contains(pattern, "[") != strings.Contains(pattern, "]") {
+		return fmt.Errorf("invalid pattern")
+	}
+
+	// at the moment we only support single char ranges.
+	if strings.Count(pattern, "[") > 1 || strings.Count(pattern, "]") > 1 {
+		return fmt.Errorf("multiple char range patterns not supported")
+	}
+
+	// we do not support certain special chars in the pattern.
+	if strings.ContainsAny(pattern, "?") {
+		return fmt.Errorf("invalid special chars in pattern")
+	}
+
+	for _, ch := range pattern {
+		if ch > 127 {
+			return fmt.Errorf("invalid character in pattern %c", ch)
+		}
+	}
+
+	return nil
+}
+
+func insertHelper[T any](
+	root *TrieNode[T],
+	pattern string,
+	startIdx int,
+	endIdx int,
+	data *T,
+) error {
+	if root == nil {
+		return nil
+	}
+
+	if startIdx == endIdx {
+		return nil
+	}
+
+	var (
+		err     error
+		options []string
+	)
+
+	if pattern[startIdx] == '{' {
+		options, err = ParseCompositePattern(pattern[startIdx:])
+		if err != nil {
+			return err
+		}
+	}
+
+	if pattern[startIdx] == '[' {
+		options, err = ParseCharRange(pattern[startIdx:])
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, option := range options {
+		if err := insertHelper(
+			root,
+			option,
+			0,
+			len(option),
+			data,
+		); err != nil {
+			return err
+		}
+	}
+
+	if len(options) > 0 {
+		// matched composite or char range pattern.
+		return nil
+	}
+
+	var node *TrieNode[T]
+	if root.children.Exists(pattern[startIdx]) {
+		node = root.children.Get(pattern[startIdx])
+	}
+	if node == nil {
+		node = NewEmptyNode[T](pattern[startIdx])
+	}
+
+	if node.ch.Char() == '!' {
+		if data != nil {
+			node.data = append(node.data, *data)
+		}
+	}
+
+	root.children.Insert(pattern[startIdx], node)
+
+	if startIdx == len(pattern)-1 {
+		// found the leaf node.
+		node.ch.SetEnd()
+		if data != nil {
+			node.data = append(node.data, *data)
+		}
+	}
+
+	return insertHelper(node, pattern, startIdx+1, endIdx, data)
+}
+
+func (tr *Trie[T]) Match(input string, data *[]T) (bool, error) {
+	return matchHelper(tr.root, input, 0, data)
+}
+
+func matchHelper[T any](
+	root *TrieNode[T],
+	input string,
+	startIdx int,
+	data *[]T,
+) (bool, error) {
+	if root == nil {
+		return false, nil
+	}
+
+	if startIdx == len(input) {
+		// looks for patterns that end with a '*'.
+		var child *TrieNode[T]
+		if root.children.Exists('*') {
+			child = root.children.Get('*')
+		}
+		if child != nil && child.ch.IsEnd() {
+			if data != nil {
+				*data = append(*data, child.data...)
+			}
+			return true, nil
+		}
+
+		return false, nil
+	}
+
+	matched := false
+	// check matchAll case.
+	var child *TrieNode[T]
+	if root.children.Exists('*') {
+		child = root.children.Get('*')
+	}
+	if child != nil {
+		var err error
+
+		// move forward in the pattern and input.
+		if startIdx < len(input) {
+			var subChild *TrieNode[T]
+			if child.children.Exists(input[startIdx]) {
+				subChild = child.children.Get(input[startIdx])
+			}
+			if subChild != nil {
+				matchedOne, err := matchHelper(subChild, input, startIdx+1, data)
+				if err != nil {
+					return false, err
+				}
+				matched = matched || matchedOne
+			}
+		}
+
+		// stay on the '*'.
+		matchedAll, err := matchHelper(root, input, startIdx+1, data)
+		if err != nil {
+			return false, err
+		}
+
+		matched = matched || matchedAll
+	}
+
+	child = nil
+	if root.children.Exists('!') {
+		child = root.children.Get('!')
+	}
+	if child != nil {
+		matchedNegate, err := matchHelper(child, input, startIdx, nil)
+		if err != nil {
+			return false, err
+		}
+
+		matched = matched || !matchedNegate
+		if !matchedNegate {
+			if data != nil {
+				*data = append(*data, child.data...)
+			}
+		}
+	}
+
+	var subChild *TrieNode[T]
+	if root.children.Exists(input[startIdx]) {
+		subChild = root.children.Get(input[startIdx])
+	}
+	if subChild != nil {
+		matchedOne, err := matchHelper(subChild, input, startIdx+1, data)
+		if err != nil {
+			return false, err
+		}
+		matched = matched || matchedOne
+
+		if startIdx == len(input)-1 {
+			if subChild.ch.IsEnd() {
+				if data != nil {
+					*data = append(*data, subChild.data...)
+				}
+				matched = true
+			}
+		}
+	}
+
+	return matched, nil
+}
+
+// ParseCompositePattern extracts the options from a composite pattern.
+// It appends the suffix (the segment after the '}' character) to each option.
+// It does not check for other invalid chars in the pattern. Those checks should
+// be done before calling this function.
+func ParseCompositePattern(pattern string) ([]string, error) {
+	openIdx := strings.Index(pattern, "{")
+	closeIdx := strings.Index(pattern, "}")
+
+	if openIdx == -1 || closeIdx == -1 {
+		return nil, fmt.Errorf("invalid pattern")
+	}
+
+	if closeIdx != strings.LastIndex(pattern, "}") {
+		return nil, fmt.Errorf("invalid pattern")
+	}
+
+	optionStr := pattern[openIdx+1 : closeIdx]
+	optionSuffix := ""
+	if closeIdx < len(pattern)-1 {
+		optionSuffix = pattern[closeIdx+1:]
+	}
+	optionPrefix := pattern[:openIdx]
+
+	options := strings.Split(optionStr, ",")
+	for i := range options {
+		option := strings.TrimSpace(options[i])
+		options[i] = optionPrefix + option + optionSuffix
+	}
+
+	return options, nil
+}
+
+// ParseCharRange extracts the options from a char range pattern.
+// It does not check for other invalid chars in the pattern. Those checks should
+// be done before calling this function.
+func ParseCharRange(pattern string) ([]string, error) {
+	openIdx := strings.Index(pattern, "[")
+	closeIdx := strings.Index(pattern, "]")
+
+	if openIdx == -1 || closeIdx == -1 {
+		return nil, fmt.Errorf("invalid pattern")
+	}
+
+	if closeIdx != strings.LastIndex(pattern, "]") {
+		return nil, fmt.Errorf("invalid pattern")
+	}
+
+	optionStr := pattern[openIdx+1 : closeIdx]
+	optionSuffix := ""
+	if closeIdx < len(pattern)-1 {
+		optionSuffix = pattern[closeIdx+1:]
+	}
+	optionPrefix := pattern[:openIdx]
+
+	options := make([]string, 0)
+	for i := 0; i < len(optionStr); i++ {
+		if i+2 < len(optionStr) && optionStr[i+1] == '-' {
+			for ch := optionStr[i]; ch <= optionStr[i+2]; ch++ {
+				options = append(options, optionPrefix+string(ch)+optionSuffix)
+			}
+			i += 2
+			continue
+		}
+
+		options = append(options, optionPrefix+string(optionStr[i])+optionSuffix)
+	}
+
+	return options, nil
+}
