@@ -53,6 +53,30 @@ func TestTreeGetData(t *testing.T) {
 		expected  []string
 	}{
 		{
+			name: "multiple input tags, common prefix tag, absolute and wildcard, match",
+			inputTags: map[string]string{
+				"tag1": "value1",
+				"tag2": "value2",
+				"tag3": "apple",
+				"tag4": "banana",
+			},
+			rules: []Rule{
+				{
+					TagFilters: []string{
+						"tag1:value1 tag2:value2 tag3:apple",
+					},
+					Namespace: "namespace1",
+				},
+				{
+					TagFilters: []string{
+						"tag1:val* tag2:value2 tag4:banana",
+					},
+					Namespace: "namespace2",
+				},
+			},
+			expected: []string{"namespace1", "namespace2"},
+		},
+		{
 			name: "multiple input tags, multiple filters, multiple rules, match",
 			inputTags: map[string]string{
 				"tag1": "value1",

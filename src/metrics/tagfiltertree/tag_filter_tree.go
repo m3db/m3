@@ -192,6 +192,13 @@ func match[T any](
 		return false, nil
 	}
 
+	var (
+		err                   error
+		matched               bool
+		matchedAbsSubtree     bool
+		matchedPatternSubtree bool
+	)
+
 	for _, node := range t.Nodes {
 		name := node.Name
 		negate := false
@@ -205,44 +212,59 @@ func match[T any](
 			if data != nil && *data != nil {
 				*data = append(*data, absVal.Data...)
 			}
-			if isMatchAny && len(absVal.Data) > 0 {
-				return true, nil
+			if len(absVal.Data) > 0 {
+				// matched data.
+				if isMatchAny {
+					return true, nil
+				}
+				matched = true
 			}
 
-			matched, err := match(absVal.Tree, tags, data, isMatchAny)
+			matchedAbsSubtree, err = match(absVal.Tree, tags, data, isMatchAny)
 			if err != nil {
 				return false, err
 			}
-			if isMatchAny && matched {
+
+			if matchedAbsSubtree && isMatchAny {
 				return true, nil
 			}
+
+			matched = matched || matchedAbsSubtree
 		}
 		if tagNameFound != negate {
 			for _, v := range node.PatternValues {
-				matched, err := v.PatternTrie.Match(tagValue, nil)
+				valMatched, err := v.PatternTrie.Match(tagValue, nil)
 				if err != nil {
 					return false, err
 				}
-				if matched {
+				if valMatched {
 					if data != nil && *data != nil {
 						*data = append(*data, v.Data...)
 					}
-					if isMatchAny && len(v.Data) > 0 {
-						return true, nil
+					if len(v.Data) > 0 {
+						// matched data.
+						if isMatchAny {
+							return true, nil
+						}
+
+						matched = true
 					}
-					matched, err := match(v.Tree, tags, data, isMatchAny)
+					matchedPatternSubtree, err = match(v.Tree, tags, data, isMatchAny)
 					if err != nil {
 						return false, err
 					}
-					if isMatchAny && matched {
+
+					if matchedPatternSubtree && isMatchAny {
 						return true, nil
 					}
+
+					matched = matched || matchedPatternSubtree
 				}
 			}
 		}
 	}
 
-	return false, nil
+	return matched, nil
 }
 
 // TagsFromTagFilter creates tags from a tag filter.
