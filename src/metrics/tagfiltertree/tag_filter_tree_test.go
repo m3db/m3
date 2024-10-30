@@ -308,7 +308,7 @@ func TestTreeGetData(t *testing.T) {
 			rules: []Rule{
 				{
 					TagFilters: []string{
-						"tag1:value1",
+						"tag1:value1 tag2:value2 tag3:value3",
 					},
 					Namespace: "namespace1",
 				},
@@ -492,7 +492,8 @@ func TestTreeGetData(t *testing.T) {
 
 			// check all match
 			actual := make([]*Rule, 0, len(tt.expected))
-			_, err := tree.Match(tt.inputTags, &actual)
+			matched, err := tree.Match(tt.inputTags, &actual)
+			require.Equal(t, len(tt.expected) > 0, matched)
 			resolved := make([]string, 0, len(actual))
 			for _, r := range actual {
 				ns, err := r.Resolve(tt.inputTags)

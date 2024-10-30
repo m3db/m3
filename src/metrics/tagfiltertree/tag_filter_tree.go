@@ -195,7 +195,7 @@ func match[T any](
 	for _, node := range t.Nodes {
 		name := node.Name
 		negate := false
-		if IsMatchNoneTag(name) {
+		if IsNegation(name) {
 			name = name[1:]
 			negate = true
 		}
@@ -303,8 +303,8 @@ func IsVarTagValue(value string) bool {
 	return false
 }
 
-// IsMatchNoneTag returns true if the tag is a match none tag.
-func IsMatchNoneTag(tagName string) bool {
+// IsNegation returns true if the tag is a match none tag.
+func IsNegation(tagName string) bool {
 	if len(tagName) == 0 {
 		return false
 	}
