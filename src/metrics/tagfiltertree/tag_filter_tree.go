@@ -29,20 +29,6 @@ type Tree[T any] struct {
 	Nodes []*node[T]
 }
 
-// NodeValue represents a value in a node of the Tree.
-type NodeValue[T any] struct {
-	Val         string
-	PatternTrie *Trie[T]
-	Tree        *Tree[T]
-	Data        []T
-}
-
-type node[T any] struct {
-	Name           string
-	AbsoluteValues map[string]NodeValue[T]
-	PatternValues  []NodeValue[T]
-}
-
 // New creates a new tree.
 func New[T any]() *Tree[T] {
 	return &Tree[T]{
@@ -57,6 +43,29 @@ func (t *Tree[T]) AddTagFilter(tagFilter string, data T) error {
 		return err
 	}
 	return addNode(t, tags, 0, data)
+}
+
+// Match returns the data for the given tags.
+func (t *Tree[T]) Match(tags map[string]string, data *[]T) (bool, error) {
+	isMatchAny := false
+	if data == nil || *data == nil {
+		isMatchAny = true
+	}
+	return match(t, tags, data, isMatchAny)
+}
+
+// NodeValue represents a value in a node of the Tree.
+type NodeValue[T any] struct {
+	Val         string
+	PatternTrie *Trie[T]
+	Tree        *Tree[T]
+	Data        []T
+}
+
+type node[T any] struct {
+	Name           string
+	AbsoluteValues map[string]NodeValue[T]
+	PatternValues  []NodeValue[T]
 }
 
 func (n *node[T]) addValue(filter string, data *T) (*Tree[T], error) {
@@ -171,16 +180,6 @@ func addNode[T any](t *Tree[T], tags []Tag, idx int, data T) error {
 	}
 
 	return nil
-}
-
-// Match returns the data for the given tags.
-func (t *Tree[T]) Match(tags map[string]string, data *[]T) (bool, error) {
-	isMatchAny := false
-	if data == nil || *data == nil {
-		isMatchAny = true
-	}
-	return match(t, tags, data, isMatchAny)
-
 }
 
 func match[T any](

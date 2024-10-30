@@ -5,31 +5,31 @@ import (
 	"strings"
 )
 
-// TrieNode represents a node in the trie.
-type TrieNode[T any] struct {
-	ch       trieChar
-	children trieChildren[TrieNode[T]]
-	data     []T
+// trieNode represents a node in the trie.
+type trieNode[T any] struct {
+	Ch       trieChar
+	Children trieChildren[trieNode[T]]
+	Data     []T
 }
 
-// NewEmptyNode creates a new empty node with the given character.
-func NewEmptyNode[T any](ch byte) *TrieNode[T] {
-	return &TrieNode[T]{
-		ch:       newTrieChar(ch),
-		children: newTrieChildren[TrieNode[T]](),
-		data:     nil,
+// newEmptyNode creates a new empty node with the given character.
+func newEmptyNode[T any](ch byte) *trieNode[T] {
+	return &trieNode[T]{
+		Ch:       newTrieChar(ch),
+		Children: newTrieChildren[trieNode[T]](),
+		Data:     nil,
 	}
 }
 
 // Trie represents a trie data structure.
 type Trie[T any] struct {
-	root *TrieNode[T]
+	Root *trieNode[T]
 }
 
 // NewTrie creates a new trie.
 func NewTrie[T any]() *Trie[T] {
 	return &Trie[T]{
-		root: nil,
+		Root: nil,
 	}
 }
 
@@ -39,11 +39,11 @@ func (tr *Trie[T]) Insert(pattern string, data *T) error {
 		return err
 	}
 
-	if tr.root == nil {
-		tr.root = NewEmptyNode[T]('^')
+	if tr.Root == nil {
+		tr.Root = newEmptyNode[T]('^')
 	}
 
-	return insertHelper(tr.root, pattern, 0, len(pattern), data)
+	return insertHelper(tr.Root, pattern, 0, len(pattern), data)
 }
 
 // ValidatePattern validates the given pattern.
@@ -100,7 +100,7 @@ func ValidatePattern(pattern string) error {
 }
 
 func insertHelper[T any](
-	root *TrieNode[T],
+	root *trieNode[T],
 	pattern string,
 	startIdx int,
 	endIdx int,
@@ -150,29 +150,29 @@ func insertHelper[T any](
 		return nil
 	}
 
-	var node *TrieNode[T]
-	if root.children.Exists(pattern[startIdx]) {
-		node = root.children.Get(pattern[startIdx])
+	var node *trieNode[T]
+	if root.Children.Exists(pattern[startIdx]) {
+		node = root.Children.Get(pattern[startIdx])
 	}
 	if node == nil {
-		node = NewEmptyNode[T](pattern[startIdx])
+		node = newEmptyNode[T](pattern[startIdx])
 	}
 
-	if node.ch.Char() == '!' {
+	if node.Ch.Char() == '!' {
 		if data != nil {
-			node.data = append(node.data, *data)
+			node.Data = append(node.Data, *data)
 		}
 	}
 
-	if err := root.children.Insert(pattern[startIdx], node); err != nil {
+	if err := root.Children.Insert(pattern[startIdx], node); err != nil {
 		return err
 	}
 
 	if startIdx == len(pattern)-1 {
 		// found the leaf node.
-		node.ch.SetEnd()
+		node.Ch.SetEnd()
 		if data != nil {
-			node.data = append(node.data, *data)
+			node.Data = append(node.Data, *data)
 		}
 	}
 
@@ -181,11 +181,11 @@ func insertHelper[T any](
 
 // Match matches the given input against the trie.
 func (tr *Trie[T]) Match(input string, data *[]T) (bool, error) {
-	return matchHelper(tr.root, input, 0, data)
+	return matchHelper(tr.Root, input, 0, data)
 }
 
 func matchHelper[T any](
-	root *TrieNode[T],
+	root *trieNode[T],
 	input string,
 	startIdx int,
 	data *[]T,
@@ -196,13 +196,13 @@ func matchHelper[T any](
 
 	if startIdx == len(input) {
 		// looks for patterns that end with a '*'.
-		var child *TrieNode[T]
-		if root.children.Exists('*') {
-			child = root.children.Get('*')
+		var child *trieNode[T]
+		if root.Children.Exists('*') {
+			child = root.Children.Get('*')
 		}
-		if child != nil && child.ch.IsEnd() {
+		if child != nil && child.Ch.IsEnd() {
 			if data != nil {
-				*data = append(*data, child.data...)
+				*data = append(*data, child.Data...)
 			}
 			return true, nil
 		}
@@ -212,18 +212,18 @@ func matchHelper[T any](
 
 	matched := false
 	// check matchAll case.
-	var child *TrieNode[T]
-	if root.children.Exists('*') {
-		child = root.children.Get('*')
+	var child *trieNode[T]
+	if root.Children.Exists('*') {
+		child = root.Children.Get('*')
 	}
 	if child != nil {
 		var err error
 
 		// move forward in the pattern and input.
 		if startIdx < len(input) {
-			var subChild *TrieNode[T]
-			if child.children.Exists(input[startIdx]) {
-				subChild = child.children.Get(input[startIdx])
+			var subChild *trieNode[T]
+			if child.Children.Exists(input[startIdx]) {
+				subChild = child.Children.Get(input[startIdx])
 			}
 			if subChild != nil {
 				matchedOne, err := matchHelper(subChild, input, startIdx+1, data)
@@ -244,8 +244,8 @@ func matchHelper[T any](
 	}
 
 	child = nil
-	if root.children.Exists('!') {
-		child = root.children.Get('!')
+	if root.Children.Exists('!') {
+		child = root.Children.Get('!')
 	}
 	if child != nil {
 		matchedNegate, err := matchHelper(child, input, startIdx, nil)
@@ -256,14 +256,14 @@ func matchHelper[T any](
 		matched = matched || !matchedNegate
 		if !matchedNegate {
 			if data != nil {
-				*data = append(*data, child.data...)
+				*data = append(*data, child.Data...)
 			}
 		}
 	}
 
-	var subChild *TrieNode[T]
-	if root.children.Exists(input[startIdx]) {
-		subChild = root.children.Get(input[startIdx])
+	var subChild *trieNode[T]
+	if root.Children.Exists(input[startIdx]) {
+		subChild = root.Children.Get(input[startIdx])
 	}
 	if subChild != nil {
 		matchedOne, err := matchHelper(subChild, input, startIdx+1, data)
@@ -273,9 +273,9 @@ func matchHelper[T any](
 		matched = matched || matchedOne
 
 		if startIdx == len(input)-1 {
-			if subChild.ch.IsEnd() {
+			if subChild.Ch.IsEnd() {
 				if data != nil {
-					*data = append(*data, subChild.data...)
+					*data = append(*data, subChild.Data...)
 				}
 				matched = true
 			}

@@ -1,51 +1,51 @@
 package tagfiltertree
 
 type trieChildren[T any] struct {
-	children   []*T
-	pointerSet PointerSet
+	Children   []*T
+	PointerSet PointerSet
 }
 
 func newTrieChildren[T any]() trieChildren[T] {
 	return trieChildren[T]{
-		children: nil,
+		Children: nil,
 	}
 }
 
 // Insert inserts a new child with the given byte and data.
 func (tc *trieChildren[T]) Insert(ch byte, data *T) error {
-	if tc.pointerSet.IsSet(ch) {
+	if tc.PointerSet.IsSet(ch) {
 		// already exists.
 		return nil
 	}
 
-	newIdx := tc.pointerSet.CountSetBitsUntil(ch)
+	newIdx := tc.PointerSet.CountSetBitsUntil(ch)
 
 	// make room for the new child.
-	tc.children = append(tc.children, nil)
+	tc.Children = append(tc.Children, nil)
 
-	for i := len(tc.children) - 1; i > newIdx; i-- {
-		tc.children[i] = tc.children[i-1]
+	for i := len(tc.Children) - 1; i > newIdx; i-- {
+		tc.Children[i] = tc.Children[i-1]
 	}
 
 	// set the new data in the correct idx.
-	tc.children[newIdx] = data
+	tc.Children[newIdx] = data
 
 	// set the idx of the new child.
-	tc.pointerSet.Set(ch)
+	tc.PointerSet.Set(ch)
 
 	return nil
 }
 
 func (tc *trieChildren[T]) Get(ch byte) *T {
-	if !tc.pointerSet.IsSet(ch) {
+	if !tc.PointerSet.IsSet(ch) {
 		return nil
 	}
 
-	childIdx := tc.pointerSet.CountSetBitsUntil(ch) - 1
-	return tc.children[childIdx]
+	childIdx := tc.PointerSet.CountSetBitsUntil(ch) - 1
+	return tc.Children[childIdx]
 }
 
 // Exists returns true if the child with the given byte exists.
 func (tc *trieChildren[T]) Exists(ch byte) bool {
-	return tc.pointerSet.IsSet(ch)
+	return tc.PointerSet.IsSet(ch)
 }
