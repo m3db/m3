@@ -59,13 +59,11 @@ steps:
       CGO_ENABLED: 0
       GIMME_GO_VERSION: 1.22.x
     plugins:
+      docker-compose#v2.5.1:
+        run: app
+        workdir: /go/src/github.com/m3db/m3
       gopath-checkout#v1.0.1:
         import: github.com/m3db/m3
-      docker#v3.0.1:
-        image: us-west1-docker.pkg.dev/ci-compute/buildkite-images/buildkite-dind:v1
-        volumes:
-          - .:/go/src/github.com/m3db/m3
-          - /var/run/docker.sock:/var/run/docker.sock
       kubernetes:
         <<: *kubernetes
         podSpec:
