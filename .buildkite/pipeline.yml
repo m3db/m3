@@ -64,11 +64,6 @@ steps:
         workdir: /go/src/github.com/m3db/m3
       gopath-checkout#v1.0.1:
         import: github.com/m3db/m3
-      docker#v3.0.1:
-        image: us-west1-docker.pkg.dev/ci-compute/buildkite-images/buildkite-dind:v1
-        volumes:
-          - .:/go/src/github.com/m3db/m3
-          - /var/run/docker.sock:/var/run/docker.sock
       kubernetes:
         <<: *kubernetes
         podSpec:
