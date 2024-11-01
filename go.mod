@@ -92,6 +92,7 @@ require (
 )
 
 require (
+	github.com/apache/thrift v0.13.0
 	github.com/twmb/murmur3 v1.1.6
 	golang.org/x/exp v0.0.0-20230725093048-515e97ebf090
 )
