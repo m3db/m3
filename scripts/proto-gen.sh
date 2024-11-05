@@ -4,7 +4,10 @@
 source $(dirname $0)/realpath.sh
 
 # paranoia, ftw
-set -e
+set -ex
+
+ls -R
+pwd
 
 PROTOC_IMAGE_VERSION=${PROTOC_IMAGE_VERSION:-"znly/protoc:0.2.0"}
 
