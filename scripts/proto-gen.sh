@@ -34,6 +34,6 @@ for i in "${GOPATH}/src/${PROTO_SRC}"/*; do
 
 		docker run --platform linux/amd64 --rm -w /src -v $GOPATH/src:/src -v ${m3db_path}:/src/github.com/m3db/m3 \
 		$UID_FLAGS $PROTOC_IMAGE_VERSION \
-			 ls -al
+			 ls
 	fi
 done
