@@ -43,8 +43,7 @@ GO_RELEASER_RELEASE_ARGS  ?= --rm-dist
 GO_RELEASER_WORKING_DIR   := /go/src/github.com/m3db/m3
 GOLANGCI_LINT_VERSION     := v1.56.0
 
-export NPROC        := 2 # Maximum package concurrency for unit tests.
-export SKIP_CODECOV := ${SKIP_CODECOV:-"true"}
+export NPROC := 2 # Maximum package concurrency for unit tests.
 
 SERVICES :=     \
 	m3dbnode      \
@@ -357,28 +356,16 @@ test-single-integration-$(SUBDIR):
 test-ci-unit-$(SUBDIR):
 	@echo "--- test-ci-unit $(SUBDIR)"
 	SRC_ROOT=./src/$(SUBDIR) make test-base
-	if [ -z "$(SKIP_CODECOV)" ]; then \
-		@echo "--- uploading coverage report"; \
-		$(codecov_push) -f $(coverfile) -F $(SUBDIR); \
-	fi
 
 .PHONY: test-ci-big-unit-$(SUBDIR)
 test-ci-big-unit-$(SUBDIR):
 	@echo "--- test-ci-big-unit $(SUBDIR)"
 	SRC_ROOT=./src/$(SUBDIR) make test-big-base
-	if [ -z "$(SKIP_CODECOV)" ]; then \
-		@echo "--- uploading coverage report"; \
-		$(codecov_push) -f $(coverfile) -F $(SUBDIR); \
-	fi
 
 .PHONY: test-ci-integration-$(SUBDIR)
 test-ci-integration-$(SUBDIR):
 	@echo "--- test-ci-integration $(SUBDIR)"
 	SRC_ROOT=./src/$(SUBDIR) PANIC_ON_INVARIANT_VIOLATED=true INTEGRATION_TIMEOUT=10m TEST_SERIES_CACHE_POLICY=$(cache_policy) TEST_AGGREGATOR_CLIENT_TYPE=$(aggregator_client) make test-base-ci-integration
-	if [ -z "$(SKIP_CODECOV)" ]; then \
-		@echo "--- uploading coverage report"; \
-		$(codecov_push) -f $(coverfile) -F $(SUBDIR); \
-	fi
 
 .PHONY: lint-$(SUBDIR)
 lint-$(SUBDIR): export GO_BUILD_TAGS = $(GO_BUILD_TAGS_LIST)
