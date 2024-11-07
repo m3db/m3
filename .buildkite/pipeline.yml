@@ -194,10 +194,6 @@ steps:
 #          import: github.com/m3db/m3
 #    <<: *common
   - name: "Integration (dbnode Recently Read) %n"
-    env:
-      SKIP_CODECOV: "true"
-      CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.22.x
     parallelism: 2
     plugins:
       docker-compose#v2.5.1:
