@@ -43,7 +43,8 @@ GO_RELEASER_RELEASE_ARGS  ?= --rm-dist
 GO_RELEASER_WORKING_DIR   := /go/src/github.com/m3db/m3
 GOLANGCI_LINT_VERSION     := v1.56.0
 
-export NPROC := 2 # Maximum package concurrency for unit tests.
+export NPROC        := 2 # Maximum package concurrency for unit tests.
+export SKIP_CODECOV := ${SKIP_CODECOV:-"true"}
 
 SERVICES :=     \
 	m3dbnode      \
@@ -261,22 +262,16 @@ SUBDIR_TARGETS := \
 
 .PHONY: test-ci-unit
 test-ci-unit: test-base
-	if [ -z "$(SKIP_CODECOV)" ]; then \
-  		$(process_coverfile) $(coverfile) \
-	fi
+	$(process_coverfile) $(coverfile)
 
 .PHONY: test-ci-big-unit
 test-ci-big-unit: test-big-base
-	if [ -z "$(SKIP_CODECOV)" ]; then \
-      	$(process_coverfile) $(coverfile) \
-    fi
+	$(process_coverfile) $(coverfile)
 
 .PHONY: test-ci-integration
 test-ci-integration:
 	INTEGRATION_TIMEOUT=10m TEST_SERIES_CACHE_POLICY=$(cache_policy) TEST_AGGREGATOR_CLIENT_TYPE=$(aggregator_client) make test-base-ci-integration
-	if [ -z "$(SKIP_CODECOV)" ]; then \
-      	$(process_coverfile) $(coverfile) \
-    fi
+	$(process_coverfile) $(coverfile)
 
 .PHONY: test-ci-cluster-integration
 test-ci-cluster-integration:
@@ -362,7 +357,6 @@ test-single-integration-$(SUBDIR):
 test-ci-unit-$(SUBDIR):
 	@echo "--- test-ci-unit $(SUBDIR)"
 	SRC_ROOT=./src/$(SUBDIR) make test-base
-	export SKIP_CODECOV=true
 	if [ -z "$(SKIP_CODECOV)" ]; then \
 		@echo "--- uploading coverage report"; \
 		$(codecov_push) -f $(coverfile) -F $(SUBDIR); \
@@ -372,7 +366,6 @@ test-ci-unit-$(SUBDIR):
 test-ci-big-unit-$(SUBDIR):
 	@echo "--- test-ci-big-unit $(SUBDIR)"
 	SRC_ROOT=./src/$(SUBDIR) make test-big-base
-	export SKIP_CODECOV=true
 	if [ -z "$(SKIP_CODECOV)" ]; then \
 		@echo "--- uploading coverage report"; \
 		$(codecov_push) -f $(coverfile) -F $(SUBDIR); \
@@ -382,7 +375,6 @@ test-ci-big-unit-$(SUBDIR):
 test-ci-integration-$(SUBDIR):
 	@echo "--- test-ci-integration $(SUBDIR)"
 	SRC_ROOT=./src/$(SUBDIR) PANIC_ON_INVARIANT_VIOLATED=true INTEGRATION_TIMEOUT=10m TEST_SERIES_CACHE_POLICY=$(cache_policy) TEST_AGGREGATOR_CLIENT_TYPE=$(aggregator_client) make test-base-ci-integration
-	export SKIP_CODECOV=true
 	if [ -z "$(SKIP_CODECOV)" ]; then \
 		@echo "--- uploading coverage report"; \
 		$(codecov_push) -f $(coverfile) -F $(SUBDIR); \
