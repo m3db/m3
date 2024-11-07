@@ -261,16 +261,22 @@ SUBDIR_TARGETS := \
 
 .PHONY: test-ci-unit
 test-ci-unit: test-base
-	$(process_coverfile) $(coverfile)
+	if [ -z "$(SKIP_CODECOV)" ]; then \
+  		$(process_coverfile) $(coverfile) \
+	fi
 
 .PHONY: test-ci-big-unit
 test-ci-big-unit: test-big-base
-	$(process_coverfile) $(coverfile)
+	if [ -z "$(SKIP_CODECOV)" ]; then \
+      	$(process_coverfile) $(coverfile) \
+    fi
 
 .PHONY: test-ci-integration
 test-ci-integration:
 	INTEGRATION_TIMEOUT=10m TEST_SERIES_CACHE_POLICY=$(cache_policy) TEST_AGGREGATOR_CLIENT_TYPE=$(aggregator_client) make test-base-ci-integration
-	$(process_coverfile) $(coverfile)
+	if [ -z "$(SKIP_CODECOV)" ]; then \
+      	$(process_coverfile) $(coverfile) \
+    fi
 
 .PHONY: test-ci-cluster-integration
 test-ci-cluster-integration:
