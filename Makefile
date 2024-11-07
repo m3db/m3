@@ -362,7 +362,7 @@ test-single-integration-$(SUBDIR):
 test-ci-unit-$(SUBDIR):
 	@echo "--- test-ci-unit $(SUBDIR)"
 	SRC_ROOT=./src/$(SUBDIR) make test-base
-	SKIP_CODECOV=true
+	export SKIP_CODECOV=true
 	if [ -z "$(SKIP_CODECOV)" ]; then \
 		@echo "--- uploading coverage report"; \
 		$(codecov_push) -f $(coverfile) -F $(SUBDIR); \
@@ -372,7 +372,7 @@ test-ci-unit-$(SUBDIR):
 test-ci-big-unit-$(SUBDIR):
 	@echo "--- test-ci-big-unit $(SUBDIR)"
 	SRC_ROOT=./src/$(SUBDIR) make test-big-base
-	SKIP_CODECOV=true
+	export SKIP_CODECOV=true
 	if [ -z "$(SKIP_CODECOV)" ]; then \
 		@echo "--- uploading coverage report"; \
 		$(codecov_push) -f $(coverfile) -F $(SUBDIR); \
@@ -382,7 +382,7 @@ test-ci-big-unit-$(SUBDIR):
 test-ci-integration-$(SUBDIR):
 	@echo "--- test-ci-integration $(SUBDIR)"
 	SRC_ROOT=./src/$(SUBDIR) PANIC_ON_INVARIANT_VIOLATED=true INTEGRATION_TIMEOUT=10m TEST_SERIES_CACHE_POLICY=$(cache_policy) TEST_AGGREGATOR_CLIENT_TYPE=$(aggregator_client) make test-base-ci-integration
-	SKIP_CODECOV=true
+	export SKIP_CODECOV=true
 	if [ -z "$(SKIP_CODECOV)" ]; then \
 		@echo "--- uploading coverage report"; \
 		$(codecov_push) -f $(coverfile) -F $(SUBDIR); \
