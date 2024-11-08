@@ -24,4 +24,3 @@ services:
       - SPLIT_IDX
       - TOTAL_SPLITS
       - SSH_AUTH_SOCK=/ssh-agent
-      - SKIP_CODECOV=true
