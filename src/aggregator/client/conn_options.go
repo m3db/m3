@@ -34,6 +34,7 @@ import (
 const (
 	defaultConnectionTimeout            = 1 * time.Second
 	defaultConnectionKeepAlive          = true
+	defaultReadTimeout                  = 15 * time.Second
 	defaultWriteTimeout                 = 15 * time.Second
 	defaultInitReconnectThreshold       = 1
 	defaultMaxReconnectThreshold        = 4
@@ -71,6 +72,12 @@ type ConnectionOptions interface {
 
 	// ConnectionKeepAlive returns the keepAlive for the connection.
 	ConnectionKeepAlive() bool
+
+	// SetReadTimeout sets the timeout for reading data.
+	SetReadTimeout(value time.Duration) ConnectionOptions
+
+	// ReadTimeout returns the timeout for reading data.
+	ReadTimeout() time.Duration
 
 	// SetWriteTimeout sets the timeout for writing data.
 	SetWriteTimeout(value time.Duration) ConnectionOptions
@@ -138,6 +145,7 @@ type connectionOptions struct {
 	writeRetryOpts retry.Options
 	rwOpts         xio.Options
 	connTimeout    time.Duration
+	readTimeout    time.Duration
 	writeTimeout   time.Duration
 	maxDuration    time.Duration
 	initThreshold  int
@@ -161,6 +169,7 @@ func NewConnectionOptions() ConnectionOptions {
 		instrumentOpts: instrument.NewOptions(),
 		connTimeout:    defaultConnectionTimeout,
 		connKeepAlive:  defaultConnectionKeepAlive,
+		readTimeout:    defaultReadTimeout,
 		writeTimeout:   defaultWriteTimeout,
 		initThreshold:  defaultInitReconnectThreshold,
 		maxThreshold:   defaultMaxReconnectThreshold,
@@ -211,6 +220,16 @@ func (o *connectionOptions) SetConnectionKeepAlive(value bool) ConnectionOptions
 
 func (o *connectionOptions) ConnectionKeepAlive() bool {
 	return o.connKeepAlive
+}
+
+func (o *connectionOptions) SetReadTimeout(value time.Duration) ConnectionOptions {
+	opts := *o
+	opts.readTimeout = value
+	return &opts
+}
+
+func (o *connectionOptions) ReadTimeout() time.Duration {
+	return o.readTimeout
 }
 
 func (o *connectionOptions) SetWriteTimeout(value time.Duration) ConnectionOptions {

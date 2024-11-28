@@ -73,6 +73,7 @@ type connection struct {
 	initThreshold           int
 	threshold               int
 	lastConnectAttemptNanos int64
+	readTimeout             time.Duration
 	writeTimeout            time.Duration
 	connTimeout             time.Duration
 	numFailures             int
@@ -87,6 +88,7 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 	c := &connection{
 		addr:           addr,
 		connTimeout:    opts.ConnectionTimeout(),
+		readTimeout:    opts.ReadTimeout(),
 		writeTimeout:   opts.WriteTimeout(),
 		keepAlive:      opts.ConnectionKeepAlive(),
 		initThreshold:  opts.InitReconnectThreshold(),
@@ -271,6 +273,9 @@ func (c *connection) writeWithLock(data []byte) error {
 	if err := c.conn.SetWriteDeadline(c.nowFn().Add(c.writeTimeout)); err != nil {
 		c.metrics.setWriteDeadlineError.Inc(1)
 	}
+	if err := c.conn.SetReadDeadline(c.nowFn().Add(c.readTimeout)); err != nil {
+		c.metrics.setReadDeadlineError.Inc(1)
+	}
 	if _, err := c.writer.Write(data); err != nil {
 		c.metrics.writeError.Inc(1)
 		return err
@@ -304,6 +309,7 @@ type connectionMetrics struct {
 	writeError            tally.Counter
 	writeRetries          tally.Counter
 	setKeepAliveError     tally.Counter
+	setReadDeadlineError  tally.Counter
 	setWriteDeadlineError tally.Counter
 }
 
@@ -317,6 +323,8 @@ func newConnectionMetrics(scope tally.Scope) connectionMetrics {
 		setKeepAliveError: scope.Tagged(map[string]string{errorMetricType: "tcp-keep-alive"}).
 			Counter(errorMetric),
 		setWriteDeadlineError: scope.Tagged(map[string]string{errorMetricType: "set-write-deadline"}).
+			Counter(errorMetric),
+		setReadDeadlineError: scope.Tagged(map[string]string{errorMetricType: "set-read-deadline"}).
 			Counter(errorMetric),
 	}
 }
