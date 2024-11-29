@@ -70,6 +70,7 @@ queueDropType: oldest
 connection:
   connectionTimeout: 1s
   connectionKeepAlive: true
+  readTimeout: 1s
   writeTimeout: 1s
   initReconnectThreshold: 2
   maxReconnectThreshold: 5000
@@ -117,6 +118,7 @@ func TestConfigUnmarshal(t *testing.T) {
 	require.Equal(t, DropOldest, *cfg.QueueDropType)
 	require.Equal(t, time.Second, cfg.Connection.ConnectionTimeout)
 	require.Equal(t, true, *cfg.Connection.ConnectionKeepAlive)
+	require.Equal(t, time.Second, cfg.Connection.ReadTimeout)
 	require.Equal(t, time.Second, cfg.Connection.WriteTimeout)
 	require.Equal(t, 2, cfg.Connection.InitReconnectThreshold)
 	require.Equal(t, 5000, cfg.Connection.MaxReconnectThreshold)

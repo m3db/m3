@@ -338,6 +338,7 @@ func TestConnectWithCustomDialer(t *testing.T) {
 		mockConn := NewMockConn(ctrl)
 
 		mockConn.EXPECT().Write(testData)
+		mockConn.EXPECT().SetReadDeadline(gomock.Any())
 		mockConn.EXPECT().SetWriteDeadline(gomock.Any())
 		testWithConn(t, mockConn)
 	})
@@ -347,6 +348,7 @@ func TestConnectWithCustomDialer(t *testing.T) {
 		mockConn := NewMockConn(ctrl)
 
 		mockConn.EXPECT().Write(testData)
+		mockConn.EXPECT().SetReadDeadline(gomock.Any())
 		mockConn.EXPECT().SetWriteDeadline(gomock.Any())
 
 		mockKeepAlivable := NewMockkeepAlivable(ctrl)
@@ -489,7 +491,8 @@ func testConnectionOptions() ConnectionOptions {
 		SetInitReconnectThreshold(2).
 		SetMaxReconnectThreshold(6).
 		SetReconnectThresholdMultiplier(2).
-		SetWriteTimeout(100 * time.Millisecond)
+		SetWriteTimeout(100 * time.Millisecond).
+		SetReadTimeout(100 * time.Millisecond)
 }
 
 func testTLSConnectionOptions() ConnectionOptions {
