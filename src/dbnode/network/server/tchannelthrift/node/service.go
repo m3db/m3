@@ -1857,7 +1857,7 @@ func (s *service) WriteBatchRawV2(tctx thrift.Context, req *rpc.WriteBatchRawV2R
 		return err
 	}
 	defer s.writeRPCCompleted()
-
+	s.logger.Debug("WriteBatchRawV2")
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
