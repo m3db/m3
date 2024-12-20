@@ -90,7 +90,7 @@ func NewTest(t testutil.T, input string) (*Test, error) {
 	test := &Test{
 		T:            t,
 		cmds:         []testCommand{},
-		m3comparator: newM3ComparatorClient("localhost", 9001),
+		m3comparator: newM3ComparatorClient("host.docker.internal", 9001),
 	}
 	err := test.parse(input)
 	if err != nil {
@@ -371,7 +371,7 @@ func newEvalCmd(expr string, start time.Time, line int) *evalCmd {
 
 		metrics:  map[uint64]labels.Labels{},
 		expected: map[uint64]entry{},
-		m3query:  newM3QueryClient("localhost", 7201),
+		m3query:  newM3QueryClient("host.docker.internal", 7201),
 	}
 }
 

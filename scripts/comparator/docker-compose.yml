@@ -21,7 +21,7 @@ services:
       - backend
     image: "m3query:${REVISION}"
     volumes:
-      - "./m3query.yml:/etc/m3query/m3query.yml"
+      - .:/go/src/github.com/m3db/m3
   prometheus:
     expose:
       - "9090"
@@ -31,7 +31,7 @@ services:
       - backend
     image: prom/prometheus:v2.31.2
     volumes:
-      - "./:/etc/prometheus/"
+      - .:/go/src/github.com/m3db/m3
   grafana:
     build:
       context: ./grafana
