@@ -95,7 +95,7 @@ func (f *fstTermsIter) Next() bool {
 
 	if f.firstNext {
 		f.firstNext = false
-		if err := f.iter.Reset(f.opts.fst, nil, nil, nil); err != nil {
+		if err := f.iter.Reset(f.opts.fst, nil, nil, nil, true); err != nil {
 			f.handleIterErr(err)
 			return false
 		}

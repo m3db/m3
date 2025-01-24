@@ -27,7 +27,7 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 	promql "github.com/prometheus/prometheus/promql/parser"
-	promstorage "github.com/prometheus/prometheus/storage"
+	"github.com/prometheus/prometheus/util/annotations"
 
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
@@ -68,7 +68,7 @@ type response struct {
 }
 
 // Respond responds with HTTP OK status code and writes response JSON to response body.
-func Respond(w http.ResponseWriter, data interface{}, warnings promstorage.Warnings) error {
+func Respond(w http.ResponseWriter, data interface{}, warnings annotations.Annotations) error {
 	statusMessage := statusSuccess
 	var warningStrings []string
 	for _, warning := range warnings {

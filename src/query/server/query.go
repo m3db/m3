@@ -23,6 +23,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"net"
 	"net/http"
@@ -30,14 +31,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-kit/kit/log"
-	kitlogzap "github.com/go-kit/kit/log/zap"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	extprom "github.com/prometheus/client_golang/prometheus"
 	prometheuspromql "github.com/prometheus/prometheus/promql"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
@@ -1376,9 +1374,9 @@ func newPromQLEngine(
 
 	instrumentOpts.Logger().Debug("creating new PromQL engine", zap.Duration("lookbackDelta", lookbackDelta))
 	var (
-		kitLogger = kitlogzap.NewZapSugarLogger(instrumentOpts.Logger(), zapcore.InfoLevel)
-		opts      = prometheuspromql.EngineOpts{
-			Logger:        log.With(kitLogger, "component", "prometheus_engine"),
+		slogLogger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
+		opts       = prometheuspromql.EngineOpts{
+			Logger:        slogLogger,
 			Reg:           registry,
 			MaxSamples:    cfg.Query.Prometheus.MaxSamplesPerQueryOrDefault(),
 			Timeout:       cfg.Query.TimeoutOrDefault(),

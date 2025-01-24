@@ -335,9 +335,9 @@ func TestLimitedReturnedDataVector(t *testing.T) {
 
 	r := &promql.Result{
 		Value: promql.Vector{
-			{Point: promql.Point{T: 1, V: 1.0}},
-			{Point: promql.Point{T: 2, V: 2.0}},
-			{Point: promql.Point{T: 3, V: 3.0}},
+			{T: 1, F: 1.0},
+			{T: 2, F: 2.0},
+			{T: 3, F: 3.0},
 		},
 	}
 
@@ -450,17 +450,17 @@ func TestLimitedReturnedDataMatrix(t *testing.T) {
 
 	r := &promql.Result{
 		Value: promql.Matrix{
-			{Points: []promql.Point{
-				{T: 1, V: 1.0},
+			{Floats: []promql.FPoint{
+				{T: 1, F: 1.0},
 			}},
-			{Points: []promql.Point{
-				{T: 1, V: 1.0},
-				{T: 2, V: 2.0},
+			{Floats: []promql.FPoint{
+				{T: 1, F: 1.0},
+				{T: 2, F: 2.0},
 			}},
-			{Points: []promql.Point{
-				{T: 1, V: 1.0},
-				{T: 2, V: 2.0},
-				{T: 3, V: 3.0},
+			{Floats: []promql.FPoint{
+				{T: 1, F: 1.0},
+				{T: 2, F: 2.0},
+				{T: 3, F: 3.0},
 			}},
 		},
 	}
@@ -580,7 +580,7 @@ func TestLimitedReturnedDataMatrix(t *testing.T) {
 			seriesCount := len(m)
 			datapointCount := 0
 			for _, d := range m {
-				datapointCount += len(d.Points)
+				datapointCount += len(d.Floats)
 			}
 
 			if limited.Limited {

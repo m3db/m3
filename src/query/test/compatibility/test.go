@@ -52,6 +52,7 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/promql/parser"
+	"github.com/prometheus/prometheus/promql/parser/posrange"
 	"github.com/prometheus/prometheus/util/testutil"
 
 	cparser "github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
@@ -159,7 +160,7 @@ func (t *Test) parseEval(lines []string, i int) (int, *evalCmd, error) {
 	if err != nil {
 		if perr, ok := err.(*parser.ParseErr); ok {
 			perr.LineOffset = i
-			posOffset := parser.Pos(strings.Index(lines[i], expr))
+			posOffset := posrange.Pos(strings.Index(lines[i], expr))
 			perr.PositionRange.Start += posOffset
 			perr.PositionRange.End += posOffset
 			perr.Query = lines[i]
@@ -267,7 +268,7 @@ func (*evalCmd) testCmd()  {}
 type loadCmd struct {
 	gap          time.Duration
 	metrics      map[uint64]labels.Labels
-	defs         map[uint64][]promql.Point
+	defs         map[uint64][]promql.FPoint
 	m3compClient *m3comparatorClient
 }
 
@@ -275,7 +276,7 @@ func newLoadCmd(m3compClient *m3comparatorClient, gap time.Duration) *loadCmd {
 	return &loadCmd{
 		gap:          gap,
 		metrics:      map[uint64]labels.Labels{},
-		defs:         map[uint64][]promql.Point{},
+		defs:         map[uint64][]promql.FPoint{},
 		m3compClient: m3compClient,
 	}
 }
@@ -288,13 +289,13 @@ func (cmd loadCmd) String() string {
 func (cmd *loadCmd) set(m labels.Labels, vals ...parser.SequenceValue) {
 	h := m.Hash()
 
-	samples := make([]promql.Point, 0, len(vals))
+	samples := make([]promql.FPoint, 0, len(vals))
 	ts := testStartTime
 	for _, v := range vals {
 		if !v.Omitted {
-			samples = append(samples, promql.Point{
+			samples = append(samples, promql.FPoint{
 				T: ts.UnixNano() / int64(time.Millisecond/time.Nanosecond),
-				V: v.Value,
+				F: v.Value,
 			})
 		}
 		ts = ts.Add(cmd.gap)
@@ -324,7 +325,7 @@ func (cmd *loadCmd) append() error {
 			ts := start.Add(time.Duration(s.T) * time.Millisecond)
 			ser.Datapoints = append(ser.Datapoints, cparser.Datapoint{
 				Timestamp: ts,
-				Value:     cparser.Value(s.V),
+				Value:     cparser.Value(s.F),
 			})
 
 			ser.End = ts.Add(cmd.gap * time.Millisecond)

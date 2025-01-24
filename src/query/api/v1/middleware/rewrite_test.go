@@ -23,18 +23,17 @@ package middleware
 import (
 	"bytes"
 	"io/ioutil"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"testing"
 	"time"
 
-	"github.com/go-kit/kit/log"
-	kitlogzap "github.com/go-kit/kit/log/zap"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/prometheus/promql"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap/zapcore"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
@@ -355,10 +354,9 @@ func durationMilliseconds(d time.Duration) int64 {
 
 func makeBaseOpts(t *testing.T, r *mux.Router, addPromEngine bool) Options {
 	var (
-		instrumentOpts = instrument.NewOptions()
-		kitLogger      = kitlogzap.NewZapSugarLogger(instrumentOpts.Logger(), zapcore.InfoLevel)
-		engineOpts     = promql.EngineOpts{
-			Logger:     log.With(kitLogger, "component", "query engine"),
+		slogLogger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
+		engineOpts = promql.EngineOpts{
+			Logger:     slogLogger,
 			MaxSamples: 100,
 			Timeout:    1 * time.Minute,
 			NoStepSubqueryIntervalFn: func(rangeMillis int64) int64 {

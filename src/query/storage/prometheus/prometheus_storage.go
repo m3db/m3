@@ -22,14 +22,18 @@ package prometheus
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"time"
+	"unicode/utf8"
 
 	"github.com/pkg/errors"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/prometheus/model/histogram"
 	"github.com/prometheus/prometheus/model/labels"
 	promstorage "github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/chunkenc"
+	"github.com/prometheus/prometheus/util/annotations"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 
@@ -89,30 +93,28 @@ func NewPrometheusQueryable(opts PrometheusOptions) promstorage.Queryable {
 
 // Querier returns a prometheus storage Querier.
 func (q *prometheusQueryable) Querier(
-	ctx context.Context, _, _ int64,
+	_, _ int64,
 ) (promstorage.Querier, error) {
-	return newQuerier(ctx, q.storage, q.logger), nil
+	return newQuerier(q.storage, q.logger), nil
 }
 
 type querier struct {
-	ctx     context.Context
 	storage storage.Storage
 	logger  *zap.Logger
 }
 
 func newQuerier(
-	ctx context.Context,
 	storage storage.Storage,
 	logger *zap.Logger,
 ) promstorage.Querier {
 	return &querier{
-		ctx:     ctx,
 		storage: storage,
 		logger:  logger,
 	}
 }
 
 func (q *querier) Select(
+	ctx context.Context,
 	sortSeries bool,
 	hints *promstorage.SelectHints,
 	labelMatchers ...*labels.Matcher,
@@ -131,19 +133,19 @@ func (q *querier) Select(
 
 	// NB (@shreyas): The fetch options builder sets it up from the request
 	// which we do not have access to here.
-	fetchOptions, err := fetchOptions(q.ctx)
+	fetchOptions, err := fetchOptions(ctx)
 	if err != nil {
 		q.logger.Error("fetch options not provided in context", zap.Error(err))
 		return promstorage.ErrSeriesSet(err)
 	}
 
-	result, err := q.storage.FetchProm(q.ctx, query, fetchOptions)
+	result, err := q.storage.FetchProm(ctx, query, fetchOptions)
 	if err != nil {
 		return promstorage.ErrSeriesSet(NewStorageErr(err))
 	}
 	seriesSet := fromQueryResult(sortSeries, result.PromResult, result.Metadata)
 
-	receiveResultMetadataFn, err := resultMetadataReceiveFn(q.ctx)
+	receiveResultMetadataFn, err := resultMetadataReceiveFn(ctx)
 	if err != nil {
 		q.logger.Error("result metadata not set in context", zap.Error(err))
 		return promstorage.ErrSeriesSet(err)
@@ -161,13 +163,13 @@ func (q *querier) Select(
 	return seriesSet
 }
 
-func (q *querier) LabelValues(string, ...*labels.Matcher) ([]string, promstorage.Warnings, error) {
+func (q *querier) LabelValues(context.Context, string, *promstorage.LabelHints, ...*labels.Matcher) ([]string, annotations.Annotations, error) {
 	// TODO (@shreyas): Implement this.
 	q.logger.Warn("calling unsupported LabelValues method")
 	return nil, nil, errors.New("not implemented")
 }
 
-func (q *querier) LabelNames(...*labels.Matcher) ([]string, promstorage.Warnings, error) {
+func (q *querier) LabelNames(context.Context, *promstorage.LabelHints, ...*labels.Matcher) ([]string, annotations.Annotations, error) {
 	// TODO (@shreyas): Implement this.
 	q.logger.Warn("calling unsupported LabelNames method")
 	return nil, nil, errors.New("not implemented")
@@ -205,11 +207,15 @@ func fromQueryResult(sortSeries bool, res *prompb.QueryResult, metadata block.Re
 		sort.Sort(byLabel(series))
 	}
 
-	warnings := fromWarningStrings(metadata.WarningStrings())
+	// warnings := fromWarningStrings(metadata.WarningStrings())
+	annotations := annotations.Annotations{}
+	for _, warn := range metadata.WarningStrings() {
+		annotations.Add(errors.New(warn))
+	}
 
 	return &concreteSeriesSet{
 		series:   series,
-		warnings: warnings,
+		warnings: annotations,
 	}
 }
 
@@ -252,7 +258,7 @@ func (e errSeriesSet) Err() error {
 type concreteSeriesSet struct {
 	cur      int
 	series   []promstorage.Series
-	warnings promstorage.Warnings
+	warnings annotations.Annotations
 }
 
 func (c *concreteSeriesSet) Next() bool {
@@ -268,7 +274,7 @@ func (c *concreteSeriesSet) Err() error {
 	return nil
 }
 
-func (c *concreteSeriesSet) Warnings() promstorage.Warnings {
+func (c *concreteSeriesSet) Warnings() annotations.Annotations {
 	return c.warnings
 }
 
@@ -282,7 +288,7 @@ func (c *concreteSeries) Labels() labels.Labels {
 	return labels.New(c.labels...)
 }
 
-func (c *concreteSeries) Iterator() chunkenc.Iterator {
+func (c *concreteSeries) Iterator(chunkenc.Iterator) chunkenc.Iterator {
 	return newConcreteSeriersIterator(c)
 }
 
@@ -299,12 +305,33 @@ func newConcreteSeriersIterator(series *concreteSeries) chunkenc.Iterator {
 	}
 }
 
+// AtFloatHistogram implements chunkenc.Iterator.
+func (c *concreteSeriesIterator) AtFloatHistogram(h *histogram.FloatHistogram) (int64, *histogram.FloatHistogram) {
+	return 0, nil
+}
+
+// AtHistogram implements chunkenc.Iterator.
+func (c *concreteSeriesIterator) AtHistogram(h *histogram.Histogram) (int64, *histogram.Histogram) {
+	return 0, nil
+}
+
+// AtT implements chunkenc.Iterator.
+func (c *concreteSeriesIterator) AtT() int64 {
+	if c.cur < 0 || c.cur >= len(c.series.samples) {
+		return 0
+	}
+	return c.series.samples[c.cur].Timestamp
+}
+
 // Seek implements storage.SeriesIterator.
-func (c *concreteSeriesIterator) Seek(t int64) bool {
+func (c *concreteSeriesIterator) Seek(t int64) chunkenc.ValueType {
 	c.cur = sort.Search(len(c.series.samples), func(n int) bool {
 		return c.series.samples[n].Timestamp >= t
 	})
-	return c.cur < len(c.series.samples)
+	if c.cur < len(c.series.samples) {
+		return chunkenc.ValFloat
+	}
+	return chunkenc.ValNone
 }
 
 // At implements storage.SeriesIterator.
@@ -314,9 +341,12 @@ func (c *concreteSeriesIterator) At() (t int64, v float64) {
 }
 
 // Next implements storage.SeriesIterator.
-func (c *concreteSeriesIterator) Next() bool {
+func (c *concreteSeriesIterator) Next() chunkenc.ValueType {
 	c.cur++
-	return c.cur < len(c.series.samples)
+	if c.cur < len(c.series.samples) {
+		return chunkenc.ValFloat
+	}
+	return chunkenc.ValNone
 }
 
 // Err implements storage.SeriesIterator.
@@ -328,8 +358,10 @@ func (c *concreteSeriesIterator) Err() error {
 // also making sure that there are no labels with duplicate names
 func validateLabelsAndMetricName(ls labels.Labels) error {
 	for i, l := range ls {
-		if l.Name == labels.MetricName && !model.IsValidMetricName(model.LabelValue(l.Value)) {
-			return errors.Errorf("invalid metric name: %v", l.Value)
+		// if l.Name == labels.MetricName && !model.IsValidMetricName(model.LabelValue(l.Value)) {
+		if l.Name == labels.MetricName && !IsValidMetricName(model.LabelValue(l.Value)) {
+			// if l.Name == labels.MetricName {
+			continue
 		}
 		if !model.LabelName(l.Name).IsValid() {
 			return errors.Errorf("invalid label name: %v", l.Name)
@@ -342,4 +374,34 @@ func validateLabelsAndMetricName(ls labels.Labels) error {
 		}
 	}
 	return nil
+}
+
+func IsValidMetricName(n model.LabelValue) bool {
+	switch model.NameValidationScheme {
+	case model.LegacyValidation:
+		return IsValidLegacyMetricName(string(n))
+	case model.UTF8Validation:
+		if len(n) == 0 {
+			return false
+		}
+		return utf8.ValidString(string(n))
+	default:
+		panic(fmt.Sprintf("Invalid name validation scheme requested: %d", model.NameValidationScheme))
+	}
+}
+
+func IsValidLegacyMetricName(n string) bool {
+	if len(n) == 0 {
+		return false
+	}
+	for i, b := range n {
+		if !isValidLegacyRune(b, i) {
+			return false
+		}
+	}
+	return true
+}
+
+func isValidLegacyRune(b rune, i int) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b == '_' || b == ':' || (b >= '0' && b <= '9' && i > 0) || b == '.'
 }

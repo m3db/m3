@@ -29,6 +29,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/prometheus/prometheus/model/labels"
 	promstorage "github.com/prometheus/prometheus/storage"
+	"github.com/prometheus/prometheus/tsdb/chunkenc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -62,7 +63,7 @@ func TestSelectWithMetaInContext(t *testing.T) {
 	}
 
 	queryable := NewPrometheusQueryable(opts)
-	q, err := queryable.Querier(ctx, 0, 0)
+	q, err := queryable.Querier(0, 0)
 	require.NoError(t, err)
 
 	start := time.Now().Truncate(time.Hour)
@@ -124,7 +125,7 @@ func TestSelectWithMetaInContext(t *testing.T) {
 			}, nil
 		})
 
-	series := q.Select(true, hints, matchers...)
+	series := q.Select(ctx, true, hints, matchers...)
 	warnings := series.Warnings()
 	assert.NoError(t, series.Err())
 
@@ -138,9 +139,9 @@ func TestSelectWithMetaInContext(t *testing.T) {
 	for series.Next() {
 		curr := series.At()
 		acTags = append(acTags, curr.Labels().String())
-		it := curr.Iterator()
+		it := curr.Iterator(nil)
 		ac := make([]dp, 0, 1)
-		for it.Next() {
+		for typ := it.Next(); typ != chunkenc.ValNone; typ = it.Next() {
 			t, v := it.At()
 			ac = append(ac, dp{t: t, v: v})
 		}
@@ -156,7 +157,7 @@ func TestSelectWithMetaInContext(t *testing.T) {
 	assert.Equal(t, exTags, acTags)
 	assert.Equal(t, exDp, acDp)
 	require.Equal(t, 1, len(warnings))
-	require.EqualError(t, warnings[0], "warn_warning")
+	require.EqualError(t, warnings.AsErrors()[0], "warn_warning")
 	require.NoError(t, q.Close())
 
 	// NB: assert warnings on context were propagated.
