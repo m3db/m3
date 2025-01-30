@@ -69,6 +69,7 @@ type messageWriterMetrics struct {
 	messageWriteDelay        tally.Timer
 	scanBatchLatency         tally.Timer
 	scanTotalLatency         tally.Timer
+	writeErrorLatency        tally.Timer
 	enqueuedMessages         tally.Counter
 	dequeuedMessages         tally.Counter
 	processedWrite           tally.Counter
@@ -135,6 +136,7 @@ func newMessageWriterMetricsWithConsumer(
 		messageWriteDelay:     instrument.NewTimer(consumerScope, "message-write-delay", opts),
 		scanBatchLatency:      instrument.NewTimer(consumerScope, "scan-batch-latency", opts),
 		scanTotalLatency:      instrument.NewTimer(consumerScope, "scan-total-latency", opts),
+		writeErrorLatency:     instrument.NewTimer(consumerScope, "write-error-latency", opts),
 		enqueuedMessages:      consumerScope.Counter("message-enqueue"),
 		dequeuedMessages:      consumerScope.Counter("message-dequeue"),
 		processedWrite: consumerScope.
@@ -298,8 +300,10 @@ func (w *messageWriter) write(
 	)
 
 	for i := len(iterationIndexes) - 1; i >= 0; i-- {
+		start := w.nowFn().UnixNano()
 		consumerWriter := consumerWriters[randIndex(iterationIndexes, i)]
 		if err := consumerWriter.Write(connIndex, w.encoder.Bytes()); err != nil {
+			metrics.writeErrorLatency.Record(time.Duration(w.nowFn().UnixNano() - start))
 			writeErrors++
 			continue
 		}
