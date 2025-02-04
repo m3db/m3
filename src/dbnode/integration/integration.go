@@ -171,7 +171,6 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 	shardSet, err := newTestShardSet(opts.NumShards(), opts.ShardSetOptions())
 	require.NoError(t, err)
 	for i := 0; i < replicas; i++ {
-		fmt.Printf("we are here")
 		var (
 			instance                                            = i
 			usingCommitLogBootstrapper                          = !setupOpts[i].DisableCommitLogBootstrapper
@@ -190,7 +189,7 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 			instanceOpts                                        = newMultiAddrTestOptions(opts, instance)
 			adminClientCustomOpts                               = setupOpts[i].AdminClientCustomOpts
 			shardsLeavingAndInitializingCountTowardsConsistency = setupOpts[i].
-										ShardsLeavingAndInitializingCountTowardsConsistency
+				ShardsLeavingAndInitializingCountTowardsConsistency
 		)
 
 		if finalBootstrapperToUse == "" {
@@ -199,7 +198,6 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 
 		if topologyInitializer == nil {
 			// Setup static topology initializer
-			fmt.Printf("we came here")
 			var (
 				start         = multiAddrPortStart
 				hostShardSets []topology.HostShardSet
@@ -222,8 +220,6 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 				SetHostShardSets(hostShardSets)
 			topologyInitializer = topology.NewStaticInitializer(staticOptions)
 		}
-
-		fmt.Printf("or we came here")
 
 		instanceOpts = instanceOpts.
 			SetClusterDatabaseTopologyInitializer(topologyInitializer).
@@ -253,14 +249,14 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 			finalBootstrapper bootstrap.BootstrapperProvider
 
 			adminOpts = client.NewAdminOptions().
-					SetTopologyInitializer(topologyInitializer).(client.AdminOptions).
-					SetOrigin(origin)
+				SetTopologyInitializer(topologyInitializer).(client.AdminOptions).
+				SetOrigin(origin)
 
 			// Prevent integration tests from timing out when a node is down
 			retryOpts = xretry.NewOptions().
-					SetInitialBackoff(1 * time.Millisecond).
-					SetMaxRetries(1).
-					SetJitter(true)
+				SetInitialBackoff(1 * time.Millisecond).
+				SetMaxRetries(1).
+				SetJitter(true)
 			retrier = xretry.NewRetrier(retryOpts)
 		)
 
@@ -297,7 +293,7 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 			var (
 				runtimeOptsMgr = setup.StorageOpts().RuntimeOptionsManager()
 				runtimeOpts    = runtimeOptsMgr.Get().
-						SetClientBootstrapConsistencyLevel(bootstrapConsistencyLevel)
+					SetClientBootstrapConsistencyLevel(bootstrapConsistencyLevel)
 			)
 			runtimeOptsMgr.Update(runtimeOpts)
 
