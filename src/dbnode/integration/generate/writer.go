@@ -21,6 +21,7 @@
 package generate
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -147,6 +148,8 @@ func (w *writer) writeWithPredicate(
 			}
 		}
 	}
+
+	fmt.Printf("we are writing to disk and it is complete")
 
 	return nil
 }
