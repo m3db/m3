@@ -80,6 +80,12 @@ type Instance interface {
 	// SetShardSetID sets the shard set id.
 	SetShardSetID(value uint32) Instance
 
+	// SubClusterID returns the sub-cluster id.
+	SubClusterID() uint32
+
+	// SetSubClusterID sets the sub-cluster id.
+	SetSubClusterID(value uint32) Instance
+
 	// Hostname returns the hostname of the instance.
 	Hostname() string
 
@@ -156,6 +162,12 @@ type Placement interface {
 
 	// SetIsSharded sets IsSharded
 	SetIsSharded(v bool) Placement
+
+	// HasSubClusters returns whether the placement has sub-clusters.
+	HasSubClusters() bool
+
+	// SetHasClusters sets HasSubClusters.
+	SetHasSubClusters(v bool) Placement
 
 	// CutoverNanos returns the cutover time in nanoseconds.
 	CutoverNanos() int64
@@ -270,6 +282,11 @@ type ValidateFn func(p Placement) error
 
 // Options is the interface for placement options.
 type Options interface {
+	SetHasSubClusters(value bool) Options
+	HasSubClusters() bool
+	SetInstancesPerSubCluster(value int) Options
+
+	InstancesPerSubCluster() int
 	// AllowPartialReplace allows shards from the leaving instance to be
 	// placed on instances other than the new instances in a replace operation
 	AllowPartialReplace() bool

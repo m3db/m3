@@ -54,6 +54,7 @@ type placement struct {
 	maxShardSetID    uint32
 	isSharded        bool
 	isMirrored       bool
+	hasSubClusters   bool
 }
 
 // NewPlacement returns a ServicePlacement
@@ -166,6 +167,15 @@ func (p *placement) SetIsSharded(v bool) Placement {
 	return p
 }
 
+func (p *placement) HasSubClusters() bool {
+	return p.hasSubClusters
+}
+
+func (p *placement) SetHasSubClusters(v bool) Placement {
+	p.hasSubClusters = v
+	return p
+}
+
 func (p *placement) IsMirrored() bool {
 	return p.isMirrored
 }
@@ -220,13 +230,14 @@ func (p *placement) Proto() (*placementpb.Placement, error) {
 	}
 
 	return &placementpb.Placement{
-		Instances:     instances,
-		ReplicaFactor: uint32(p.ReplicaFactor()),
-		NumShards:     uint32(p.NumShards()),
-		IsSharded:     p.IsSharded(),
-		CutoverTime:   p.CutoverNanos(),
-		IsMirrored:    p.IsMirrored(),
-		MaxShardSetId: p.MaxShardSetID(),
+		Instances:      instances,
+		ReplicaFactor:  uint32(p.ReplicaFactor()),
+		NumShards:      uint32(p.NumShards()),
+		IsSharded:      p.IsSharded(),
+		CutoverTime:    p.CutoverNanos(),
+		IsMirrored:     p.IsMirrored(),
+		MaxShardSetId:  p.MaxShardSetID(),
+		HasSubClusters: p.HasSubClusters(),
 	}, nil
 }
 
@@ -464,6 +475,7 @@ type instance struct {
 	weight         uint32
 	shardSetID     uint32
 	metadata       InstanceMetadata
+	subClusterID   uint32
 }
 
 func (i *instance) String() string {
@@ -545,6 +557,13 @@ func (i *instance) SetShardSetID(value uint32) Instance {
 	return i
 }
 
+func (i *instance) SubClusterID() uint32 { return i.subClusterID }
+
+func (i *instance) SetSubClusterID(value uint32) Instance {
+	i.subClusterID = value
+	return i
+}
+
 func (i *instance) Shards() shard.Shards {
 	return i.shards
 }
@@ -579,6 +598,7 @@ func (i *instance) Proto() (*placementpb.Instance, error) {
 		ShardSetId:     i.ShardSetID(),
 		Hostname:       i.Hostname(),
 		Port:           i.Port(),
+		SubClusterId:   i.SubClusterID(),
 		Metadata: &placementpb.InstanceMetadata{
 			DebugPort: i.Metadata().DebugPort,
 		},
@@ -617,7 +637,8 @@ func (i *instance) Clone() Instance {
 		SetPort(i.Port()).
 		SetShardSetID(i.ShardSetID()).
 		SetShards(i.Shards().Clone()).
-		SetMetadata(i.Metadata())
+		SetMetadata(i.Metadata()).
+		SetSubClusterID(i.subClusterID)
 }
 
 // Instances is a slice of instances that can produce a debug string.
