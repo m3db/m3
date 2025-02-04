@@ -21,10 +21,9 @@
 package storage
 
 import (
-	"sync"
-
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
+	"sync"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -74,9 +73,7 @@ type databaseNamespaceReaderManager interface {
 
 	latestVolume(shard uint32, blockStart xtime.UnixNano) (int, error)
 
-	assignShardSet(shardSet sharding.ShardSet)
-
-	tick()
+	tick(activeShardSet sharding.ShardSet)
 
 	close()
 }
@@ -109,7 +106,6 @@ type namespaceReaderManager struct {
 
 	closedReaders []cachedReader
 	openReaders   map[cachedOpenReaderKey]cachedReader
-	shardSet      sharding.ShardSet
 
 	metrics namespaceReaderManagerMetrics
 }
@@ -167,7 +163,6 @@ func newNamespaceReaderManager(
 		bytesPool:         opts.BytesPool(),
 		logger:            opts.InstrumentOptions().Logger(),
 		openReaders:       make(map[cachedOpenReaderKey]cachedReader),
-		shardSet:          sharding.NewEmptyShardSet(sharding.DefaultHashFn(1)),
 		metrics:           newNamespaceReaderManagerMetrics(namespaceScope),
 	}
 
@@ -205,14 +200,8 @@ func (m *namespaceReaderManager) filesetExistsAt(
 		m.namespace.ID(), shard, blockStart, latestVolume)
 }
 
-func (m *namespaceReaderManager) assignShardSet(shardSet sharding.ShardSet) {
-	m.Lock()
-	defer m.Unlock()
-	m.shardSet = shardSet
-}
-
-func (m *namespaceReaderManager) shardExistsWithLock(shard uint32) bool {
-	_, err := m.shardSet.LookupStateByID(shard)
+func (m *namespaceReaderManager) shardExistsWithLock(shardSet sharding.ShardSet, shard uint32) bool {
+	_, err := shardSet.LookupStateByID(shard)
 	// NB(bodu): LookupStateByID returns ErrInvalidShardID when shard
 	// does not exist in the shard map which means the shard is not available.
 	return err == nil
@@ -426,18 +415,19 @@ func (m *namespaceReaderManager) put(reader fs.DataFileSetReader) error {
 	return nil
 }
 
-func (m *namespaceReaderManager) tick() {
-	m.tickWithThreshold(expireCachedReadersAfterNumTicks)
+func (m *namespaceReaderManager) tick(activeShardSet sharding.ShardSet) {
+	m.tickWithThreshold(activeShardSet, expireCachedReadersAfterNumTicks)
 }
 
 func (m *namespaceReaderManager) close() {
 	m.blockLeaseManager.UnregisterLeaser(m)
 
 	// Perform a tick but make the threshold zero so all readers must be expired
-	m.tickWithThreshold(0)
+	emptyShardSet := sharding.NewEmptyShardSet(sharding.DefaultHashFn(1))
+	m.tickWithThreshold(emptyShardSet, 0)
 }
 
-func (m *namespaceReaderManager) tickWithThreshold(threshold int) {
+func (m *namespaceReaderManager) tickWithThreshold(activeShardSet sharding.ShardSet, threshold int) {
 	m.Lock()
 	defer m.Unlock()
 
@@ -469,7 +459,7 @@ func (m *namespaceReaderManager) tickWithThreshold(threshold int) {
 			// Also check to see if shard is still available and remove cached readers for
 			// shards that are no longer available. This ensures cached readers are eventually
 			// consistent with shard state.
-			!m.shardExistsWithLock(key.shard) {
+			!m.shardExistsWithLock(activeShardSet, key.shard) {
 			// Close before removing ref
 			if err := elem.reader.Close(); err != nil {
 				m.logger.Error("error closing reader from reader cache", zap.Error(err))

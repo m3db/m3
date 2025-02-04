@@ -28,8 +28,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
@@ -267,6 +269,117 @@ func TestNamespaceReadersPutTickClose(t *testing.T) {
 	nsReaderMgr.close()
 	require.Len(t, nsReaderMgrImpl.openReaders, 0)
 	require.Len(t, nsReaderMgrImpl.closedReaders, 0)
+}
+
+func TestNamespaceReadersTickClose(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	metadata, err := namespace.NewMetadata(defaultTestNs1ID,
+		defaultTestNs1Opts.SetColdWritesEnabled(true))
+	require.NoError(t, err)
+	shardNumber := uint32(0)
+	blockSize := metadata.Options().RetentionOptions().BlockSize()
+	start := xtime.Now().Truncate(blockSize)
+
+	mockFSReader := fs.NewMockDataFileSetReader(ctrl)
+	mockBlockLeaseMgr := block.NewMockLeaseManager(ctrl)
+	mockBlockLeaseMgr.EXPECT().RegisterLeaser(gomock.Any()).Return(nil)
+	mockBlockLeaseMgr.EXPECT().UnregisterLeaser(gomock.Any()).Return(nil)
+	// Case 2.
+	mockBlockLeaseMgr.EXPECT().OpenLatestLease(gomock.Any(), gomock.Any()).
+		Return(block.LeaseState{Volume: 1}, nil)
+	// Case 3.
+	mockBlockLeaseMgr.EXPECT().OpenLatestLease(gomock.Any(), gomock.Any()).
+		Return(block.LeaseState{Volume: 2}, nil)
+	// Case 4.
+	mockBlockLeaseMgr.EXPECT().OpenLatestLease(gomock.Any(), gomock.Any()).
+		Return(block.LeaseState{Volume: 3}, nil)
+
+	nsReaderMgr := newNamespaceReaderManager(metadata, tally.NoopScope,
+		DefaultTestOptions().SetBlockLeaseManager(mockBlockLeaseMgr))
+	nsReaderMgrImpl := nsReaderMgr.(*namespaceReaderManager)
+	// Grabbing specific ID here so that the test can match on gomock arguments.
+	nsID := nsReaderMgrImpl.namespace.ID()
+
+	// Case 1: putting a closed reader should add it to the slice of closed
+	// readers.
+	mockFSReader.EXPECT().Status().Return(fs.DataFileSetReaderStatus{
+		Namespace: nsID, BlockStart: start, Shard: shardNumber,
+		Volume: 0,
+		Open:   false,
+	})
+	require.Len(t, nsReaderMgrImpl.closedReaders, 0)
+	require.NoError(t, nsReaderMgr.put(mockFSReader))
+	require.Len(t, nsReaderMgrImpl.closedReaders, 1)
+
+	// Case 2: a reader with a volume lower than the latest volume should be
+	// closed and added in the slice of closed readers.
+	mockFSReader.EXPECT().Status().Return(fs.DataFileSetReaderStatus{
+		Namespace: nsID, BlockStart: start, Shard: shardNumber,
+		Volume: 0,
+		Open:   true,
+	})
+	mockFSReader.EXPECT().Close().Return(nil)
+	require.Len(t, nsReaderMgrImpl.closedReaders, 1)
+	require.NoError(t, nsReaderMgr.put(mockFSReader))
+	require.Len(t, nsReaderMgrImpl.closedReaders, 2)
+
+	// Case 3: an open reader with the correct volume gets added to the open
+	// readers.
+	mockFSReader.EXPECT().Status().Return(fs.DataFileSetReaderStatus{
+		Namespace: nsID, BlockStart: start, Shard: shardNumber,
+		Volume: 2,
+		Open:   true,
+	})
+	mockFSReader.EXPECT().EntriesRead().Return(5)
+	mockFSReader.EXPECT().MetadataRead().Return(6)
+	require.Len(t, nsReaderMgrImpl.openReaders, 0)
+	require.NoError(t, nsReaderMgr.put(mockFSReader))
+	require.Len(t, nsReaderMgrImpl.openReaders, 1)
+
+	// Case 4: if trying to put a reader that happens to already have an open
+	// cached version for its exact key, close the reader and add to the slice
+	// of closed readers.
+	mockFSReader.EXPECT().Status().Return(fs.DataFileSetReaderStatus{
+		Namespace: nsID, BlockStart: start, Shard: shardNumber,
+		Volume: 3,
+		Open:   true,
+	})
+	mockFSReader.EXPECT().EntriesRead().Return(7)
+	mockFSReader.EXPECT().MetadataRead().Return(8)
+	mockFSReader.EXPECT().Close()
+	mockExistingFSReader := fs.NewMockDataFileSetReader(ctrl)
+	nsReaderMgrImpl.openReaders[cachedOpenReaderKey{
+		shard:      shardNumber,
+		blockStart: start,
+		position: readerPosition{
+			volume:      3,
+			dataIdx:     7,
+			metadataIdx: 8,
+		},
+	}] = cachedReader{reader: mockExistingFSReader}
+	require.Len(t, nsReaderMgrImpl.closedReaders, 2)
+	require.NoError(t, nsReaderMgr.put(mockFSReader))
+	require.Len(t, nsReaderMgrImpl.closedReaders, 3)
+
+	shards := sharding.NewShards([]uint32{0, 1, 2, 3, 4}, shard.Available)
+	prevAssignment := shard.NewShards([]shard.Shard{shards[0], shards[2], shards[3]})
+	hashFn := func(identifier ident.ID) uint32 { return shards[0].ID() }
+	shardSet, err := sharding.NewShardSet(prevAssignment.All(), hashFn)
+	require.NoError(t, err)
+	nsReaderMgr.tick(shardSet)
+
+	// Closing the reader manager should close any open readers and remove all
+	// readers.
+	require.Len(t, nsReaderMgrImpl.openReaders, 2)
+	require.Len(t, nsReaderMgrImpl.closedReaders, 3)
+	mockFSReader.EXPECT().Close()
+	mockExistingFSReader.EXPECT().Close()
+	nsReaderMgr.close()
+	require.Len(t, nsReaderMgrImpl.openReaders, 0)
+	require.Len(t, nsReaderMgrImpl.closedReaders, 0)
+
 }
 
 func TestNamespaceReadersUpdateOpenLease(t *testing.T) {
