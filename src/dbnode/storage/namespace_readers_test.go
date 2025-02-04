@@ -22,16 +22,16 @@ package storage
 
 import (
 	"errors"
-	"github.com/m3db/m3/src/cluster/shard"
-	"github.com/m3db/m3/src/dbnode/sharding"
 	"testing"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
@@ -367,6 +367,7 @@ func TestNamespaceReadersTickClose(t *testing.T) {
 	prevAssignment := shard.NewShards([]shard.Shard{shards[0], shards[2], shards[3]})
 	hashFn := func(identifier ident.ID) uint32 { return shards[0].ID() }
 	shardSet, err := sharding.NewShardSet(prevAssignment.All(), hashFn)
+	require.NoError(t, err)
 	nsReaderMgr.tick(shardSet)
 
 	// Closing the reader manager should close any open readers and remove all

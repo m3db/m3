@@ -24,7 +24,6 @@ package integration
 
 import (
 	"fmt"
-	"github.com/m3db/m3/src/dbnode/topology/testutil"
 	"strconv"
 	"testing"
 	"time"
@@ -38,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/dbnode/topology/testutil"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -71,7 +71,7 @@ func testClusterDecommissionOneNode(t *testing.T) {
 
 	minShard := uint32(0)
 	maxShard := uint32(opts.NumShards()) - 1
-	midShard := uint32((maxShard - minShard) / 2)
+	midShard := (maxShard - minShard) / 2
 
 	instances := struct {
 		start []services.ServiceInstance
@@ -323,7 +323,6 @@ func testClusterDecommissionOneNode(t *testing.T) {
 	allMarkedAvailable := func(
 		fakePlacementService fake.M3ClusterPlacementService,
 		instanceID string,
-		shards []shard.Shard,
 	) bool {
 		markedAvailable := fakePlacementService.InstanceShardsMarkedAvailable()
 
@@ -339,9 +338,8 @@ func testClusterDecommissionOneNode(t *testing.T) {
 	}
 
 	fps := svcs.FakePlacementService()
-	shouldMark := instances.add[3].Shards().All()
 
-	for !allMarkedAvailable(fps, "testhost1", shouldMark) {
+	for !allMarkedAvailable(fps, "testhost1") {
 		time.Sleep(100 * time.Millisecond)
 	}
 	log.Debug("all shards marked as initialized")
