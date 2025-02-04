@@ -154,8 +154,8 @@ func testClusterDecommissionOneNode(t *testing.T) {
 			TopologyInitializer:      topoInit,
 		},
 	}
-	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
-	defer closeFn()
+	setups, closeFunction := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
+	defer closeFunction()
 
 	// Write test data for first node.
 	topo, err := topoInit.Init()
