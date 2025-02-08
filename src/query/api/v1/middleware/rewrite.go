@@ -355,7 +355,7 @@ type fakeQueryable struct {
 	calculatedEndTime   time.Time
 }
 
-func (f *fakeQueryable) Querier(ctx context.Context, mint, maxt int64) (promstorage.Querier, error) {
+func (f *fakeQueryable) Querier(mint, maxt int64) (promstorage.Querier, error) {
 	f.calculatedStartTime = xtime.FromUnixMillis(mint)
 	f.calculatedEndTime = xtime.FromUnixMillis(maxt)
 	// fail here to cause prometheus to give up on query execution
@@ -371,9 +371,9 @@ func (f *fakeQueryable) calculateQueryBounds(
 	var query promql.Query
 	if f.instant {
 		// startTime and endTime are the same for instant queries
-		query, err = f.engine.NewInstantQuery(f, q, start)
+		query, err = f.engine.NewInstantQuery(context.Background(), f, nil, q, start)
 	} else {
-		query, err = f.engine.NewRangeQuery(f, q, start, end, step)
+		query, err = f.engine.NewRangeQuery(context.Background(), f, nil, q, start, end, step)
 	}
 	if err != nil {
 		return err

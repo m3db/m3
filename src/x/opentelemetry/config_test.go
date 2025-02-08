@@ -32,6 +32,7 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
+	"go.opentelemetry.io/collector/receiver/receivertest"
 )
 
 func TestConfiguration(t *testing.T) {
@@ -65,21 +66,20 @@ func grpcReceiver(
 ) component.Component {
 	factory := otlpreceiver.NewFactory()
 	cfg := factory.CreateDefaultConfig().(*otlpreceiver.Config)
-	cfg.SetIDName(name)
+	// cfg.SetIDName(name)
 	cfg.GRPC.NetAddr.Endpoint = endpoint
 	cfg.HTTP = nil
-
 	var (
-		set = componenttest.NewNopReceiverCreateSettings()
+		set = receivertest.NewNopSettings()
 		r   component.Component
 		err error
 	)
 	if tc != nil {
-		r, err = factory.CreateTracesReceiver(context.Background(), set, cfg, tc)
+		r, err = factory.CreateTraces(context.Background(), set, cfg, tc)
 		require.NoError(t, err)
 	}
 	if mc != nil {
-		r, err = factory.CreateMetricsReceiver(context.Background(), set, cfg, mc)
+		r, err = factory.CreateMetrics(context.Background(), set, cfg, mc)
 		require.NoError(t, err)
 	}
 	return r

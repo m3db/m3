@@ -61,7 +61,9 @@ var (
 				return nil, err
 			}
 			return engine.NewRangeQuery(
+				context.Background(),
 				queryable,
+				nil,
 				params.Query,
 				params.Start.ToTime(),
 				params.End.ToTime(),
@@ -79,7 +81,9 @@ var (
 				return nil, err
 			}
 			return engine.NewInstantQuery(
+				context.Background(),
 				queryable,
+				nil,
 				params.Query,
 				params.Now)
 		}
@@ -178,7 +182,7 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, warn := range resultMetadata.Warnings {
-		res.Warnings = append(res.Warnings, errors.New(warn.Message))
+		res.Warnings.Add(errors.New(warn.Message))
 	}
 
 	query := params.Query
@@ -288,7 +292,7 @@ func (h *readHandler) limitReturnedData(query string,
 		}
 
 		for _, d := range m {
-			datapointCount := len(d.Points)
+			datapointCount := len(d.Floats)
 			if fetchOpts.ReturnedSeriesLimit > 0 && series+1 > fetchOpts.ReturnedSeriesLimit {
 				limited = true
 				break
