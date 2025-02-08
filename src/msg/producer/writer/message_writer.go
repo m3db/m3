@@ -69,6 +69,8 @@ type messageWriterMetrics struct {
 	messageWriteDelay        tally.Timer
 	scanBatchLatency         tally.Timer
 	scanTotalLatency         tally.Timer
+	writeSuccessLatency      tally.Histogram
+	writeErrorLatency        tally.Histogram
 	enqueuedMessages         tally.Counter
 	dequeuedMessages         tally.Counter
 	processedWrite           tally.Counter
@@ -135,8 +137,12 @@ func newMessageWriterMetricsWithConsumer(
 		messageWriteDelay:     instrument.NewTimer(consumerScope, "message-write-delay", opts),
 		scanBatchLatency:      instrument.NewTimer(consumerScope, "scan-batch-latency", opts),
 		scanTotalLatency:      instrument.NewTimer(consumerScope, "scan-total-latency", opts),
-		enqueuedMessages:      consumerScope.Counter("message-enqueue"),
-		dequeuedMessages:      consumerScope.Counter("message-dequeue"),
+		writeSuccessLatency: consumerScope.Histogram("write-success-latency",
+			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
+		writeErrorLatency: consumerScope.Histogram("write-error-latency",
+			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
+		enqueuedMessages: consumerScope.Counter("message-enqueue"),
+		dequeuedMessages: consumerScope.Counter("message-dequeue"),
 		processedWrite: consumerScope.
 			Tagged(map[string]string{"result": "write"}).
 			Counter("message-processed"),
@@ -298,8 +304,10 @@ func (w *messageWriter) write(
 	)
 
 	for i := len(iterationIndexes) - 1; i >= 0; i-- {
+		start := w.nowFn().UnixNano()
 		consumerWriter := consumerWriters[randIndex(iterationIndexes, i)]
 		if err := consumerWriter.Write(connIndex, w.encoder.Bytes()); err != nil {
+			metrics.writeErrorLatency.RecordDuration(time.Duration(w.nowFn().UnixNano() - start))
 			writeErrors++
 			continue
 		}
@@ -431,11 +439,14 @@ func (w *messageWriter) writeBatch(
 	delay := metrics.messageWriteDelay
 	nowFn := w.nowFn
 	for i := range messages {
+		start := nowFn().UnixNano()
 		if err := w.write(iterationIndexes, consumerWriters, metrics, messages[i]); err != nil {
 			return err
 		}
 		if i%_recordMessageDelayEvery == 0 {
-			delay.Record(time.Duration(nowFn().UnixNano() - messages[i].ExpectedProcessAtNanos()))
+			now := nowFn().Unix()
+			delay.Record(time.Duration(now - messages[i].ExpectedProcessAtNanos()))
+			metrics.writeSuccessLatency.RecordDuration(time.Duration(now - start))
 		}
 	}
 	return nil
