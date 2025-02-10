@@ -9,51 +9,6 @@ import (
 	"sort"
 )
 
-type BySubClusterIDInstanceID []placement.Instance
-
-func (a BySubClusterIDInstanceID) Len() int { return len(a) }
-
-func (a BySubClusterIDInstanceID) Less(i, j int) bool {
-	if a[i].SubClusterID() == a[j].SubClusterID() {
-		return a[i].ID() < a[j].ID()
-	}
-	return a[i].SubClusterID() < a[j].SubClusterID()
-}
-
-func (a BySubClusterIDInstanceID) Swap(i, j int) {
-	a[i], a[j] = a[j], a[i]
-}
-
-type UInts []uint32
-
-func (u UInts) Len() int { return len(u) }
-
-func (u UInts) Less(i, j int) bool { return u[i] < u[j] }
-
-func (u UInts) Swap(i, j int) {
-	u[i], u[j] = u[j], u[i]
-}
-
-type UIntsDesc []uint32
-
-func (u UIntsDesc) Len() int { return len(u) }
-
-func (u UIntsDesc) Less(i, j int) bool { return u[i] > u[j] }
-
-func (u UIntsDesc) Swap(i, j int) {
-	u[i], u[j] = u[j], u[i]
-}
-
-type ByIsolationGroup []placement.Instance
-
-func (b ByIsolationGroup) Len() int { return len(b) }
-
-func (b ByIsolationGroup) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
-
-func (b ByIsolationGroup) Less(i, j int) bool {
-	return b[i].IsolationGroup() < b[j].IsolationGroup()
-}
-
 type subClusterByWeightDesc []*subCluster
 
 func (s subClusterByWeightDesc) Len() int      { return len(s) }
