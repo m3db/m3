@@ -54,7 +54,7 @@ func (b ByIsolationGroup) Less(i, j int) bool {
 	return b[i].IsolationGroup() < b[j].IsolationGroup()
 }
 
-type subClusterByWeightDesc []subCluster
+type subClusterByWeightDesc []*subCluster
 
 func (s subClusterByWeightDesc) Len() int      { return len(s) }
 func (s subClusterByWeightDesc) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
@@ -62,7 +62,7 @@ func (s subClusterByWeightDesc) Less(i, j int) bool {
 	if s[i].weight == s[j].weight {
 		return s[i].ID < s[j].ID
 	}
-	return s[i].weight > s[j].weight
+	return s[i].weight < s[j].weight
 }
 
 type subClusteredPlacementAlgorithm struct {
@@ -70,119 +70,41 @@ type subClusteredPlacementAlgorithm struct {
 }
 
 func (a subClusteredPlacementAlgorithm) InitialPlacement(instances []placement.Instance, shards []uint32, rf int) (placement.Placement, error) {
-	//subClusterToInstanceMapping, err := a.instancesInSubCluster(instances, rf, true)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//
-	//initHelper, err := newSubClusterInitHelper(subClusterToInstanceMapping, shards)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//subClusterToShardMapping, err := initHelper.placeShards(shards)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//shardedAlgo := newShardedAlgorithm(a.opts)
-	//emptyPlacement := placement.NewPlacement().SetReplicaFactor(rf).SetIsSharded(true).SetShards(shards)
-	//for subClusterID, shards := range subClusterToShardMapping {
-	//	p, err := shardedAlgo.InitialPlacement(subClusterToInstanceMapping[subClusterID], shards, rf)
-	//	if err != nil {
-	//		return nil, err
-	//	}
-	//	finalInstances := emptyPlacement.Instances()
-	//	for _, instance := range p.Instances() {
-	//		finalInstances = append(finalInstances, instance)
-	//	}
-	//	emptyPlacement.SetInstances(finalInstances)
-	//}
-	//
-	//return emptyPlacement, nil
-	sph := newInitSubClusterHelper(instances, shards, a.opts)
-	if err := sph.placeShards(newShards(shards), nil, sph.Instances()); err != nil {
+	sph := newInitSubClusterHelper(instances, shards, rf, a.opts)
+	if err := sph.placeShardForInitialPlacement(newShards(shards)); err != nil {
 		return nil, err
 	}
 
 	var (
-		p   = sph.generatePlacement()
-		err error
+		p = sph.generatePlacement()
 	)
-	for i := 1; i < rf; i++ {
-		p, err = a.AddReplica(p)
-		if err != nil {
-			return nil, err
-		}
-	}
 
 	return tryCleanupShardState(p, a.opts)
 
 }
 
 func (a subClusteredPlacementAlgorithm) AddReplica(p placement.Placement) (placement.Placement, error) {
-	if err := a.IsCompatibleWith(p); err != nil {
-		return nil, err
-	}
-
-	p = p.Clone()
-	ph := newSubClusteredAddReplicaHelper(p, a.opts)
-	if err := ph.placeShards(newShards(p.Shards()), nil, nonLeavingInstances(ph.Instances())); err != nil {
-		return nil, err
-	}
-
-	if err := ph.optimize(safe); err != nil {
-		return nil, err
-	}
-
-	return tryCleanupShardState(ph.generatePlacement(), a.opts)
+	return nil, fmt.Errorf("not supported for subclustered algorithm")
 }
 
 func (a subClusteredPlacementAlgorithm) AddInstances(p placement.Placement, instances []placement.Instance) (placement.Placement, error) {
-	//subClusterToInstanceMapping, err := a.instancesInSubCluster(finalInstances, p.ReplicaFactor(), true)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//helper, err := newSubClusterAddHelper(subClusterToInstanceMapping, clone.NumShards())
-	//if err != nil {
-	//	return nil, err
-	//}
-	//newInstancesSubClusterMap, err := a.instancesInSubCluster(instances, p.ReplicaFactor(), false)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//subClusterToShardMap, shardsMovedTo, err := helper.balanceShards()
-	//if err != nil {
-	//	return nil, err
-	//}
-
-	//for subCluster, ins := range subClusterToInstanceMapping {
-	//	if _, ok := shardsMovedTo[subCluster]; !ok {
-	//		continue
-	//	}
-	//
-	//	//optimized, err := a.optimizeCurrentInstances(ins)
-	//	//if err != nil {
-	//	//	return nil, err
-	//	//}
-	//
-	//}
 
 	if err := a.IsCompatibleWith(p); err != nil {
 		return nil, err
 	}
+	ph, addingInstance, err := newSubClusteredAddInstanceHelper(p, instances, a.opts, withLeavingShardsOnly)
+	if err != nil {
+		return nil, err
+	}
 
 	p = p.Clone()
-	for _, instance := range instances {
-		ph, addingInstance, err := newSubClusterAddInstanceHelper(p, instance, a.opts, withLeavingShardsOnly)
-		if err != nil {
-			return nil, err
-		}
-		fmt.Println(addingInstance.ID())
-		if err := ph.addInstance(addingInstance); err != nil {
+	for _, instance := range addingInstance {
+		if err := ph.addInstance(instance); err != nil {
 			return nil, err
 		}
 
-		p = ph.generatePlacement()
 	}
+	p = ph.generatePlacement()
 
 	return tryCleanupShardState(p, a.opts)
 }
@@ -265,23 +187,87 @@ func getShardAndIGMap(instances []placement.Instance) (map[uint32][]placement.In
 }
 
 func (a subClusteredPlacementAlgorithm) RemoveInstances(p placement.Placement, leavingInstanceIDs []string) (placement.Placement, error) {
-	//TODO implement me
-	panic("implement me")
+	if err := a.IsCompatibleWith(p); err != nil {
+		return nil, err
+	}
+	ph, leavingInstances, err := newSubClusterRemoveInstancesHelper(p, leavingInstanceIDs, a.opts)
+	if err != nil {
+		return nil, err
+	}
+
+	p = p.Clone()
+	for _, instance := range leavingInstances {
+		if err := ph.placeShards(instance.Shards().All(), instance, ph.Instances()); err != nil {
+			return nil, err
+		}
+
+	}
+	p = ph.generatePlacement()
+	return tryCleanupShardState(p, a.opts)
 }
 
 func (a subClusteredPlacementAlgorithm) ReplaceInstances(p placement.Placement, leavingInstanecIDs []string, addingInstances []placement.Instance) (placement.Placement, error) {
-	//TODO implement me
-	panic("implement me")
+	if err := a.IsCompatibleWith(p); err != nil {
+		return nil, err
+	}
+
+	p = p.Clone()
+	ph, leavingInstances, addingInstances, err := newSubClusterReplaceInstanceHelper(p, leavingInstanecIDs, addingInstances, a.opts)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, leavingInstance := range leavingInstances {
+		err = ph.placeShards(leavingInstance.Shards().All(), leavingInstance, addingInstances)
+		if err != nil && err != errNotEnoughIsolationGroups {
+			// errNotEnoughIsolationGroups means the adding instances do not
+			// have enough isolation groups to take all the shards, but the rest
+			// instances might have more isolation groups to take all the shards.
+			return nil, err
+		}
+		load := loadOnInstance(leavingInstance)
+		if load != 0 && !a.opts.AllowPartialReplace() {
+			return nil, fmt.Errorf("could not fully replace all shards from %s, %d shards left unassigned",
+				leavingInstance.ID(), load)
+		}
+	}
+
+	if a.opts.AllowPartialReplace() {
+		// Place the shards left on the leaving instance to the rest of the cluster.
+		for _, leavingInstance := range leavingInstances {
+			if err = ph.placeShards(leavingInstance.Shards().All(), leavingInstance, ph.Instances()); err != nil {
+				return nil, err
+			}
+		}
+
+		if err := ph.optimize(unsafe); err != nil {
+			return nil, err
+		}
+	}
+
+	p = ph.generatePlacement()
+	for _, leavingInstance := range leavingInstances {
+		if p, _, err = addInstanceToPlacement(p, leavingInstance, withShards); err != nil {
+			return nil, err
+		}
+	}
+	return tryCleanupShardState(p, a.opts)
 }
 
 func (a subClusteredPlacementAlgorithm) MarkShardsAvailable(p placement.Placement, instanceID string, shardIDs ...uint32) (placement.Placement, error) {
-	//TODO implement me
-	panic("implement me")
+	if err := a.IsCompatibleWith(p); err != nil {
+		return nil, err
+	}
+
+	return markShardsAvailable(p.Clone(), instanceID, shardIDs, a.opts)
 }
 
 func (a subClusteredPlacementAlgorithm) MarkAllShardsAvailable(p placement.Placement) (placement.Placement, bool, error) {
-	//TODO implement me
-	panic("implement me")
+	if err := a.IsCompatibleWith(p); err != nil {
+		return nil, false, err
+	}
+
+	return markAllShardsAvailable(p, a.opts)
 }
 
 func (a subClusteredPlacementAlgorithm) BalanceShards(p placement.Placement) (placement.Placement, error) {
