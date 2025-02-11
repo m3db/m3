@@ -216,7 +216,7 @@ type storagePolicyFilterConfiguration struct {
 }
 
 func (c storagePolicyFilterConfiguration) NewConsumerServiceFilter() (services.ServiceID, producer.FilterFunc) {
-	return c.ServiceID.NewServiceID(), writer.NewStoragePolicyFilter(c.StoragePolicies)
+	return c.ServiceID.NewServiceID(), writer.NewStoragePolicyFilter(c.StoragePolicies, producer.StaticConfig)
 }
 
 type percentageFilterConfiguration struct {
@@ -225,7 +225,7 @@ type percentageFilterConfiguration struct {
 }
 
 func (c percentageFilterConfiguration) NewConsumerServiceFilter() (services.ServiceID, producer.FilterFunc) {
-	return c.ServiceID.NewServiceID(), filter.NewPercentageFilter(c.Percentage)
+	return c.ServiceID.NewServiceID(), filter.NewPercentageFilter(c.Percentage, producer.StaticConfig)
 }
 
 // ConsumerServiceFilterConfiguration - exported to be able to write unit tests
@@ -236,7 +236,7 @@ type ConsumerServiceFilterConfiguration struct {
 
 // NewConsumerServiceFilter - exported to be able to write unit tests
 func (c ConsumerServiceFilterConfiguration) NewConsumerServiceFilter() (services.ServiceID, producer.FilterFunc) {
-	return c.ServiceID.NewServiceID(), filter.NewShardSetFilter(c.ShardSet)
+	return c.ServiceID.NewServiceID(), filter.NewShardSetFilter(c.ShardSet, producer.StaticConfig)
 }
 
 // StaticBackendConfiguration configures a static backend as a flush handler.
