@@ -371,7 +371,7 @@ func DeleteFiles(filePaths []string) error {
 	return multiErr.FinalError()
 }
 
-// DeleteDirectories delets a set of directories and its contents, returning all
+// DeleteDirectories deletes a set of directories and its contents, returning all
 // of the errors encountered during the deletion process.
 func DeleteDirectories(dirPaths []string) error {
 	multiErr := xerrors.NewMultiError()
