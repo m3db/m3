@@ -479,7 +479,7 @@ type databaseShard interface {
 	OnEvictedFromWiredList(id ident.ID, blockStart xtime.UnixNano)
 
 	// Tick performs all async updates
-	Tick(c context.Cancellable, startTime xtime.UnixNano, nsCtx namespace.Context) (tickResult, error)
+	Tick(c context.Cancellable, startTime xtime.UnixNano, nsCtx namespace.Context, tickOptions TickOptions) (tickResult, error)
 
 	// Write writes a value to the shard for an ID.
 	Write(
@@ -1010,6 +1010,13 @@ type OnColdFlushNamespace interface {
 // OptionTransform transforms given Options.
 type OptionTransform func(Options) Options
 
+type TickOptions struct {
+	TopMetricsToTrack       int
+	MinCardinalityToTrack   int
+	MaxMapLenForTracking    int
+	TopMetricsTrackingTicks int
+}
+
 // Options represents the options for storage.
 type Options interface {
 	// Validate validates assumptions baked into the code.
@@ -1344,6 +1351,9 @@ type Options interface {
 
 	// SetCoreFn sets the function for determining the current core.
 	SetCoreFn(value xsync.CoreFn) Options
+
+	SetTickOptions(value TickOptions) Options
+	TickOptions() TickOptions
 }
 
 // MemoryTracker tracks memory.
