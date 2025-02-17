@@ -23,7 +23,7 @@ package digest
 import (
 	"hash/adler32"
 
-	"github.com/m3db/stackadler32"
+	"github.com/m3db/m3/src/dbnode/x/stackadler32"
 )
 
 // NewDigest creates a new digest.
