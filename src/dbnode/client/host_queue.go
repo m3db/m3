@@ -129,6 +129,8 @@ func newHostQueue(
 		opsArrayLen = int(opArrayPoolSize)
 	}
 
+	fmt.Println("HostQueueOpsFlushSize ", opts.HostQueueOpsFlushSize(), "WriteBatchSize ", opts.WriteBatchSize())
+
 	opArrayPoolElemCapacity := int(math.Max(float64(opts.HostQueueOpsFlushSize()), float64(opts.WriteBatchSize())))
 	opArrayPool := newOpArrayPool(opArrayPoolOpts, opArrayPoolElemCapacity)
 	opArrayPool.Init()
@@ -261,8 +263,10 @@ func (q *queue) drain() {
 			switch v := ops[i].(type) {
 			case *writeOperation:
 				if q.serverSupportsV2APIs {
+					fmt.Println("draining write operation v2")
 					currV2WriteReq, currV2WriteOps = q.drainWriteOpV2(v, currV2WriteReq, currV2WriteOps, ops[i])
 				} else {
+					fmt.Println("draining write operation v1")
 					currWriteOpsByNamespace = q.drainWriteOpV1(v, currWriteOpsByNamespace, ops[i])
 				}
 			case *writeTaggedOperation:
@@ -281,6 +285,7 @@ func (q *queue) drain() {
 				q.asyncTruncate(v)
 			default:
 				completionFn := ops[i].CompletionFn()
+				fmt.Println("completionFn ", completionFn)
 				completionFn(nil, errQueueUnknownOperation(q.host.ID()))
 			}
 		}
@@ -354,6 +359,8 @@ func (q *queue) drainWriteOpV1(
 	}
 
 	currWriteOpsByNamespace.appendAt(idx, op, &v.request)
+
+	fmt.Println("currWriteOpsByNamespace ", currWriteOpsByNamespace)
 
 	if currWriteOpsByNamespace.lenAt(idx) == q.opts.WriteBatchSize() {
 		// Reached write batch limit, write async and reset.
@@ -521,6 +528,8 @@ func (q *queue) asyncTaggedWrite(
 	ops []op,
 	elems []*rpc.WriteTaggedBatchRawRequestElement,
 ) {
+	fmt.Printf("asyncTaggedWrite called ...")
+
 	q.writeOpBatchSize.RecordValue(float64(len(elems)))
 	q.Add(1)
 
@@ -539,6 +548,8 @@ func (q *queue) asyncTaggedWrite(
 
 		// NB(bl): host is passed to writeState to determine the state of the
 		// shard on the node we're writing to
+
+		fmt.Printf("HERE1 ...")
 
 		client, _, err := q.connPool.NextClient()
 		if err != nil {
@@ -586,6 +597,8 @@ func (q *queue) asyncTaggedWriteV2(
 	ops []op,
 	req *rpc.WriteTaggedBatchRawV2Request,
 ) {
+	fmt.Printf("asyncTaggedWriteV2 called ...")
+
 	q.writeOpBatchSize.RecordValue(float64(len(req.Elements)))
 	q.Add(1)
 
@@ -647,6 +660,8 @@ func (q *queue) asyncWrite(
 	ops []op,
 	elems []*rpc.WriteBatchRawRequestElement,
 ) {
+	fmt.Printf("asyncWrite called ...")
+
 	q.writeOpBatchSize.RecordValue(float64(len(elems)))
 	q.Add(1)
 	q.workerPool.Go(func() {
@@ -711,6 +726,8 @@ func (q *queue) asyncWriteV2(
 	ops []op,
 	req *rpc.WriteBatchRawV2Request,
 ) {
+	fmt.Printf("asyncWriteV2 called ...")
+
 	q.writeOpBatchSize.RecordValue(float64(len(req.Elements)))
 	q.Add(1)
 	q.workerPool.Go(func() {
