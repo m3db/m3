@@ -129,7 +129,7 @@ func newHostQueue(
 		opsArrayLen = int(opArrayPoolSize)
 	}
 
-	fmt.Println("HostQueueOpsFlushSize ", opts.HostQueueOpsFlushSize(), "WriteBatchSize ", opts.WriteBatchSize())
+	// fmt.Println("HostQueueOpsFlushSize ", opts.HostQueueOpsFlushSize(), "WriteBatchSize ", opts.WriteBatchSize())
 
 	opArrayPoolElemCapacity := int(math.Max(float64(opts.HostQueueOpsFlushSize()), float64(opts.WriteBatchSize())))
 	opArrayPool := newOpArrayPool(opArrayPoolOpts, opArrayPoolElemCapacity)
@@ -285,7 +285,7 @@ func (q *queue) drain() {
 				q.asyncTruncate(v)
 			default:
 				completionFn := ops[i].CompletionFn()
-				fmt.Println("completionFn ", completionFn)
+				// fmt.Println("completionFn ", completionFn)
 				completionFn(nil, errQueueUnknownOperation(q.host.ID()))
 			}
 		}
@@ -360,7 +360,7 @@ func (q *queue) drainWriteOpV1(
 
 	currWriteOpsByNamespace.appendAt(idx, op, &v.request)
 
-	fmt.Println("currWriteOpsByNamespace ", currWriteOpsByNamespace)
+	// fmt.Println("currWriteOpsByNamespace ", currWriteOpsByNamespace)
 
 	if currWriteOpsByNamespace.lenAt(idx) == q.opts.WriteBatchSize() {
 		// Reached write batch limit, write async and reset.
