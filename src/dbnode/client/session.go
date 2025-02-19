@@ -1251,6 +1251,7 @@ func (s *session) Write(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
+	s.log.Info("Session write called..")
 	w := s.pools.writeAttempt.Get()
 	w.args.attemptType = untaggedWriteAttemptType
 	w.args.namespace, w.args.id = nsID, id
