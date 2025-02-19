@@ -1255,7 +1255,8 @@ func (s *session) Write(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	fmt.Printf("Session write called..")
+	// fmt.Printf("Session write called..")
+	s.log.Info("Session write called..")
 	w := s.pools.writeAttempt.Get()
 	w.args.attemptType = untaggedWriteAttemptType
 	w.args.namespace, w.args.id = nsID, id
@@ -1275,6 +1276,7 @@ func (s *session) WriteTagged(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
+	s.log.Info("Session WriteTagged called..")
 	w := s.pools.writeAttempt.Get()
 	w.args.attemptType = taggedWriteAttemptType
 	w.args.namespace, w.args.id, w.args.tags = nsID, id, tags
@@ -1294,6 +1296,7 @@ func (s *session) writeAttempt(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
+	s.log.Info("Session writeAttempt called..")
 	startWriteAttempt := s.nowFn()
 
 	timeType, timeTypeErr := convert.ToTimeType(unit)
@@ -1348,6 +1351,7 @@ func (s *session) writeAttemptWithRLock(
 	timeType rpc.TimeType,
 	annotation []byte,
 ) (*writeState, int32, int32, error) {
+	s.log.Info("Session writeAttemptWithRLock called..")
 	var (
 		majority = int32(s.state.majority)
 		enqueued int32
