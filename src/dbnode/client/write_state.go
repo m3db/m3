@@ -139,6 +139,7 @@ func (w *writeState) close() {
 }
 
 func (w *writeState) completionFn(result interface{}, err error) {
+
 	host := result.(topology.Host)
 	hostID := host.ID()
 	// NB(bl) panic on invalid result, it indicates a bug in the code
@@ -164,9 +165,11 @@ func (w *writeState) completionFn(result interface{}, err error) {
 		w.pool.MaybeLogHostError(maybeHostWriteError{err: err, host: host, reqRespTime: took})
 		wErr = xerrors.NewRenamedError(err, fmt.Errorf("error writing to host %s: %v", hostID, err))
 	} else if hostShardSet, ok := w.topoMap.LookupHostShardSet(hostID); !ok {
+		w.pool.logger.Info("hostShardSet not ok if called..")
 		errStr := "missing host shard in writeState completionFn: %s"
 		wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, hostID))
 	} else if shardState, err := hostShardSet.ShardSet().LookupStateByID(w.op.ShardID()); err != nil {
+		w.pool.logger.Info("LookupStateByID missing shard called..")
 		errStr := "missing shard %d in host %s"
 		wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
 	} else {
@@ -181,19 +184,25 @@ func (w *writeState) completionFn(result interface{}, err error) {
 			w.shardsLeavingCountTowardsConsistency,
 			w.shardsLeavingAndInitializingCountTowardsConsistency) {
 		case availableCountTowardsConsistency:
+			w.pool.logger.Info("availableCountTowardsConsistency called..")
 			w.success++
 		case shardLeavingIndividuallyCountTowardsConsistency:
+			w.pool.logger.Info("shardLeavingIndividuallyCountTowardsConsistency called..")
 			w.success++
 		case shardLeavingAsPairCountTowardsConsistency:
+			w.pool.logger.Info("shardLeavingAsPairCountTowardsConsistency called..")
 			// get the initializing host corresponding to the leaving host.
 			initializingHostID, ok := w.topoMap.LookupInitializingHostPair(hostID, w.op.ShardID())
 			if !ok || initializingHostID == "" {
+				w.pool.logger.Info("initializingHostID ok if called..")
 				errStr := "no initializing host for shard id %d in host %s"
 				wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
 			} else {
+				w.pool.logger.Info("setHostSuccessListWithLock called..")
 				w.setHostSuccessListWithLock(hostID, initializingHostID)
 			}
 		case shardInitializingAsPairCountTowardsConsistency:
+			w.pool.logger.Info("shardInitializingAsPairCountTowardsConsistency called..")
 			shard, err := hostShardSet.ShardSet().LookupShard(w.op.ShardID())
 			if err != nil {
 				errStr := "no shard id %d in host %s"
@@ -209,12 +218,15 @@ func (w *writeState) completionFn(result interface{}, err error) {
 				}
 			}
 		case leavingCountTowardsConsistency:
+			w.pool.logger.Info("leavingCountTowardsConsistency called..")
 			errStr := "shard %d in host %s not available (leaving)"
 			wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
 		case initializingCountTowardsConsistency:
+			w.pool.logger.Info("initializingCountTowardsConsistency called..")
 			errStr := "shard %d in host %s is not available (initializing)"
 			wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
 		default:
+			w.pool.logger.Info("default case called..")
 			errStr := "shard %d in host %s not available (unknown state)"
 			wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
 		}
@@ -226,14 +238,17 @@ func (w *writeState) completionFn(result interface{}, err error) {
 
 	switch w.consistencyLevel {
 	case topology.ConsistencyLevelOne:
+		w.pool.logger.Info("topology.ConsistencyLevelOne called..")
 		if w.success > 0 || w.pending == 0 {
 			w.Signal()
 		}
 	case topology.ConsistencyLevelMajority:
+		w.pool.logger.Info("topology.ConsistencyLevelMajority called..")
 		if w.success >= w.majority || w.pending == 0 {
 			w.Signal()
 		}
 	case topology.ConsistencyLevelAll:
+		w.pool.logger.Info("topology.ConsistencyLevelAll called..")
 		if w.pending == 0 {
 			w.Signal()
 		}
@@ -245,6 +260,7 @@ func (w *writeState) completionFn(result interface{}, err error) {
 
 func (w *writeState) setHostSuccessListWithLock(hostID, pairedHostID string) {
 	if findHost(w.hostSuccessList, pairedHostID) {
+		w.pool.logger.Info("setHostSuccessListWithLock called..")
 		w.success++
 		w.leavingAndInitializingPairCounted = true
 	}
