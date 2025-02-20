@@ -686,8 +686,14 @@ func (q *queue) asyncWrite(
 
 		ctx, _ := thrift.NewContext(q.opts.WriteRequestTimeout())
 		err = client.WriteBatchRaw(ctx, req)
+
+		fmt.Printf("WriteBatchRaw called for entries:")
+		for _, reqEntry := range req {
+			fmt.Println("reqEntry.ID ", string(reqEntry.ID))
+		}
 		if err == nil {
 			// All succeeded
+			fmt.Printf("WriteBatchRaw All succeeded..")
 			callAllCompletionFns(ops, q.host, nil)
 			cleanup()
 			return
@@ -696,6 +702,7 @@ func (q *queue) asyncWrite(
 		if batchErrs, ok := err.(*rpc.WriteBatchRawErrors); ok {
 			// Callback all writes with errors
 			hasErr := make(map[int]struct{})
+			fmt.Printf("WriteBatchRawErrors found..")
 			for _, batchErr := range batchErrs.Errors {
 				op := ops[batchErr.Index]
 				op.CompletionFn()(q.host, batchErr.Err)
@@ -713,6 +720,7 @@ func (q *queue) asyncWrite(
 		}
 
 		// Entire batch failed
+		fmt.Printf("Entire batch failed..")
 		callAllCompletionFns(ops, q.host, err)
 		cleanup()
 	})
