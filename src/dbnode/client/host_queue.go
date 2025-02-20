@@ -688,8 +688,8 @@ func (q *queue) asyncWrite(
 		err = client.WriteBatchRaw(ctx, req)
 
 		fmt.Printf("WriteBatchRaw called for entries:")
-		for _, reqEntry := range req {
-			fmt.Println("reqEntry.ID ", string(reqEntry.ID))
+		for _, reqEntry := range req.GetElements() {
+			fmt.Println("reqEntry.ID ", string(reqEntry.GetID()))
 		}
 		if err == nil {
 			// All succeeded
