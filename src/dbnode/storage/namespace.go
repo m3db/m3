@@ -609,12 +609,10 @@ func (n *dbNamespace) closeShards(shards []databaseShard, blockUntilClosed bool)
 
 func (n *dbNamespace) Tick(c context.Cancellable, startTime xtime.UnixNano) error {
 	// Allow the reader cache to tick.
-	{
-		n.RLock()
-		shardSet := n.shardSet
-		n.RUnlock()
-		n.namespaceReaderMgr.tick(shardSet)
-	}
+	n.RLock()
+	shardSet := n.shardSet
+	n.RUnlock()
+	n.namespaceReaderMgr.tick(shardSet)
 	// Fetch the owned shards.
 	shards := n.OwnedShards()
 	if len(shards) == 0 {
