@@ -217,6 +217,7 @@ func (w *writeState) completionFn(result interface{}, err error) {
 			w.pool.logger.Info("shardInitializingAsPairCountTowardsConsistency called..")
 			shard, err := hostShardSet.ShardSet().LookupShard(w.op.ShardID())
 			if err != nil {
+				w.pool.logger.Info("no shard id inside shardInitializingAsPairCountTowardsConsistency..")
 				errStr := "no shard id %d in host %s"
 				wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
 			} else {
@@ -225,7 +226,9 @@ func (w *writeState) completionFn(result interface{}, err error) {
 				if leavingHostID == "" {
 					errStr := "no leaving host for shard id %d in host %s"
 					wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
+					w.pool.logger.Info("no leaving host for shard id..")
 				} else {
+					w.pool.logger.Info("shardInitializingAsPairCountTowardsConsistency called setHostSuccessListWithLock..")
 					w.setHostSuccessListWithLock(hostID, leavingHostID)
 				}
 			}
@@ -245,6 +248,7 @@ func (w *writeState) completionFn(result interface{}, err error) {
 	}
 
 	if wErr != nil {
+		w.pool.logger.Info("wErr not null..", zap.Any("wErr", wErr))
 		w.errors = append(w.errors, wErr)
 	}
 
@@ -266,7 +270,13 @@ func (w *writeState) completionFn(result interface{}, err error) {
 
 		if w.success >= w.majority || w.pending == 0 {
 			w.Signal()
-			w.pool.logger.Info("topology.ConsistencyLevelMajority mejority signal called..")
+			w.pool.logger.Info("topology.ConsistencyLevelMajority mejority signal called..",
+				zap.Any("successCount", w.success),
+				zap.Any("majority", w.majority),
+				zap.Any("pending", w.pending),
+				zap.Any("hostID", hostID),
+				zap.Any("ShardID", w.op.ShardID()),
+			)
 
 		}
 	case topology.ConsistencyLevelAll:

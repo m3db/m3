@@ -1320,7 +1320,7 @@ func (s *session) writeAttempt(
 	// returned from writeAttemptWithRLock.
 	state.Wait()
 
-	err = s.writeConsistencyResult(state.consistencyLevel, majority, enqueued,
+	err = s.writeConsistencyResult(state.consistencyLevel, majority, enqueued, enqueued-state.success,
 		enqueued-state.pending, int32(len(state.errors)), state.errors)
 
 	s.recordWriteMetrics(err, state, startWriteAttempt)
@@ -2148,14 +2148,28 @@ func (s *session) fetchIDsAttempt(
 
 func (s *session) writeConsistencyResult(
 	level topology.ConsistencyLevel,
-	majority, enqueued, responded, resultErrs int32,
+	majority, enqueued, successCount, responded, resultErrs int32,
 	errs []error,
 ) error {
+	s.log.Info("writeConsistencyResult called..",
+		zap.Any("successCount", successCount),
+		zap.Any("majority", majority),
+		zap.Any("enqueued", enqueued),
+		zap.Any("resultErrs", resultErrs),
+	)
+
+	if successCount < majority && s.shardsLeavingAndInitializingCountTowardsConsistency {
+		s.log.Info("newConsistencyResultError new called..")
+		return newConsistencyResultError(level, int(enqueued), int(responded), errs)
+	}
+
 	// Check consistency level satisfied
 	success := enqueued - resultErrs
 	if !topology.WriteConsistencyAchieved(level, int(majority), int(enqueued), int(success)) {
+		s.log.Info("newConsistencyResultError old called..")
 		return newConsistencyResultError(level, int(enqueued), int(responded), errs)
 	}
+
 	return nil
 }
 
