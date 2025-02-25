@@ -49,6 +49,7 @@ const (
 	withAvailableOrLeavingShardsOnly
 )
 
+// ShardByID sorts shards by ID
 type ShardByID []shard.Shard
 
 func (s ShardByID) Len() int           { return len(s) }

@@ -3,10 +3,8 @@ package algo
 import (
 	"errors"
 	"fmt"
+
 	"github.com/m3db/m3/src/cluster/placement"
-	//"github.com/m3db/m3/src/cluster/shard"
-	"math/rand"
-	"sort"
 )
 
 type subClusterByWeightDesc []*subCluster
@@ -47,12 +45,11 @@ func (a subClusteredPlacementAlgorithm) AddInstances(p placement.Placement, inst
 	if err := a.IsCompatibleWith(p); err != nil {
 		return nil, err
 	}
-	ph, addingInstance, err := newSubClusteredAddInstanceHelper(p, instances, a.opts, withLeavingShardsOnly)
+	ph, addingInstance, err := newSubClusteredAddInstanceHelper(p.Clone(), instances, a.opts, withLeavingShardsOnly)
 	if err != nil {
 		return nil, err
 	}
 
-	p = p.Clone()
 	for _, instance := range addingInstance {
 		if err := ph.addInstance(instance); err != nil {
 			return nil, err
@@ -85,72 +82,15 @@ func (a subClusteredPlacementAlgorithm) optimizeCurrentInstances(instances []pla
 	return p.Instances(), nil
 }
 
-func (a subClusteredPlacementAlgorithm) MoveShards(shards []uint32, rf int, from, to []placement.Instance) (placement.Placement, error) {
-	// optimize current placement
-	//shardToInstanceMappingFrom, iGToiInstanceMapFrom := getShardAndIGMap(from)
-	//shardToInstanceMappingTo, iGToiInstanceMapTo := getShardAndIGMap(to)
-	//a.deterministicShuffle(shards, int64(len(iGToiInstanceMapTo)))
-	//
-	//for _, shardID := range shards {
-	//	instancesFrom := shardToInstanceMappingFrom[shardID]
-	//	for _, instance := range instancesFrom {
-	//		helper := newHelper(placement.NewPlacement().SetInstances(append(to, instance)), rf, a.opts)
-	//		shard
-	//		helper.placeShards([]shard.Shard{instance.Shards().Shard(shardID)}, instance, to)
-	//	}
-	//}
-	return nil, nil
-}
-
-func (a subClusteredPlacementAlgorithm) assignShard(s uint32, from, to placement.Instance) {
-
-}
-
-func (a subClusteredPlacementAlgorithm) deterministicShuffle(arr []uint32, seed int64) {
-	r := rand.New(rand.NewSource(seed)) // Create a new PRNG with the fixed seed
-
-	for i := len(arr) - 1; i > 0; i-- {
-		j := r.Intn(i + 1) // Generate a random index
-		arr[i], arr[j] = arr[j], arr[i]
-	}
-}
-
-func getShardAndIGMap(instances []placement.Instance) (map[uint32][]placement.Instance, map[string][]placement.Instance) {
-	shardToInstanceMapping := make(map[uint32][]placement.Instance)
-	iGToiInstanceMap := make(map[string][]placement.Instance)
-	for _, instance := range instances {
-		isolationGroup := instance.IsolationGroup()
-		for _, shard := range instance.Shards().AllIDs() {
-			if _, ok := shardToInstanceMapping[shard]; !ok {
-				shardToInstanceMapping[shard] = make([]placement.Instance, 0)
-			}
-			shardToInstanceMapping[shard] = append(shardToInstanceMapping[shard], instance)
-		}
-		if _, ok := iGToiInstanceMap[isolationGroup]; !ok {
-			iGToiInstanceMap[isolationGroup] = make([]placement.Instance, 0)
-		}
-		iGToiInstanceMap[isolationGroup] = append(iGToiInstanceMap[isolationGroup], instance)
-	}
-	for _, instances := range shardToInstanceMapping {
-		sort.Sort(placement.ByIDAscending(instances))
-	}
-	for _, instances := range iGToiInstanceMap {
-		sort.Sort(placement.ByIDAscending(instances))
-	}
-
-	return shardToInstanceMapping, iGToiInstanceMap
-}
-
 func (a subClusteredPlacementAlgorithm) RemoveInstances(p placement.Placement, leavingInstanceIDs []string) (placement.Placement, error) {
 	if err := a.IsCompatibleWith(p); err != nil {
 		return nil, err
 	}
-	ph, leavingInstances, err := newSubClusterRemoveInstancesHelper(p, leavingInstanceIDs, a.opts)
+	ph, leavingInstances, err := newSubClusterRemoveInstancesHelper(p.Clone(), leavingInstanceIDs, a.opts)
 	if err != nil {
 		return nil, err
 	}
 
-	p = p.Clone()
 	for _, instance := range leavingInstances {
 		if err := ph.placeShards(instance.Shards().All(), instance, ph.Instances()); err != nil {
 			return nil, err
@@ -161,6 +101,7 @@ func (a subClusteredPlacementAlgorithm) RemoveInstances(p placement.Placement, l
 	return tryCleanupShardState(p, a.opts)
 }
 
+// nolint:dupl
 func (a subClusteredPlacementAlgorithm) ReplaceInstances(p placement.Placement, leavingInstanecIDs []string, addingInstances []placement.Instance) (placement.Placement, error) {
 	if err := a.IsCompatibleWith(p); err != nil {
 		return nil, err
@@ -174,7 +115,7 @@ func (a subClusteredPlacementAlgorithm) ReplaceInstances(p placement.Placement, 
 
 	for _, leavingInstance := range leavingInstances {
 		err = ph.placeShards(leavingInstance.Shards().All(), leavingInstance, addingInstances)
-		if err != nil && err != errNotEnoughIsolationGroups {
+		if err != nil && !errors.Is(err, errNotEnoughIsolationGroups) {
 			// errNotEnoughIsolationGroups means the adding instances do not
 			// have enough isolation groups to take all the shards, but the rest
 			// instances might have more isolation groups to take all the shards.
@@ -182,7 +123,8 @@ func (a subClusteredPlacementAlgorithm) ReplaceInstances(p placement.Placement, 
 		}
 		load := loadOnInstance(leavingInstance)
 		if load != 0 && !a.opts.AllowPartialReplace() {
-			return nil, fmt.Errorf("could not fully replace all shards from %s, %d shards left unassigned",
+			return nil, fmt.Errorf("could not fully replace all shards "+
+				"from %s, %d shards left unassigned",
 				leavingInstance.ID(), load)
 		}
 	}
@@ -209,7 +151,11 @@ func (a subClusteredPlacementAlgorithm) ReplaceInstances(p placement.Placement, 
 	return tryCleanupShardState(p, a.opts)
 }
 
-func (a subClusteredPlacementAlgorithm) MarkShardsAvailable(p placement.Placement, instanceID string, shardIDs ...uint32) (placement.Placement, error) {
+func (a subClusteredPlacementAlgorithm) MarkShardsAvailable(
+	p placement.Placement,
+	instanceID string,
+	shardIDs ...uint32,
+) (placement.Placement, error) {
 	if err := a.IsCompatibleWith(p); err != nil {
 		return nil, err
 	}
@@ -217,7 +163,9 @@ func (a subClusteredPlacementAlgorithm) MarkShardsAvailable(p placement.Placemen
 	return markShardsAvailable(p.Clone(), instanceID, shardIDs, a.opts)
 }
 
-func (a subClusteredPlacementAlgorithm) MarkAllShardsAvailable(p placement.Placement) (placement.Placement, bool, error) {
+func (a subClusteredPlacementAlgorithm) MarkAllShardsAvailable(
+	p placement.Placement,
+) (placement.Placement, bool, error) {
 	if err := a.IsCompatibleWith(p); err != nil {
 		return nil, false, err
 	}
@@ -226,7 +174,7 @@ func (a subClusteredPlacementAlgorithm) MarkAllShardsAvailable(p placement.Place
 }
 
 func (a subClusteredPlacementAlgorithm) BalanceShards(p placement.Placement) (placement.Placement, error) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
@@ -245,13 +193,17 @@ func (a subClusteredPlacementAlgorithm) IsCompatibleWith(p placement.Placement) 
 	return nil
 }
 
-func (a subClusteredPlacementAlgorithm) validateInstancesPerSubCluster(subClusterToInstanceMapping map[uint32][]placement.Instance, rf int) error {
+func (a subClusteredPlacementAlgorithm) validateInstancesPerSubCluster(
+	subClusterToInstanceMapping map[uint32][]placement.Instance,
+	rf int,
+) error {
 	for subClusterID, instances := range subClusterToInstanceMapping {
 		if len(instances) > a.opts.InstancesPerSubCluster() {
-			return errors.New("number of instances per subCluster is greater than the number of allowed instances per subCluster")
+			return errors.New("number of instances per subCluster is greater " +
+				"than the number of allowed instances per subCluster")
 		}
 		if len(instances)%rf != 0 {
-			return errors.New(fmt.Sprintf("sub %d cluster too small, atleast %d instances are required per subcluster", subClusterID, rf))
+			return fmt.Errorf("sub %d cluster too small, atleast %d instances are required per subcluster", subClusterID, rf)
 		}
 	}
 	return nil
@@ -276,16 +228,14 @@ func (a subClusteredPlacementAlgorithm) subClusterToShardMapping(subClusterToIns
 	}
 }
 
-func (a subClusteredPlacementAlgorithm) placeShards(subClusterToShardMapping map[uint32][]uint32, subClusterToInstanceMapping map[uint32][]placement.Instance) (placement.Placement, error) {
-	panic("implement me")
-}
-
-func (a subClusteredPlacementAlgorithm) instancesInSubCluster(instances []placement.Instance, rf int, validate bool) (map[uint32][]placement.Instance, error) {
+func (a subClusteredPlacementAlgorithm) instancesInSubCluster(instances []placement.Instance,
+	rf int,
+	validate bool,
+) (map[uint32][]placement.Instance, error) {
 	subClusterToInstanceMapping := make(map[uint32][]placement.Instance)
 	for _, instance := range instances {
 		subClusterID := instance.SubClusterID()
 		if subClusterID == 0 {
-			fmt.Println(instance.ID(), instance.SubClusterID())
 			return nil, errors.New("sub cluster ID cannot be 0")
 		}
 		if subClusterInstances, ok := subClusterToInstanceMapping[subClusterID]; ok {

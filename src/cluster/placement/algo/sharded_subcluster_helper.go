@@ -22,26 +22,16 @@ package algo
 
 import (
 	"container/heap"
-	"errors"
 	"fmt"
 	"math"
 	"math/rand"
 	"sort"
 
-	"go.uber.org/zap"
-
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/shard"
 )
 
-type balanceWeighType int
-
-const (
-	none balanceWeighType = iota
-	addInstance
-	removeInstance
-)
-
+// SubClusterByID sorts subClusters by ID
 type SubClusterByID []subCluster
 
 func (s SubClusterByID) Len() int { return len(s) }
@@ -53,11 +43,11 @@ func (s SubClusterByID) Less(i, j int) bool {
 }
 
 type subCluster struct {
-	ID                  uint32
 	instances           map[placement.Instance]struct{}
 	groupToInstancesMap map[string]map[placement.Instance]struct{}
 	groupToWeightMap    map[string]uint32
 	shardToInstanceMap  map[uint32]map[placement.Instance]struct{}
+	ID                  uint32
 	weight              uint32
 }
 
@@ -72,7 +62,6 @@ type subClusterShardedHelper struct {
 	rf                         int
 	uniqueShards               []uint32
 	instances                  map[string]placement.Instance
-	log                        *zap.Logger
 	opts                       placement.Options
 	totalWeight                uint32
 }
@@ -145,7 +134,6 @@ func newSubClusterHelper(p placement.Placement, targetRF int, opts placement.Opt
 		rf:           targetRF,
 		instances:    make(map[string]placement.Instance, p.NumInstances()),
 		uniqueShards: p.Shards(),
-		log:          opts.InstrumentOptions().Logger(),
 		opts:         opts,
 	}
 
@@ -243,7 +231,7 @@ func (sph *subClusterShardedHelper) buildTargetLoad() {
 				overWeight += weight
 			}
 		}
-		for instance, _ := range currSubCluster.instances {
+		for instance := range currSubCluster.instances {
 			if instance.IsLeaving() {
 				// We should not set a target load for leaving instances.
 				continue
@@ -262,7 +250,11 @@ func (sph *subClusterShardedHelper) buildTargetLoad() {
 	}
 }
 
-func (sph *subClusterShardedHelper) placeShards(shards []shard.Shard, from placement.Instance, candidates []placement.Instance) error {
+func (sph *subClusterShardedHelper) placeShards(
+	shards []shard.Shard,
+	from placement.Instance,
+	candidates []placement.Instance,
+) error {
 	shardSet := getShardMap(shards)
 	if from != nil {
 		// NB(cw) when removing an adding instance that has not finished bootstrapping its
@@ -314,11 +306,7 @@ func (sph *subClusterShardedHelper) Instances() []placement.Instance {
 	return res
 }
 
-func (sph *subClusterShardedHelper) getShardLen() int {
-	return len(sph.uniqueShards)
-}
-
-func (sph *subClusterShardedHelper) targetLoadForInstance(id string, subClusterID uint32) int {
+func (sph *subClusterShardedHelper) targetLoadForInstance(id string) int {
 	return sph.targetLoad[id]
 }
 
@@ -433,14 +421,6 @@ func (sph *subClusterShardedHelper) generatePlacement() placement.Placement {
 		SetCutoverNanos(sph.opts.PlacementCutoverNanosFn()()).SetHasSubClusters(true)
 }
 
-func getShardList(shardMap map[uint32]struct{}) []uint32 {
-	shardList := make([]uint32, 0, len(shardMap))
-	for shardID := range shardMap {
-		shardList = append(shardList, shardID)
-	}
-	return shardList
-}
-
 func (sph *subClusterShardedHelper) placeShardForInitialPlacement(shards []shard.Shard) error {
 	// if there are shards left to be assigned, distribute them evenly
 
@@ -455,8 +435,8 @@ func (sph *subClusterShardedHelper) placeShardForInitialPlacement(shards []shard
 				return err
 			}
 			shardsAssigned := 0
+			var triedInstances []placement.Instance
 			for shardsAssigned < sph.targetShardsPerSubCluster[currSubCluster.ID] && l < len(shards) {
-				var triedInstances []placement.Instance
 				moved := false
 				for instanceHeap.Len() > 0 && l < len(shards) {
 					s := shards[l]
@@ -493,11 +473,7 @@ func (sph *subClusterShardedHelper) getSubClusters() []*subCluster {
 	return temp
 }
 
-func (sph *subClusterShardedHelper) returnInitializingShards(instance placement.Instance) {
-	shardSet := getShardMap(instance.Shards().All())
-	sph.returnInitializingShardsToSource(shardSet, instance, sph.Instances())
-}
-
+// nolint: dupl
 func (sph *subClusterShardedHelper) returnInitializingShardsToSource(
 	shardSet map[uint32]shard.Shard,
 	from placement.Instance,
@@ -530,6 +506,7 @@ func (sph *subClusterShardedHelper) returnInitializingShardsToSource(
 	}
 }
 
+// nolint: dupl
 func (sph *subClusterShardedHelper) mostUnderLoadedInstance() (placement.Instance, bool) {
 	var (
 		res              placement.Instance
@@ -556,6 +533,7 @@ func (sph *subClusterShardedHelper) mostUnderLoadedInstance() (placement.Instanc
 	return nil, false
 }
 
+// nolint: dupl
 func (sph *subClusterShardedHelper) optimize(t optimizeType) error {
 	var fn assignLoadFn
 	switch t {
@@ -623,7 +601,7 @@ func (sph *subClusterShardedHelper) assignTargetLoad(
 	targetInstance placement.Instance,
 	moveOneShardFn func(from, to placement.Instance) bool,
 ) error {
-	targetLoad := sph.targetLoadForInstance(targetInstance.ID(), targetInstance.SubClusterID())
+	targetLoad := sph.targetLoadForInstance(targetInstance.ID())
 	instanceHeap, err := sph.buildInstanceHeap(removeSubClusterInstances(nonLeavingInstances(sph.Instances()), targetInstance.SubClusterID()), 0, false)
 	if err != nil {
 		return err
@@ -647,16 +625,6 @@ func (sph *subClusterShardedHelper) assignTargetLoad(
 	return nil
 }
 
-func removeShardFromList(id uint32, shards []uint32) []uint32 {
-	newShards := make([]uint32, 0, len(shards)-1)
-	for _, s := range shards {
-		if s == id {
-			continue
-		}
-		newShards = append(newShards, s)
-	}
-	return newShards
-}
 func (sph *subClusterShardedHelper) canAssignInstance(shardID uint32, from, to placement.Instance) bool {
 	s, ok := to.Shards().Shard(shardID)
 	if ok && s.State() != shard.Leaving {
@@ -701,7 +669,7 @@ func (sph *subClusterShardedHelper) assignShardToInstance(s shard.Shard, to plac
 
 	if _, exist := cluster.shardToInstanceMap[s.ID()]; !exist {
 		cluster.shardToInstanceMap[s.ID()] = make(map[placement.Instance]struct{})
-		sph.currentShardsPerSubCluster[cluster.ID] += 1
+		sph.currentShardsPerSubCluster[cluster.ID]++
 		sph.shardToSubClusterMap[s.ID()] = cluster.ID
 	}
 	cluster.shardToInstanceMap[s.ID()][to] = struct{}{}
@@ -714,6 +682,7 @@ func (sph *subClusterShardedHelper) assignShardToInstance(s shard.Shard, to plac
 func (sph *subClusterShardedHelper) removeShardFromInstance(s shard.Shard, to, from placement.Instance, cluster *subCluster) {
 	shardID := s.ID()
 	newShard := shard.NewShard(shardID)
+	// nolint:exhaustive
 	switch s.State() {
 	case shard.Unknown, shard.Initializing:
 		from.Shards().Remove(shardID)
@@ -744,14 +713,6 @@ func (sph *subClusterShardedHelper) deterministicShuffle(arr []shard.Shard) {
 		arr[i], arr[j] = arr[j], arr[i]
 	}
 }
-func (sph *subClusterShardedHelper) deterministicShuffleWithSeed(arr []shard.Shard, seed int64) {
-	r := rand.New(rand.NewSource(seed))
-
-	for i := len(arr) - 1; i > 0; i-- {
-		j := r.Intn(i + 1) // Generate a random index
-		arr[i], arr[j] = arr[j], arr[i]
-	}
-}
 
 func (sph *subClusterShardedHelper) buildTargetSubClusterLoad() {
 	sph.targetShardsPerSubCluster = make(map[uint32]int)
@@ -770,15 +731,6 @@ func (sph *subClusterShardedHelper) buildTargetSubClusterLoad() {
 		sph.targetShardsPerSubCluster[curr.ID]++
 		diff--
 	}
-}
-
-func (sph *subClusterShardedHelper) validateInstancesPerSubCluster() error {
-	for _, curr := range sph.subClusterMap { // Add condition of not including leaving instances in valid
-		if len(curr.instances) > sph.opts.InstancesPerSubCluster() {
-			return errors.New("number of instances per subCluster is greater than the number of allowed instances per subCluster")
-		}
-	}
-	return nil
 }
 
 func deterministicShuffle[T any](arr []T, seed int64) {

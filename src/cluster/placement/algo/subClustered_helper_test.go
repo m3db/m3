@@ -2,10 +2,12 @@ package algo
 
 import (
 	"fmt"
-	"github.com/m3db/m3/src/cluster/placement"
-	"github.com/stretchr/testify/require"
 	"sort"
 	"testing"
+
+	"github.com/m3db/m3/src/cluster/placement"
+
+	"github.com/stretchr/testify/require"
 )
 
 type UInts []uint32
@@ -33,6 +35,7 @@ func (a BySubClusterIDInstanceID) Swap(i, j int) {
 	a[i], a[j] = a[j], a[i]
 }
 
+// nolint
 func TestGoodCaseSubClusters(t *testing.T) {
 	i1 := placement.NewEmptyInstance("a", "r1", "z1", "endpoint", 1).SetSubClusterID(1)
 	i2 := placement.NewEmptyInstance("b", "r2", "z1", "endpoint", 1).SetSubClusterID(1)
@@ -151,13 +154,13 @@ func validateSubClusteredPlacement(p placement.Placement) error {
 			if _, ok := shardToIGMap[s.ID()]; !ok {
 				shardToIGMap[s.ID()] = make(map[string]int)
 			}
-			shardToIGMap[s.ID()][instance.IsolationGroup()] += 1
+			shardToIGMap[s.ID()][instance.IsolationGroup()]++
 			if _, ok := shardToSubCluster[s.ID()]; !ok {
 				shardToSubCluster[s.ID()] = instance.SubClusterID()
 				continue
 			}
 			if shardToSubCluster[s.ID()] != instance.SubClusterID() {
-				return fmt.Errorf("shardToSubCluster[%d]: expected %d, actual %d \n", s.ID(), shardToSubCluster[s.ID()], instance.SubClusterID())
+				return fmt.Errorf("shardToSubCluster[%d]: expected %d, actual %d", s.ID(), shardToSubCluster[s.ID()], instance.SubClusterID())
 			}
 		}
 	}
