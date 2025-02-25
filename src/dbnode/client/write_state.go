@@ -184,13 +184,25 @@ func (w *writeState) completionFn(result interface{}, err error) {
 			w.shardsLeavingCountTowardsConsistency,
 			w.shardsLeavingAndInitializingCountTowardsConsistency) {
 		case availableCountTowardsConsistency:
-			w.pool.logger.Info("availableCountTowardsConsistency called..")
 			w.success++
+			w.pool.logger.Info("availableCountTowardsConsistency called..",
+				zap.Any("successCount", w.success),
+				zap.Any("hostID", hostID),
+				zap.Any("ShardID", w.op.ShardID()),
+			)
 		case shardLeavingIndividuallyCountTowardsConsistency:
-			w.pool.logger.Info("shardLeavingIndividuallyCountTowardsConsistency called..")
 			w.success++
+			w.pool.logger.Info("shardLeavingIndividuallyCountTowardsConsistency called..",
+				zap.Any("successCount", w.success),
+				zap.Any("hostID", hostID),
+				zap.Any("ShardID", w.op.ShardID()),
+			)
 		case shardLeavingAsPairCountTowardsConsistency:
-			w.pool.logger.Info("shardLeavingAsPairCountTowardsConsistency called..")
+			w.pool.logger.Info("shardLeavingAsPairCountTowardsConsistency called..",
+				zap.Any("hostID", hostID),
+				zap.Any("ShardID", w.op.ShardID()),
+			)
+
 			// get the initializing host corresponding to the leaving host.
 			initializingHostID, ok := w.topoMap.LookupInitializingHostPair(hostID, w.op.ShardID())
 			if !ok || initializingHostID == "" {
@@ -243,9 +255,19 @@ func (w *writeState) completionFn(result interface{}, err error) {
 			w.Signal()
 		}
 	case topology.ConsistencyLevelMajority:
-		w.pool.logger.Info("topology.ConsistencyLevelMajority called..")
+
+		w.pool.logger.Info("topology.ConsistencyLevelMajority called..",
+			zap.Any("successCount", w.success),
+			zap.Any("majority", w.majority),
+			zap.Any("pending", w.pending),
+			zap.Any("hostID", hostID),
+			zap.Any("ShardID", w.op.ShardID()),
+		)
+
 		if w.success >= w.majority || w.pending == 0 {
 			w.Signal()
+			w.pool.logger.Info("topology.ConsistencyLevelMajority mejority signal called..")
+
 		}
 	case topology.ConsistencyLevelAll:
 		w.pool.logger.Info("topology.ConsistencyLevelAll called..")
@@ -260,8 +282,14 @@ func (w *writeState) completionFn(result interface{}, err error) {
 
 func (w *writeState) setHostSuccessListWithLock(hostID, pairedHostID string) {
 	if findHost(w.hostSuccessList, pairedHostID) {
-		w.pool.logger.Info("setHostSuccessListWithLock called..")
 		w.success++
+
+		w.pool.logger.Info("ssetHostSuccessListWithLock called..",
+			zap.Any("successCount", w.success),
+			zap.Any("hostID", hostID),
+			zap.Any("ShardID", w.op.ShardID()),
+		)
+
 		w.leavingAndInitializingPairCounted = true
 	}
 	w.hostSuccessList = append(w.hostSuccessList, hostID)
