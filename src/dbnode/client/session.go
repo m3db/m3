@@ -2190,10 +2190,10 @@ func (s *session) writeConsistencyResult(
 		zap.Any("resultErrs", resultErrs),
 	)
 
-	if successCount < majority && s.shardsLeavingAndInitializingCountTowardsConsistency {
-		s.log.Info("newConsistencyResultError new called..")
-		return newConsistencyResultError(level, int(enqueued), int(responded), errs)
-	}
+	// if successCount < majority && s.shardsLeavingAndInitializingCountTowardsConsistency {
+	// 	s.log.Info("newConsistencyResultError new called..")
+	// 	return newConsistencyResultError(level, int(enqueued), int(responded), errs)
+	// }
 
 	// Check consistency level satisfied
 	success := enqueued - resultErrs
