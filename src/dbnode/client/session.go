@@ -1316,9 +1316,19 @@ func (s *session) writeAttempt(
 		return err
 	}
 
+	s.log.Info("writeAttemptWithRLock called done..",
+		zap.Any("majority", majority),
+		zap.Any("enqueued", enqueued),
+	)
+
 	// it's safe to Wait() here, as we still hold the lock on state, after it's
 	// returned from writeAttemptWithRLock.
 	state.Wait()
+
+	s.log.Info("writeAttemptWithRLock called after wait..",
+		zap.Any("majority", majority),
+		zap.Any("enqueued", enqueued),
+	)
 
 	err = s.writeConsistencyResult(state.consistencyLevel, majority, enqueued, enqueued-state.success,
 		enqueued-state.pending, int32(len(state.errors)), state.errors)
@@ -1431,7 +1441,15 @@ func (s *session) writeAttemptWithRLock(
 		hostShard shard.Shard,
 		host topology.Host,
 	) {
+		s.log.Info("RouteForEach called..",
+			zap.Any("idx", idx),
+			zap.Any("hostShardState", hostShard.State()),
+			zap.Any("writeShardsInitializing", s.writeShardsInitializing),
+		)
+
 		if !s.writeShardsInitializing && hostShard.State() == shard.Initializing {
+
+			s.log.Info("RouteForEach do not write if called..")
 			// NB(r): Do not write to this node as the shard is initializing
 			// and writing to intialized shards is not enabled (also
 			// depending on your config initializing shards won't count
@@ -1448,7 +1466,16 @@ func (s *session) writeAttemptWithRLock(
 		return nil, 0, 0, err
 	}
 
+	s.log.Info("state queues length before lock",
+		zap.Any("lenq", len(state.queues)),
+	)
+
 	state.Lock()
+
+	s.log.Info("state queues length after lock",
+		zap.Any("lenq", len(state.queues)),
+	)
+
 	for i := range state.queues {
 		state.incRef()
 		if err := state.queues[i].Enqueue(state.op); err != nil {
@@ -1460,7 +1487,12 @@ func (s *session) writeAttemptWithRLock(
 			s.log.Error("[invariant violated] failed to enqueue write", zap.Error(err))
 			return nil, 0, 0, err
 		}
+
 		enqueued++
+
+		s.log.Info("enqueued count increment called",
+			zap.Any("enqueued", enqueued),
+		)
 	}
 
 	// NB(prateek): the current go-routine still holds a lock on the
