@@ -25,13 +25,11 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"math/rand"
-	"sort"
-
-	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/shard"
+
+	"go.uber.org/zap"
 )
 
 var (
@@ -48,13 +46,6 @@ const (
 	withLeavingShardsOnly
 	withAvailableOrLeavingShardsOnly
 )
-
-// ShardByID sorts shards by ID
-type ShardByID []shard.Shard
-
-func (s ShardByID) Len() int           { return len(s) }
-func (s ShardByID) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-func (s ShardByID) Less(i, j int) bool { return s[i].ID() < s[j].ID() }
 
 type optimizeType int
 
@@ -77,8 +68,6 @@ type placementHelper interface {
 
 	// addInstance adds an instance to the placement.
 	addInstance(addingInstance placement.Instance) error
-
-	addInstances(addingInstances []placement.Instance) error
 
 	// optimize rebalances the load distribution in the cluster.
 	optimize(t optimizeType) error
@@ -105,18 +94,17 @@ type PlacementHelper interface {
 }
 
 type helper struct {
-	targetLoad              map[string]int
-	shardToInstanceMap      map[uint32]map[placement.Instance]struct{}
-	groupToInstancesMap     map[string]map[placement.Instance]struct{}
-	subClusterToInstanceMap map[uint32]map[placement.Instance]struct{}
-	groupToWeightMap        map[string]uint32
-	rf                      int
-	uniqueShards            []uint32
-	instances               map[string]placement.Instance
-	log                     *zap.Logger
-	opts                    placement.Options
-	totalWeight             uint32
-	maxShardSetID           uint32
+	targetLoad          map[string]int
+	shardToInstanceMap  map[uint32]map[placement.Instance]struct{}
+	groupToInstancesMap map[string]map[placement.Instance]struct{}
+	groupToWeightMap    map[string]uint32
+	rf                  int
+	uniqueShards        []uint32
+	instances           map[string]placement.Instance
+	log                 *zap.Logger
+	opts                placement.Options
+	totalWeight         uint32
+	maxShardSetID       uint32
 }
 
 // NewPlacementHelper returns a placement helper
@@ -309,10 +297,6 @@ func (ph *helper) moveOneShard(from, to placement.Instance) bool {
 		ph.moveOneShardInState(from, to, shard.Available)
 }
 
-func (ph *helper) addInstances(addingInstances []placement.Instance) error {
-	return nil
-}
-
 // nolint: unparam
 func (ph *helper) moveOneShardInState(from, to placement.Instance, state shard.State) bool {
 	for _, s := range from.Shards().ShardsForState(state) {
@@ -443,9 +427,7 @@ func (ph *helper) placeShards(
 	}
 	// if there are shards left to be assigned, distribute them evenly
 	var triedInstances []placement.Instance
-	sort.Sort(ShardByID(shards))
-	ph.deterministicShuffle(shards)
-	for _, s := range shards {
+	for _, s := range shardSet {
 		if s.State() == shard.Leaving {
 			continue
 		}
@@ -639,15 +621,6 @@ func (ph *helper) assignShardToInstance(s shard.Shard, to placement.Instance) {
 	ph.shardToInstanceMap[s.ID()][to] = struct{}{}
 }
 
-func (ph *helper) deterministicShuffle(arr []shard.Shard) {
-	r := rand.New(rand.NewSource(int64(len(ph.groupToInstancesMap)))) // Create a new PRNG with the fixed seed
-
-	for i := len(arr) - 1; i > 0; i-- {
-		j := r.Intn(i + 1) // Generate a random index
-		arr[i], arr[j] = arr[j], arr[i]
-	}
-}
-
 // instanceHeap provides an easy way to get best candidate instance to assign/steal a shard
 type instanceHeap struct {
 	instances         []placement.Instance
@@ -774,17 +747,6 @@ func nonLeavingInstances(instances []placement.Instance) []placement.Instance {
 	r := make([]placement.Instance, 0, len(instances))
 	for _, instance := range instances {
 		if instance.IsLeaving() {
-			continue
-		}
-		r = append(r, instance)
-	}
-
-	return r
-}
-func removeSubClusterInstances(instances []placement.Instance, cluster uint32) []placement.Instance {
-	r := make([]placement.Instance, 0, len(instances))
-	for _, instance := range instances {
-		if instance.SubClusterID() == cluster {
 			continue
 		}
 		r = append(r, instance)

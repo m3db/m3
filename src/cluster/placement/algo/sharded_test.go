@@ -62,15 +62,15 @@ func TestMinorWeightDifference(t *testing.T) {
 }
 
 func TestGoodCase(t *testing.T) {
-	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1).SetShardSetID(1)
-	i2 := placement.NewEmptyInstance("i2", "r1", "z1", "endpoint", 1).SetShardSetID(2)
-	i3 := placement.NewEmptyInstance("i3", "r2", "z1", "endpoint", 1).SetShardSetID(1)
-	i4 := placement.NewEmptyInstance("i4", "r2", "z1", "endpoint", 1).SetShardSetID(2)
-	i5 := placement.NewEmptyInstance("i5", "r3", "z1", "endpoint", 1).SetShardSetID(1)
-	i6 := placement.NewEmptyInstance("i6", "r3", "z1", "endpoint", 1).SetShardSetID(2)
-	i7 := placement.NewEmptyInstance("i7", "r1", "z1", "endpoint", 1).SetShardSetID(3)
-	i8 := placement.NewEmptyInstance("i8", "r2", "z1", "endpoint", 1).SetShardSetID(3)
-	i9 := placement.NewEmptyInstance("i9", "r3", "z1", "endpoint", 1).SetShardSetID(3)
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
+	i2 := placement.NewEmptyInstance("i2", "r1", "z1", "endpoint", 1)
+	i3 := placement.NewEmptyInstance("i3", "r2", "z1", "endpoint", 1)
+	i4 := placement.NewEmptyInstance("i4", "r2", "z1", "endpoint", 1)
+	i5 := placement.NewEmptyInstance("i5", "r3", "z1", "endpoint", 1)
+	i6 := placement.NewEmptyInstance("i6", "r4", "z1", "endpoint", 1)
+	i7 := placement.NewEmptyInstance("i7", "r5", "z1", "endpoint", 1)
+	i8 := placement.NewEmptyInstance("i8", "r6", "z1", "endpoint", 1)
+	i9 := placement.NewEmptyInstance("i9", "r7", "z1", "endpoint", 1)
 
 	instances := []placement.Instance{i1, i2, i3, i4, i5, i6, i7, i8, i9}
 
@@ -85,7 +85,7 @@ func TestGoodCase(t *testing.T) {
 		SetShardCutoverNanosFn(timeNanosGen(2)).
 		SetShardCutoffNanosFn(timeNanosGen(3))
 	a := newShardedAlgorithm(opts)
-	p, err := a.InitialPlacement(instances, []uint32{0, 1}, 3)
+	p, err := a.InitialPlacement(instances, ids, 1)
 	require.NoError(t, err)
 	validateCutoverCutoffNanos(t, p, opts)
 	validateDistribution(t, p, 1.01)

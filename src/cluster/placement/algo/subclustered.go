@@ -60,28 +60,6 @@ func (a subClusteredPlacementAlgorithm) AddInstances(p placement.Placement, inst
 
 	return tryCleanupShardState(p, a.opts)
 }
-
-func (a subClusteredPlacementAlgorithm) optimizeCurrentInstances(instances []placement.Instance) ([]placement.Instance, error) {
-	shards := make([]uint32, 0)
-	uniqueShards := make(map[uint32]struct{})
-	for _, instance := range instances {
-		assignedShards := instance.Shards().All()
-		for _, s := range assignedShards {
-			if _, ok := uniqueShards[s.ID()]; !ok {
-				shards = append(shards, s.ID())
-				uniqueShards[s.ID()] = struct{}{}
-			}
-		}
-	}
-	emptyPlacement := placement.NewPlacement().SetReplicaFactor(3).SetInstances(instances).SetShards(shards)
-	shardedAlgo := newShardedAlgorithm(a.opts)
-	p, err := shardedAlgo.BalanceShards(emptyPlacement)
-	if err != nil {
-		return nil, err
-	}
-	return p.Instances(), nil
-}
-
 func (a subClusteredPlacementAlgorithm) RemoveInstances(p placement.Placement, leavingInstanceIDs []string) (placement.Placement, error) {
 	if err := a.IsCompatibleWith(p); err != nil {
 		return nil, err
@@ -191,65 +169,4 @@ func (a subClusteredPlacementAlgorithm) IsCompatibleWith(p placement.Placement) 
 	}
 
 	return nil
-}
-
-func (a subClusteredPlacementAlgorithm) validateInstancesPerSubCluster(
-	subClusterToInstanceMapping map[uint32][]placement.Instance,
-	rf int,
-) error {
-	for subClusterID, instances := range subClusterToInstanceMapping {
-		if len(instances) > a.opts.InstancesPerSubCluster() {
-			return errors.New("number of instances per subCluster is greater " +
-				"than the number of allowed instances per subCluster")
-		}
-		if len(instances)%rf != 0 {
-			return fmt.Errorf("sub %d cluster too small, atleast %d instances are required per subcluster", subClusterID, rf)
-		}
-	}
-	return nil
-}
-
-func (a subClusteredPlacementAlgorithm) subClusterToShardMapping(subClusterToInstanceMapping map[uint32][]placement.Instance, shards []uint32) {
-	subClusterToWeightMap := make(map[uint32]int)
-	currSubClusterToShardMapping := make(map[uint32]map[uint32]struct{})
-	totalWeight := 0
-	for subClusterID, instances := range subClusterToInstanceMapping {
-		instanceWeight := 0
-		subClusterShards := make(map[uint32]struct{})
-		for _, instance := range instances {
-			instanceWeight += int(instance.Weight())
-			for _, shard := range instance.Shards().All() {
-				subClusterShards[shard.ID()] = struct{}{}
-			}
-		}
-		currSubClusterToShardMapping[subClusterID] = subClusterShards
-		subClusterToWeightMap[subClusterID] = instanceWeight
-		totalWeight += instanceWeight
-	}
-}
-
-func (a subClusteredPlacementAlgorithm) instancesInSubCluster(instances []placement.Instance,
-	rf int,
-	validate bool,
-) (map[uint32][]placement.Instance, error) {
-	subClusterToInstanceMapping := make(map[uint32][]placement.Instance)
-	for _, instance := range instances {
-		subClusterID := instance.SubClusterID()
-		if subClusterID == 0 {
-			return nil, errors.New("sub cluster ID cannot be 0")
-		}
-		if subClusterInstances, ok := subClusterToInstanceMapping[subClusterID]; ok {
-			subClusterInstances = append(subClusterInstances, instance)
-			subClusterToInstanceMapping[subClusterID] = subClusterInstances
-			continue
-		}
-		subClusterToInstanceMapping[subClusterID] = []placement.Instance{instance}
-	}
-	if validate {
-		err := a.validateInstancesPerSubCluster(subClusterToInstanceMapping, rf)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return subClusterToInstanceMapping, nil
 }
