@@ -63,17 +63,21 @@ type consumerWriter interface {
 }
 
 type consumerWriterMetrics struct {
-	writeInvalidConn        tally.Counter
-	readInvalidConn         tally.Counter
-	ackError                tally.Counter
-	decodeError             tally.Counter
-	encodeError             tally.Counter
-	resetTooSoon            tally.Counter
-	resetSuccess            tally.Counter
-	resetError              tally.Counter
-	connectError            tally.Counter
-	setKeepAliveError       tally.Counter
-	setKeepAlivePeriodError tally.Counter
+	writeInvalidConn            tally.Counter
+	readInvalidConn             tally.Counter
+	ackError                    tally.Counter
+	decodeError                 tally.Counter
+	encodeError                 tally.Counter
+	resetTooSoon                tally.Counter
+	resetSuccess                tally.Counter
+	resetError                  tally.Counter
+	connectError                tally.Counter
+	setKeepAliveError           tally.Counter
+	setKeepAlivePeriodError     tally.Counter
+	cwFlushLatency              tally.Histogram
+	cwFlushLatencyWithLock      tally.Histogram
+	cwWriteErrorLatency         tally.Histogram
+	cwWriteErrorLatencyWithLock tally.Histogram
 }
 
 func newConsumerWriterMetrics(scope tally.Scope) consumerWriterMetrics {
@@ -89,6 +93,14 @@ func newConsumerWriterMetrics(scope tally.Scope) consumerWriterMetrics {
 		connectError:            scope.Counter("connect-error"),
 		setKeepAliveError:       scope.Counter("set-keep-alive-error"),
 		setKeepAlivePeriodError: scope.Counter("set-keep-alive-period-error"),
+		cwFlushLatency: scope.Histogram("cw-flush-latency",
+			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
+		cwFlushLatencyWithLock: scope.Histogram("cw-flush-latency-with-lock",
+			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
+		cwWriteErrorLatency: scope.Histogram("cw-write-error-latency",
+			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
+		cwWriteErrorLatencyWithLock: scope.Histogram("cw-write-error-latency-with-lock",
+			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
 	}
 }
 
@@ -209,9 +221,13 @@ func (w *consumerWriterImpl) Write(connIndex int, b []byte) error {
 	writeConn := w.writeState.conns[connIndex]
 
 	// Make sure only writer to this connection.
+	startWriteWithLockTs := w.nowFn()
 	writeConn.writeLock.Lock()
+	startWriteTs := w.nowFn()
 	_, err := writeConn.w.Write(b)
+	endWriteTs := w.nowFn()
 	writeConn.writeLock.Unlock()
+	endWriteWithLockTs := w.nowFn()
 
 	// Hold onto the write state lock until done, since
 	// closing connections are done by acquiring the write state lock.
@@ -220,6 +236,8 @@ func (w *consumerWriterImpl) Write(connIndex int, b []byte) error {
 	if err != nil {
 		w.notifyReset(err)
 		w.m.encodeError.Inc(1)
+		w.m.cwWriteErrorLatencyWithLock.RecordDuration(endWriteWithLockTs.Sub(startWriteWithLockTs))
+		w.m.cwWriteErrorLatency.RecordDuration(endWriteTs.Sub(startWriteTs))
 	}
 
 	return err
@@ -257,11 +275,18 @@ func (w *consumerWriterImpl) flushUntilClose() {
 		case <-flushTicker.C:
 			w.writeState.RLock()
 			for _, conn := range w.writeState.conns {
+				startFlushWithLockTs := w.nowFn()
 				conn.writeLock.Lock()
+				startFlushTs := w.nowFn()
 				if err := conn.w.Flush(); err != nil {
 					w.notifyReset(err)
 				}
+				endFlushTs := w.nowFn()
 				conn.writeLock.Unlock()
+				endFlushWithLockTs := w.nowFn()
+
+				w.m.cwFlushLatency.RecordDuration(endFlushTs.Sub(startFlushTs))
+				w.m.cwFlushLatencyWithLock.RecordDuration(endFlushWithLockTs.Sub(startFlushWithLockTs))
 			}
 			// Hold onto the write state lock until done, since
 			// closing connections are done by acquiring the write state lock.
