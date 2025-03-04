@@ -483,6 +483,26 @@ func TestTLSConnectWriteToServer(t *testing.T) {
 	require.Nil(t, conn.conn)
 }
 
+func TestCloseConnectionAsync(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockConn := NewMockConn(ctrl)
+	closeDoneCh := make(chan bool)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	mockConn.EXPECT().Close().Do(func() error {
+		<-closeDoneCh
+		wg.Done()
+		return nil
+	})
+	conn := &connection{
+		conn: mockConn,
+	}
+	conn.closeWithLock()
+	require.Nil(t, conn.conn, "Connection should be nil after being closed")
+	closeDoneCh <- true
+	wg.Wait()
+}
+
 func testConnectionOptions() ConnectionOptions {
 	return NewConnectionOptions().
 		SetClockOptions(clock.NewOptions()).

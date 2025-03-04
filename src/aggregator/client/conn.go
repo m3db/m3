@@ -216,10 +216,7 @@ func (c *connection) connectWithLock() error {
 		conn = securedConn
 	}
 
-	if c.conn != nil {
-		c.conn.Close() // nolint: errcheck
-	}
-
+	// c.conn is always nil at this point, so closing the previous connection is unnecessary
 	c.conn = conn
 	c.writer.Reset(conn)
 	return nil
@@ -294,7 +291,15 @@ func (c *connection) resetWithLock() {
 
 func (c *connection) closeWithLock() {
 	if c.conn != nil {
-		c.conn.Close() // nolint: errcheck
+		// Reference: https://github.com/golang/go/blob/8fd0f83552d3ef9ca38c031bec93a36b189e3e11/src/crypto/tls/conn.go#L1361
+		//
+		// tls.Conn.Close() sets a 5-second write timeout before sending a "close notify" alert.
+		// If the connection is half-open and the send queue is full, "close notify" will be delayed
+		// by this timeout before returning an error. Currently, there is no way to configure this timeout
+		// at the application level (see: https://github.com/golang/go/issues/45162).
+		//
+		// At this point, the lock should be acquired, and we can safely close the connection asynchronously.
+		go c.conn.Close() // nolint: errcheck
 	}
 	c.conn = nil
 }
