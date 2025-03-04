@@ -216,6 +216,7 @@ func (c *connection) connectWithLock() error {
 		conn = securedConn
 	}
 
+	// c.conn is always nil at this point, so closing the previous connection is unnecessary
 	c.conn = conn
 	c.writer.Reset(conn)
 	return nil
