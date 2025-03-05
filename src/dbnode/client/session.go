@@ -1316,10 +1316,12 @@ func (s *session) writeAttempt(
 		return err
 	}
 
-	s.log.Info("writeAttemptWithRLock called done..",
-		zap.Any("majority", majority),
-		zap.Any("enqueued", enqueued),
-	)
+	// s.log.Info("writeAttemptWithRLock called done..",
+	// 	zap.Any("majority", majority),
+	// 	zap.Any("enqueued", enqueued),
+	// )
+
+	beforeLockenqueued := enqueued
 
 	// it's safe to Wait() here, as we still hold the lock on state, after it's
 	// returned from writeAttemptWithRLock.
@@ -1328,6 +1330,7 @@ func (s *session) writeAttempt(
 	s.log.Info("writeAttemptWithRLock called after wait..",
 		zap.Any("majority", majority),
 		zap.Any("enqueued", enqueued),
+		zap.Any("beforeLockenqueued", beforeLockenqueued),
 	)
 
 	err = s.writeConsistencyResult(state.consistencyLevel, majority, enqueued, enqueued-state.success,
@@ -1445,6 +1448,8 @@ func (s *session) writeAttemptWithRLock(
 			zap.Any("idx", idx),
 			zap.Any("hostShardState", hostShard.State()),
 			zap.Any("writeShardsInitializing", s.writeShardsInitializing),
+			zap.Any("shardsLeavingCountTowardsConsistency", s.shardsLeavingCountTowardsConsistency),
+			zap.Any("shardsLeavingAndInitializingCountTowardsConsistency", s.shardsLeavingAndInitializingCountTowardsConsistency),
 		)
 
 		if !s.writeShardsInitializing && hostShard.State() == shard.Initializing {
@@ -1466,14 +1471,17 @@ func (s *session) writeAttemptWithRLock(
 		return nil, 0, 0, err
 	}
 
-	s.log.Info("state queues length before lock",
-		zap.Any("lenq", len(state.queues)),
-	)
+	// s.log.Info("state queues length before lock",
+	// 	zap.Any("lenq", len(state.queues)),
+	// )
+
+	beforeLockenqueued := len(state.queues)
 
 	state.Lock()
 
 	s.log.Info("state queues length after lock",
 		zap.Any("lenq", len(state.queues)),
+		zap.Any("beforeLockenqueued", beforeLockenqueued),
 	)
 
 	for i := range state.queues {
