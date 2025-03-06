@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
-	xtls "github.com/m3db/m3/src/x/tls"
 	"github.com/stretchr/testify/require"
+
+	xtls "github.com/m3db/m3/src/x/tls"
 )
 
 func testStoppableTCPServer(addr string) (*server, *mockHandler, *int32, *int32) {
