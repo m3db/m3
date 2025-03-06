@@ -145,8 +145,12 @@ func (s *server) ListenAndServe() error {
 
 func (s *server) Serve(l net.Listener) error {
 	s.address = l.Addr().String()
+
+	s.Lock()
 	s.listener = l
-	go s.serve()
+	s.Unlock()
+
+	go s.serve(l)
 	return nil
 }
 
@@ -171,8 +175,8 @@ func (s *server) maybeUpgradeToTLS(conn *securedConn) (*securedConn, error) {
 	return conn, nil
 }
 
-func (s *server) serve() {
-	connCh, errCh := xnet.StartForeverAcceptLoop(s.listener, s.retryOpts)
+func (s *server) serve(l net.Listener) {
+	connCh, errCh := xnet.StartForeverAcceptLoop(l, s.retryOpts)
 	for conn := range connCh {
 		conn := newSecuredConn(conn)
 		if tcpConn, ok := conn.Conn.(*net.TCPConn); ok {
@@ -206,13 +210,15 @@ func (s *server) serve() {
 
 func (s *server) Stop() {
 	s.Lock()
-	defer s.Unlock()
 	if s.listener == nil {
+		s.Unlock()
 		return
 	}
-
-	s.listener.Close()
+	l := s.listener
 	s.listener = nil
+	s.Unlock()
+
+	l.Close()
 }
 
 func (s *server) Close() {
