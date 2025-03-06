@@ -64,8 +64,8 @@ func (c Configuration) NewOptions(iOpts instrument.Options) Options {
 }
 
 // NewServer creates a new server.
-func (c Configuration) NewServer(handler Handler, iOpts instrument.Options) Server {
-	return NewServer(c.ListenAddress, handler, c.NewOptions(iOpts))
+func (c Configuration) NewServer(handler Handler, iOpts instrument.Options) StoppableServer {
+	return NewStoppableServer(c.ListenAddress, handler, c.NewOptions(iOpts))
 }
 
 // TLSConfiguration configs a tls server

@@ -103,6 +103,10 @@ type server struct {
 
 // NewServer creates a new server.
 func NewServer(address string, handler Handler, opts Options) Server {
+	return newServer(address, handler, opts)
+}
+
+func newServer(address string, handler Handler, opts Options) *server {
 	instrumentOpts := opts.InstrumentOptions()
 	scope := instrumentOpts.MetricsScope()
 
@@ -200,6 +204,17 @@ func (s *server) serve() {
 	s.log.Error("server unexpectedly closed", zap.Error(err))
 }
 
+func (s *server) Stop() {
+	s.Lock()
+	defer s.Unlock()
+	if s.listener == nil {
+		return
+	}
+
+	s.listener.Close()
+	s.listener = nil
+}
+
 func (s *server) Close() {
 	s.Lock()
 	if s.closed {
@@ -211,16 +226,17 @@ func (s *server) Close() {
 	close(s.closedChan)
 	openConns := make([]net.Conn, len(s.conns))
 	copy(openConns, s.conns)
+
+	// Close the listener.
+	if s.listener != nil {
+		s.listener.Close()
+	}
+	s.listener = nil
 	s.Unlock()
 
 	// Close all open connections.
 	for _, conn := range openConns {
 		conn.Close()
-	}
-
-	// Close the listener.
-	if s.listener != nil {
-		s.listener.Close()
 	}
 
 	// Wait for all connection handlers to finish.
