@@ -218,7 +218,8 @@ func (s *server) Stop() {
 	s.listener = nil
 	s.Unlock()
 
-	l.Close()
+	err := l.Close()
+	s.log.Error("error closing listener during Stop()", zap.Error(err))
 }
 
 func (s *server) Close() {
@@ -235,7 +236,8 @@ func (s *server) Close() {
 
 	// Close the listener.
 	if s.listener != nil {
-		s.listener.Close()
+		err := s.listener.Close()
+		s.log.Error("error closing listener", zap.Error(err))
 	}
 	s.listener = nil
 	s.Unlock()
