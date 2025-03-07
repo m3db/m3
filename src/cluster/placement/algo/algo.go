@@ -23,6 +23,7 @@ package algo
 
 import (
 	"fmt"
+
 	"github.com/m3db/m3/src/cluster/placement"
 )
 
