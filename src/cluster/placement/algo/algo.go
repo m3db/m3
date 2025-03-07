@@ -34,6 +34,10 @@ func NewAlgorithm(opts placement.Options) placement.Algorithm {
 		return newMirroredAlgorithm(opts)
 	}
 
+	if opts.HasSubClusters() {
+		return newSubClusteredAlgorithm(opts)
+	}
+
 	if opts.IsSharded() {
 		return newShardedAlgorithm(opts)
 	}
