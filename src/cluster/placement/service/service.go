@@ -87,6 +87,8 @@ func newPlacementServiceImpl(
 	storage minimalPlacementStorage,
 	opts ...Option,
 ) *placementServiceImpl {
+	fmt.Printf("Entering new placement service implementation\n")
+
 	o := options{
 		placementOpts: placement.NewOptions(),
 	}
@@ -96,6 +98,7 @@ func newPlacementServiceImpl(
 	}
 
 	if o.placementAlgorithm == nil {
+		fmt.Printf("Setting algorithm for placement storage\n")
 		o.placementAlgorithm = algo.NewAlgorithm(o.placementOpts)
 	}
 

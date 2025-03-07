@@ -850,6 +850,7 @@ func tryCleanupShardState(
 		)
 		return p, err
 	}
+	fmt.Printf("Printing final placement state: %+v\n", p)
 	return p, nil
 }
 

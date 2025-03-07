@@ -23,6 +23,7 @@ type subClusteredPlacementAlgorithm struct {
 }
 
 func (a subClusteredPlacementAlgorithm) InitialPlacement(instances []placement.Instance, shards []uint32, rf int) (placement.Placement, error) {
+	fmt.Printf("building initial placement")
 	sph := newInitSubClusterHelper(instances, shards, rf, a.opts)
 	if err := sph.placeShardForInitialPlacement(newShards(shards)); err != nil {
 		return nil, err
@@ -41,7 +42,7 @@ func (a subClusteredPlacementAlgorithm) AddReplica(p placement.Placement) (place
 }
 
 func (a subClusteredPlacementAlgorithm) AddInstances(p placement.Placement, instances []placement.Instance) (placement.Placement, error) {
-
+	fmt.Printf("adding instances")
 	if err := a.IsCompatibleWith(p); err != nil {
 		return nil, err
 	}

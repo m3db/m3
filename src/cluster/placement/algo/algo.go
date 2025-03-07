@@ -22,6 +22,7 @@
 package algo
 
 import (
+	"fmt"
 	"github.com/m3db/m3/src/cluster/placement"
 )
 
@@ -35,6 +36,7 @@ func NewAlgorithm(opts placement.Options) placement.Algorithm {
 	}
 
 	if opts.HasSubClusters() {
+		fmt.Printf("we are here in algo.")
 		return newSubClusteredAlgorithm(opts)
 	}
 
