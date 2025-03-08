@@ -356,7 +356,7 @@ func (w *consumerWriterImpl) resetWithConnectFn(fn connectAllFn) error {
 	}
 	w.reset(resetOptions{
 		connections: conns,
-		at:          time.Time{},
+		at:          w.nowFn(),
 		validConns:  true,
 	})
 	return nil
