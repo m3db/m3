@@ -333,16 +333,30 @@ func (w *consumerWriterImpl) resetTooSoon() bool {
 }
 
 func (w *consumerWriterImpl) resetWithConnectFn(fn connectAllFn) error {
+	existingConns := []*connection{}
 	w.writeState.Lock()
-	w.writeState.validConns = false
+	if w.writeState.validConns {
+		w.writeState.validConns = false
+		existingConns = w.writeState.conns
+	}
 	w.writeState.Unlock()
+
+	// Close the existing connections.
+	for _, c := range existingConns {
+		if err := c.conn.Close(); err != nil {
+			w.logger.Warn("could not close connection", zap.Error(err))
+		}
+	}
+
+	// Now that the existing connections have been closed,
+	// we can re-attempt connections.
 	conns, err := fn(w.addr)
 	if err != nil {
 		return err
 	}
 	w.reset(resetOptions{
 		connections: conns,
-		at:          w.nowFn(),
+		at:          time.Time{},
 		validConns:  true,
 	})
 	return nil
@@ -436,14 +450,7 @@ type resetOptions struct {
 
 func (w *consumerWriterImpl) reset(opts resetOptions) {
 	w.writeState.Lock()
-	prevConns := w.writeState.conns
-	defer func() {
-		w.writeState.Unlock()
-		// Close existing connections outside of locks.
-		for _, c := range prevConns {
-			c.conn.Close()
-		}
-	}()
+	defer w.writeState.Unlock()
 
 	var (
 		wOpts = xio.ResettableWriterOptions{
@@ -504,6 +511,29 @@ func (w *consumerWriterImpl) connectNoRetryWithTimeout(addr string) (readWriterW
 	if err = tcpConn.SetKeepAlivePeriod(keepAlivePeriod); err != nil {
 		w.m.setKeepAlivePeriodError.Inc(1)
 	}
+	c, ok := conn.(*net.TCPConn)
+	if !ok {
+		w.logger.Warn("could not get TCPConn from dialer")
+		return newReadWriterWithTimeout(conn, w.connOpts.WriteTimeout(), w.nowFn), nil
+	}
+
+	// set linger off to avoid hanging on close
+	if err = c.SetLinger(0); err != nil {
+		// by default we set SO_LINGER off because:
+		// 1. these connections are meant to be always open.
+		// 2. if we are closing the connection, it means that
+		//    either
+		// 	  a. the server terminated/rebooted
+		//    b. we are are terminating/rebooting.
+		//    c. there was a change in consumers of the topic
+		//       or placement change.
+		//    In any case, we don't want care about the data
+		//    held up in the sendbuf.
+		// 3. We don't want to hang on to the connection until
+		// .  all the data is flushed out.
+		w.logger.Warn("could not set linger off", zap.Error(err))
+	}
+
 	return newReadWriterWithTimeout(conn, w.connOpts.WriteTimeout(), w.nowFn), nil
 }
 
