@@ -522,15 +522,15 @@ func (w *consumerWriterImpl) connectNoRetryWithTimeout(addr string) (readWriterW
 		// by default we set SO_LINGER off because:
 		// 1. these connections are meant to be always open.
 		// 2. if we are closing the connection, it means that
-		//    either
-		// 	  a. the server terminated/rebooted
-		//    b. we are are terminating/rebooting.
+		//    either:
+		//    a. the server terminated/rebooted.
+		//    b. producer itself is terminating/rebooting.
 		//    c. there was a change in consumers of the topic
 		//       or placement change.
-		//    In any case, we don't want care about the data
+		//    In any case, we don't care about the data
 		//    held up in the sendbuf.
 		// 3. We don't want to hang on to the connection until
-		// .  all the data is flushed out.
+		//    all the data is flushed out.
 		w.logger.Warn("could not set linger off", zap.Error(err))
 	}
 
