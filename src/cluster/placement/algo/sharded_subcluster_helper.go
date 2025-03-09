@@ -424,7 +424,8 @@ func (sph *subClusterShardedHelper) generatePlacement() placement.Placement {
 		SetReplicaFactor(sph.rf).
 		SetIsSharded(true).
 		SetIsMirrored(sph.opts.IsMirrored()).
-		SetCutoverNanos(sph.opts.PlacementCutoverNanosFn()()).SetHasSubClusters(true)
+		SetCutoverNanos(sph.opts.PlacementCutoverNanosFn()()).SetHasSubClusters(true).
+		SetHasSubClusters(true)
 }
 
 func (sph *subClusterShardedHelper) placeShardForInitialPlacement(shards []shard.Shard) error {
