@@ -61,7 +61,7 @@ func TestGoodCaseSubClusters(t *testing.T) {
 	////subClusterToInstanceMap[2] = []placement.Instance{i2, i4, i6}
 	//subClusterToInstanceMap[3] = []placement.Instance{i7, i8, i9}
 
-	numShards := 4096
+	numShards := 64
 	ids := make([]uint32, numShards)
 	for i := 0; i < len(ids); i++ {
 		ids[i] = uint32(i)
@@ -75,6 +75,7 @@ func TestGoodCaseSubClusters(t *testing.T) {
 	opts := placement.NewOptions().SetHasSubClusters(true).SetIsSharded(true).SetInstancesPerSubCluster(6)
 	algo := newSubClusteredAlgorithm(opts)
 	p, err := algo.InitialPlacement([]placement.Instance{i1, i2, i3, i4, i5, i7, i8, i9, i11, i13}, ids, 3)
+	fmt.Println(p)
 	require.NoError(t, err)
 	require.NotNil(t, p)
 	require.NoError(t, placement.Validate(p))

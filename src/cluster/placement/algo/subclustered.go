@@ -24,6 +24,9 @@ type subClusteredPlacementAlgorithm struct {
 
 func (a subClusteredPlacementAlgorithm) InitialPlacement(instances []placement.Instance, shards []uint32, rf int) (placement.Placement, error) {
 	fmt.Printf("building initial placement")
+	fmt.Printf("Printing instances: %+v\n", instances)
+	fmt.Printf("Printing options: %+v\n", a.opts)
+
 	sph := newInitSubClusterHelper(instances, shards, rf, a.opts)
 	if err := sph.placeShardForInitialPlacement(newShards(shards)); err != nil {
 		return nil, err
@@ -33,6 +36,7 @@ func (a subClusteredPlacementAlgorithm) InitialPlacement(instances []placement.I
 		p = sph.generatePlacement()
 	)
 
+	fmt.Printf("Printing final placement state1: %+v\n", p)
 	return tryCleanupShardState(p, a.opts)
 
 }
@@ -58,7 +62,7 @@ func (a subClusteredPlacementAlgorithm) AddInstances(p placement.Placement, inst
 
 	}
 	p = ph.generatePlacement()
-
+	fmt.Printf("Printing final placement state2: %+v\n", p)
 	return tryCleanupShardState(p, a.opts)
 }
 func (a subClusteredPlacementAlgorithm) RemoveInstances(p placement.Placement, leavingInstanceIDs []string) (placement.Placement, error) {

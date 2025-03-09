@@ -164,6 +164,7 @@ func (p *placement) IsSharded() bool {
 
 func (p *placement) SetIsSharded(v bool) Placement {
 	p.isSharded = v
+	fmt.Printf("Printing final placement state neha1: %+v\n", p)
 	return p
 }
 
@@ -172,7 +173,9 @@ func (p *placement) HasSubClusters() bool {
 }
 
 func (p *placement) SetHasSubClusters(v bool) Placement {
+	fmt.Println("we came here")
 	p.hasSubClusters = v
+	fmt.Printf("Printing final placement state neha: %+v\n", p)
 	return p
 }
 
@@ -214,8 +217,8 @@ func (p *placement) SetVersion(v int) Placement {
 
 func (p *placement) String() string {
 	return fmt.Sprintf(
-		"Placement[Instances=%s, NumShards=%d, ReplicaFactor=%d, IsSharded=%v, IsMirrored=%v]",
-		p.Instances(), p.NumShards(), p.ReplicaFactor(), p.IsSharded(), p.IsMirrored(),
+		"Placement[Instances=%s, NumShards=%d, ReplicaFactor=%d, IsSharded=%v, IsMirrored=%v, hasSubClusters=%v, CutoverNanos=%d]",
+		p.Instances(), p.NumShards(), p.ReplicaFactor(), p.IsSharded(), p.IsMirrored(), p.HasSubClusters(), p.CutoverNanos(),
 	)
 }
 
@@ -480,8 +483,8 @@ type instance struct {
 
 func (i *instance) String() string {
 	return fmt.Sprintf(
-		"Instance[ID=%s, IsolationGroup=%s, Zone=%s, Weight=%d, Endpoint=%s, Hostname=%s, Port=%d, ShardSetID=%d, Shards=%s, Metadata=%+v]",
-		i.id, i.isolationGroup, i.zone, i.weight, i.endpoint, i.hostname, i.port, i.shardSetID, i.shards.String(), i.metadata,
+		"Instance[ID=%s, IsolationGroup=%s, Zone=%s, Weight=%d, Endpoint=%s, Hostname=%s, Port=%d, ShardSetID=%d, Shards=%s, Metadata=%+v, SubClusterID=%d]",
+		i.id, i.isolationGroup, i.zone, i.weight, i.endpoint, i.hostname, i.port, i.shardSetID, i.shards.String(), i.metadata, i.subClusterID,
 	)
 }
 

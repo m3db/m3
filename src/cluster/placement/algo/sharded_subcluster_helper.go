@@ -137,6 +137,8 @@ func newSubClusterRemoveInstancesHelper(
 }
 
 func newSubClusterHelper(p placement.Placement, targetRF int, opts placement.Options) subClusterShardedHelper {
+	fmt.Printf("Printing final placement state4: %+v\n", p)
+
 	sph := subClusterShardedHelper{
 		rf:           targetRF,
 		instances:    make(map[string]placement.Instance, p.NumInstances()),
@@ -424,7 +426,7 @@ func (sph *subClusterShardedHelper) generatePlacement() placement.Placement {
 		SetReplicaFactor(sph.rf).
 		SetIsSharded(true).
 		SetIsMirrored(sph.opts.IsMirrored()).
-		SetCutoverNanos(sph.opts.PlacementCutoverNanosFn()()).SetHasSubClusters(true).
+		SetCutoverNanos(sph.opts.PlacementCutoverNanosFn()()).
 		SetHasSubClusters(true)
 }
 
@@ -467,6 +469,8 @@ func (sph *subClusterShardedHelper) placeShardForInitialPlacement(shards []shard
 			}
 		}
 	}
+
+	fmt.Printf("no errors from placing shards.")
 
 	return nil
 }
