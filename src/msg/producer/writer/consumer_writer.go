@@ -511,29 +511,6 @@ func (w *consumerWriterImpl) connectNoRetryWithTimeout(addr string) (readWriterW
 	if err = tcpConn.SetKeepAlivePeriod(keepAlivePeriod); err != nil {
 		w.m.setKeepAlivePeriodError.Inc(1)
 	}
-	c, ok := conn.(*net.TCPConn)
-	if !ok {
-		w.logger.Warn("could not get TCPConn from dialer")
-		return newReadWriterWithTimeout(conn, w.connOpts.WriteTimeout(), w.nowFn), nil
-	}
-
-	// set linger off to avoid hanging on close
-	if err = c.SetLinger(0); err != nil {
-		// by default we set SO_LINGER off because:
-		// 1. these connections are meant to be always open.
-		// 2. if we are closing the connection, it means that
-		//    either:
-		//    a. the server terminated/rebooted.
-		//    b. producer itself is terminating/rebooting.
-		//    c. there was a change in consumers of the topic
-		//       or placement change.
-		//    In any case, we don't care about the data
-		//    held up in the sendbuf.
-		// 3. We don't want to hang on to the connection until
-		//    all the data is flushed out.
-		w.logger.Warn("could not set linger off", zap.Error(err))
-	}
-
 	return newReadWriterWithTimeout(conn, w.connOpts.WriteTimeout(), w.nowFn), nil
 }
 
