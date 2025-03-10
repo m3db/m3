@@ -333,9 +333,23 @@ func (w *consumerWriterImpl) resetTooSoon() bool {
 }
 
 func (w *consumerWriterImpl) resetWithConnectFn(fn connectAllFn) error {
+	existingConns := []*connection{}
 	w.writeState.Lock()
-	w.writeState.validConns = false
+	if w.writeState.validConns {
+		w.writeState.validConns = false
+		existingConns = w.writeState.conns
+	}
 	w.writeState.Unlock()
+
+	// Close the existing connections.
+	for _, c := range existingConns {
+		if err := c.conn.Close(); err != nil {
+			w.logger.Warn("could not close connection", zap.Error(err))
+		}
+	}
+
+	// Now that the existing connections have been closed,
+	// we can re-attempt connections.
 	conns, err := fn(w.addr)
 	if err != nil {
 		return err
@@ -436,14 +450,7 @@ type resetOptions struct {
 
 func (w *consumerWriterImpl) reset(opts resetOptions) {
 	w.writeState.Lock()
-	prevConns := w.writeState.conns
-	defer func() {
-		w.writeState.Unlock()
-		// Close existing connections outside of locks.
-		for _, c := range prevConns {
-			c.conn.Close()
-		}
-	}()
+	defer w.writeState.Unlock()
 
 	var (
 		wOpts = xio.ResettableWriterOptions{
