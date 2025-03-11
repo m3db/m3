@@ -480,7 +480,7 @@ func TestInstance(t *testing.T) {
 	})
 	i1.SetShards(s)
 	description := fmt.Sprintf(
-		"Instance[ID=id, IsolationGroup=isolationGroup, Zone=zone, Weight=1, Endpoint=endpoint, Hostname=host1, Port=123, ShardSetID=0, Shards=%s, Metadata={DebugPort:456}]",
+		"Instance[ID=id, IsolationGroup=isolationGroup, Zone=zone, Weight=1, Endpoint=endpoint, Hostname=host1, Port=123, ShardSetID=0, Shards=%s, Metadata={DebugPort:456}, SubClusterID=0]",
 		s.String())
 	assert.Equal(t, description, i1.String())
 

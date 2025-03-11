@@ -127,20 +127,20 @@ func SafeAverage(input []float64) (float64, int, bool) {
 // SafeMax returns the maximum value of the input slice and the number of NaNs in the input.
 func SafeMax(input []float64) (float64, int, bool) {
 	nans := 0
-	max := -math.MaxFloat64
+	m := -math.MaxFloat64
 	for _, v := range input {
 		if math.IsNaN(v) {
 			nans++
 			continue
 		}
-		if v > max {
-			max = v
+		if v > m {
+			m = v
 		}
 	}
 	if len(input) == nans {
 		return 0, 0, false // Either no elements or all nans.
 	}
-	return max, nans, true
+	return m, nans, true
 }
 
 // SafeMin returns the minimum value of the input slice and the number of NaNs in the input.

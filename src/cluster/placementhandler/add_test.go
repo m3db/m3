@@ -99,7 +99,7 @@ func TestPlacementAddHandler_Force(t *testing.T) {
 
 		resp = w.Result()
 		body, _ = ioutil.ReadAll(resp.Body)
-		assert.Equal(t, `{"placement":{"instances":{},"replicaFactor":0,"numShards":0,"isSharded":false,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0},"version":0}`, string(body))
+		assert.Equal(t, `{"placement":{"instances":{},"replicaFactor":0,"numShards":0,"isSharded":false,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0,"hasSubClusters":false},"version":0}`, string(body))
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 	})
@@ -285,11 +285,11 @@ func TestPlacementAddHandler_SafeOK(t *testing.T) {
 
 		switch serviceName {
 		case handleroptions.M3CoordinatorServiceName:
-			require.Equal(t, `{"placement":{"instances":{"host1":{"id":"host1","isolationGroup":"rack1","zone":"test","weight":1,"endpoint":"http://host1:1234","shards":[],"shardSetId":0,"hostname":"host1","port":1234,"metadata":{"debugPort":0}}},"replicaFactor":1,"numShards":0,"isSharded":false,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0},"version":1}`, string(body))
+			require.Equal(t, `{"placement":{"instances":{"host1":{"id":"host1","isolationGroup":"rack1","zone":"test","weight":1,"endpoint":"http://host1:1234","shards":[],"shardSetId":0,"hostname":"host1","port":1234,"metadata":{"debugPort":0},"subClusterId":0}},"replicaFactor":1,"numShards":0,"isSharded":false,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0,"hasSubClusters":false},"version":1}`, string(body))
 		case handleroptions.M3AggregatorServiceName:
-			require.Equal(t, `{"placement":{"instances":{},"replicaFactor":1,"numShards":0,"isSharded":true,"cutoverTime":"0","isMirrored":true,"maxShardSetId":0},"version":1}`, string(body))
+			require.Equal(t, `{"placement":{"instances":{},"replicaFactor":1,"numShards":0,"isSharded":true,"cutoverTime":"0","isMirrored":true,"maxShardSetId":0,"hasSubClusters":false},"version":1}`, string(body))
 		default:
-			require.Equal(t, `{"placement":{"instances":{},"replicaFactor":0,"numShards":0,"isSharded":true,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0},"version":1}`, string(body))
+			require.Equal(t, `{"placement":{"instances":{},"replicaFactor":0,"numShards":0,"isSharded":true,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0,"hasSubClusters":false},"version":1}`, string(body))
 		}
 
 		require.Equal(t, http.StatusOK, resp.StatusCode)

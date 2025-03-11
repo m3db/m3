@@ -39,6 +39,7 @@ message Placement {
   // max_shard_set_id stores the maximum shard set id used to guarantee unique
   // shard set id generations across placement changes.
   uint32 max_shard_set_id = 7;
+  bool has_sub_clusters = 8;
 }
 
 message Instance {
@@ -52,6 +53,7 @@ message Instance {
   string hostname           = 8;
   uint32 port               = 9;
   InstanceMetadata metadata = 10;
+  uint32 sub_cluster_id     = 11;
 }
 
 message InstanceMetadata {

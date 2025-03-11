@@ -54,6 +54,7 @@ type placement struct {
 	maxShardSetID    uint32
 	isSharded        bool
 	isMirrored       bool
+	hasSubClusters   bool
 }
 
 // NewPlacement returns a ServicePlacement
@@ -87,7 +88,8 @@ func NewPlacementFromProto(p *placementpb.Placement) (Placement, error) {
 		SetIsSharded(p.IsSharded).
 		SetCutoverNanos(p.CutoverTime).
 		SetIsMirrored(p.IsMirrored).
-		SetMaxShardSetID(p.MaxShardSetId), nil
+		SetMaxShardSetID(p.MaxShardSetId).
+		SetHasSubClusters(p.HasSubClusters), nil
 }
 
 func (p *placement) InstancesForShard(shard uint32) []Instance {
@@ -163,6 +165,18 @@ func (p *placement) IsSharded() bool {
 
 func (p *placement) SetIsSharded(v bool) Placement {
 	p.isSharded = v
+	fmt.Printf("Printing final placement state neha1: %+v\n", p)
+	return p
+}
+
+func (p *placement) HasSubClusters() bool {
+	return p.hasSubClusters
+}
+
+func (p *placement) SetHasSubClusters(v bool) Placement {
+	fmt.Println("we came here")
+	p.hasSubClusters = v
+	fmt.Printf("Printing final placement state neha: %+v\n", p)
 	return p
 }
 
@@ -204,8 +218,8 @@ func (p *placement) SetVersion(v int) Placement {
 
 func (p *placement) String() string {
 	return fmt.Sprintf(
-		"Placement[Instances=%s, NumShards=%d, ReplicaFactor=%d, IsSharded=%v, IsMirrored=%v]",
-		p.Instances(), p.NumShards(), p.ReplicaFactor(), p.IsSharded(), p.IsMirrored(),
+		"Placement[Instances=%s, NumShards=%d, ReplicaFactor=%d, IsSharded=%v, IsMirrored=%v, hasSubClusters=%v]",
+		p.Instances(), p.NumShards(), p.ReplicaFactor(), p.IsSharded(), p.IsMirrored(), p.HasSubClusters(),
 	)
 }
 
@@ -220,17 +234,19 @@ func (p *placement) Proto() (*placementpb.Placement, error) {
 	}
 
 	return &placementpb.Placement{
-		Instances:     instances,
-		ReplicaFactor: uint32(p.ReplicaFactor()),
-		NumShards:     uint32(p.NumShards()),
-		IsSharded:     p.IsSharded(),
-		CutoverTime:   p.CutoverNanos(),
-		IsMirrored:    p.IsMirrored(),
-		MaxShardSetId: p.MaxShardSetID(),
+		Instances:      instances,
+		ReplicaFactor:  uint32(p.ReplicaFactor()),
+		NumShards:      uint32(p.NumShards()),
+		IsSharded:      p.IsSharded(),
+		CutoverTime:    p.CutoverNanos(),
+		IsMirrored:     p.IsMirrored(),
+		MaxShardSetId:  p.MaxShardSetID(),
+		HasSubClusters: p.HasSubClusters(),
 	}, nil
 }
 
 func (p *placement) Clone() Placement {
+	fmt.Printf("PRINT2 %v\n", p)
 	return NewPlacement().
 		SetInstances(Instances(p.Instances()).Clone()).
 		SetShards(p.Shards()).
@@ -239,7 +255,8 @@ func (p *placement) Clone() Placement {
 		SetIsMirrored(p.IsMirrored()).
 		SetCutoverNanos(p.CutoverNanos()).
 		SetMaxShardSetID(p.MaxShardSetID()).
-		SetVersion(p.Version())
+		SetVersion(p.Version()).
+		SetHasSubClusters(p.HasSubClusters())
 }
 
 // Validate validates a placement to ensure:
@@ -450,7 +467,8 @@ func NewInstanceFromProto(instance *placementpb.Instance) (Instance, error) {
 		SetPort(instance.Port).
 		SetMetadata(InstanceMetadata{
 			DebugPort: debugPort,
-		}), nil
+		}).
+		SetSubClusterID(instance.SubClusterId), nil
 }
 
 type instance struct {
@@ -464,12 +482,13 @@ type instance struct {
 	weight         uint32
 	shardSetID     uint32
 	metadata       InstanceMetadata
+	subClusterID   uint32
 }
 
 func (i *instance) String() string {
 	return fmt.Sprintf(
-		"Instance[ID=%s, IsolationGroup=%s, Zone=%s, Weight=%d, Endpoint=%s, Hostname=%s, Port=%d, ShardSetID=%d, Shards=%s, Metadata=%+v]",
-		i.id, i.isolationGroup, i.zone, i.weight, i.endpoint, i.hostname, i.port, i.shardSetID, i.shards.String(), i.metadata,
+		"Instance[ID=%s, IsolationGroup=%s, Zone=%s, Weight=%d, Endpoint=%s, Hostname=%s, Port=%d, ShardSetID=%d, Shards=%s, Metadata=%+v, SubClusterID=%d]",
+		i.id, i.isolationGroup, i.zone, i.weight, i.endpoint, i.hostname, i.port, i.shardSetID, i.shards.String(), i.metadata, i.subClusterID,
 	)
 }
 
@@ -545,6 +564,13 @@ func (i *instance) SetShardSetID(value uint32) Instance {
 	return i
 }
 
+func (i *instance) SubClusterID() uint32 { return i.subClusterID }
+
+func (i *instance) SetSubClusterID(value uint32) Instance {
+	i.subClusterID = value
+	return i
+}
+
 func (i *instance) Shards() shard.Shards {
 	return i.shards
 }
@@ -579,6 +605,7 @@ func (i *instance) Proto() (*placementpb.Instance, error) {
 		ShardSetId:     i.ShardSetID(),
 		Hostname:       i.Hostname(),
 		Port:           i.Port(),
+		SubClusterId:   i.SubClusterID(),
 		Metadata: &placementpb.InstanceMetadata{
 			DebugPort: i.Metadata().DebugPort,
 		},
@@ -617,7 +644,8 @@ func (i *instance) Clone() Instance {
 		SetPort(i.Port()).
 		SetShardSetID(i.ShardSetID()).
 		SetShards(i.Shards().Clone()).
-		SetMetadata(i.Metadata())
+		SetMetadata(i.Metadata()).
+		SetSubClusterID(i.subClusterID)
 }
 
 // Instances is a slice of instances that can produce a debug string.

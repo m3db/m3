@@ -35,7 +35,8 @@ const (
 	defaultAllowPartialReplace = true
 	// By default the zone of the hosts within a placement should match the zone
 	// that the placement was created with.
-	defaultAllowAllZones = false
+	defaultAllowAllZones          = false
+	defaultInstancesPerSubCluster = 9
 )
 
 type deploymentOptions struct {
@@ -60,44 +61,66 @@ func defaultTimeNanosFn() int64                    { return shard.UnInitializedV
 func defaultShardValidationFn(s shard.Shard) error { return nil }
 
 type options struct {
-	shardStateMode      ShardStateMode
-	iopts               instrument.Options
-	validZone           string
-	placementCutOverFn  TimeNanosFn
-	shardCutOverFn      TimeNanosFn
-	shardCutOffFn       TimeNanosFn
-	isShardCutoverFn    ShardValidateFn
-	isShardCutoffFn     ShardValidateFn
-	validateFn          ValidateFn
-	nowFn               clock.NowFn
-	allowPartialReplace bool
-	allowAllZones       bool
-	addAllCandidates    bool
-	dryrun              bool
-	isSharded           bool
-	isMirrored          bool
-	skipPortMirroring   bool
-	isStaged            bool
-	compress            bool
-	instanceSelector    InstanceSelector
+	shardStateMode         ShardStateMode
+	iopts                  instrument.Options
+	validZone              string
+	placementCutOverFn     TimeNanosFn
+	shardCutOverFn         TimeNanosFn
+	shardCutOffFn          TimeNanosFn
+	isShardCutoverFn       ShardValidateFn
+	isShardCutoffFn        ShardValidateFn
+	validateFn             ValidateFn
+	nowFn                  clock.NowFn
+	allowPartialReplace    bool
+	allowAllZones          bool
+	addAllCandidates       bool
+	dryrun                 bool
+	isSharded              bool
+	isMirrored             bool
+	skipPortMirroring      bool
+	isStaged               bool
+	compress               bool
+	instanceSelector       InstanceSelector
+	instancesPerSubCluster int
+	hasSubClusters         bool
 }
 
 // NewOptions returns a default Options.
 func NewOptions() Options {
 	return options{
-		allowPartialReplace: defaultAllowPartialReplace,
-		isSharded:           defaultIsSharded,
-		shardStateMode:      IncludeTransitionalShardStates,
-		iopts:               instrument.NewOptions(),
-		placementCutOverFn:  defaultTimeNanosFn,
-		shardCutOverFn:      defaultTimeNanosFn,
-		shardCutOffFn:       defaultTimeNanosFn,
-		isShardCutoverFn:    defaultShardValidationFn,
-		isShardCutoffFn:     defaultShardValidationFn,
-		validateFn:          Validate,
-		nowFn:               time.Now,
-		allowAllZones:       defaultAllowAllZones,
+		allowPartialReplace:    defaultAllowPartialReplace,
+		isSharded:              defaultIsSharded,
+		hasSubClusters:         false,
+		shardStateMode:         IncludeTransitionalShardStates,
+		iopts:                  instrument.NewOptions(),
+		placementCutOverFn:     defaultTimeNanosFn,
+		shardCutOverFn:         defaultTimeNanosFn,
+		shardCutOffFn:          defaultTimeNanosFn,
+		isShardCutoverFn:       defaultShardValidationFn,
+		isShardCutoffFn:        defaultShardValidationFn,
+		validateFn:             Validate,
+		nowFn:                  time.Now,
+		allowAllZones:          defaultAllowAllZones,
+		instancesPerSubCluster: defaultInstancesPerSubCluster,
 	}
+}
+
+func (o options) SetHasSubClusters(value bool) Options {
+	o.hasSubClusters = value
+	return o
+}
+
+func (o options) HasSubClusters() bool {
+	return o.hasSubClusters
+}
+
+func (o options) SetInstancesPerSubCluster(value int) Options {
+	o.instancesPerSubCluster = value
+	return o
+}
+
+func (o options) InstancesPerSubCluster() int {
+	return o.instancesPerSubCluster
 }
 
 func (o options) AllowPartialReplace() bool {
