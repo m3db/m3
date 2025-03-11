@@ -139,6 +139,7 @@ func (a subClusteredPlacementAlgorithm) MarkShardsAvailable(
 	instanceID string,
 	shardIDs ...uint32,
 ) (placement.Placement, error) {
+	fmt.Printf("node came to mark shards available\n")
 	if err := a.IsCompatibleWith(p); err != nil {
 		return nil, err
 	}

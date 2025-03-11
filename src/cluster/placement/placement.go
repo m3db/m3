@@ -253,7 +253,8 @@ func (p *placement) Clone() Placement {
 		SetIsMirrored(p.IsMirrored()).
 		SetCutoverNanos(p.CutoverNanos()).
 		SetMaxShardSetID(p.MaxShardSetID()).
-		SetVersion(p.Version())
+		SetVersion(p.Version()).
+		SetHasSubClusters(p.HasSubClusters())
 }
 
 // Validate validates a placement to ensure:
