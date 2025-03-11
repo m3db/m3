@@ -160,11 +160,12 @@ func TestConvertInstancesProto(t *testing.T) {
 				Metadata: &placementpb.InstanceMetadata{
 					DebugPort: 4231,
 				},
+				SubClusterId: 1,
 			},
 		})
 		require.NoError(t, err)
 		require.Equal(t, 1, len(instances))
-		require.Equal(t, "Instance[ID=i1, IsolationGroup=r1, Zone=, Weight=1, Endpoint=i1:1234, Hostname=i1, Port=1234, ShardSetID=0, Shards=[Initializing=[], Available=[], Leaving=[]], Metadata={DebugPort:4231}]", instances[0].String())
+		require.Equal(t, "Instance[ID=i1, IsolationGroup=r1, Zone=, Weight=1, Endpoint=i1:1234, Hostname=i1, Port=1234, ShardSetID=0, Shards=[Initializing=[], Available=[], Leaving=[]], Metadata={DebugPort:4231}, SubClusterID=1]", instances[0].String())
 
 		instances, err = ConvertInstancesProto([]*placementpb.Instance{
 			&placementpb.Instance{
@@ -239,9 +240,9 @@ func TestConvertInstancesProto(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, 3, len(instances))
-		require.Equal(t, "Instance[ID=i1, IsolationGroup=r1, Zone=, Weight=1, Endpoint=i1:1234, Hostname=i1, Port=1234, ShardSetID=1, Shards=[Initializing=[], Available=[1 2], Leaving=[]], Metadata={DebugPort:1}]", instances[0].String())
-		require.Equal(t, "Instance[ID=i2, IsolationGroup=r1, Zone=, Weight=1, Endpoint=i2:1234, Hostname=i2, Port=1234, ShardSetID=1, Shards=[Initializing=[], Available=[1], Leaving=[]], Metadata={DebugPort:2}]", instances[1].String())
-		require.Equal(t, "Instance[ID=i3, IsolationGroup=r2, Zone=, Weight=2, Endpoint=i3:1234, Hostname=i3, Port=1234, ShardSetID=2, Shards=[Initializing=[1], Available=[], Leaving=[]], Metadata={DebugPort:3}]", instances[2].String())
+		require.Equal(t, "Instance[ID=i1, IsolationGroup=r1, Zone=, Weight=1, Endpoint=i1:1234, Hostname=i1, Port=1234, ShardSetID=1, Shards=[Initializing=[], Available=[1 2], Leaving=[]], Metadata={DebugPort:1}, SubClusterID=0]", instances[0].String())
+		require.Equal(t, "Instance[ID=i2, IsolationGroup=r1, Zone=, Weight=1, Endpoint=i2:1234, Hostname=i2, Port=1234, ShardSetID=1, Shards=[Initializing=[], Available=[1], Leaving=[]], Metadata={DebugPort:2}, SubClusterID=0]", instances[1].String())
+		require.Equal(t, "Instance[ID=i3, IsolationGroup=r2, Zone=, Weight=2, Endpoint=i3:1234, Hostname=i3, Port=1234, ShardSetID=2, Shards=[Initializing=[1], Available=[], Leaving=[]], Metadata={DebugPort:3}, SubClusterID=0]", instances[2].String())
 
 		_, err = ConvertInstancesProto([]*placementpb.Instance{
 			&placementpb.Instance{

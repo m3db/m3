@@ -467,7 +467,8 @@ func NewInstanceFromProto(instance *placementpb.Instance) (Instance, error) {
 		SetPort(instance.Port).
 		SetMetadata(InstanceMetadata{
 			DebugPort: debugPort,
-		}), nil
+		}).
+		SetSubClusterID(instance.SubClusterId), nil
 }
 
 type instance struct {
