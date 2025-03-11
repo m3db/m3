@@ -25,6 +25,7 @@
 package placement
 
 import (
+	"fmt"
 	"reflect"
 	"time"
 
@@ -479,6 +480,7 @@ func (m *MockPlacement) EXPECT() *MockPlacementMockRecorder {
 
 // Clone mocks base method.
 func (m *MockPlacement) Clone() Placement {
+	fmt.Printf("hello")
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Clone")
 	ret0, _ := ret[0].(Placement)

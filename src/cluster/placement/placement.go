@@ -88,7 +88,8 @@ func NewPlacementFromProto(p *placementpb.Placement) (Placement, error) {
 		SetIsSharded(p.IsSharded).
 		SetCutoverNanos(p.CutoverTime).
 		SetIsMirrored(p.IsMirrored).
-		SetMaxShardSetID(p.MaxShardSetId), nil
+		SetMaxShardSetID(p.MaxShardSetId).
+		SetHasSubClusters(p.HasSubClusters), nil
 }
 
 func (p *placement) InstancesForShard(shard uint32) []Instance {
@@ -217,8 +218,8 @@ func (p *placement) SetVersion(v int) Placement {
 
 func (p *placement) String() string {
 	return fmt.Sprintf(
-		"Placement[Instances=%s, NumShards=%d, ReplicaFactor=%d, IsSharded=%v, IsMirrored=%v, hasSubClusters=%v, CutoverNanos=%d]",
-		p.Instances(), p.NumShards(), p.ReplicaFactor(), p.IsSharded(), p.IsMirrored(), p.HasSubClusters(), p.CutoverNanos(),
+		"Placement[Instances=%s, NumShards=%d, ReplicaFactor=%d, IsSharded=%v, IsMirrored=%v, hasSubClusters=%v]",
+		p.Instances(), p.NumShards(), p.ReplicaFactor(), p.IsSharded(), p.IsMirrored(), p.HasSubClusters(),
 	)
 }
 
@@ -245,6 +246,7 @@ func (p *placement) Proto() (*placementpb.Placement, error) {
 }
 
 func (p *placement) Clone() Placement {
+	fmt.Printf("PRINT2 %v\n", p)
 	return NewPlacement().
 		SetInstances(Instances(p.Instances()).Clone()).
 		SetShards(p.Shards()).

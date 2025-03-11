@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -177,7 +178,8 @@ func TestStorageCompressesStagedPlacement(t *testing.T) {
 		}).
 		SetShards([]uint32{}).
 		SetReplicaFactor(2).
-		SetCutoverNanos(100)
+		SetCutoverNanos(100).
+		SetHasSubClusters(true)
 
 	testCases := []struct {
 		name          string
@@ -200,7 +202,8 @@ func TestStorageCompressesStagedPlacement(t *testing.T) {
 		{
 			name: "set",
 			storeActionFn: func(s placement.Storage, p placement.Placement) error {
-				_, err := s.Set(p)
+				p, err := s.Set(p)
+				fmt.Printf("PRINT1 %v\n", p)
 				return err
 			},
 		},

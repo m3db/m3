@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"fmt"
 	"github.com/golang/protobuf/proto"
 	"go.uber.org/zap"
 
@@ -82,10 +83,12 @@ func (s *storage) Proto() (proto.Message, int, error) {
 }
 
 func (s *storage) Set(p placement.Placement) (placement.Placement, error) {
+	fmt.Printf("PRINT %v\n", p)
 	if err := placement.Validate(p); err != nil {
 		return nil, err
 	}
 
+	fmt.Printf("PRINT3 %v\n", p)
 	placementProto, err := s.helper.GenerateProto(p)
 	if err != nil {
 		return nil, err
