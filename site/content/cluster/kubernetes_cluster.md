@@ -37,7 +37,7 @@ kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/{{% operat
 ```
 
 {{% notice tip %}}
-Depending on what you use to run a cluster on your local machine, you may need to update your _/etc/hosts_ file to match the domains specified in the `etcd` `--initial-cluster` argument. For example to match the `StatefulSet` declaration in the _etcd-minikube.yaml_ above, these are `etcd-0.etcd`, `etcd-1.etcd`, and `etcd-2.etcd`.
+Depending on what you use to run a cluster on your local machine, you may need to update your _/etc/hosts_ file to match the domains specified in the `etcd` `--initial-cluster` argument. For example, to match the `StatefulSet` declaration in the _etcd-minikube.yaml_ above, these are `etcd-0.etcd`, `etcd-1.etcd`, and `etcd-2.etcd`.
 {{% /notice %}}
 
 Verify that the cluster is running with something like the Kubernetes dashboard, or the command below:
@@ -58,7 +58,7 @@ kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/{{% operat
 
 The following creates an M3 cluster with 3 replicas of data across 256 shards that connects to the 3 available etcd endpoints.
 
-It creates three isolated groups for nodes, each with one node instance. In a production environment you can use a variety of different options to define how nodes are spread across groups based on factors such as resource capacity, or location.
+It creates three isolated groups for nodes, each with one node instance. In a production environment, you can use a variety of different options to define how nodes are spread across groups based on factors such as resource capacity, or location.
 
 It creates namespaces in the cluster with the `namespaces` parameter. You can use M3-provided presets, or define your own. This example creates a namespace with the `10s:2d` preset.
 
