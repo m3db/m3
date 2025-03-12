@@ -42,15 +42,16 @@ import (
 
 // ConnectionConfiguration configs the connection options.
 type ConnectionConfiguration struct {
-	NumConnections  *int                 `yaml:"numConnections"`
-	DialTimeout     *time.Duration       `yaml:"dialTimeout"`
-	WriteTimeout    *time.Duration       `yaml:"writeTimeout"`
-	KeepAlivePeriod *time.Duration       `yaml:"keepAlivePeriod"`
-	ResetDelay      *time.Duration       `yaml:"resetDelay"`
-	Retry           *retry.Configuration `yaml:"retry"`
-	FlushInterval   *time.Duration       `yaml:"flushInterval"`
-	WriteBufferSize *int                 `yaml:"writeBufferSize"`
-	ReadBufferSize  *int                 `yaml:"readBufferSize"`
+	NumConnections     *int                 `yaml:"numConnections"`
+	DialTimeout        *time.Duration       `yaml:"dialTimeout"`
+	WriteTimeout       *time.Duration       `yaml:"writeTimeout"`
+	KeepAlivePeriod    *time.Duration       `yaml:"keepAlivePeriod"`
+	ResetDelay         *time.Duration       `yaml:"resetDelay"`
+	Retry              *retry.Configuration `yaml:"retry"`
+	FlushInterval      *time.Duration       `yaml:"flushInterval"`
+	WriteBufferSize    *int                 `yaml:"writeBufferSize"`
+	ReadBufferSize     *int                 `yaml:"readBufferSize"`
+	AbortOnServerClose *bool                `yaml:"abortOnServerClose"`
 	// ContextDialer specifies a custom dialer to use when creating TCP connections to the consumer.
 	// See writer.ConnectionOptions.ContextDialer for details.
 	ContextDialer xnet.ContextDialerFn `yaml:"-"` // not serializable
@@ -88,6 +89,9 @@ func (c *ConnectionConfiguration) NewOptions(iOpts instrument.Options) writer.Co
 	}
 	if c.ReadBufferSize != nil {
 		opts = opts.SetReadBufferSize(*c.ReadBufferSize)
+	}
+	if c.AbortOnServerClose != nil {
+		opts = opts.SetAbortOnServerClose(*c.AbortOnServerClose)
 	}
 	return opts.SetInstrumentOptions(iOpts)
 }
