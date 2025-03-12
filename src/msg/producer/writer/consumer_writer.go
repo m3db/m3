@@ -74,6 +74,8 @@ type consumerWriterMetrics struct {
 	connectError                tally.Counter
 	setKeepAliveError           tally.Counter
 	setKeepAlivePeriodError     tally.Counter
+	cwWriteTimeoutError         tally.Counter
+	cwFlushTimeoutError         tally.Counter
 	cwFlushLatency              tally.Histogram
 	cwFlushLatencyWithLock      tally.Histogram
 	cwWriteErrorLatency         tally.Histogram
@@ -93,6 +95,8 @@ func newConsumerWriterMetrics(scope tally.Scope) consumerWriterMetrics {
 		connectError:            scope.Counter("connect-error"),
 		setKeepAliveError:       scope.Counter("set-keep-alive-error"),
 		setKeepAlivePeriodError: scope.Counter("set-keep-alive-period-error"),
+		cwWriteTimeoutError:     scope.Counter("cw-write-timeout-error"),
+		cwFlushTimeoutError:     scope.Counter("cw-flush-timeout-error"),
 		cwFlushLatency: scope.Histogram("cw-flush-latency",
 			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
 		cwFlushLatencyWithLock: scope.Histogram("cw-flush-latency-with-lock",
@@ -225,6 +229,13 @@ func (w *consumerWriterImpl) Write(connIndex int, b []byte) error {
 	writeConn.writeLock.Lock()
 	startWriteTs := w.nowFn()
 	_, err := writeConn.w.Write(b)
+	if err != nil {
+		var netErr *net.OpError
+		if errors.As(err, &netErr) && netErr.Timeout() {
+			w.logger.Warn("consumer writer write timeout", zap.String("address", w.addr))
+			w.m.cwWriteTimeoutError.Inc(1)
+		}
+	}
 	endWriteTs := w.nowFn()
 	writeConn.writeLock.Unlock()
 	endWriteWithLockTs := w.nowFn()
@@ -279,6 +290,11 @@ func (w *consumerWriterImpl) flushUntilClose() {
 				conn.writeLock.Lock()
 				startFlushTs := w.nowFn()
 				if err := conn.w.Flush(); err != nil {
+					var netErr *net.OpError
+					if errors.As(err, &netErr) && netErr.Timeout() {
+						w.logger.Warn("consumer writer flush timeout", zap.String("address", w.addr))
+						w.m.cwFlushTimeoutError.Inc(1)
+					}
 					w.notifyReset(err)
 				}
 				endFlushTs := w.nowFn()
@@ -343,8 +359,8 @@ func (w *consumerWriterImpl) resetWithConnectFn(fn connectAllFn) error {
 
 	// Close the existing connections.
 	for _, c := range existingConns {
-		if err := c.conn.Close(); err != nil {
-			w.logger.Warn("could not close connection", zap.Error(err))
+		if err := w.closeConnection(c); err != nil {
+			w.logger.Warn("close connection failed", zap.Error(err))
 		}
 	}
 
@@ -359,6 +375,33 @@ func (w *consumerWriterImpl) resetWithConnectFn(fn connectAllFn) error {
 		at:          w.nowFn(),
 		validConns:  true,
 	})
+	return nil
+}
+
+func (w *consumerWriterImpl) closeConnection(c *connection) error {
+	if w.connOpts.AbortOnServerClose() {
+		// set linger off to abort the connection immediately.
+		rw, ok := c.conn.(readWriterWithTimeout)
+		if ok && rw.setLingerOff != nil {
+			err := rw.setLingerOff()
+			if err != nil {
+				w.logger.Warn("could not set linger", zap.Error(err))
+			}
+		} else {
+			w.logger.Warn("could not set linger, not a TCP connection")
+		}
+	}
+
+	w.logger.Info("closing connection on server reset", zap.String("address", w.addr))
+	if err := c.conn.Close(); err != nil {
+		w.logger.Warn(
+			"could not close connection",
+			zap.Error(err),
+			zap.String("address", w.addr),
+		)
+		return err
+	}
+
 	return nil
 }
 
@@ -495,23 +538,46 @@ func (w *consumerWriterImpl) connectNoRetryWithTimeout(addr string) (readWriterW
 		w.m.connectError.Inc(1)
 		return readWriterWithTimeout{}, err
 	}
+
+	var setLingerOffFn setLingerOffFn
+	if conn, ok := conn.(*net.TCPConn); ok {
+		setLingerOffFn = func() error {
+			return conn.SetLinger(0)
+		}
+	}
+
 	tcpConn, ok := conn.(keepAlivable)
 	if !ok {
 		// If using a custom dialer which doesn't return *net.TCPConn, users are responsible for TCP keep alive options
 		// themselves.
-		return newReadWriterWithTimeout(conn, w.connOpts.WriteTimeout(), w.nowFn), nil
+		return newReadWriterWithTimeout(
+			conn,
+			w.connOpts.WriteTimeout(),
+			setLingerOffFn,
+			w.nowFn,
+		), nil
 	}
 	if err = tcpConn.SetKeepAlive(true); err != nil {
 		w.m.setKeepAliveError.Inc(1)
 	}
 	keepAlivePeriod := w.connOpts.KeepAlivePeriod()
 	if keepAlivePeriod <= 0 {
-		return newReadWriterWithTimeout(conn, w.connOpts.WriteTimeout(), w.nowFn), nil
+		return newReadWriterWithTimeout(
+			conn,
+			w.connOpts.WriteTimeout(),
+			setLingerOffFn,
+			w.nowFn,
+		), nil
 	}
 	if err = tcpConn.SetKeepAlivePeriod(keepAlivePeriod); err != nil {
 		w.m.setKeepAlivePeriodError.Inc(1)
 	}
-	return newReadWriterWithTimeout(conn, w.connOpts.WriteTimeout(), w.nowFn), nil
+	return newReadWriterWithTimeout(
+		conn,
+		w.connOpts.WriteTimeout(),
+		setLingerOffFn,
+		w.nowFn,
+	), nil
 }
 
 // Make sure net.TCPConn implements this; otherwise bad things will happen.
@@ -565,18 +631,27 @@ func (w *consumerWriterImpl) newConnectFn(opts connectOptions) connectAllFn {
 	}
 }
 
+type setLingerOffFn func() error
+
 type readWriterWithTimeout struct {
 	net.Conn
 
-	timeout time.Duration
-	nowFn   clock.NowFn
+	setLingerOff setLingerOffFn
+	timeout      time.Duration
+	nowFn        clock.NowFn
 }
 
-func newReadWriterWithTimeout(conn net.Conn, timeout time.Duration, nowFn clock.NowFn) readWriterWithTimeout {
+func newReadWriterWithTimeout(
+	conn net.Conn,
+	timeout time.Duration,
+	setLingerOff setLingerOffFn,
+	nowFn clock.NowFn,
+) readWriterWithTimeout {
 	return readWriterWithTimeout{
-		Conn:    conn,
-		timeout: timeout,
-		nowFn:   nowFn,
+		Conn:         conn,
+		timeout:      timeout,
+		setLingerOff: setLingerOff,
+		nowFn:        nowFn,
 	}
 }
 

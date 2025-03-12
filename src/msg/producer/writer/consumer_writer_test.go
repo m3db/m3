@@ -563,7 +563,9 @@ func testConnectionOptions() ConnectionOptions {
 		SetNumConnections(1).
 		SetRetryOptions(retry.NewOptions().SetInitialBackoff(200 * time.Millisecond).SetMaxBackoff(time.Second)).
 		SetFlushInterval(100 * time.Millisecond).
-		SetResetDelay(100 * time.Millisecond)
+		SetResetDelay(100 * time.Millisecond).
+		SetAbortOnServerClose(true).
+		SetWriteTimeout(2 * time.Second)
 }
 
 func testConsumeAndAckOnConnection(

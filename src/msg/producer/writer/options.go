@@ -50,6 +50,7 @@ const (
 	// Using 65k which provides much better performance comparing
 	// to lower values like 1k ~ 8k.
 	defaultConnectionBufferSize = 2 << 15 // ~65kb
+	defaultAbortOnServerClose   = false
 
 	defaultWriterRetryInitialBackoff = time.Second * 5
 )
@@ -121,6 +122,14 @@ type ConnectionOptions interface {
 	// SetReadBufferSize sets the buffer size for read.
 	SetReadBufferSize(value int) ConnectionOptions
 
+	// AbortOnServerClose() sets SO_LINGER off to immediately clear out
+	// the sendbuf and reset the connection when a close() is invoked.
+	AbortOnServerClose() bool
+
+	// SetAbortOnServerClose() sets SO_LINGER off to immediately clear out
+	// the sendbuf and reset the connection when a close() is invoked.
+	SetAbortOnServerClose(value bool) ConnectionOptions
+
 	// InstrumentOptions returns the instrument options.
 	InstrumentOptions() instrument.Options
 
@@ -129,33 +138,35 @@ type ConnectionOptions interface {
 }
 
 type connectionOptions struct {
-	numConnections  int
-	dialTimeout     time.Duration
-	writeTimeout    time.Duration
-	keepAlivePeriod time.Duration
-	resetDelay      time.Duration
-	rOpts           retry.Options
-	flushInterval   time.Duration
-	writeBufferSize int
-	readBufferSize  int
-	iOpts           instrument.Options
-	dialer          xnet.ContextDialerFn
+	numConnections     int
+	dialTimeout        time.Duration
+	writeTimeout       time.Duration
+	keepAlivePeriod    time.Duration
+	resetDelay         time.Duration
+	rOpts              retry.Options
+	flushInterval      time.Duration
+	writeBufferSize    int
+	readBufferSize     int
+	abortOnServerClose bool
+	iOpts              instrument.Options
+	dialer             xnet.ContextDialerFn
 }
 
 // NewConnectionOptions creates ConnectionOptions.
 func NewConnectionOptions() ConnectionOptions {
 	return &connectionOptions{
-		numConnections:  defaultNumConnections,
-		dialTimeout:     defaultConnectionDialTimeout,
-		writeTimeout:    defaultConnectionWriteTimeout,
-		keepAlivePeriod: defaultConnectionKeepAlivePeriod,
-		resetDelay:      defaultConnectionResetDelay,
-		rOpts:           retry.NewOptions(),
-		flushInterval:   defaultConnectionFlushInterval,
-		writeBufferSize: defaultConnectionBufferSize,
-		readBufferSize:  defaultConnectionBufferSize,
-		iOpts:           instrument.NewOptions(),
-		dialer:          nil, // Will default to net.Dialer{}.DialContext
+		numConnections:     defaultNumConnections,
+		dialTimeout:        defaultConnectionDialTimeout,
+		writeTimeout:       defaultConnectionWriteTimeout,
+		keepAlivePeriod:    defaultConnectionKeepAlivePeriod,
+		resetDelay:         defaultConnectionResetDelay,
+		rOpts:              retry.NewOptions(),
+		flushInterval:      defaultConnectionFlushInterval,
+		writeBufferSize:    defaultConnectionBufferSize,
+		readBufferSize:     defaultConnectionBufferSize,
+		abortOnServerClose: defaultAbortOnServerClose,
+		iOpts:              instrument.NewOptions(),
+		dialer:             nil, // Will default to net.Dialer{}.DialContext
 	}
 }
 
@@ -256,6 +267,16 @@ func (opts *connectionOptions) ReadBufferSize() int {
 func (opts *connectionOptions) SetReadBufferSize(value int) ConnectionOptions {
 	o := *opts
 	o.readBufferSize = value
+	return &o
+}
+
+func (opts *connectionOptions) AbortOnServerClose() bool {
+	return opts.abortOnServerClose
+}
+
+func (opts *connectionOptions) SetAbortOnServerClose(value bool) ConnectionOptions {
+	o := *opts
+	o.abortOnServerClose = value
 	return &o
 }
 
