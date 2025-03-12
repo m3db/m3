@@ -230,8 +230,9 @@ func (w *consumerWriterImpl) Write(connIndex int, b []byte) error {
 	startWriteTs := w.nowFn()
 	_, err := writeConn.w.Write(b)
 	if err != nil {
-		if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
-			w.logger.Info("consumer writer write timeout", zap.String("address", w.addr))
+		var netErr *net.OpError
+		if errors.As(err, &netErr) && netErr.Timeout() {
+			w.logger.Warn("consumer writer write timeout", zap.String("address", w.addr))
 			w.m.cwWriteTimeoutError.Inc(1)
 		}
 	}
@@ -289,8 +290,9 @@ func (w *consumerWriterImpl) flushUntilClose() {
 				conn.writeLock.Lock()
 				startFlushTs := w.nowFn()
 				if err := conn.w.Flush(); err != nil {
-					if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
-						w.logger.Info("consumer writer flush timeout", zap.String("address", w.addr))
+					var netErr *net.OpError
+					if errors.As(err, &netErr) && netErr.Timeout() {
+						w.logger.Warn("consumer writer flush timeout", zap.String("address", w.addr))
 						w.m.cwFlushTimeoutError.Inc(1)
 					}
 					w.notifyReset(err)
