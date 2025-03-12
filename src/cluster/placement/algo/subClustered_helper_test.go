@@ -2,6 +2,8 @@ package algo
 
 import (
 	"fmt"
+	"github.com/m3db/m3/src/cluster/shard"
+	"github.com/stretchr/testify/assert"
 	"sort"
 	"testing"
 
@@ -79,6 +81,8 @@ func TestGoodCaseSubClusters(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, p)
 	require.NoError(t, placement.Validate(p))
+	p, _, err = algo.MarkAllShardsAvailable(p)
+	assert.NoError(t, err)
 	instances := p.Instances()
 	sort.Sort(BySubClusterIDInstanceID(instances))
 	for _, instance := range instances {
@@ -100,6 +104,8 @@ func TestGoodCaseSubClusters(t *testing.T) {
 	p, err = algo.AddInstances(p, []placement.Instance{i21, i22, i23, i25, i26})
 	require.NoError(t, err)
 	require.NoError(t, placement.Validate(p))
+	p, _, err = algo.MarkAllShardsAvailable(p)
+	assert.NoError(t, err)
 	instances = p.Instances()
 	sort.Sort(BySubClusterIDInstanceID(instances))
 	for _, instance := range instances {
@@ -112,6 +118,8 @@ func TestGoodCaseSubClusters(t *testing.T) {
 	p, err = algo.AddInstances(p, []placement.Instance{i19, i15, i16, i17, i18, i14})
 	require.NoError(t, err)
 	require.NoError(t, placement.Validate(p))
+	p, _, err = algo.MarkAllShardsAvailable(p)
+	assert.NoError(t, err)
 	instances = p.Instances()
 	sort.Sort(BySubClusterIDInstanceID(instances))
 	for _, instance := range instances {
@@ -124,6 +132,8 @@ func TestGoodCaseSubClusters(t *testing.T) {
 	p, err = algo.RemoveInstances(p, []string{"a", "b", "c", "d", "e"})
 	require.NoError(t, err)
 	require.NoError(t, placement.Validate(p))
+	p, _, err = algo.MarkAllShardsAvailable(p)
+	assert.NoError(t, err)
 	instances = p.Instances()
 	sort.Sort(BySubClusterIDInstanceID(instances))
 	for _, instance := range instances {
@@ -137,6 +147,8 @@ func TestGoodCaseSubClusters(t *testing.T) {
 	p, err = algo.ReplaceInstances(p, []string{"x"}, []placement.Instance{i27})
 	require.NoError(t, err)
 	require.NoError(t, placement.Validate(p))
+	p, _, err = algo.MarkAllShardsAvailable(p)
+	assert.NoError(t, err)
 	instances = p.Instances()
 	sort.Sort(BySubClusterIDInstanceID(instances))
 	for _, instance := range instances {
@@ -152,6 +164,9 @@ func validateSubClusteredPlacement(p placement.Placement) error {
 	shardToIGMap := make(map[uint32]map[string]int)
 	for _, instance := range p.Instances() {
 		for _, s := range instance.Shards().All() {
+			if s.State() == shard.Leaving {
+				continue
+			}
 			if _, ok := shardToIGMap[s.ID()]; !ok {
 				shardToIGMap[s.ID()] = make(map[string]int)
 			}

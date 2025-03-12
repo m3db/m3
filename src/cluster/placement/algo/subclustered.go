@@ -78,9 +78,15 @@ func (a subClusteredPlacementAlgorithm) RemoveInstances(p placement.Placement, l
 		if err := ph.placeShards(instance.Shards().All(), instance, ph.Instances()); err != nil {
 			return nil, err
 		}
-
 	}
 	p = ph.generatePlacement()
+
+	for _, instance := range leavingInstances {
+		p, _, err = addInstanceToPlacement(p, instance, withShards)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return tryCleanupShardState(p, a.opts)
 }
 

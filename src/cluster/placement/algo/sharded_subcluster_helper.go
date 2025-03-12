@@ -356,7 +356,7 @@ func (sph *subClusterShardedHelper) moveShard(candidateShard shard.Shard, from, 
 	newShard := shard.NewShard(shardID)
 
 	if from != nil {
-		sph.removeShardFromInstance(candidateShard, to, from, sph.subClusterMap[from.SubClusterID()])
+		newShard = sph.removeShardFromInstance(candidateShard, to, from, sph.subClusterMap[from.SubClusterID()])
 	}
 
 	curShard, ok := to.Shards().Shard(shardID)
@@ -690,7 +690,7 @@ func (sph *subClusterShardedHelper) assignShardToInstance(s shard.Shard, to plac
 	sph.shardToInstanceMap[s.ID()][to] = struct{}{}
 }
 
-func (sph *subClusterShardedHelper) removeShardFromInstance(s shard.Shard, to, from placement.Instance, cluster *subCluster) {
+func (sph *subClusterShardedHelper) removeShardFromInstance(s shard.Shard, to, from placement.Instance, cluster *subCluster) shard.Shard {
 	shardID := s.ID()
 	newShard := shard.NewShard(shardID)
 	// nolint:exhaustive
@@ -704,7 +704,7 @@ func (sph *subClusterShardedHelper) removeShardFromInstance(s shard.Shard, to, f
 		newShard.SetSourceID(from.ID())
 	}
 	if cluster == nil {
-		return
+		return newShard
 	}
 
 	if len(cluster.shardToInstanceMap[shardID]) == sph.rf && from.SubClusterID() != to.SubClusterID() {
@@ -714,6 +714,7 @@ func (sph *subClusterShardedHelper) removeShardFromInstance(s shard.Shard, to, f
 	if len(cluster.shardToInstanceMap[shardID]) == 0 {
 		delete(cluster.shardToInstanceMap, shardID)
 	}
+	return newShard
 }
 
 func (sph *subClusterShardedHelper) deterministicShuffle(arr []shard.Shard) {
