@@ -1321,19 +1321,19 @@ func (s *session) writeAttempt(
 	// 	zap.Any("enqueued", enqueued),
 	// )
 
-	beforeLockenqueued := enqueued
+	// beforeLockenqueued := enqueued
 
 	// it's safe to Wait() here, as we still hold the lock on state, after it's
 	// returned from writeAttemptWithRLock.
 	state.Wait()
 
-	s.log.Info("writeAttemptWithRLock called after wait..",
-		zap.Any("majority", majority),
-		zap.Any("enqueued", enqueued),
-		zap.Any("beforeLockenqueued", beforeLockenqueued),
-	)
+	// s.log.Info("writeAttemptWithRLock called after wait..",
+	// 	zap.Any("majority", majority),
+	// 	zap.Any("enqueued", enqueued),
+	// 	zap.Any("beforeLockenqueued", beforeLockenqueued),
+	// )
 
-	err = s.writeConsistencyResult(state.consistencyLevel, majority, enqueued, state.success,
+	err = s.writeConsistencyResult(state.consistencyLevel, majority, enqueued,
 		enqueued-state.pending, int32(len(state.errors)), state.errors)
 
 	s.recordWriteMetrics(err, state, startWriteAttempt)
@@ -1444,17 +1444,17 @@ func (s *session) writeAttemptWithRLock(
 		hostShard shard.Shard,
 		host topology.Host,
 	) {
-		s.log.Info("RouteForEach called..",
-			zap.Any("idx", idx),
-			zap.Any("hostShardState", hostShard.State()),
-			zap.Any("writeShardsInitializing", s.writeShardsInitializing),
-			zap.Any("shardsLeavingCountTowardsConsistency", s.shardsLeavingCountTowardsConsistency),
-			zap.Any("shardsLeavingAndInitializingCountTowardsConsistency", s.shardsLeavingAndInitializingCountTowardsConsistency),
-		)
+		// s.log.Info("RouteForEach called..",
+		// 	zap.Any("idx", idx),
+		// 	zap.Any("hostShardState", hostShard.State()),
+		// 	zap.Any("writeShardsInitializing", s.writeShardsInitializing),
+		// 	zap.Any("shardsLeavingCountTowardsConsistency", s.shardsLeavingCountTowardsConsistency),
+		// 	zap.Any("shardsLeavingAndInitializingCountTowardsConsistency", s.shardsLeavingAndInitializingCountTowardsConsistency),
+		// )
 
 		if !s.writeShardsInitializing && hostShard.State() == shard.Initializing {
 
-			s.log.Info("RouteForEach do not write if called..")
+			// s.log.Info("RouteForEach do not write if called..")
 			// NB(r): Do not write to this node as the shard is initializing
 			// and writing to intialized shards is not enabled (also
 			// depending on your config initializing shards won't count
@@ -1475,14 +1475,14 @@ func (s *session) writeAttemptWithRLock(
 	// 	zap.Any("lenq", len(state.queues)),
 	// )
 
-	beforeLockenqueued := len(state.queues)
+	// beforeLockenqueued := len(state.queues)
 
 	state.Lock()
 
-	s.log.Info("state queues length after lock",
-		zap.Any("lenq", len(state.queues)),
-		zap.Any("beforeLockenqueued", beforeLockenqueued),
-	)
+	// s.log.Info("state queues length after lock",
+	// 	zap.Any("lenq", len(state.queues)),
+	// 	zap.Any("beforeLockenqueued", beforeLockenqueued),
+	// )
 
 	for i := range state.queues {
 		state.incRef()
@@ -2188,15 +2188,15 @@ func (s *session) fetchIDsAttempt(
 
 func (s *session) writeConsistencyResult(
 	level topology.ConsistencyLevel,
-	majority, enqueued, successCount, responded, resultErrs int32,
+	majority, enqueued, responded, resultErrs int32,
 	errs []error,
 ) error {
-	s.log.Info("writeConsistencyResult called..",
-		zap.Any("successCount", successCount),
-		zap.Any("majority", majority),
-		zap.Any("enqueued", enqueued),
-		zap.Any("resultErrs", resultErrs),
-	)
+	// s.log.Info("writeConsistencyResult called..",
+	// 	// zap.Any("successCount", successCount),
+	// 	zap.Any("majority", majority),
+	// 	zap.Any("enqueued", enqueued),
+	// 	zap.Any("resultErrs", resultErrs),
+	// )
 
 	// if successCount < majority && s.shardsLeavingAndInitializingCountTowardsConsistency {
 	// 	s.log.Info("newConsistencyResultError new called..")
@@ -2204,7 +2204,7 @@ func (s *session) writeConsistencyResult(
 	// }
 
 	// Check consistency level satisfied
-	success := successCount
+	success := enqueued - resultErrs
 	if !topology.WriteConsistencyAchieved(level, int(majority), int(enqueued), int(success)) {
 		s.log.Info("newConsistencyResultError old called..")
 		return newConsistencyResultError(level, int(enqueued), int(responded), errs)
