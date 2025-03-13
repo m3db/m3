@@ -693,7 +693,7 @@ func (q *queue) asyncWrite(
 		}
 		if err == nil {
 			// All succeeded
-			fmt.Printf("WriteBatchRaw All succeeded..")
+			fmt.Println("WriteBatchRaw All succeeded..host=", q.host)
 			callAllCompletionFns(ops, q.host, nil)
 			cleanup()
 			return
@@ -702,7 +702,7 @@ func (q *queue) asyncWrite(
 		if batchErrs, ok := err.(*rpc.WriteBatchRawErrors); ok {
 			// Callback all writes with errors
 			hasErr := make(map[int]struct{})
-			fmt.Printf("WriteBatchRawErrors found..")
+			fmt.Println("WriteBatchRawErrors found..host=", q.host)
 			for _, batchErr := range batchErrs.Errors {
 				op := ops[batchErr.Index]
 				op.CompletionFn()(q.host, batchErr.Err)
@@ -720,7 +720,7 @@ func (q *queue) asyncWrite(
 		}
 
 		// Entire batch failed
-		fmt.Printf("Entire batch failed..")
+		fmt.Println("Entire batch failed..host=", q.host)
 		callAllCompletionFns(ops, q.host, err)
 		cleanup()
 	})
