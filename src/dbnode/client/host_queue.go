@@ -693,7 +693,7 @@ func (q *queue) asyncWrite(
 		}
 		if err == nil {
 			// All succeeded
-			fmt.Println("WriteBatchRaw All succeeded..host=", q.host)
+			fmt.Println("WriteBatchRaw All succeeded..host=", q.host, "batchSize=", len(req.GetElements()))
 			callAllCompletionFns(ops, q.host, nil)
 			cleanup()
 			return
@@ -720,7 +720,7 @@ func (q *queue) asyncWrite(
 		}
 
 		// Entire batch failed
-		fmt.Println("Entire batch failed..host=", q.host)
+		fmt.Println("Entire batch failed..host=", q.host, "batchSize=", len(req.GetElements()))
 		callAllCompletionFns(ops, q.host, err)
 		cleanup()
 	})
