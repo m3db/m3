@@ -485,6 +485,7 @@ func (s *session) newPeerMetadataStreamingProgressMetrics(
 }
 
 func (s *session) recordWriteMetrics(consistencyResultErr error, state *writeState, start time.Time) {
+	s.log.Info("recordWriteMetrics called..")
 	respErrs := int32(len(state.errors))
 	if idx := s.nodesRespondingErrorsMetricIndex(respErrs); idx >= 0 {
 		if IsBadRequestError(consistencyResultErr) {
@@ -498,11 +499,13 @@ func (s *session) recordWriteMetrics(consistencyResultErr error, state *writeSta
 		if state.leavingAndInitializingPairCounted {
 			s.metrics.writeSuccessForCountLeavingAndInitializingAsPair.Inc(1)
 		} else {
+			s.log.Info("writeSuccess metric called..")
 			s.metrics.writeSuccess.Inc(1)
 		}
 	} else if IsBadRequestError(consistencyResultErr) {
 		s.metrics.writeErrorsBadRequest.Inc(1)
 	} else {
+		s.log.Info("writeErrorsInternalError metric called..")
 		s.metrics.writeErrorsInternalError.Inc(1)
 	}
 	s.metrics.writeLatencyHistogram.RecordDuration(s.nowFn().Sub(start))
