@@ -657,7 +657,7 @@ func (q *queue) asyncWrite(
 	ops []op,
 	elems []*rpc.WriteBatchRawRequestElement,
 ) {
-	fmt.Printf("asyncWrite called ...")
+	fmt.Printf("asyncWrite called ... queue size in asyncWrite", q.size, "connection count=", q.connPool.ConnectionCount())
 	q.writeOpBatchSize.RecordValue(float64(len(elems)))
 	q.Add(1)
 	q.workerPool.Go(func() {
@@ -679,17 +679,21 @@ func (q *queue) asyncWrite(
 		client, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
+			fmt.Printf("No client available called..host=", q.host)
 			callAllCompletionFns(ops, q.host, err)
 			cleanup()
 			return
 		}
-
+		fmt.Printf("WriteBatchRaw called for entries: WriteRequestTimeout", q.opts.WriteRequestTimeout())
 		ctx, _ := thrift.NewContext(q.opts.WriteRequestTimeout())
 		err = client.WriteBatchRaw(ctx, req)
 
-		fmt.Printf("WriteBatchRaw called for entries:")
 		for _, reqEntry := range req.GetElements() {
 			fmt.Println("reqEntry.ID ", string(reqEntry.GetID()))
+		}
+
+		if err != nil {
+			fmt.Printf("WriteBatchRaw failed with error", err, "host=", q.host)
 		}
 		if err == nil {
 			// All succeeded
@@ -1078,7 +1082,11 @@ func (q *queue) Enqueue(o op) error {
 	q.ops = append(q.ops, o)
 	q.opsSumSize += o.Size()
 	// If queue is full flush
+
+	fmt.Println("queue size=", q.size, "opsSumSize", q.opsSumSize, "host=", q.host)
+
 	if q.opsSumSize >= q.size {
+		fmt.Println("queue flush called..")
 		needsDrain = q.rotateOpsWithLock()
 	}
 	// Need to hold lock while writing to the drainIn

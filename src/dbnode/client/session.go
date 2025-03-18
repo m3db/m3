@@ -2209,7 +2209,7 @@ func (s *session) writeConsistencyResult(
 	// Check consistency level satisfied
 	success := enqueued - resultErrs
 	if !topology.WriteConsistencyAchieved(level, int(majority), int(enqueued), int(success)) {
-		s.log.Info("newConsistencyResultError old called..")
+		// s.log.Info("newConsistencyResultError old called..")
 		return newConsistencyResultError(level, int(enqueued), int(responded), errs)
 	}
 
