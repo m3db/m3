@@ -684,8 +684,8 @@ func (q *queue) asyncWrite(
 			cleanup()
 			return
 		}
-		fmt.Printf("WriteBatchRaw called for entries: WriteRequestTimeout", q.opts.WriteRequestTimeout())
-		ctx, _ := thrift.NewContext(q.opts.WriteRequestTimeout())
+		// fmt.Printf("WriteBatchRaw called for entries: WriteRequestTimeout", q.opts.WriteRequestTimeout())
+		ctx, _ := thrift.NewContext(time.Duration(1) * time.Second)
 		err = client.WriteBatchRaw(ctx, req)
 
 		for _, reqEntry := range req.GetElements() {
