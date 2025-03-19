@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
@@ -78,6 +79,7 @@ type queue struct {
 	fetchOpBatchSize                             tally.Histogram
 	status                                       status
 	serverSupportsV2APIs                         bool
+	timeoutCount                                 int
 }
 
 func newHostQueue(
@@ -685,14 +687,26 @@ func (q *queue) asyncWrite(
 			return
 		}
 		// fmt.Printf("WriteBatchRaw called for entries: WriteRequestTimeout", q.opts.WriteRequestTimeout())
-		ctx, _ := thrift.NewContext(time.Duration(1) * time.Second)
-		err = client.WriteBatchRaw(ctx, req)
+		// ctx, _ := thrift.NewContext(time.Duration(1) * time.Second)
+		ctx, _ := thrift.NewContext(q.opts.WriteRequestTimeout())
+
+		if q.timeoutCount <= 10 {
+			fmt.Printf("Sending req for host", q.host, "count=", q.timeoutCount)
+			err = client.WriteBatchRaw(ctx, req)
+		} else {
+			fmt.Printf("Not sending req for host", q.host, "count=", q.timeoutCount)
+			err = errors.New("Slow node detected, not sending request..")
+		}
 
 		for _, reqEntry := range req.GetElements() {
 			fmt.Println("reqEntry.ID ", string(reqEntry.GetID()))
 		}
 
 		if err != nil {
+			if strings.Contains(err.Error(), "ErrCodeTimeout") {
+				fmt.Printf("Updating timeoutcount for host", q.host, "currentcount=", q.timeoutCount)
+				q.timeoutCount++
+			}
 			fmt.Printf("WriteBatchRaw failed with error", err, "host=", q.host)
 		}
 		if err == nil {
