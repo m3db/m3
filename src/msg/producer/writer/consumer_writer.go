@@ -21,10 +21,12 @@
 package writer
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"sync"
 	"time"
@@ -45,6 +47,7 @@ const (
 
 var (
 	errInvalidConnection = errors.New("connection is invalid")
+	errFlushInProgress   = errors.New("flush already in progress")
 	u                    uninitializedReadWriter
 )
 
@@ -55,31 +58,43 @@ type consumerWriter interface {
 	// Write writes the bytes, it is thread safe per connection index.
 	Write(connIndex int, b []byte) error
 
+	// Write writes the bytes, it is thread safe per connection index.
+	Flush(connIndex int) error
+
 	// Init initializes the consumer writer.
 	Init()
 
 	// Close closes the consumer writer.
 	Close()
+
+	// BufferedBytes returns the number of buffered bytes waiting to be sent to this consumer.
+	// Note that this only accounts to the bytes buffered in the bufio layer and not
+	// the bytes within the TCP sendbuffer.
+	AvailableBuffer(connIndex int) int
 }
 
 type consumerWriterMetrics struct {
-	writeInvalidConn            tally.Counter
-	readInvalidConn             tally.Counter
-	ackError                    tally.Counter
-	decodeError                 tally.Counter
-	encodeError                 tally.Counter
-	resetTooSoon                tally.Counter
-	resetSuccess                tally.Counter
-	resetError                  tally.Counter
-	connectError                tally.Counter
-	setKeepAliveError           tally.Counter
-	setKeepAlivePeriodError     tally.Counter
-	cwWriteTimeoutError         tally.Counter
-	cwFlushTimeoutError         tally.Counter
-	cwFlushLatency              tally.Histogram
-	cwFlushLatencyWithLock      tally.Histogram
-	cwWriteErrorLatency         tally.Histogram
-	cwWriteErrorLatencyWithLock tally.Histogram
+	writeInvalidConn               tally.Counter
+	readInvalidConn                tally.Counter
+	ackError                       tally.Counter
+	decodeError                    tally.Counter
+	encodeError                    tally.Counter
+	resetTooSoon                   tally.Counter
+	resetSuccess                   tally.Counter
+	resetError                     tally.Counter
+	connectError                   tally.Counter
+	setKeepAliveError              tally.Counter
+	setKeepAlivePeriodError        tally.Counter
+	cwWriteTimeoutError            tally.Counter
+	cwFlushTimeoutError            tally.Counter
+	cwFlushLatency                 tally.Histogram
+	cwFlushLatencyWithLock         tally.Histogram
+	cwBlockingFlushTimeoutError    tally.Counter
+	cwBlockingFlushLatency         tally.Histogram
+	cwBlockingFlushLatencyWithLock tally.Histogram
+	cwWriteErrorLatency            tally.Histogram
+	cwWriteErrorLatencyWithLock    tally.Histogram
+	cwBufioWriterCastError         tally.Counter
 }
 
 func newConsumerWriterMetrics(scope tally.Scope) consumerWriterMetrics {
@@ -101,10 +116,16 @@ func newConsumerWriterMetrics(scope tally.Scope) consumerWriterMetrics {
 			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
 		cwFlushLatencyWithLock: scope.Histogram("cw-flush-latency-with-lock",
 			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
+		cwBlockingFlushTimeoutError: scope.Counter("cw-blocking-flush-timeout-error"),
+		cwBlockingFlushLatency: scope.Histogram("cw-blocking-flush-latency",
+			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
+		cwBlockingFlushLatencyWithLock: scope.Histogram("cw-blocking-flush-latency-with-lock",
+			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
 		cwWriteErrorLatency: scope.Histogram("cw-write-error-latency",
 			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
 		cwWriteErrorLatencyWithLock: scope.Histogram("cw-write-error-latency-with-lock",
 			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
+		cwBufioWriterCastError: scope.Counter("cw-bufio-writer-cast-error"),
 	}
 }
 
@@ -147,11 +168,12 @@ type consumerWriterImplWriteState struct {
 }
 
 type connection struct {
-	writeLock sync.Mutex
-	conn      io.ReadWriteCloser
-	w         xio.ResettableWriter
-	decoder   proto.Decoder
-	ack       msgpb.Ack
+	writeLock       sync.Mutex
+	conn            io.ReadWriteCloser
+	w               xio.ResettableWriter
+	decoder         proto.Decoder
+	ack             msgpb.Ack
+	flushInProgress bool
 }
 
 func newConsumerWriter(
@@ -275,6 +297,77 @@ func (w *consumerWriterImpl) Init() {
 		w.flushUntilClose()
 		w.wg.Done()
 	}()
+}
+
+// Flush the data for a single connection in the consumer writer.
+func (w *consumerWriterImpl) Flush(connIndex int) error {
+	w.writeState.RLock()
+	if !w.writeState.validConns || len(w.writeState.conns) == 0 {
+		w.writeState.RUnlock()
+		w.m.writeInvalidConn.Inc(1)
+		return errInvalidConnection
+	}
+	if connIndex < 0 || connIndex >= len(w.writeState.conns) {
+		w.writeState.RUnlock()
+		return fmt.Errorf("connection index out of range: %d", connIndex)
+	}
+
+	writeConn := w.writeState.conns[connIndex]
+	// Make sure this is the only writer to this connection.
+	startFlushWithLockTs := w.nowFn()
+
+	writeConn.writeLock.Lock()
+	startFlushTs := w.nowFn()
+	if writeConn.flushInProgress {
+		writeConn.writeLock.Unlock()
+		w.writeState.RUnlock()
+		w.logger.Warn("consumer writer blocking flush already in progress", zap.String("address", w.addr))
+		return errFlushInProgress
+	}
+
+	// Set flush in progress to true.
+	writeConn.flushInProgress = true
+
+	if err := writeConn.w.Flush(); err != nil {
+		var netErr *net.OpError
+		if errors.As(err, &netErr) && netErr.Timeout() {
+			w.logger.Warn("consumer writer blocking flush timeout", zap.String("address", w.addr))
+			w.m.cwBlockingFlushTimeoutError.Inc(1)
+		}
+		w.notifyReset(err)
+	}
+	endFlushTs := w.nowFn()
+
+	// Set flush in progress to false.
+	writeConn.flushInProgress = true
+
+	writeConn.writeLock.Unlock()
+	endFlushWithLockTs := w.nowFn()
+
+	w.writeState.RUnlock()
+
+	w.m.cwBlockingFlushLatency.RecordDuration(endFlushTs.Sub(startFlushTs))
+	w.m.cwBlockingFlushLatencyWithLock.RecordDuration(endFlushWithLockTs.Sub(startFlushWithLockTs))
+
+	return nil
+}
+
+func (w *consumerWriterImpl) AvailableBuffer(connIndex int) int {
+	w.writeState.RLock()
+	defer w.writeState.RUnlock()
+	if connIndex < 0 || connIndex >= len(w.writeState.conns) {
+		return 0
+	}
+	conn := w.writeState.conns[connIndex]
+	if conn.w == nil {
+		return 0
+	}
+	buf, ok := conn.w.(*bufio.Writer)
+	if !ok {
+		w.m.cwBufioWriterCastError.Inc(1)
+		return math.MaxInt
+	}
+	return buf.Available()
 }
 
 func (w *consumerWriterImpl) flushUntilClose() {
