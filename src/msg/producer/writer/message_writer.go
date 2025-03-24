@@ -164,6 +164,12 @@ func newMessageWriterMetricsWithConsumer(
 		processedDrop: consumerScope.
 			Tagged(map[string]string{"result": "drop"}).
 			Counter("message-processed"),
+		blockingFlush:         consumerScope.Counter("blocking-flush"),
+		noNonBlockingConsumer: consumerScope.Counter("no-non-blocking-consumer"),
+		pickLeastLoadedConsumerLatency: consumerScope.Histogram(
+			"pick-least-loaded-consumer-latency",
+			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15),
+		),
 	}
 }
 
