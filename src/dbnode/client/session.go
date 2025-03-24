@@ -1399,11 +1399,13 @@ func (s *session) writeAttemptWithRLock(
 		wop := s.pools.writeOperation.Get()
 		wop.namespace = nsID
 
-		shardID, _ := strconv.Atoi((tsID.String()))
-		fmt.Println("untaggedWriteAttemptType shardID=", shardID)
+		// shardID, _ := strconv.Atoi((tsID.String()))
+		// fmt.Println("untaggedWriteAttemptType shardID=", shardID)
 
-		// wop.shardID = s.state.topoMap.ShardSet().Lookup(tsID)
-		wop.shardID = uint32(shardID)
+		wop.shardID = s.state.topoMap.ShardSet().Lookup(tsID)
+
+		fmt.Println("untaggedWriteAttemptType shardID=", wop.shardID, "tsID=", tsID)
+		// wop.shardID = uint32(shardID)
 		wop.request.ID = tsID.Bytes()
 		wop.request.Datapoint.Value = value
 		wop.request.Datapoint.Timestamp = timestamp
@@ -1415,12 +1417,14 @@ func (s *session) writeAttemptWithRLock(
 	case taggedWriteAttemptType:
 		wop := s.pools.writeTaggedOperation.Get()
 		wop.namespace = nsID
-		shardID, _ := strconv.Atoi((tsID.String()))
-		wop.shardID = uint32(shardID)
+		// shardID, _ := strconv.Atoi((tsID.String()))
+		// wop.shardID = uint32(shardID)
 
-		fmt.Println("taggedWriteAttemptType shardID=", shardID)
+		// fmt.Println("taggedWriteAttemptType shardID=", shardID)
 
-		// wop.shardID = s.state.topoMap.ShardSet().Lookup(tsID)
+		wop.shardID = s.state.topoMap.ShardSet().Lookup(tsID)
+		fmt.Println("taggedWriteAttemptType shardID=", wop.shardID, "tsID=", tsID)
+
 		wop.request.ID = tsID.Bytes()
 		encodedTagBytes, ok := tagEncoder.Data()
 		if !ok {
