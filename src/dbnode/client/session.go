@@ -273,6 +273,13 @@ func newSession(opts Options) (clientSession, error) {
 		return nil, err
 	}
 
+	for _, shardSet := range topo.Get().HostShardSets() {
+		fmt.Println("shardSet host=", shardSet.Host())
+		for _, shardIdInSet := range shardSet.ShardSet().AllIDs() {
+			fmt.Print("shardIdInSet", shardIdInSet)
+		}
+	}
+
 	logWriteErrorSampler, err := sampler.NewSampler(opts.LogErrorSampleRate())
 	if err != nil {
 		return nil, err
