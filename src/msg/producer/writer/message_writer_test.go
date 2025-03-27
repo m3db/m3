@@ -762,6 +762,22 @@ func TestMessageWriter_WithoutConsumerScope(t *testing.T) {
 	require.NotNil(t, counters["message-processed+result=write"])
 }
 
+func TestMessageWriterChooseConsumerWriter(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testOptions().SetMessageQueueScanBatchSize(1)
+	scope := tally.NewTestScope("", nil)
+	metrics := newMessageWriterMetrics(scope, instrument.TimerOptions{}, true)
+	w := newMessageWriter(200, nil, opts, metrics)
+	w.AddConsumerWriter(newConsumerWriter("bad", nil, opts, testConsumerWriterMetrics()))
+
+	snapshot := scope.Snapshot()
+	counters := snapshot.Counters()
+	require.Nil(t, counters["message-processed+consumer=c1,result=write"])
+	require.NotNil(t, counters["message-processed+result=write"])
+}
+
 func isEmptyWithLock(h *acks) bool {
 	return h.size() == 0
 }

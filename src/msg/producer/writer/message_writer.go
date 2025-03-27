@@ -51,40 +51,41 @@ var (
 const _recordMessageDelayEvery = 4 // keep it a power of two value to keep modulo fast
 
 type messageWriterMetrics struct {
-	withoutConsumerScope        bool
-	scope                       tally.Scope
-	opts                        instrument.TimerOptions
-	writeSuccess                tally.Counter
-	oneConsumerWriteError       tally.Counter
-	allConsumersWriteError      tally.Counter
-	noWritersError              tally.Counter
-	writeAfterCutoff            tally.Counter
-	writeBeforeCutover          tally.Counter
-	messageAcked                tally.Counter
-	messageClosed               tally.Counter
-	messageDroppedBufferFull    tally.Counter
-	messageDroppedTTLExpire     tally.Counter
-	messageRetry                tally.Counter
-	messageConsumeLatency       tally.Timer
-	messageWriteDelay           tally.Timer
-	scanBatchLatency            tally.Timer
-	scanTotalLatency            tally.Timer
-	writeSuccessLatency         tally.Histogram
-	writeErrorLatency           tally.Histogram
-	enqueuedMessages            tally.Counter
-	dequeuedMessages            tally.Counter
-	processedWrite              tally.Counter
-	processedClosed             tally.Counter
-	processedNotReady           tally.Counter
-	processedTTL                tally.Counter
-	processedAck                tally.Counter
-	processedDrop               tally.Counter
-	blockingFlush               tally.Counter
-	blockingFlushTimeout        tally.Counter
-	blockingFlushFailedOne      tally.Counter
-	blockingFlushFailedAll      tally.Counter
-	blockingFlushLatency        tally.Histogram
-	blockingFlushSingleConsumer tally.Counter
+	withoutConsumerScope       bool
+	scope                      tally.Scope
+	opts                       instrument.TimerOptions
+	writeSuccess               tally.Counter
+	oneConsumerWriteError      tally.Counter
+	allConsumersWriteError     tally.Counter
+	noWritersError             tally.Counter
+	writeAfterCutoff           tally.Counter
+	writeBeforeCutover         tally.Counter
+	messageAcked               tally.Counter
+	messageClosed              tally.Counter
+	messageDroppedBufferFull   tally.Counter
+	messageDroppedTTLExpire    tally.Counter
+	messageRetry               tally.Counter
+	messageConsumeLatency      tally.Timer
+	messageWriteDelay          tally.Timer
+	scanBatchLatency           tally.Timer
+	scanTotalLatency           tally.Timer
+	writeSuccessLatency        tally.Histogram
+	writeErrorLatency          tally.Histogram
+	enqueuedMessages           tally.Counter
+	dequeuedMessages           tally.Counter
+	processedWrite             tally.Counter
+	processedClosed            tally.Counter
+	processedNotReady          tally.Counter
+	processedTTL               tally.Counter
+	processedAck               tally.Counter
+	processedDrop              tally.Counter
+	forcedFlush                tally.Counter
+	forcedFlushTimeout         tally.Counter
+	forcedFlushFailedOne       tally.Counter
+	forcedFlushFailedAll       tally.Counter
+	forcedFlushLatency         tally.Histogram
+	forcedFlushSingleConsumer  tally.Counter
+	forcedFlushNotEnoughBuffer tally.Counter
 }
 
 func (m *messageWriterMetrics) withConsumer(consumer string) *messageWriterMetrics {
@@ -167,15 +168,16 @@ func newMessageWriterMetricsWithConsumer(
 		processedDrop: consumerScope.
 			Tagged(map[string]string{"result": "drop"}).
 			Counter("message-processed"),
-		blockingFlush:          consumerScope.Counter("blocking-flush"),
-		blockingFlushTimeout:   consumerScope.Counter("blocking-flush-all-blocked"),
-		blockingFlushFailedOne: consumerScope.Counter("blocking-flush-failed-one"),
-		blockingFlushFailedAll: consumerScope.Counter("blocking-flush-failed-all"),
-		blockingFlushLatency: consumerScope.Histogram(
-			"blocking-flush-latency",
+		forcedFlush:          consumerScope.Counter("forced-flush"),
+		forcedFlushTimeout:   consumerScope.Counter("forced-flush-timeout"),
+		forcedFlushFailedOne: consumerScope.Counter("forced-flush-failed-one"),
+		forcedFlushFailedAll: consumerScope.Counter("forced-flush-failed-all"),
+		forcedFlushLatency: consumerScope.Histogram(
+			"forced-flush-latency",
 			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15),
 		),
-		blockingFlushSingleConsumer: consumerScope.Counter("blocking-flush-single-consumer"),
+		forcedFlushSingleConsumer:  consumerScope.Counter("forced-flush-single-consumer"),
+		forcedFlushNotEnoughBuffer: consumerScope.Counter("forced-flush-not-enough-buffer"),
 	}
 }
 
@@ -850,56 +852,104 @@ func (w *messageWriter) chooseConsumerWriter(
 	writeLen int,
 ) consumerWriter {
 	if len(consumerWriters) == 1 {
-		w.Metrics().blockingFlushSingleConsumer.Inc(1)
+		w.Metrics().forcedFlushSingleConsumer.Inc(1)
 		return consumerWriters[0]
 	}
 	// find the consumer writer with the max available buffer.
-	max := consumerWriters[0]
-	for i := 1; i < len(consumerWriters); i++ {
-		if consumerWriters[i].AvailableBuffer(connIndex) > max.AvailableBuffer(connIndex) {
-			max = consumerWriters[i]
-		}
-	}
+	max, maxBuf := w.getConsumerWriterWithMaxBuffer(consumerWriters, connIndex)
 
 	// if the available buffer is able to accommodate the write, return the consumer writer.
 	// This means that the consumer writer will not be blocked on the write.
-	if max.AvailableBuffer(connIndex) >= writeLen {
+	if maxBuf >= writeLen {
 		return max
 	}
 
 	m := w.Metrics()
-	m.blockingFlush.Inc(1)
+	m.forcedFlush.Inc(1)
 
 	startTs := w.nowFn().UnixNano()
 	// Since we are not able to find a consumer writer that can accommodate the write,
-	// we initiate a blocking flush on all available the consumer writers.
+	// we initiate a forced flush on all available the consumer writers.
 	// The first one to return will be the chosen as the least loaded consumer writer.
-	// Note that doing a blocking operation on all consumer writers is fine since, a Write()
-	// will anyway invoke a blocking Flush(). But the downside of simply invoking a write
+	// Note that doing a forced operation on all consumer writers is fine since, a Write()
+	// will anyway invoke a forced Flush(). But the downside of simply invoking a write
 	// is that the entire consumer writer will be blocked in that process.
-	// Therefore it makes sense to initiate a blocking Flush() on all available consumer
+	// Therefore it makes sense to initiate a forced Flush() on all available consumer
 	// writers and wait for the first one to return. This way, we can utilize the connections
 	// to the replicas if available in a more efficient manner.
-	var doneCh = make(chan int, len(consumerWriters))
+	doneCh := make(chan int, len(consumerWriters))
+	// intentionally leave the doneCh open to avoid panics in case a forcedFlush finishes afte
+	// this function returns.
+	w.beginForcedFlush(doneCh, consumerWriters, connIndex)
+
+	// wait for first consumer writer to finish.
+	cw := w.waitForForcedFlush(doneCh, consumerWriters)
+	if cw != nil {
+		max = cw
+		if cw.AvailableBuffer(connIndex) < writeLen {
+			// The consumer writer should have enough buffer to accommodate the write.
+			// if not, log and emit a metric.
+			m.forcedFlushNotEnoughBuffer.Inc(1)
+		}
+	}
+
+	m.forcedFlushLatency.RecordDuration(time.Duration(w.nowFn().UnixNano() - startTs))
+
+	// return the consumer writer with the max buffer or the consumer writer that
+	// returned first from the forced flush operation.
+	return max
+}
+
+func (w *messageWriter) beginForcedFlush(
+	doneCh chan<- int,
+	consumerWriters []consumerWriter,
+	connIndex int,
+) {
+	m := w.Metrics()
 	for i := range consumerWriters {
 		i := i
 		go func(idx int) {
-			if err := consumerWriters[idx].Flush(connIndex); err != nil {
-				m.blockingFlushFailedOne.Inc(1)
+			if err := consumerWriters[idx].ForcedFlush(connIndex); err != nil {
+				m.forcedFlushFailedOne.Inc(1)
 				doneCh <- -1
 				return
 			}
 			doneCh <- idx
 		}(i)
 	}
+}
 
-	// In case both the consumer writers are blocked for more than a second,
-	// we will short circuit and return the consumer writer with the max available buffer.
+func (w *messageWriter) getConsumerWriterWithMaxBuffer(
+	consumerWriters []consumerWriter,
+	connIndex int,
+) (consumerWriter, int) {
+	max := consumerWriters[0]
+	maxBufSize := consumerWriters[0].AvailableBuffer(connIndex)
+	for i := 1; i < len(consumerWriters); i++ {
+		bufSize := consumerWriters[i].AvailableBuffer(connIndex)
+		if bufSize > maxBufSize {
+			max = consumerWriters[i]
+			maxBufSize = bufSize
+		}
+	}
+
+	return max, maxBufSize
+}
+
+// waitForForcedFlush returns the first consumerWriter to complete
+// the forced flush operation or nil if all consumer writers failed / timed out.
+func (w *messageWriter) waitForForcedFlush(
+	doneCh <-chan int,
+	consumerWriters []consumerWriter,
+) consumerWriter {
+	var cw consumerWriter
+	m := w.Metrics()
 	// wait for the first consumer writer to return.
-	t := time.NewTicker(w.opts.ConnectionOptions().BlockingFlushTimeout())
+	// In case both the consumer writers are blocked for more than forcedFlushTimeout time,
+	// we will short circuit and return nil.
+	t := time.NewTicker(w.opts.ConnectionOptions().ForcedFlushTimeout())
 	defer t.Stop()
 
-	success := false
 waitLoop:
 	for range len(consumerWriters) {
 		select {
@@ -909,20 +959,18 @@ waitLoop:
 				// wait for success or failure from the rest.
 				continue waitLoop
 			}
-			max = consumerWriters[idx]
-			success = true
+			cw = consumerWriters[idx]
 			break waitLoop // break from the loop as soon as we get the first consumer writer to return.
 		case <-t.C:
 			// if no consumer writer returns within the timeout, return the max consumer writer.
-			m.blockingFlushTimeout.Inc(1)
+			m.forcedFlushTimeout.Inc(1)
 			break waitLoop
 		}
 	}
 
-	if !success {
-		m.blockingFlushFailedAll.Inc(1)
+	if cw == nil {
+		m.forcedFlushFailedAll.Inc(1)
 	}
 
-	m.blockingFlushLatency.RecordDuration(time.Duration(w.nowFn().UnixNano() - startTs))
-	return max
+	return cw
 }

@@ -58,8 +58,8 @@ type consumerWriter interface {
 	// Write writes the bytes, it is thread safe per connection index.
 	Write(connIndex int, b []byte) error
 
-	// Write writes the bytes, it is thread safe per connection index.
-	Flush(connIndex int) error
+	// ForcedFlush forces a flush of the bytes in the buffer.
+	ForcedFlush(connIndex int) error
 
 	// Init initializes the consumer writer.
 	Init()
@@ -67,34 +67,34 @@ type consumerWriter interface {
 	// Close closes the consumer writer.
 	Close()
 
-	// BufferedBytes returns the number of buffered bytes waiting to be sent to this consumer.
-	// Note that this only accounts to the bytes buffered in the bufio layer and not
+	// AvailableBuffer returns the available capacity in bytes in the send buffer.
+	// Note that this only accounts for the capacity in the bufio layer and not
 	// the bytes within the TCP sendbuffer.
 	AvailableBuffer(connIndex int) int
 }
 
 type consumerWriterMetrics struct {
-	writeInvalidConn               tally.Counter
-	readInvalidConn                tally.Counter
-	ackError                       tally.Counter
-	decodeError                    tally.Counter
-	encodeError                    tally.Counter
-	resetTooSoon                   tally.Counter
-	resetSuccess                   tally.Counter
-	resetError                     tally.Counter
-	connectError                   tally.Counter
-	setKeepAliveError              tally.Counter
-	setKeepAlivePeriodError        tally.Counter
-	cwWriteTimeoutError            tally.Counter
-	cwFlushTimeoutError            tally.Counter
-	cwFlushLatency                 tally.Histogram
-	cwFlushLatencyWithLock         tally.Histogram
-	cwBlockingFlushTimeoutError    tally.Counter
-	cwBlockingFlushLatency         tally.Histogram
-	cwBlockingFlushLatencyWithLock tally.Histogram
-	cwWriteErrorLatency            tally.Histogram
-	cwWriteErrorLatencyWithLock    tally.Histogram
-	cwBufioWriterCastError         tally.Counter
+	writeInvalidConn             tally.Counter
+	readInvalidConn              tally.Counter
+	ackError                     tally.Counter
+	decodeError                  tally.Counter
+	encodeError                  tally.Counter
+	resetTooSoon                 tally.Counter
+	resetSuccess                 tally.Counter
+	resetError                   tally.Counter
+	connectError                 tally.Counter
+	setKeepAliveError            tally.Counter
+	setKeepAlivePeriodError      tally.Counter
+	cwWriteTimeoutError          tally.Counter
+	cwFlushTimeoutError          tally.Counter
+	cwFlushLatency               tally.Histogram
+	cwFlushLatencyWithLock       tally.Histogram
+	cwForcedFlushTimeoutError    tally.Counter
+	cwForcedFlushLatency         tally.Histogram
+	cwForcedFlushLatencyWithLock tally.Histogram
+	cwWriteErrorLatency          tally.Histogram
+	cwWriteErrorLatencyWithLock  tally.Histogram
+	cwBufioWriterCastError       tally.Counter
 }
 
 func newConsumerWriterMetrics(scope tally.Scope) consumerWriterMetrics {
@@ -116,10 +116,10 @@ func newConsumerWriterMetrics(scope tally.Scope) consumerWriterMetrics {
 			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
 		cwFlushLatencyWithLock: scope.Histogram("cw-flush-latency-with-lock",
 			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
-		cwBlockingFlushTimeoutError: scope.Counter("cw-blocking-flush-timeout-error"),
-		cwBlockingFlushLatency: scope.Histogram("cw-blocking-flush-latency",
+		cwForcedFlushTimeoutError: scope.Counter("cw-forced-flush-timeout-error"),
+		cwForcedFlushLatency: scope.Histogram("cw-forced-flush-latency",
 			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
-		cwBlockingFlushLatencyWithLock: scope.Histogram("cw-blocking-flush-latency-with-lock",
+		cwForcedFlushLatencyWithLock: scope.Histogram("cw-forced-flush-latency-with-lock",
 			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
 		cwWriteErrorLatency: scope.Histogram("cw-write-error-latency",
 			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
@@ -301,8 +301,8 @@ func (w *consumerWriterImpl) Init() {
 	}()
 }
 
-// Flush the data for a single connection in the consumer writer.
-func (w *consumerWriterImpl) Flush(connIndex int) error {
+// ForcedFlush the data for a single connection in the consumer writer.
+func (w *consumerWriterImpl) ForcedFlush(connIndex int) error {
 	w.writeState.RLock()
 	if !w.writeState.validConns || len(w.writeState.conns) == 0 {
 		w.writeState.RUnlock()
@@ -334,7 +334,7 @@ func (w *consumerWriterImpl) Flush(connIndex int) error {
 		var netErr *net.OpError
 		if errors.As(err, &netErr) && netErr.Timeout() {
 			w.logger.Warn("consumer writer blocking flush timeout", zap.String("address", w.addr))
-			w.m.cwBlockingFlushTimeoutError.Inc(1)
+			w.m.cwForcedFlushTimeoutError.Inc(1)
 		}
 		w.notifyReset(err)
 	}
@@ -348,8 +348,8 @@ func (w *consumerWriterImpl) Flush(connIndex int) error {
 
 	w.writeState.RUnlock()
 
-	w.m.cwBlockingFlushLatency.RecordDuration(endFlushTs.Sub(startFlushTs))
-	w.m.cwBlockingFlushLatencyWithLock.RecordDuration(endFlushWithLockTs.Sub(startFlushWithLockTs))
+	w.m.cwForcedFlushLatency.RecordDuration(endFlushTs.Sub(startFlushTs))
+	w.m.cwForcedFlushLatencyWithLock.RecordDuration(endFlushWithLockTs.Sub(startFlushWithLockTs))
 
 	return nil
 }

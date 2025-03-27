@@ -70,7 +70,7 @@ func (noopWriter) Address() string         { return "" }
 func (noopWriter) Write(int, []byte) error { return nil }
 func (noopWriter) Init()                   {}
 func (noopWriter) Close()                  {}
-func (noopWriter) Flush(int) error         { return nil }
+func (noopWriter) ForcedFlush(int) error   { return nil }
 func (noopWriter) AvailableBuffer(int) int { return math.MaxInt }
 
 func BenchmarkAck(b *testing.B) {
