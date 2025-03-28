@@ -334,6 +334,13 @@ func (w *consumerWriterImpl) ForcedFlush(connIndex int) error {
 	// we need to perform a forced flush now.
 	w.writeState.forcedFlush.inProgress = true
 	w.writeState.forcedFlush.mu.Unlock()
+	defer func() {
+		// Set flush in progress to false.
+		w.writeState.forcedFlush.mu.Lock()
+		w.writeState.forcedFlush.inProgress = false
+		w.writeState.forcedFlush.cond.Broadcast()
+		w.writeState.forcedFlush.mu.Unlock()
+	}()
 
 	w.writeState.RLock()
 	if !w.writeState.validConns || len(w.writeState.conns) == 0 {
@@ -367,12 +374,6 @@ func (w *consumerWriterImpl) ForcedFlush(connIndex int) error {
 	endFlushWithLockTs := w.nowFn()
 
 	w.writeState.RUnlock()
-
-	// Set flush in progress to false.
-	w.writeState.forcedFlush.mu.Lock()
-	w.writeState.forcedFlush.inProgress = false
-	w.writeState.forcedFlush.cond.Broadcast()
-	w.writeState.forcedFlush.mu.Unlock()
 
 	w.m.cwForcedFlushLatency.RecordDuration(endFlushTs.Sub(startFlushTs))
 	w.m.cwForcedFlushLatencyWithLock.RecordDuration(endFlushWithLockTs.Sub(startFlushWithLockTs))
