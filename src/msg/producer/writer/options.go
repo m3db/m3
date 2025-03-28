@@ -131,10 +131,10 @@ type ConnectionOptions interface {
 	// the sendbuf and reset the connection when a close() is invoked.
 	SetAbortOnServerClose(value bool) ConnectionOptions
 
-	// ForcedFlushTimeout returns the timeout for blocking flush.
+	// ForcedFlushTimeout returns the timeout for forced flush.
 	ForcedFlushTimeout() time.Duration
 
-	// SetForcedFlushTimeout sets the timeout for blocking flush.
+	// SetForcedFlushTimeout sets the timeout for forced flush.
 	SetForcedFlushTimeout(value time.Duration) ConnectionOptions
 
 	// InstrumentOptions returns the instrument options.

@@ -47,7 +47,6 @@ const (
 
 var (
 	errInvalidConnection = errors.New("connection is invalid")
-	errFlushInProgress   = errors.New("flush already in progress")
 	u                    uninitializedReadWriter
 )
 
@@ -90,6 +89,7 @@ type consumerWriterMetrics struct {
 	cwFlushLatency               tally.Histogram
 	cwFlushLatencyWithLock       tally.Histogram
 	cwForcedFlushTimeoutError    tally.Counter
+	cwForcedFlushSkipped         tally.Counter
 	cwForcedFlushLatency         tally.Histogram
 	cwForcedFlushLatencyWithLock tally.Histogram
 	cwWriteErrorLatency          tally.Histogram
@@ -117,6 +117,7 @@ func newConsumerWriterMetrics(scope tally.Scope) consumerWriterMetrics {
 		cwFlushLatencyWithLock: scope.Histogram("cw-flush-latency-with-lock",
 			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
 		cwForcedFlushTimeoutError: scope.Counter("cw-forced-flush-timeout-error"),
+		cwForcedFlushSkipped:      scope.Counter("cw-forced-flush-skipped"),
 		cwForcedFlushLatency: scope.Histogram("cw-forced-flush-latency",
 			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
 		cwForcedFlushLatencyWithLock: scope.Histogram("cw-forced-flush-latency-with-lock",
@@ -165,15 +166,21 @@ type consumerWriterImplWriteState struct {
 	// to reuse.
 	conns          []*connection
 	lastResetNanos int64
+	forcedFlush    forcedFlushState
+}
+
+type forcedFlushState struct {
+	mu         sync.Mutex
+	cond       *sync.Cond
+	inProgress bool
 }
 
 type connection struct {
-	writeLock       sync.Mutex
-	conn            io.ReadWriteCloser
-	w               xio.ResettableWriter
-	decoder         proto.Decoder
-	ack             msgpb.Ack
-	flushInProgress bool
+	writeLock sync.Mutex
+	conn      io.ReadWriteCloser
+	w         xio.ResettableWriter
+	decoder   proto.Decoder
+	ack       msgpb.Ack
 }
 
 func newConsumerWriter(
@@ -201,6 +208,7 @@ func newConsumerWriter(
 		m:           m,
 		nowFn:       time.Now,
 	}
+	w.writeState.forcedFlush.cond = sync.NewCond(&w.writeState.forcedFlush.mu)
 	w.connectFn = w.connectNoRetry
 
 	// Initialize no-op connections since it's valid even if connecting the
@@ -301,8 +309,32 @@ func (w *consumerWriterImpl) Init() {
 	}()
 }
 
-// ForcedFlush the data for a single connection in the consumer writer.
+// ForcedFlush the data for a consumer writer.
 func (w *consumerWriterImpl) ForcedFlush(connIndex int) error {
+	waited := false
+	w.writeState.forcedFlush.mu.Lock()
+	for w.writeState.forcedFlush.inProgress {
+		waited = true
+		// Wait for the in progress flush to finish.
+		w.writeState.forcedFlush.cond.Wait()
+	}
+	if waited {
+		// we don't need to perform a flush as we just got done.
+		// simply
+		//   unblock other forcedflushers
+		// 	 release the lock
+		//   return success.
+		w.writeState.forcedFlush.cond.Broadcast()
+		w.writeState.forcedFlush.mu.Unlock()
+		w.logger.Info("forced flush skipped", zap.String("address", w.addr))
+		w.m.cwForcedFlushSkipped.Inc(1)
+		return nil
+	}
+
+	// we need to perform a forced flush now.
+	w.writeState.forcedFlush.inProgress = true
+	w.writeState.forcedFlush.mu.Unlock()
+
 	w.writeState.RLock()
 	if !w.writeState.validConns || len(w.writeState.conns) == 0 {
 		w.writeState.RUnlock()
@@ -320,33 +352,27 @@ func (w *consumerWriterImpl) ForcedFlush(connIndex int) error {
 
 	writeConn.writeLock.Lock()
 	startFlushTs := w.nowFn()
-	if writeConn.flushInProgress {
-		writeConn.writeLock.Unlock()
-		w.writeState.RUnlock()
-		w.logger.Warn("consumer writer blocking flush already in progress", zap.String("address", w.addr))
-		return errFlushInProgress
-	}
-
-	// Set flush in progress to true.
-	writeConn.flushInProgress = true
 
 	if err := writeConn.w.Flush(); err != nil {
 		var netErr *net.OpError
 		if errors.As(err, &netErr) && netErr.Timeout() {
-			w.logger.Warn("consumer writer blocking flush timeout", zap.String("address", w.addr))
+			w.logger.Warn("consumer writer forced flush timeout", zap.String("address", w.addr))
 			w.m.cwForcedFlushTimeoutError.Inc(1)
 		}
 		w.notifyReset(err)
 	}
 	endFlushTs := w.nowFn()
 
-	// Set flush in progress to false.
-	writeConn.flushInProgress = false
-
 	writeConn.writeLock.Unlock()
 	endFlushWithLockTs := w.nowFn()
 
 	w.writeState.RUnlock()
+
+	// Set flush in progress to false.
+	w.writeState.forcedFlush.mu.Lock()
+	w.writeState.forcedFlush.inProgress = false
+	w.writeState.forcedFlush.cond.Broadcast()
+	w.writeState.forcedFlush.mu.Unlock()
 
 	w.m.cwForcedFlushLatency.RecordDuration(endFlushTs.Sub(startFlushTs))
 	w.m.cwForcedFlushLatencyWithLock.RecordDuration(endFlushWithLockTs.Sub(startFlushWithLockTs))

@@ -21,6 +21,8 @@
 package writer
 
 import (
+	"fmt"
+	"math/rand"
 	"net"
 	"sync"
 	"testing"
@@ -807,6 +809,98 @@ func TestMessageWriterForcedFlush(t *testing.T) {
 
 	cw := w.chooseConsumerWriter([]consumerWriter{slowConsumerWriter, fastConsumerWriter}, 0, 100)
 	require.Equal(t, fastConsumerWriter.Address(), cw.Address())
+}
+
+func TestMessageWriterBeginAndWaitForForcedFlush(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testOptions()
+	scope := tally.NewTestScope("", nil)
+	metrics := newMessageWriterMetrics(scope, instrument.TimerOptions{}, true)
+	w := newMessageWriter(200, nil, opts, metrics)
+	slowConsumerWriter := NewMockconsumerWriter(ctrl)
+	slowConsumerWriter.EXPECT().Address().Return("slow").AnyTimes()
+	slowConsumerWriter.EXPECT().AvailableBuffer(gomock.Any()).Return(1).AnyTimes()
+	slowConsumerWriter.EXPECT().ForcedFlush(gomock.Any()).DoAndReturn(func(_ int) error {
+		time.Sleep(10 * time.Millisecond)
+		return nil
+	}).AnyTimes()
+	fastConsumerWriter := NewMockconsumerWriter(ctrl)
+	fastConsumerWriter.EXPECT().Address().Return("fast").AnyTimes()
+	fastConsumerWriter.EXPECT().AvailableBuffer(gomock.Any()).Return(10).AnyTimes()
+	fastConsumerWriter.EXPECT().ForcedFlush(gomock.Any()).Return(nil).Times(1)
+	w.AddConsumerWriter(slowConsumerWriter)
+	w.AddConsumerWriter(fastConsumerWriter)
+
+	consumerWriters := []consumerWriter{slowConsumerWriter, fastConsumerWriter}
+	doneCh := make(chan int, 2)
+	w.beginForcedFlush(doneCh, consumerWriters, 0)
+	cw := w.waitForForcedFlush(doneCh, consumerWriters)
+	require.Equal(t, fastConsumerWriter.Address(), cw.Address())
+}
+
+func TestMessageWriterForcedFlushTimeout(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testOptions()
+	connOpts := opts.ConnectionOptions()
+	opts = opts.SetConnectionOptions(connOpts.SetForcedFlushTimeout(10 * time.Millisecond))
+
+	scope := tally.NewTestScope("", nil)
+	metrics := newMessageWriterMetrics(scope, instrument.TimerOptions{}, true)
+	w := newMessageWriter(200, nil, opts, metrics)
+	slowConsumerWriter1 := NewMockconsumerWriter(ctrl)
+	slowConsumerWriter1.EXPECT().Address().Return("slow1").AnyTimes()
+	slowConsumerWriter1.EXPECT().AvailableBuffer(gomock.Any()).Return(1).AnyTimes()
+	slowConsumerWriter1.EXPECT().ForcedFlush(gomock.Any()).DoAndReturn(func(_ int) error {
+		time.Sleep(time.Second)
+		return nil
+	}).AnyTimes()
+	slowConsumerWriter2 := NewMockconsumerWriter(ctrl)
+	slowConsumerWriter2.EXPECT().Address().Return("slow2").AnyTimes()
+	slowConsumerWriter2.EXPECT().AvailableBuffer(gomock.Any()).Return(10).AnyTimes()
+	slowConsumerWriter2.EXPECT().ForcedFlush(gomock.Any()).DoAndReturn(func(_ int) error {
+		time.Sleep(time.Second)
+		return nil
+	}).AnyTimes()
+	w.AddConsumerWriter(slowConsumerWriter1)
+	w.AddConsumerWriter(slowConsumerWriter2)
+
+	consumerWriters := []consumerWriter{slowConsumerWriter1, slowConsumerWriter2}
+	doneCh := make(chan int, 2)
+	w.beginForcedFlush(doneCh, consumerWriters, 0)
+	cw := w.waitForForcedFlush(doneCh, consumerWriters)
+	require.Equal(t, nil, cw)
+}
+
+func TestMessageWriterGetConsumerWriterWithMaxBuffer(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testOptions()
+	scope := tally.NewTestScope("", nil)
+	metrics := newMessageWriterMetrics(scope, instrument.TimerOptions{}, true)
+	w := newMessageWriter(200, nil, opts, metrics)
+
+	numConsumerWriters := 100
+	cws := make([]consumerWriter, 0, numConsumerWriters)
+	for i := range numConsumerWriters {
+		cw := NewMockconsumerWriter(ctrl)
+		cw.EXPECT().Address().Return(fmt.Sprintf("addr-%d", i)).AnyTimes()
+		cw.EXPECT().AvailableBuffer(gomock.Any()).Return(i).AnyTimes()
+		w.AddConsumerWriter(cw)
+		cws = append(cws, cw)
+	}
+
+	rand.Shuffle(len(cws), func(i, j int) {
+		cws[i], cws[j] = cws[j], cws[i]
+	})
+
+	cw, maxBuf := w.getConsumerWriterWithMaxBuffer(cws, 0)
+	require.Equal(t, "addr-99", cw.Address())
+	require.Equal(t, 99, maxBuf)
 }
 
 func isEmptyWithLock(h *acks) bool {
