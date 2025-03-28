@@ -73,28 +73,29 @@ type consumerWriter interface {
 }
 
 type consumerWriterMetrics struct {
-	writeInvalidConn             tally.Counter
-	readInvalidConn              tally.Counter
-	ackError                     tally.Counter
-	decodeError                  tally.Counter
-	encodeError                  tally.Counter
-	resetTooSoon                 tally.Counter
-	resetSuccess                 tally.Counter
-	resetError                   tally.Counter
-	connectError                 tally.Counter
-	setKeepAliveError            tally.Counter
-	setKeepAlivePeriodError      tally.Counter
-	cwWriteTimeoutError          tally.Counter
-	cwFlushTimeoutError          tally.Counter
-	cwFlushLatency               tally.Histogram
-	cwFlushLatencyWithLock       tally.Histogram
-	cwForcedFlushTimeoutError    tally.Counter
-	cwForcedFlushSkipped         tally.Counter
-	cwForcedFlushLatency         tally.Histogram
-	cwForcedFlushLatencyWithLock tally.Histogram
-	cwWriteErrorLatency          tally.Histogram
-	cwWriteErrorLatencyWithLock  tally.Histogram
-	cwBufioWriterCastError       tally.Counter
+	writeInvalidConn              tally.Counter
+	readInvalidConn               tally.Counter
+	ackError                      tally.Counter
+	decodeError                   tally.Counter
+	encodeError                   tally.Counter
+	resetTooSoon                  tally.Counter
+	resetSuccess                  tally.Counter
+	resetError                    tally.Counter
+	connectError                  tally.Counter
+	setKeepAliveError             tally.Counter
+	setKeepAlivePeriodError       tally.Counter
+	cwWriteTimeoutError           tally.Counter
+	cwFlushTimeoutError           tally.Counter
+	cwFlushLatency                tally.Histogram
+	cwFlushLatencyWithLock        tally.Histogram
+	cwForcedFlushTimeoutError     tally.Counter
+	cwForcedFlushWaitTimeoutError tally.Counter
+	cwForcedFlushSkipped          tally.Counter
+	cwForcedFlushLatency          tally.Histogram
+	cwForcedFlushLatencyWithLock  tally.Histogram
+	cwWriteErrorLatency           tally.Histogram
+	cwWriteErrorLatencyWithLock   tally.Histogram
+	cwBufioWriterCastError        tally.Counter
 }
 
 func newConsumerWriterMetrics(scope tally.Scope) consumerWriterMetrics {
@@ -116,8 +117,9 @@ func newConsumerWriterMetrics(scope tally.Scope) consumerWriterMetrics {
 			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
 		cwFlushLatencyWithLock: scope.Histogram("cw-flush-latency-with-lock",
 			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
-		cwForcedFlushTimeoutError: scope.Counter("cw-forced-flush-timeout-error"),
-		cwForcedFlushSkipped:      scope.Counter("cw-forced-flush-skipped"),
+		cwForcedFlushTimeoutError:     scope.Counter("cw-forced-flush-timeout-error"),
+		cwForcedFlushWaitTimeoutError: scope.Counter("cw-forced-flush-wait-timeout-error"),
+		cwForcedFlushSkipped:          scope.Counter("cw-forced-flush-skipped"),
 		cwForcedFlushLatency: scope.Histogram("cw-forced-flush-latency",
 			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
 		cwForcedFlushLatencyWithLock: scope.Histogram("cw-forced-flush-latency-with-lock",
@@ -313,20 +315,30 @@ func (w *consumerWriterImpl) Init() {
 func (w *consumerWriterImpl) ForcedFlush(connIndex int) error {
 	waited := false
 	w.writeState.forcedFlush.mu.Lock()
-	for w.writeState.forcedFlush.inProgress {
+	// Notice that we are not waiting continuously on the
+	// condition variable, but only if the flush is in progress.
+	// Once the active flush completes, it will wakeup all waiting
+	// goroutines and they will return for a chance to write
+	// to the newly opened up space in the flush buffer.
+	if w.writeState.forcedFlush.inProgress {
 		waited = true
-		// Wait for the in progress flush to finish.
+		// Wait for the in-progress flush to finish.
 		w.writeState.forcedFlush.cond.Wait()
 	}
+
 	if waited {
 		// we don't need to perform a flush as we just got done.
 		// simply
-		//   unblock other forcedflushers
 		// 	 release the lock
 		//   return success.
-		w.writeState.forcedFlush.cond.Broadcast()
+		// Note that we don't need to do a cond.Broadcast() since
+		// we did not set inProgress to true.
+		// The in-progress flush will be set to false when the
+		// in-progress flush completes.
+		// This is important since we don't want to wake up
+		// the waiting goroutines if we are not going to
+		// perform a flush.
 		w.writeState.forcedFlush.mu.Unlock()
-		w.logger.Info("forced flush skipped", zap.String("address", w.addr))
 		w.m.cwForcedFlushSkipped.Inc(1)
 		return nil
 	}
