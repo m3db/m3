@@ -766,16 +766,47 @@ func TestMessageWriterChooseConsumerWriter(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testOptions().SetMessageQueueScanBatchSize(1)
+	opts := testOptions()
 	scope := tally.NewTestScope("", nil)
 	metrics := newMessageWriterMetrics(scope, instrument.TimerOptions{}, true)
 	w := newMessageWriter(200, nil, opts, metrics)
-	w.AddConsumerWriter(newConsumerWriter("bad", nil, opts, testConsumerWriterMetrics()))
+	slowConsumerWriter := NewMockconsumerWriter(ctrl)
+	slowConsumerWriter.EXPECT().Address().Return("slow").AnyTimes()
+	slowConsumerWriter.EXPECT().AvailableBuffer(gomock.Any()).Return(1).AnyTimes()
+	fastConsumerWriter := NewMockconsumerWriter(ctrl)
+	fastConsumerWriter.EXPECT().Address().Return("fast").AnyTimes()
+	fastConsumerWriter.EXPECT().AvailableBuffer(gomock.Any()).Return(100).AnyTimes()
+	w.AddConsumerWriter(slowConsumerWriter)
+	w.AddConsumerWriter(fastConsumerWriter)
 
-	snapshot := scope.Snapshot()
-	counters := snapshot.Counters()
-	require.Nil(t, counters["message-processed+consumer=c1,result=write"])
-	require.NotNil(t, counters["message-processed+result=write"])
+	cw := w.chooseConsumerWriter([]consumerWriter{slowConsumerWriter, fastConsumerWriter}, 0, 10)
+	require.Equal(t, fastConsumerWriter.Address(), cw.Address())
+}
+
+func TestMessageWriterForcedFlush(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testOptions()
+	scope := tally.NewTestScope("", nil)
+	metrics := newMessageWriterMetrics(scope, instrument.TimerOptions{}, true)
+	w := newMessageWriter(200, nil, opts, metrics)
+	slowConsumerWriter := NewMockconsumerWriter(ctrl)
+	slowConsumerWriter.EXPECT().Address().Return("slow").AnyTimes()
+	slowConsumerWriter.EXPECT().AvailableBuffer(gomock.Any()).Return(1).AnyTimes()
+	slowConsumerWriter.EXPECT().ForcedFlush(gomock.Any()).DoAndReturn(func(_ int) error {
+		time.Sleep(10 * time.Millisecond)
+		return nil
+	}).AnyTimes()
+	fastConsumerWriter := NewMockconsumerWriter(ctrl)
+	fastConsumerWriter.EXPECT().Address().Return("fast").AnyTimes()
+	fastConsumerWriter.EXPECT().AvailableBuffer(gomock.Any()).Return(10).AnyTimes()
+	fastConsumerWriter.EXPECT().ForcedFlush(gomock.Any()).Return(nil).Times(1)
+	w.AddConsumerWriter(slowConsumerWriter)
+	w.AddConsumerWriter(fastConsumerWriter)
+
+	cw := w.chooseConsumerWriter([]consumerWriter{slowConsumerWriter, fastConsumerWriter}, 0, 100)
+	require.Equal(t, fastConsumerWriter.Address(), cw.Address())
 }
 
 func isEmptyWithLock(h *acks) bool {
