@@ -30,6 +30,7 @@ import (
 
 	"github.com/uber-go/tally"
 	"go.uber.org/atomic"
+	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/protocol/proto"
@@ -890,6 +891,10 @@ func (w *messageWriter) chooseConsumerWriter(
 			// The consumer writer should have enough buffer to accommodate the write.
 			// if not, log and emit a metric.
 			m.forcedFlushNotEnoughBuffer.Inc(1)
+			w.opts.InstrumentOptions().Logger().Info(
+				"forced flush, still not enough buffer",
+				zap.String("consumer", cw.Address()),
+			)
 		}
 	}
 

@@ -340,6 +340,7 @@ func (w *consumerWriterImpl) ForcedFlush(connIndex int) error {
 		w.writeState.forcedFlush.inProgress = false
 		w.writeState.forcedFlush.cond.Broadcast()
 		w.writeState.forcedFlush.mu.Unlock()
+		w.logger.Debug("forced flush done", zap.String("address", w.addr))
 	}()
 
 	w.writeState.RLock()
