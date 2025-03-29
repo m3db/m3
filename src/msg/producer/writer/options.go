@@ -51,6 +51,7 @@ const (
 	// to lower values like 1k ~ 8k.
 	defaultConnectionBufferSize = 2 << 15 // ~65kb
 	defaultAbortOnServerClose   = false
+	defaultForcedFlushTimeout   = 5 * time.Second
 
 	defaultWriterRetryInitialBackoff = time.Second * 5
 )
@@ -130,6 +131,12 @@ type ConnectionOptions interface {
 	// the sendbuf and reset the connection when a close() is invoked.
 	SetAbortOnServerClose(value bool) ConnectionOptions
 
+	// ForcedFlushTimeout returns the timeout for forced flush.
+	ForcedFlushTimeout() time.Duration
+
+	// SetForcedFlushTimeout sets the timeout for forced flush.
+	SetForcedFlushTimeout(value time.Duration) ConnectionOptions
+
 	// InstrumentOptions returns the instrument options.
 	InstrumentOptions() instrument.Options
 
@@ -148,6 +155,7 @@ type connectionOptions struct {
 	writeBufferSize    int
 	readBufferSize     int
 	abortOnServerClose bool
+	forcedFlushTimeout time.Duration
 	iOpts              instrument.Options
 	dialer             xnet.ContextDialerFn
 }
@@ -165,6 +173,7 @@ func NewConnectionOptions() ConnectionOptions {
 		writeBufferSize:    defaultConnectionBufferSize,
 		readBufferSize:     defaultConnectionBufferSize,
 		abortOnServerClose: defaultAbortOnServerClose,
+		forcedFlushTimeout: defaultForcedFlushTimeout,
 		iOpts:              instrument.NewOptions(),
 		dialer:             nil, // Will default to net.Dialer{}.DialContext
 	}
@@ -277,6 +286,16 @@ func (opts *connectionOptions) AbortOnServerClose() bool {
 func (opts *connectionOptions) SetAbortOnServerClose(value bool) ConnectionOptions {
 	o := *opts
 	o.abortOnServerClose = value
+	return &o
+}
+
+func (opts *connectionOptions) ForcedFlushTimeout() time.Duration {
+	return opts.forcedFlushTimeout
+}
+
+func (opts *connectionOptions) SetForcedFlushTimeout(value time.Duration) ConnectionOptions {
+	o := *opts
+	o.forcedFlushTimeout = value
 	return &o
 }
 

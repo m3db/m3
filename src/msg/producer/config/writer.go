@@ -52,6 +52,7 @@ type ConnectionConfiguration struct {
 	WriteBufferSize    *int                 `yaml:"writeBufferSize"`
 	ReadBufferSize     *int                 `yaml:"readBufferSize"`
 	AbortOnServerClose *bool                `yaml:"abortOnServerClose"`
+	ForcedFlushTimeout *time.Duration       `yaml:"forcedFlushTimeout"`
 	// ContextDialer specifies a custom dialer to use when creating TCP connections to the consumer.
 	// See writer.ConnectionOptions.ContextDialer for details.
 	ContextDialer xnet.ContextDialerFn `yaml:"-"` // not serializable
@@ -92,6 +93,9 @@ func (c *ConnectionConfiguration) NewOptions(iOpts instrument.Options) writer.Co
 	}
 	if c.AbortOnServerClose != nil {
 		opts = opts.SetAbortOnServerClose(*c.AbortOnServerClose)
+	}
+	if c.ForcedFlushTimeout != nil {
+		opts = opts.SetForcedFlushTimeout(*c.ForcedFlushTimeout)
 	}
 	return opts.SetInstrumentOptions(iOpts)
 }
