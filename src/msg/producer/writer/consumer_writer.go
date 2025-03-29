@@ -311,7 +311,7 @@ func (w *consumerWriterImpl) Init() {
 	}()
 }
 
-// ForcedFlush the data for a consumer writer.
+// ForcedFlush preemptively flushes the data for a consumer writer.
 func (w *consumerWriterImpl) ForcedFlush(connIndex int) error {
 	waited := false
 	w.writeState.forcedFlush.mu.Lock()
@@ -327,7 +327,7 @@ func (w *consumerWriterImpl) ForcedFlush(connIndex int) error {
 	}
 
 	if waited {
-		// we don't need to perform a flush as we just got done.
+		// we don't need to perform a flush as we just completed one.
 		// simply
 		// 	 release the lock
 		//   return success.
@@ -355,6 +355,10 @@ func (w *consumerWriterImpl) ForcedFlush(connIndex int) error {
 		w.logger.Debug("forced flush done", zap.String("address", w.addr))
 	}()
 
+	return w.flush(connIndex)
+}
+
+func (w *consumerWriterImpl) flush(connIndex int) error {
 	w.writeState.RLock()
 	if !w.writeState.validConns || len(w.writeState.conns) == 0 {
 		w.writeState.RUnlock()
