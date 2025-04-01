@@ -674,7 +674,7 @@ func (q *queue) asyncWrite(
 	ops []op,
 	elems []*rpc.WriteBatchRawRequestElement,
 ) {
-	fmt.Printf("asyncWrite called ... queue size in asyncWrite", q.size, "connection count=", q.connPool.ConnectionCount())
+	fmt.Println("asyncWrite called ... queue size in asyncWrite", q.size, "connection count=", q.connPool.ConnectionCount())
 	q.writeOpBatchSize.RecordValue(float64(len(elems)))
 	q.Add(1)
 	q.workerPool.Go(func() {
@@ -696,7 +696,7 @@ func (q *queue) asyncWrite(
 		client, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
-			fmt.Printf("No client available called..host=", q.host)
+			fmt.Println("No client available called..host=", q.host)
 			callAllCompletionFns(ops, q.host, err)
 			cleanup()
 			return
@@ -721,10 +721,10 @@ func (q *queue) asyncWrite(
 
 		if err != nil {
 			if strings.Contains(err.Error(), "ErrCodeTimeout") {
-				fmt.Printf("Updating timeoutcount for host", q.host, "currentcount=", q.timeoutCount)
+				fmt.Println("Updating timeoutcount for host", q.host, "currentcount=", q.timeoutCount)
 				q.timeoutCount++
 			}
-			fmt.Printf("WriteBatchRaw failed with error", err, "host=", q.host)
+			fmt.Println("WriteBatchRaw failed with error", err, "host=", q.host)
 		}
 		if err == nil {
 			// All succeeded

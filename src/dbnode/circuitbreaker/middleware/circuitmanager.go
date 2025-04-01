@@ -9,9 +9,8 @@ import (
 // circuitManager manages creation and reuse of the circuits across repeated
 // service::procedure calls.
 type circuitManager struct {
-	mu             sync.RWMutex
-	policyProvider *policyProvider
-	circuitCache   map[serviceProcedure]circuitbreaker.Circuiter
+	mu           sync.RWMutex
+	circuitCache map[serviceProcedure]circuitbreaker.Circuiter
 }
 
 func newCircuitManager() *circuitManager {
@@ -35,17 +34,17 @@ func (c *circuitManager) circuit(service, procedure string) (circuitbreaker.Circ
 	if ok {
 		return circuit, nil
 	}
-
-	config, ok := c.policyProvider.policy(service, procedure)
-	if !ok {
-		c.mu.Lock()
-		// When the config for a service and procedure is not found, set the circuit
-		// cache to nil to avoid recurring config lookup again in future for same
-		// service and procedure.
-		c.circuitCache[key] = nil
-		c.mu.Unlock()
-		return nil, nil
-	}
+	config := circuitbreaker.Config{}
+	// config, ok := c.policyProvider.policy(service, procedure)
+	// if !ok {
+	// 	c.mu.Lock()
+	// 	// When the config for a service and procedure is not found, set the circuit
+	// 	// cache to nil to avoid recurring config lookup again in future for same
+	// 	// service and procedure.
+	// 	c.circuitCache[key] = nil
+	// 	c.mu.Unlock()
+	// 	return nil, nil
+	// }
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
