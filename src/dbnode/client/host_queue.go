@@ -25,6 +25,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"strings"
 	"sync"
@@ -38,8 +39,10 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/m3db/m3/src/dbnode/circuitbreaker/middleware"
+	"github.com/m3db/m3/src/dbnode/circuitbreaker/middleware/enablerprovider"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
+	"go.uber.org/zap"
 )
 
 const _defaultHostQueueOpsArraySize = 8
@@ -138,7 +141,11 @@ func newHostQueue(
 	opArrayPool := newOpArrayPool(opArrayPoolOpts, opArrayPoolElemCapacity)
 	opArrayPool.Init()
 
-	mw, err := middleware.NewMiddlerWareOutbound("", nil, nil)
+	logger, err := zap.NewProduction()
+	if err != nil {
+		log.Fatalf("unable to create logger: %v", err)
+	}
+	mw, err := middleware.NewMiddlerWareOutbound("", logger, enablerprovider.New())
 	if err != nil {
 		return nil, err
 	}
