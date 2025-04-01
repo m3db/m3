@@ -148,7 +148,8 @@ func ToSegments(ctx context.Context, blocks []xio.BlockReader) (ToSegmentsResult
 		}
 		startTime := int64(blocks[0].Start)
 		blockSize := xtime.ToNormalizedDuration(blocks[0].BlockSize, time.Nanosecond)
-		checksum := int64(seg.CalculateChecksum())
+		// checksum := int64(seg.CalculateChecksum())
+		checksum := int64(1)
 		s.Merged = &rpc.Segment{
 			Head:      bytesRef(seg.Head),
 			Tail:      bytesRef(seg.Tail),
