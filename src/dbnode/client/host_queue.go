@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
 
+	"github.com/m3db/m3/src/dbnode/circuitbreaker/middleware"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 )
@@ -80,6 +81,7 @@ type queue struct {
 	status                                       status
 	serverSupportsV2APIs                         bool
 	timeoutCount                                 int
+	middleware                                   middleware.MiddlerWareOutbound
 }
 
 func newHostQueue(
@@ -136,6 +138,11 @@ func newHostQueue(
 	opArrayPool := newOpArrayPool(opArrayPoolOpts, opArrayPoolElemCapacity)
 	opArrayPool.Init()
 
+	mw, err := middleware.NewMiddlerWareOutbound("", nil, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	return &queue{
 		opts:                                   opts,
 		nowFn:                                  opts.ClockOptions().NowFn(),
@@ -159,6 +166,7 @@ func newHostQueue(
 		fetchOpBatchSize:                             scope.Histogram("fetch-op-batch-size", fetchOpBatchSizeBuckets),
 		drainIn:                                      make(chan []op, opsArrayLen),
 		serverSupportsV2APIs:                         opts.UseV2BatchAPIs(),
+		middleware:                                   mw,
 	}, nil
 }
 
@@ -690,13 +698,15 @@ func (q *queue) asyncWrite(
 		// ctx, _ := thrift.NewContext(time.Duration(1) * time.Second)
 		ctx, _ := thrift.NewContext(q.opts.WriteRequestTimeout())
 
-		if q.timeoutCount <= 10 {
-			fmt.Printf("Sending req for host", q.host, "count=", q.timeoutCount)
-			err = client.WriteBatchRaw(ctx, req)
-		} else {
-			fmt.Printf("Not sending req for host", q.host, "count=", q.timeoutCount)
-			err = errors.New("Slow node detected, not sending request..")
-		}
+		// if q.timeoutCount <= 10 {
+		// 	fmt.Printf("Sending req for host", q.host, "count=", q.timeoutCount)
+		// 	err = client.WriteBatchRaw(ctx, req)
+		// } else {
+		// 	fmt.Printf("Not sending req for host", q.host, "count=", q.timeoutCount)
+		// 	err = errors.New("Slow node detected, not sending request..")
+		// }
+
+		err = q.middleware.WriteBatchRaw(ctx, req, client)
 
 		for _, reqEntry := range req.GetElements() {
 			fmt.Println("reqEntry.ID ", string(reqEntry.GetID()))
