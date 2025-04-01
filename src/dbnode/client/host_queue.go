@@ -145,7 +145,7 @@ func newHostQueue(
 	if err != nil {
 		log.Fatalf("unable to create logger: %v", err)
 	}
-	mw, err := middleware.NewMiddlerWareOutbound("", logger, enablerprovider.New())
+	mw, err := middleware.NewMiddlerWareOutbound("", logger, enablerprovider.New(), host.ID())
 	if err != nil {
 		return nil, err
 	}
