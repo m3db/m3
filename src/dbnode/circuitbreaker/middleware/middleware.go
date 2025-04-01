@@ -38,6 +38,7 @@ func NewMiddlerWareOutbound(serviceName string, logger *zap.Logger, enabler Enab
 func (u *MiddlerWareOutbound) WriteBatchRaw(ctx tchannel.ContextWithHeaders, req *rpc.WriteBatchRawRequest, tchanNodeClient rpc.TChanNode) error {
 
 	if u == nil || !u.enabler.IsEnabled(ctx, "", "") {
+		u.logger.Info("Circuit breaker not enabled")
 		return tchanNodeClient.WriteBatchRaw(ctx, req)
 	}
 
@@ -52,16 +53,28 @@ func (u *MiddlerWareOutbound) WriteBatchRaw(ctx tchannel.ContextWithHeaders, req
 	}
 
 	if circuit == nil {
+		u.logger.Info("Circuit created but is nil")
 		return tchanNodeClient.WriteBatchRaw(ctx, req)
 	}
 
 	mode := u.enabler.Mode(ctx, "", "")
+	u.logger.Info("Circuit breaker mode is", zap.Any("mode", mode))
 	isAllowed := circuit.IsRequestAllowed()
+
+	u.logger.Info("Circuit breaker allowed value is", zap.Any("isAllowed", isAllowed))
+
 	if !isAllowed {
+		u.logger.Info("Circuit breaker request not allowed")
+
 		if mode == Rejection {
+
+			u.logger.Info("Circuit breaker mode is Rejection")
+
 			return circuitbreakererror.New("", "")
 		}
 	}
+
+	u.logger.Info("Circuit breaker request is allowed")
 
 	err = tchanNodeClient.WriteBatchRaw(ctx, req)
 	isSuccess := err == nil
@@ -70,5 +83,6 @@ func (u *MiddlerWareOutbound) WriteBatchRaw(ctx tchannel.ContextWithHeaders, req
 	if isAllowed {
 		circuit.ReportRequestStatus(isSuccess)
 	}
+	u.logger.Info("Circuit breaker call done", zap.Error(err))
 	return err
 }
