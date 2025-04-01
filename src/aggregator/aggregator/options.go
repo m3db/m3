@@ -359,11 +359,11 @@ type Options interface {
 	// SetCardinalityMetricsEnabled sets the cardinality metrics enabled.
 	SetCardinalityMetricsEnabled(value bool) Options
 
-	// SetSourceTag sets the source tag.
-	SetSourceTag(value string) Options
-
 	// SourceTag returns the source tag.
 	SourceTag() string
+
+	// SetSourceTag sets the source tag.
+	SetSourceTag(value string) Options
 }
 
 type options struct {
@@ -411,7 +411,7 @@ type options struct {
 	writesIgnoreCutoffCutover        bool
 	cardinalityMetricsEnabled        bool
 	sourceTag                        string
-	
+
 	// Derived options.
 	fullCounterPrefix []byte
 	fullTimerPrefix   []byte
@@ -962,14 +962,14 @@ func (o *options) SetCardinalityMetricsEnabled(value bool) Options {
 	return &opts
 }
 
+func (o *options) SourceTag() string {
+	return o.sourceTag
+}
+
 func (o *options) SetSourceTag(value string) Options {
 	opts := *o
 	opts.sourceTag = value
 	return &opts
-}
-
-func (o *options) SourceTag() string {
-	return o.sourceTag
 }
 
 func defaultMaxAllowedForwardingDelayFn(
