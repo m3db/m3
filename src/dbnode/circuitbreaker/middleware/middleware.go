@@ -57,7 +57,7 @@ func (u *MiddlerWareOutbound) WriteBatchRaw(ctx tchannel.ContextWithHeaders, req
 		return tchanNodeClient.WriteBatchRaw(ctx, req)
 	}
 
-	mode := u.enabler.Mode(ctx, "", "")
+	mode := Rejection
 	u.logger.Info("Circuit breaker mode is", zap.Any("mode", mode))
 	isAllowed := circuit.IsRequestAllowed()
 
