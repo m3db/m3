@@ -21,7 +21,7 @@ func newStaticEnabler() *staticEnabler {
 }
 
 func (s *staticEnabler) IsEnabled(context.Context, string, string) bool {
-	return false
+	return true
 }
 
 func (s *staticEnabler) Mode(_ context.Context, service, procedure string) middleware.Mode {
