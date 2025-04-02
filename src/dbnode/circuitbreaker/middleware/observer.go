@@ -42,7 +42,7 @@ func newObserver(host string, scope tally.Scope) (*observer, error) {
 	// 		"host":      host,
 	// 	})
 
-	scope = scope.SubScope("heartbeat").Tagged(map[string]string{
+	scope = scope.Tagged(map[string]string{
 		"component": _packageName,
 		"host":      host,
 	})
@@ -72,9 +72,9 @@ func (o *observer) getCircuitStateHeartbeat(s circuitbreaker.State) float64 {
 	switch s {
 	case circuitbreaker.Healthy:
 		return 2
-	case circuitbreaker.Unhealthy:
-		return 1
 	case circuitbreaker.Probing:
+		return 1
+	case circuitbreaker.Unhealthy:
 		return 0
 	default:
 		return -1
