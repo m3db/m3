@@ -29,20 +29,25 @@ type observer struct {
 
 	// circuitStateHeartbeat is a counter used for emitting circuit state such as circuit
 	// state and probe-ratio (if in probing state).
-	circuitStateHeartbeat tally.Counter
+	circuitStateHeartbeat tally.Gauge
 
 	// callEdges is a cache of edges created for previously seen requests.
 	callEdges map[edgeKey]*callEdge
 }
 
 func newObserver(host string, scope tally.Scope) (*observer, error) {
-	tags := scope.Tagged(
-		map[string]string{
-			"component": _packageName,
-			"host":      host,
-		})
+	// tags := scope.Gauge(
+	// 	map[string]string{
+	// 		"component": _packageName,
+	// 		"host":      host,
+	// 	})
 
-	circuitHeartbeat := tags.Counter("circuit_breaker_heartbeat")
+	scope = scope.SubScope("heartbeat").Tagged(map[string]string{
+		"component": _packageName,
+		"host":      host,
+	})
+
+	circuitHeartbeat := scope.Gauge("circuit_breaker_heartbeat")
 
 	return &observer{
 		circuitStateHeartbeat: circuitHeartbeat,
@@ -54,7 +59,26 @@ func newObserver(host string, scope tally.Scope) (*observer, error) {
 // reportCircuitHeartbeat increments the circuit state heartbeat for the given
 // service and procedure provided.
 func (o *observer) reportCircuitStateHeartbeat(status *circuitbreaker.Status, service, procedure string, mode Mode) {
-	o.circuitStateHeartbeat.Inc(1)
+	// tags := o.scope.Tagged(
+	// 	map[string]string{
+	// 		"circuit_state": status.State().String(),
+	// 		"mode":          mode.String(),
+	// 	})
+
+	o.circuitStateHeartbeat.Update(o.getCircuitStateHeartbeat(status.State()))
+}
+
+func (o *observer) getCircuitStateHeartbeat(s circuitbreaker.State) float64 {
+	switch s {
+	case circuitbreaker.Healthy:
+		return 2
+	case circuitbreaker.Unhealthy:
+		return 1
+	case circuitbreaker.Probing:
+		return 0
+	default:
+		return -1
+	}
 }
 
 // getEdge returns observer edge for the given request either from cache or
