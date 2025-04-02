@@ -148,6 +148,76 @@ func ToSegments(ctx context.Context, blocks []xio.BlockReader) (ToSegmentsResult
 		}
 		startTime := int64(blocks[0].Start)
 		blockSize := xtime.ToNormalizedDuration(blocks[0].BlockSize, time.Nanosecond)
+		checksum := int64(seg.CalculateChecksum())
+		// checksum := int64(1)
+		s.Merged = &rpc.Segment{
+			Head:      bytesRef(seg.Head),
+			Tail:      bytesRef(seg.Tail),
+			StartTime: &startTime,
+			BlockSize: &blockSize,
+			Checksum:  &checksum,
+		}
+		return ToSegmentsResult{
+			Segments: s,
+			Checksum: &checksum,
+		}, nil
+	}
+
+	for _, block := range blocks {
+		select {
+		case <-ctx.GoContext().Done():
+			return ToSegmentsResult{}, ctx.GoContext().Err()
+		default:
+		}
+		seg, err := block.Segment()
+		if err != nil {
+			return ToSegmentsResult{}, err
+		}
+		if seg.Len() == 0 {
+			continue
+		}
+		startTime := int64(block.Start)
+		blockSize := xtime.ToNormalizedDuration(block.BlockSize, time.Nanosecond)
+		checksum := int64(seg.CalculateChecksum())
+		s.Unmerged = append(s.Unmerged, &rpc.Segment{
+			Head:      bytesRef(seg.Head),
+			Tail:      bytesRef(seg.Tail),
+			StartTime: &startTime,
+			BlockSize: &blockSize,
+			Checksum:  &checksum,
+		})
+	}
+	if len(s.Unmerged) == 0 {
+		return ToSegmentsResult{}, nil
+	}
+
+	return ToSegmentsResult{Segments: s}, nil
+}
+
+func ToSegmentsWithoutChecksum(ctx context.Context, blocks []xio.BlockReader) (ToSegmentsResult, error) { //nolint: gocyclo
+	if len(blocks) == 0 {
+		return ToSegmentsResult{}, nil
+	}
+
+	s := &rpc.Segments{}
+
+	if len(blocks) == 1 {
+		// check the deadline before potentially blocking for the results from the disk read. in the worst case we'll
+		// wait for one extra block past the rpc deadline.
+		select {
+		case <-ctx.GoContext().Done():
+			return ToSegmentsResult{}, ctx.GoContext().Err()
+		default:
+		}
+		seg, err := blocks[0].Segment()
+		if err != nil {
+			return ToSegmentsResult{}, err
+		}
+		if seg.Len() == 0 {
+			return ToSegmentsResult{}, nil
+		}
+		startTime := int64(blocks[0].Start)
+		blockSize := xtime.ToNormalizedDuration(blocks[0].BlockSize, time.Nanosecond)
 		// checksum := int64(seg.CalculateChecksum())
 		checksum := int64(1)
 		s.Merged = &rpc.Segment{

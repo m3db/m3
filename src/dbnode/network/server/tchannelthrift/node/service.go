@@ -2656,7 +2656,7 @@ func readEncodedResultSegment(
 	ctx context.Context,
 	readers []xio.BlockReader,
 ) (*rpc.Segments, *rpc.Error) {
-	converted, err := convert.ToSegments(ctx, readers)
+	converted, err := convert.ToSegmentsWithoutChecksum(ctx, readers)
 	if err != nil {
 		return nil, convert.ToRPCError(err)
 	}
