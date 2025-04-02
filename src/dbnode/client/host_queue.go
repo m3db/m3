@@ -42,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/circuitbreaker/middleware/enablerprovider"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
+	// "go.uber.org/net/metrics"
 	"go.uber.org/zap"
 )
 
@@ -145,7 +146,7 @@ func newHostQueue(
 	if err != nil {
 		log.Fatalf("unable to create logger: %v", err)
 	}
-	mw, err := middleware.NewMiddlerWareOutbound("", logger, enablerprovider.New(), host.ID())
+	mw, err := middleware.NewMiddlerWareOutbound("host_queue", logger, scope, enablerprovider.New(), host.ID())
 	if err != nil {
 		return nil, err
 	}

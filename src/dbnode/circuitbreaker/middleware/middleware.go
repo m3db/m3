@@ -7,8 +7,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/circuitbreaker/internal/circuitbreakererror"
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/uber-go/tally"
 	tchannel "github.com/uber/tchannel-go"
-	"go.uber.org/net/metrics"
+	// "go.uber.org/net/metrics"
 	"go.uber.org/zap"
 )
 
@@ -23,12 +24,12 @@ type MiddlerWareOutbound struct {
 
 // NewMiddlerWareOutbound returns a unary outbound circuit breaker middleware based on
 // the provided config.
-func NewMiddlerWareOutbound(serviceName string, logger *zap.Logger, enabler Enabler, host string) (MiddlerWareOutbound, error) {
+func NewMiddlerWareOutbound(serviceName string, logger *zap.Logger, scope tally.Scope, enabler Enabler, host string) (MiddlerWareOutbound, error) {
 	// if err := config.Validate(); err != nil {
 	// 	return nil, err
 	// }
 
-	observer, err := newObserver(serviceName, metrics.New().Scope())
+	observer, err := newObserver(host, scope)
 	if err != nil {
 		return MiddlerWareOutbound{}, err
 	}
