@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"context"
-	"fmt"
+	// "fmt"
 	"github.com/m3db/m3/src/dbnode/circuitbreaker/internal/circuitbreaker"
 	"github.com/m3db/m3/src/dbnode/circuitbreaker/internal/circuitbreakererror"
 
@@ -24,19 +24,15 @@ type MiddlerWareOutbound struct {
 
 // NewMiddlerWareOutbound returns a unary outbound circuit breaker middleware based on
 // the provided config.
-func NewMiddlerWareOutbound(serviceName string, logger *zap.Logger, scope tally.Scope, enabler Enabler, host string) (MiddlerWareOutbound, error) {
-	// if err := config.Validate(); err != nil {
-	// 	return nil, err
-	// }
-
+func NewMiddlerWareOutbound(logger *zap.Logger, scope tally.Scope, enabler Enabler, host string) (MiddlerWareOutbound, error) {
 	observer, err := newObserver(host, scope)
 	if err != nil {
 		return MiddlerWareOutbound{}, err
 	}
 
 	return MiddlerWareOutbound{
-		enabler: enabler,
-		// logger:         logger.With(zap.String("component", _packageName)).WithOptions(zap.AddCaller()),
+		enabler:        enabler,
+		logger:         logger.With(zap.String("component", _packageName)).WithOptions(zap.AddCaller()),
 		host:           host,
 		observer:       observer,
 		circuitManager: newCircuitManager(),
@@ -48,25 +44,25 @@ func NewMiddlerWareOutbound(serviceName string, logger *zap.Logger, scope tally.
 // for the request service and procedure.
 func (u *MiddlerWareOutbound) WriteBatchRaw(ctx tchannel.ContextWithHeaders, req *rpc.WriteBatchRawRequest, tchanNodeClient rpc.TChanNode) error {
 
-	if u == nil || !u.enabler.IsEnabled(ctx, "", "") {
-
-		fmt.Println("Circuit breaker not enabled", u.host)
+	if u == nil || !u.enabler.IsEnabled(ctx) {
+		u.logger.Error("Circuit breaker not enabled",
+			zap.String("host", u.host),
+		)
+		// fmt.Println("Circuit breaker not enabled", u.host)
 		return tchanNodeClient.WriteBatchRaw(ctx, req)
 	}
 
 	circuit, err := u.circuitManager.circuit("", "")
 	if err != nil {
-		// u.logger.Error("Failed to create circuit breaker",
-		// 	zap.String("dest", ""),
-		// 	zap.String("procedure", ""),
-		// 	zap.Error(err),
-		// )
-		fmt.Println("Failed to create circuit breaker", u.host)
+		u.logger.Error("Failed to create circuit breaker",
+			zap.String("host", u.host),
+			zap.Error(err),
+		)
+		// fmt.Println("Failed to create circuit breaker", u.host)
 		return tchanNodeClient.WriteBatchRaw(ctx, req)
 	}
 
 	if circuit == nil {
-		fmt.Println("Circuit created but is nil", u.host)
 		return tchanNodeClient.WriteBatchRaw(ctx, req)
 	}
 
@@ -79,25 +75,20 @@ func (u *MiddlerWareOutbound) WriteBatchRaw(ctx tchannel.ContextWithHeaders, req
 		return tchanNodeClient.WriteBatchRaw(ctx, req)
 	}
 
-	mode := Rejection
-	fmt.Println("Circuit breaker mode is", mode, "host", u.host)
+	mode := u.enabler.Mode(ctx)
 	isAllowed := circuit.IsRequestAllowed(u.host)
 
-	fmt.Println("Circuit breaker allowed value is", isAllowed, "host", u.host)
-
 	if !isAllowed {
-		fmt.Println("Circuit breaker request not allowed, host", u.host)
+		u.logger.Error("Circuit breaker request not allowed",
+			zap.String("host", u.host),
+		)
+
 		edge.reportRequestRejected(circuit.Status(), mode)
 
 		if mode == Rejection {
-
-			fmt.Println("Circuit breaker mode is Rejection host=", u.host)
-
 			return circuitbreakererror.New("", "")
 		}
 	}
-
-	fmt.Println("Circuit breaker request is allowed", u.host)
 
 	err = tchanNodeClient.WriteBatchRaw(ctx, req)
 	isSuccess := err == nil
@@ -107,7 +98,10 @@ func (u *MiddlerWareOutbound) WriteBatchRaw(ctx tchannel.ContextWithHeaders, req
 		circuit.ReportRequestStatus(isSuccess)
 		edge.reportRequestComplete(circuit.Status(), isSuccess, err, mode)
 	}
-	fmt.Println("Circuit breaker call done", err, "host", u.host)
+
+	u.logger.Error("Circuit breaker call done",
+		zap.String("host", u.host),
+	)
 
 	//TODO move it to module health check
 	u.ReportHeartbeatMetrics()
@@ -123,8 +117,8 @@ func (u *MiddlerWareOutbound) ReportHeartbeatMetrics() {
 	}
 
 	u.circuitManager.walk(func(sp serviceProcedure, circuit circuitbreaker.Circuiter) {
-		if circuit != nil && u.enabler.IsEnabled(context.Background(), sp.service, sp.procedure) {
-			mode := u.enabler.Mode(context.TODO(), sp.service, sp.procedure)
+		if circuit != nil && u.enabler.IsEnabled(context.Background()) {
+			mode := u.enabler.Mode(context.TODO())
 			u.observer.reportCircuitStateHeartbeat(circuit.Status(), sp.service, sp.procedure, mode)
 		}
 	})

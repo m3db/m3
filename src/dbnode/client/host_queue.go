@@ -25,7 +25,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	// "log"
 	"math"
 	"strings"
 	"sync"
@@ -43,7 +43,7 @@ import (
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 	// "go.uber.org/net/metrics"
-	"go.uber.org/zap"
+	// "go.uber.org/zap"
 )
 
 const _defaultHostQueueOpsArraySize = 8
@@ -142,11 +142,7 @@ func newHostQueue(
 	opArrayPool := newOpArrayPool(opArrayPoolOpts, opArrayPoolElemCapacity)
 	opArrayPool.Init()
 
-	logger, err := zap.NewProduction()
-	if err != nil {
-		log.Fatalf("unable to create logger: %v", err)
-	}
-	mw, err := middleware.NewMiddlerWareOutbound("host_queue", logger, scope, enablerprovider.New(), host.ID())
+	mw, err := middleware.NewMiddlerWareOutbound(iOpts.Logger(), scope, enablerprovider.New(), host.ID())
 	if err != nil {
 		return nil, err
 	}

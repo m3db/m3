@@ -9,7 +9,6 @@ import (
 type (
 	staticEnabler struct {
 		enabled bool
-		// svcList map[svcKey]middleware.Mode
 	}
 )
 
@@ -20,10 +19,10 @@ func newStaticEnabler() *staticEnabler {
 	return se
 }
 
-func (s *staticEnabler) IsEnabled(context.Context, string, string) bool {
+func (s *staticEnabler) IsEnabled(context.Context) bool {
 	return true
 }
 
-func (s *staticEnabler) Mode(_ context.Context, service, procedure string) middleware.Mode {
+func (s *staticEnabler) Mode(_ context.Context) middleware.Mode {
 	return middleware.Rejection
 }
