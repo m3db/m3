@@ -1,0 +1,125 @@
+package middleware
+
+import (
+	"context"
+	// "fmt"
+	"github.com/m3db/m3/src/dbnode/circuitbreaker/internal/circuitbreaker"
+	"github.com/m3db/m3/src/dbnode/circuitbreaker/internal/circuitbreakererror"
+
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/uber-go/tally"
+	tchannel "github.com/uber/tchannel-go"
+	// "go.uber.org/net/metrics"
+	"go.uber.org/zap"
+)
+
+// MiddlerWareOutbound wraps a unary outbound circuit breaker middleware.
+type MiddlerWareOutbound struct {
+	enabler        Enabler
+	logger         *zap.Logger
+	circuitManager *circuitManager
+	observer       *observer
+	host           string
+}
+
+// NewMiddlerWareOutbound returns a unary outbound circuit breaker middleware based on
+// the provided config.
+func NewMiddlerWareOutbound(logger *zap.Logger, scope tally.Scope, enabler Enabler, host string) (MiddlerWareOutbound, error) {
+	observer, err := newObserver(host, scope)
+	if err != nil {
+		return MiddlerWareOutbound{}, err
+	}
+
+	return MiddlerWareOutbound{
+		enabler:        enabler,
+		logger:         logger.With(zap.String("component", _packageName)).WithOptions(zap.AddCaller()),
+		host:           host,
+		observer:       observer,
+		circuitManager: newCircuitManager(),
+	}, nil
+}
+
+// Call implements the middleware.UnaryOutbound interface.
+// Applies circuit breaker to the outbound call if a circuit breaker is available
+// for the request service and procedure.
+func (u *MiddlerWareOutbound) WriteBatchRaw(ctx tchannel.ContextWithHeaders, req *rpc.WriteBatchRawRequest, tchanNodeClient rpc.TChanNode) error {
+
+	if u == nil || !u.enabler.IsEnabled(ctx) {
+		u.logger.Error("Circuit breaker not enabled",
+			zap.String("host", u.host),
+		)
+		// fmt.Println("Circuit breaker not enabled", u.host)
+		return tchanNodeClient.WriteBatchRaw(ctx, req)
+	}
+
+	circuit, err := u.circuitManager.circuit("", "")
+	if err != nil {
+		u.logger.Error("Failed to create circuit breaker",
+			zap.String("host", u.host),
+			zap.Error(err),
+		)
+		// fmt.Println("Failed to create circuit breaker", u.host)
+		return tchanNodeClient.WriteBatchRaw(ctx, req)
+	}
+
+	if circuit == nil {
+		return tchanNodeClient.WriteBatchRaw(ctx, req)
+	}
+
+	edge, err := u.observer.edge(u.host)
+	if err != nil {
+		u.logger.Error("Failed to fetch call edge",
+			zap.String("host", u.host),
+			zap.Error(err),
+		)
+		return tchanNodeClient.WriteBatchRaw(ctx, req)
+	}
+
+	mode := u.enabler.Mode(ctx)
+	isAllowed := circuit.IsRequestAllowed(u.host)
+
+	if !isAllowed {
+		u.logger.Error("Circuit breaker request not allowed",
+			zap.String("host", u.host),
+		)
+
+		edge.reportRequestRejected(circuit.Status(), mode)
+
+		if mode == Rejection {
+			return circuitbreakererror.New("", "")
+		}
+	}
+
+	err = tchanNodeClient.WriteBatchRaw(ctx, req)
+	isSuccess := err == nil
+	// Report request status and metrics only when the request is allowed.
+	// isAllowed might be false when middleware is in shadow mode.
+	if isAllowed {
+		circuit.ReportRequestStatus(isSuccess)
+		edge.reportRequestComplete(circuit.Status(), isSuccess, err, mode)
+	}
+
+	u.logger.Error("Circuit breaker call done",
+		zap.String("host", u.host),
+	)
+
+	//TODO move it to module health check
+	u.ReportHeartbeatMetrics()
+
+	return err
+}
+
+// ReportHeartbeatMetrics emits heartbeat metrics of all the circuits with the
+// state and probe ratio.
+func (u *MiddlerWareOutbound) ReportHeartbeatMetrics() {
+	if u == nil {
+		return
+	}
+
+	u.circuitManager.walk(func(sp serviceProcedure, circuit circuitbreaker.Circuiter) {
+		if circuit != nil && u.enabler.IsEnabled(context.Background()) {
+			mode := u.enabler.Mode(context.TODO())
+			u.observer.reportCircuitStateHeartbeat(circuit.Status(), sp.service, sp.procedure, mode)
+		}
+	})
+}
