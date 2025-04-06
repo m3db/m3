@@ -33,66 +33,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 
+	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/producer"
+	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
 	xtest "github.com/m3db/m3/src/x/test"
 )
-
-func TestMessageWriterRandomIndex(t *testing.T) {
-	indexes := make([]int, 10)
-	reset := func() {
-		for i := range indexes {
-			indexes[i] = i
-		}
-	}
-
-	reset()
-	firstIdx := randIndex(indexes, len(indexes)-1)
-	for {
-		reset()
-		newIdx := randIndex(indexes, len(indexes)-1)
-		// Make sure the first index is random.
-		if firstIdx != newIdx {
-			break
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-
-	reset()
-	idx1 := randIndex(indexes, len(indexes)-1)
-	idx2 := randIndex(indexes, len(indexes)-2)
-	for {
-		reset()
-		newIdx1 := randIndex(indexes, len(indexes)-1)
-		newIdx2 := randIndex(indexes, len(indexes)-2)
-		// Make sure the order is random.
-		if idx2-idx1 != newIdx2-newIdx1 {
-			break
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-}
-
-func TestMessageWriterRandomFullIteration(t *testing.T) {
-	indexes := make([]int, 100)
-	var indexMap map[int]struct{}
-	reset := func() {
-		for i := range indexes {
-			indexes[i] = i
-		}
-		indexMap = make(map[int]struct{}, 100)
-	}
-
-	for n := 0; n < 1000; n++ {
-		reset()
-		for i := len(indexes) - 1; i >= 0; i-- {
-			idx := randIndex(indexes, i)
-			indexMap[idx] = struct{}{}
-		}
-		require.Equal(t, 100, len(indexMap))
-	}
-}
 
 func TestMessageWriter(t *testing.T) {
 	defer leaktest.Check(t)()
@@ -764,25 +711,166 @@ func TestMessageWriter_WithoutConsumerScope(t *testing.T) {
 	require.NotNil(t, counters["message-processed+result=write"])
 }
 
+// processServerMessages handles reading messages from a connection and sending acknowledgments
+// It can be configured to process messages at different speeds
+func processServerMessages(
+	t *testing.T,
+	conn net.Conn,
+	opts Options,
+	processDelay time.Duration,
+) {
+	defer conn.Close()
+
+	// Process messages
+	for {
+		// Read message
+		serverDecoder := proto.NewDecoder(conn, opts.DecoderOptions(), 10)
+		var msg msgpb.Message
+		err := serverDecoder.Decode(&msg)
+		if err != nil {
+			// Connection closed
+			return
+		}
+
+		// Simulate processing delay if specified
+		if processDelay > 0 {
+			time.Sleep(processDelay)
+		}
+
+		// Send ack
+		serverEncoder := proto.NewEncoder(opts.EncoderOptions())
+		err = serverEncoder.Encode(&msgpb.Ack{
+			Metadata: []msgpb.Metadata{
+				msg.Metadata,
+			},
+		})
+		require.NoError(t, err)
+		_, err = conn.Write(serverEncoder.Bytes())
+		require.NoError(t, err)
+	}
+}
+
 func TestMessageWriterChooseConsumerWriter(t *testing.T) {
+	// defer leaktest.Check(t)()
+
+	// Create two listeners - one for fast server, one for slow server
+	fastLis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer fastLis.Close()
+
+	slowLis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer slowLis.Close()
+
+	fastAddr := fastLis.Addr().String()
+	slowAddr := slowLis.Addr().String()
+	opts := testOptions()
+
+	// Create a messageWriter
+	w := newMessageWriter(200, newMessagePool(), opts, testMessageWriterMetrics())
+	require.Equal(t, 200, int(w.ReplicatedShardID()))
+	w.Init()
+	defer w.Close()
+
+	// Create an ack router
+	a := newAckRouter(1)
+	a.Register(200, w)
+
+	// Create two consumer writers
+	fastCW := newConsumerWriter(fastAddr, a, opts, testConsumerWriterMetrics())
+	fastCW.Init()
+	defer fastCW.Close()
+
+	slowCW := newConsumerWriter(slowAddr, a, opts, testConsumerWriterMetrics())
+	slowCW.Init()
+	defer slowCW.Close()
+
+	// Add both consumer writers to the message writer
+	w.AddConsumerWriter(fastCW)
+	w.AddConsumerWriter(slowCW)
+
+	// Create a mock controller for message mocking
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testOptions()
-	scope := tally.NewTestScope("", nil)
-	metrics := newMessageWriterMetrics(scope, instrument.TimerOptions{}, true)
-	w := newMessageWriter(200, nil, opts, metrics)
-	slowConsumerWriter := NewMockconsumerWriter(ctrl)
-	slowConsumerWriter.EXPECT().Address().Return("slow").AnyTimes()
-	slowConsumerWriter.EXPECT().AvailableBuffer(gomock.Any()).Return(1).AnyTimes()
-	fastConsumerWriter := NewMockconsumerWriter(ctrl)
-	fastConsumerWriter.EXPECT().Address().Return("fast").AnyTimes()
-	fastConsumerWriter.EXPECT().AvailableBuffer(gomock.Any()).Return(100).AnyTimes()
-	w.AddConsumerWriter(slowConsumerWriter)
-	w.AddConsumerWriter(fastConsumerWriter)
+	// Create a wait group to wait for server goroutines
+	var wg sync.WaitGroup
+	defer wg.Wait()
 
-	cw := w.chooseConsumerWriter([]consumerWriter{slowConsumerWriter, fastConsumerWriter}, 0, 10)
-	require.Equal(t, fastConsumerWriter.Address(), cw.Address())
+	// Start the fast server
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		conn, err := fastLis.Accept()
+		require.NoError(t, err)
+		processServerMessages(t, conn, opts, 0) // No delay for fast server
+	}()
+
+	// Start the slow server
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		conn, err := slowLis.Accept()
+		require.NoError(t, err)
+		processServerMessages(t, conn, opts, 100*time.Millisecond) // 100ms delay for slow server
+	}()
+
+	fmt.Println("start writing messages")
+
+	// Create and write multiple messages
+	numMessages := 20
+	fastWrites := 0
+	slowWrites := 0
+
+	for i := 0; i < numMessages; i++ {
+		mm := producer.NewMockMessage(ctrl)
+		mm.EXPECT().Bytes().Return([]byte(fmt.Sprintf("message-%d", i))).AnyTimes()
+		mm.EXPECT().Size().Return(10).AnyTimes()
+		mm.EXPECT().Finalize(producer.Consumed).AnyTimes()
+
+		rm := producer.NewRefCountedMessage(mm, nil)
+		w.Write(rm)
+
+		// Wait for message to be processed
+		for {
+			w.RLock()
+			l := w.queue.Len()
+			w.RUnlock()
+			if l == 0 {
+				break
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+
+		// Check which consumer writer was used
+		// We can't directly check which consumer writer was used, but we can
+		// infer it based on the timing of the ack
+		// If the ack comes quickly, it was the fast consumer writer
+		// If the ack comes slowly, it was the slow consumer writer
+		start := time.Now()
+		for {
+			if isEmptyWithLock(w.acks) {
+				break
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		elapsed := time.Since(start)
+
+		if elapsed < 50*time.Millisecond {
+			fastWrites++
+		} else {
+			slowWrites++
+		}
+	}
+
+	// Verify that the fast consumer writer was used more often
+	require.True(t, fastWrites > slowWrites,
+		"Fast consumer writer should be used more often. Fast: %d, Slow: %d",
+		fastWrites, slowWrites)
+
+	// Log the results
+	t.Logf("Fast consumer writer used: %d times", fastWrites)
+	t.Logf("Slow consumer writer used: %d times", slowWrites)
 }
 
 func TestMessageWriterForcedFlush(t *testing.T) {

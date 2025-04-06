@@ -56,7 +56,6 @@ type messageWriterMetrics struct {
 	scope                      tally.Scope
 	opts                       instrument.TimerOptions
 	writeSuccess               tally.Counter
-	oneConsumerWriteError      tally.Counter
 	allConsumersWriteError     tally.Counter
 	noWritersError             tally.Counter
 	writeAfterCutoff           tally.Counter
@@ -115,11 +114,10 @@ func newMessageWriterMetricsWithConsumer(
 		consumerScope = scope.Tagged(map[string]string{"consumer": consumer})
 	}
 	return &messageWriterMetrics{
-		withoutConsumerScope:  withoutConsumerScope,
-		scope:                 scope,
-		opts:                  opts,
-		writeSuccess:          consumerScope.Counter("write-success"),
-		oneConsumerWriteError: scope.Counter("write-error-one-consumer"),
+		withoutConsumerScope: withoutConsumerScope,
+		scope:                scope,
+		opts:                 opts,
+		writeSuccess:         consumerScope.Counter("write-success"),
 		allConsumersWriteError: consumerScope.
 			Tagged(map[string]string{"error-type": "all-consumers"}).
 			Counter("write-error"),
@@ -295,7 +293,6 @@ func (w *messageWriter) isValidWriteWithLock(nowNanos int64, metrics *messageWri
 }
 
 func (w *messageWriter) write(
-	iterationIndexes []int,
 	consumerWriters []consumerWriter,
 	metrics *messageWriterMetrics,
 	m *message,
@@ -329,9 +326,11 @@ func (w *messageWriter) write(
 	start := w.nowFn().UnixNano()
 	if err := cw.Write(connIndex, writeData); err != nil {
 		metrics.writeErrorLatency.RecordDuration(time.Duration(w.nowFn().UnixNano() - start))
+		metrics.allConsumersWriteError.Inc(1)
 		return errFailAllConsumers
 	}
 
+	metrics.writeSuccess.Inc(1)
 	return nil
 }
 
@@ -393,7 +392,6 @@ func (w *messageWriter) scanMessageQueue() {
 		beforeBatchNanos = beforeScan.UnixNano()
 		batchSize        = w.opts.MessageQueueScanBatchSize()
 		consumerWriters  []consumerWriter
-		iterationIndexes []int
 		fullScan         = isClosed || beforeScan.After(w.nextFullScan)
 		m                = w.Metrics()
 		scanMetrics      scanBatchMetrics
@@ -404,7 +402,6 @@ func (w *messageWriter) scanMessageQueue() {
 		w.Lock()
 		e, msgsToWrite = w.scanBatchWithLock(e, beforeBatchNanos, batchSize, fullScan, &scanMetrics)
 		consumerWriters = w.consumerWriters
-		iterationIndexes = w.iterationIndexes
 		w.Unlock()
 		if !fullScan && len(msgsToWrite) == 0 {
 			m.scanBatchLatency.Record(time.Duration(nowFn().UnixNano() - beforeBatchNanos))
@@ -416,7 +413,7 @@ func (w *messageWriter) scanMessageQueue() {
 			m.scanBatchLatency.Record(time.Duration(nowFn().UnixNano() - beforeBatchNanos))
 			continue
 		}
-		if err := w.writeBatch(iterationIndexes, consumerWriters, m, msgsToWrite); err != nil {
+		if err := w.writeBatch(consumerWriters, m, msgsToWrite); err != nil {
 			// When we can't write to any consumer writer, skip the writes in this scan
 			// to avoid meaningless attempts but continue to clean up the queue.
 			skipWrites = true
@@ -433,7 +430,6 @@ func (w *messageWriter) scanMessageQueue() {
 }
 
 func (w *messageWriter) writeBatch(
-	iterationIndexes []int,
 	consumerWriters []consumerWriter,
 	metrics *messageWriterMetrics,
 	messages []*message,
@@ -447,7 +443,7 @@ func (w *messageWriter) writeBatch(
 	nowFn := w.nowFn
 	for i := range messages {
 		start := nowFn().UnixNano()
-		if err := w.write(iterationIndexes, consumerWriters, metrics, messages[i]); err != nil {
+		if err := w.write(consumerWriters, metrics, messages[i]); err != nil {
 			return err
 		}
 		if i%_recordMessageDelayEvery == 0 {
@@ -839,14 +835,6 @@ func StaticRetryNanosFn(backoffDurations []time.Duration) (MessageRetryNanosFn, 
 	}, nil
 }
 
-func randIndex(iterationIndexes []int, i int) int {
-	j := int(unsafe.Fastrandn(uint32(i + 1)))
-	// NB: we should only mutate the order in the iteration indexes and
-	// keep the order of consumer writers unchanged to prevent data race.
-	iterationIndexes[i], iterationIndexes[j] = iterationIndexes[j], iterationIndexes[i]
-	return iterationIndexes[i]
-}
-
 func (w *messageWriter) chooseConsumerWriter(
 	consumerWriters []consumerWriter,
 	connIndex int,
@@ -856,6 +844,7 @@ func (w *messageWriter) chooseConsumerWriter(
 		w.Metrics().forcedFlushSingleConsumer.Inc(1)
 		return consumerWriters[0]
 	}
+
 	// find the consumer writer with the max available buffer.
 	max, maxBuf := w.getConsumerWriterWithMaxBuffer(consumerWriters, connIndex)
 
