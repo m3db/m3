@@ -718,6 +718,7 @@ func processServerMessages(
 	conn net.Conn,
 	opts Options,
 	processDelay time.Duration,
+	processFn func(),
 ) {
 	defer conn.Close()
 
@@ -751,7 +752,7 @@ func processServerMessages(
 }
 
 func TestMessageWriterChooseConsumerWriter(t *testing.T) {
-	// defer leaktest.Check(t)()
+	defer leaktest.Check(t)()
 
 	// Create two listeners - one for fast server, one for slow server
 	fastLis, err := net.Listen("tcp", "127.0.0.1:0")
@@ -798,12 +799,20 @@ func TestMessageWriterChooseConsumerWriter(t *testing.T) {
 	defer wg.Wait()
 
 	// Start the fast server
+	slowCWMsgs := 0
+	fastCWMsgs := 0
+	slowCWFn := func() {
+		slowCWMsgs++
+	}
+	fastCWFn := func() {
+		fastCWMsgs++
+	}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		conn, err := fastLis.Accept()
 		require.NoError(t, err)
-		processServerMessages(t, conn, opts, 0) // No delay for fast server
+		processServerMessages(t, conn, opts, 0, fastCWFn) // No delay for fast server
 	}()
 
 	// Start the slow server
@@ -812,17 +821,13 @@ func TestMessageWriterChooseConsumerWriter(t *testing.T) {
 		defer wg.Done()
 		conn, err := slowLis.Accept()
 		require.NoError(t, err)
-		processServerMessages(t, conn, opts, 100*time.Millisecond) // 100ms delay for slow server
+		processServerMessages(t, conn, opts, 10*time.Millisecond, slowCWFn) // 100ms delay for slow server
 	}()
-
-	fmt.Println("start writing messages")
 
 	// Create and write multiple messages
 	numMessages := 20
-	fastWrites := 0
-	slowWrites := 0
 
-	for i := 0; i < numMessages; i++ {
+	for i := range numMessages {
 		mm := producer.NewMockMessage(ctrl)
 		mm.EXPECT().Bytes().Return([]byte(fmt.Sprintf("message-%d", i))).AnyTimes()
 		mm.EXPECT().Size().Return(10).AnyTimes()
@@ -841,36 +846,16 @@ func TestMessageWriterChooseConsumerWriter(t *testing.T) {
 			}
 			time.Sleep(10 * time.Millisecond)
 		}
-
-		// Check which consumer writer was used
-		// We can't directly check which consumer writer was used, but we can
-		// infer it based on the timing of the ack
-		// If the ack comes quickly, it was the fast consumer writer
-		// If the ack comes slowly, it was the slow consumer writer
-		start := time.Now()
-		for {
-			if isEmptyWithLock(w.acks) {
-				break
-			}
-			time.Sleep(10 * time.Millisecond)
-		}
-		elapsed := time.Since(start)
-
-		if elapsed < 50*time.Millisecond {
-			fastWrites++
-		} else {
-			slowWrites++
-		}
 	}
 
 	// Verify that the fast consumer writer was used more often
-	require.True(t, fastWrites > slowWrites,
+	require.True(t, fastCWMsgs > slowCWMsgs,
 		"Fast consumer writer should be used more often. Fast: %d, Slow: %d",
-		fastWrites, slowWrites)
+		fastCWMsgs, slowCWMsgs)
 
 	// Log the results
-	t.Logf("Fast consumer writer used: %d times", fastWrites)
-	t.Logf("Slow consumer writer used: %d times", slowWrites)
+	t.Logf("Fast consumer writer used: %d times", fastCWMsgs)
+	t.Logf("Slow consumer writer used: %d times", slowCWMsgs)
 }
 
 func TestMessageWriterForcedFlush(t *testing.T) {
