@@ -867,7 +867,7 @@ func TestMessageWriterChooseConsumerWriter(t *testing.T) {
 	// We are sending 2 messages.
 	// If the slow CW receives the first message then the next message
 	// should be sent to the fast CW.
-	// If the fast CW receives the first message then the next message should still
+	// If the fast CW receives the first message then the next message should
 	// still be sent to the fast CW.
 	// Therefore, the fast CW should see at least 1 message.
 	require.True(t, fastCWMsgs >= slowCWMsgs,
