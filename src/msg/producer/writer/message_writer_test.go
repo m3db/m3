@@ -720,7 +720,7 @@ func processServerMessages(
 	processDelay time.Duration,
 	processFn func(),
 ) {
-	defer conn.Close()
+	defer conn.Close() // nolint: errcheck
 
 	// Process messages
 	for {
@@ -804,7 +804,7 @@ func TestMessageWriterChooseConsumerWriter(t *testing.T) {
 	// Create two consumer writers
 	fastCW := newConsumerWriter(fastAddr, a, opts, testConsumerWriterMetrics())
 	fastCW.Init()
-	defer fastCW.Close()
+	defer fastCW.Close() // nolint:errcheck
 
 	slowCW := newConsumerWriter(slowAddr, a, opts, testConsumerWriterMetrics())
 	slowCW.Init()
