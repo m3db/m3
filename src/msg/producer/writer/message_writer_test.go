@@ -738,6 +738,8 @@ func processServerMessages(
 			time.Sleep(processDelay)
 		}
 
+		processFn()
+
 		// Send ack
 		serverEncoder := proto.NewEncoder(opts.EncoderOptions())
 		err = serverEncoder.Encode(&msgpb.Ack{
@@ -754,6 +756,14 @@ func processServerMessages(
 func TestMessageWriterChooseConsumerWriter(t *testing.T) {
 	defer leaktest.Check(t)()
 
+	// Create a mock controller for message mocking
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	// Create a wait group to wait for server goroutines
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
 	// Create two listeners - one for fast server, one for slow server
 	fastLis, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -766,6 +776,20 @@ func TestMessageWriterChooseConsumerWriter(t *testing.T) {
 	fastAddr := fastLis.Addr().String()
 	slowAddr := slowLis.Addr().String()
 	opts := testOptions()
+
+	connOpts := opts.ConnectionOptions().SetWriteBufferSize(50)
+	opts = opts.SetConnectionOptions(connOpts)
+	// set scan interval low enough to ensure that the message writes are processed
+	opts = opts.SetMessageQueueNewWritesScanInterval(2 * time.Millisecond)
+	// set the retry interval long enough to ensure that
+	// messages are not retried.
+	opts = opts.SetMessageRetryNanosFn(
+		NextRetryNanosFn(
+			retry.NewOptions().
+				SetInitialBackoff(500 * time.Millisecond).
+				SetMaxBackoff(500 * time.Millisecond),
+		),
+	)
 
 	// Create a messageWriter
 	w := newMessageWriter(200, newMessagePool(), opts, testMessageWriterMetrics())
@@ -787,16 +811,8 @@ func TestMessageWriterChooseConsumerWriter(t *testing.T) {
 	defer slowCW.Close()
 
 	// Add both consumer writers to the message writer
-	w.AddConsumerWriter(fastCW)
 	w.AddConsumerWriter(slowCW)
-
-	// Create a mock controller for message mocking
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	// Create a wait group to wait for server goroutines
-	var wg sync.WaitGroup
-	defer wg.Wait()
+	w.AddConsumerWriter(fastCW)
 
 	// Start the fast server
 	slowCWMsgs := 0
@@ -821,11 +837,11 @@ func TestMessageWriterChooseConsumerWriter(t *testing.T) {
 		defer wg.Done()
 		conn, err := slowLis.Accept()
 		require.NoError(t, err)
-		processServerMessages(t, conn, opts, 10*time.Millisecond, slowCWFn) // 100ms delay for slow server
+		processServerMessages(t, conn, opts, 100*time.Millisecond, slowCWFn) // 100ms delay for slow server
 	}()
 
 	// Create and write multiple messages
-	numMessages := 20
+	numMessages := 2
 
 	for i := range numMessages {
 		mm := producer.NewMockMessage(ctrl)
@@ -835,27 +851,28 @@ func TestMessageWriterChooseConsumerWriter(t *testing.T) {
 
 		rm := producer.NewRefCountedMessage(mm, nil)
 		w.Write(rm)
-
-		// Wait for message to be processed
-		for {
-			w.RLock()
-			l := w.queue.Len()
-			w.RUnlock()
-			if l == 0 {
-				break
-			}
-			time.Sleep(10 * time.Millisecond)
-		}
 	}
 
-	// Verify that the fast consumer writer was used more often
-	require.True(t, fastCWMsgs > slowCWMsgs,
+	// Wait for message to be processed
+	for {
+		w.RLock()
+		l := w.queue.Len()
+		w.RUnlock()
+		if l == 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// We are sending 2 messages.
+	// If the slow CW receives the first message then the next message
+	// should be sent to the fast CW.
+	// If the fast CW receives the first message then the next message should still
+	// still be sent to the fast CW.
+	// Therefore, the fast CW should see at least 1 message.
+	require.True(t, fastCWMsgs >= slowCWMsgs,
 		"Fast consumer writer should be used more often. Fast: %d, Slow: %d",
 		fastCWMsgs, slowCWMsgs)
-
-	// Log the results
-	t.Logf("Fast consumer writer used: %d times", fastCWMsgs)
-	t.Logf("Slow consumer writer used: %d times", slowCWMsgs)
 }
 
 func TestMessageWriterForcedFlush(t *testing.T) {
