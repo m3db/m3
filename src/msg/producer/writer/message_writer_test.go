@@ -767,11 +767,11 @@ func TestMessageWriterChooseConsumerWriter(t *testing.T) {
 	// Create two listeners - one for fast server, one for slow server
 	fastLis, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer fastLis.Close()
+	defer fastLis.Close() // nolint: errcheck
 
 	slowLis, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer slowLis.Close()
+	defer slowLis.Close() // nolint: errcheck
 
 	fastAddr := fastLis.Addr().String()
 	slowAddr := slowLis.Addr().String()
