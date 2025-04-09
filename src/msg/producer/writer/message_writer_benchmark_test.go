@@ -21,6 +21,7 @@
 package writer
 
 import (
+	"math"
 	"testing"
 
 	"github.com/m3db/m3/src/msg/producer"
@@ -69,6 +70,8 @@ func (noopWriter) Address() string         { return "" }
 func (noopWriter) Write(int, []byte) error { return nil }
 func (noopWriter) Init()                   {}
 func (noopWriter) Close()                  {}
+func (noopWriter) ForcedFlush(int) error   { return nil }
+func (noopWriter) AvailableBuffer(int) int { return math.MaxInt }
 
 func BenchmarkAck(b *testing.B) {
 	ack := newAckHelper(64)
