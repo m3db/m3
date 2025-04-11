@@ -45,7 +45,7 @@ func NewMiddlerWareOutbound(logger *zap.Logger, scope tally.Scope, enabler Enabl
 func (u *MiddlerWareOutbound) WriteBatchRaw(ctx tchannel.ContextWithHeaders, req *rpc.WriteBatchRawRequest, tchanNodeClient rpc.TChanNode) error {
 
 	if u == nil || !u.enabler.IsEnabled(ctx) {
-		u.logger.Error("Circuit breaker not enabled",
+		u.logger.Info("Circuit breaker not enabled",
 			zap.String("host", u.host),
 		)
 		// fmt.Println("Circuit breaker not enabled", u.host)
@@ -79,7 +79,7 @@ func (u *MiddlerWareOutbound) WriteBatchRaw(ctx tchannel.ContextWithHeaders, req
 	isAllowed := circuit.IsRequestAllowed(u.host)
 
 	if !isAllowed {
-		u.logger.Error("Circuit breaker request not allowed",
+		u.logger.Info("Circuit breaker request not allowed",
 			zap.String("host", u.host),
 		)
 
@@ -99,7 +99,7 @@ func (u *MiddlerWareOutbound) WriteBatchRaw(ctx tchannel.ContextWithHeaders, req
 		edge.reportRequestComplete(circuit.Status(), isSuccess, err, mode)
 	}
 
-	u.logger.Error("Circuit breaker call done",
+	u.logger.Info("Circuit breaker call done",
 		zap.String("host", u.host),
 	)
 
