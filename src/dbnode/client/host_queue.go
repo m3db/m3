@@ -28,6 +28,7 @@ import (
 	"math"
 	"sync"
 	"time"
+	"strings"
 
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
@@ -685,7 +686,12 @@ func (q *queue) asyncWrite(
 		ctx, _ := thrift.NewContext(q.opts.WriteRequestTimeout())
 		// err = client.WriteBatchRaw(ctx, req)
 		err = q.middleware.WriteBatchRaw(ctx, req, client)
-		if err == nil {
+
+		if err != nil && strings.Contains(err.Error(), "request rejected by circuit breaker") {
+			callAllCompletionFns(ops, q.host, err)
+			cleanup()
+			return
+		}else  {
 			// All succeeded
 			callAllCompletionFns(ops, q.host, nil)
 			cleanup()
