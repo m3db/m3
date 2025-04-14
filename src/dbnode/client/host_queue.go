@@ -685,13 +685,21 @@ func (q *queue) asyncWrite(
 
 		ctx, _ := thrift.NewContext(q.opts.WriteRequestTimeout())
 		// err = client.WriteBatchRaw(ctx, req)
+		start := time.Now()
 		err = q.middleware.WriteBatchRaw(ctx, req, client)
+		d := time.Since(start)
+
+
 
 		if err != nil && strings.Contains(err.Error(), "request rejected by circuit breaker") {
+			fmt.Println("Host queue middleware FAILED write time taken:", d.Milliseconds())
+
 			callAllCompletionFns(ops, q.host, err)
 			cleanup()
 			return
-		}else  {
+		}else if(err==nil){
+			fmt.Println("Host queue middleware Success write time taken:", d.Milliseconds())
+
 			// All succeeded
 			callAllCompletionFns(ops, q.host, nil)
 			cleanup()
