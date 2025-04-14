@@ -657,6 +657,7 @@ func (q *queue) asyncWrite(
 	ops []op,
 	elems []*rpc.WriteBatchRawRequestElement,
 ) {
+	fmt.Println("AsyncWrite called.")
 	q.writeOpBatchSize.RecordValue(float64(len(elems)))
 	q.Add(1)
 	q.workerPool.Go(func() {
@@ -675,9 +676,12 @@ func (q *queue) asyncWrite(
 		// NB(bl): host is passed to writeState to determine the state of the
 		// shard on the node we're writing to
 
+		fmt.Println("Conn pool next client called..")
+
 		client, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
+			fmt.Println("Conn pool next client failed..")
 			callAllCompletionFns(ops, q.host, err)
 			cleanup()
 			return
