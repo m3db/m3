@@ -3,6 +3,7 @@ package circuitbreakererror
 import (
 	"errors"
 	"strings"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	// "go.uber.org/yarpc/yarpcerrors"
 )
 
@@ -16,7 +17,8 @@ type circuitBreakerError struct {
 
 // New returns a circuit breaker error with the given service and procedure.
 func New(service, procedure string) error {
-	return circuitBreakerError{service: service, procedure: procedure}
+	err := circuitBreakerError{service: service, procedure: procedure}
+	return xerrors.NewNonRetryableError(err)
 }
 
 // Error method ensures circuit breaker error is compliant to the Error interface.
