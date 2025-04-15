@@ -14,13 +14,13 @@ type (
 
 func newStaticEnabler() *staticEnabler {
 	se := &staticEnabler{
-		enabled: true,
+		enabled: false,
 	}
 	return se
 }
 
 func (s *staticEnabler) IsEnabled(context.Context) bool {
-	return true
+	return false
 }
 
 func (s *staticEnabler) Mode(_ context.Context) middleware.Mode {
