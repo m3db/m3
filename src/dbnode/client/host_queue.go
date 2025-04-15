@@ -298,8 +298,11 @@ func (q *queue) drain() {
 		// If any outstanding write ops, async write.
 		for i, writeOps := range currWriteOpsByNamespace {
 			if len(writeOps.ops) > 0 {
+				start1 := time.Now()
 				q.asyncWrite(writeOps.namespace, writeOps.ops,
 					writeOps.elems)
+				d1 := time.Since(start1)
+				fmt.Println("Host queue asyncWrite time taken:", d1.Milliseconds())
 			}
 			// Zero the element
 			currWriteOpsByNamespace[i] = namespaceWriteBatchOps{}
@@ -367,8 +370,11 @@ func (q *queue) drainWriteOpV1(
 
 	if currWriteOpsByNamespace.lenAt(idx) == q.opts.WriteBatchSize() {
 		// Reached write batch limit, write async and reset.
-		q.asyncWrite(namespace, currWriteOpsByNamespace[idx].ops,
-			currWriteOpsByNamespace[idx].elems)
+			start2 := time.Now()
+			q.asyncWrite(namespace, currWriteOpsByNamespace[idx].ops,
+				currWriteOpsByNamespace[idx].elems)
+			d2 := time.Since(start2)
+			fmt.Println("Host queue asyncWrite 2 time taken:", d2.Milliseconds())
 		currWriteOpsByNamespace.resetAt(idx)
 	}
 
