@@ -47,16 +47,13 @@ func NewMiddlerWareOutbound(logger *zap.Logger, scope tally.Scope, enabler Enabl
 	}
 }
 
-// Call implements the middleware.UnaryOutbound interface.
-// Applies circuit breaker to the outbound call if a circuit breaker is available
-// for the request service and procedure.
-func (u *MiddlerWareOutbound) WriteBatchRaw(ctx tchannel.ContextWithHeaders, req *rpc.WriteBatchRawRequest) error {
+func withBreaker[T any](u *MiddlerWareOutbound, ctx tchannel.ContextWithHeaders, call func() (error)) ( error) {
 	if u == nil || !u.enabler.IsEnabled(ctx) {
 		u.logger.Info("Circuit breaker not enabled",
 			zap.String("host", u.host),
 		)
 		// fmt.Println("Circuit breaker not enabled", u.host)
-		return u.next.WriteBatchRaw(ctx, req)
+		return call()
 	}
 
 	circuit, err := u.circuitManager.circuit("", "")
@@ -66,11 +63,11 @@ func (u *MiddlerWareOutbound) WriteBatchRaw(ctx tchannel.ContextWithHeaders, req
 			zap.Error(err),
 		)
 		// fmt.Println("Failed to create circuit breaker", u.host)
-		return u.next.WriteBatchRaw(ctx, req)
+		return call()
 	}
 
 	if circuit == nil {
-		return u.next.WriteBatchRaw(ctx, req)
+		return call()
 	}
 
 	edge, err := u.observer.edge(u.host)
@@ -79,7 +76,7 @@ func (u *MiddlerWareOutbound) WriteBatchRaw(ctx tchannel.ContextWithHeaders, req
 			zap.String("host", u.host),
 			zap.Error(err),
 		)
-		return u.next.WriteBatchRaw(ctx, req)
+		return call()
 	}
 
 	mode := u.enabler.Mode(ctx)
@@ -97,7 +94,7 @@ func (u *MiddlerWareOutbound) WriteBatchRaw(ctx tchannel.ContextWithHeaders, req
 		}
 	}
 
-	err = u.next.WriteBatchRaw(ctx, req)
+	err = call()
 	isSuccess := err == nil
 	// Report request status and metrics only when the request is allowed.
 	// isAllowed might be false when middleware is in shadow mode.
@@ -115,6 +112,82 @@ func (u *MiddlerWareOutbound) WriteBatchRaw(ctx tchannel.ContextWithHeaders, req
 
 	return err
 }
+
+
+func (u *MiddlerWareOutbound) WriteBatchRaw(ctx tchannel.ContextWithHeaders, req *rpc.WriteBatchRawRequest)  error {
+	return withBreaker[*rpc.WriteBatchRawRequest](u, ctx, func() error {
+		return u.next.WriteBatchRaw(ctx, req)
+	})
+}
+
+// // Call implements the middleware.UnaryOutbound interface.
+// // Applies circuit breaker to the outbound call if a circuit breaker is available
+// // for the request service and procedure.
+// func (u *MiddlerWareOutbound) WriteBatchRaw(ctx tchannel.ContextWithHeaders, req *rpc.WriteBatchRawRequest) error {
+// 	if u == nil || !u.enabler.IsEnabled(ctx) {
+// 		u.logger.Info("Circuit breaker not enabled",
+// 			zap.String("host", u.host),
+// 		)
+// 		// fmt.Println("Circuit breaker not enabled", u.host)
+// 		return u.next.WriteBatchRaw(ctx, req)
+// 	}
+
+// 	circuit, err := u.circuitManager.circuit("", "")
+// 	if err != nil {
+// 		u.logger.Error("Failed to create circuit breaker",
+// 			zap.String("host", u.host),
+// 			zap.Error(err),
+// 		)
+// 		// fmt.Println("Failed to create circuit breaker", u.host)
+// 		return u.next.WriteBatchRaw(ctx, req)
+// 	}
+
+// 	if circuit == nil {
+// 		return u.next.WriteBatchRaw(ctx, req)
+// 	}
+
+// 	edge, err := u.observer.edge(u.host)
+// 	if err != nil {
+// 		u.logger.Error("Failed to fetch call edge",
+// 			zap.String("host", u.host),
+// 			zap.Error(err),
+// 		)
+// 		return u.next.WriteBatchRaw(ctx, req)
+// 	}
+
+// 	mode := u.enabler.Mode(ctx)
+// 	isAllowed := circuit.IsRequestAllowed(u.host)
+
+// 	if !isAllowed {
+// 		u.logger.Info("Circuit breaker request not allowed",
+// 			zap.String("host", u.host),
+// 		)
+
+// 		edge.reportRequestRejected(circuit.Status(), mode)
+
+// 		if mode == Rejection {
+// 			return circuitbreakererror.New("", "")
+// 		}
+// 	}
+
+// 	err = u.next.WriteBatchRaw(ctx, req)
+// 	isSuccess := err == nil
+// 	// Report request status and metrics only when the request is allowed.
+// 	// isAllowed might be false when middleware is in shadow mode.
+// 	if isAllowed {
+// 		circuit.ReportRequestStatus(isSuccess)
+// 		edge.reportRequestComplete(circuit.Status(), isSuccess, err, mode)
+// 	}
+
+// 	u.logger.Info("Circuit breaker call done",
+// 		zap.String("host", u.host),
+// 	)
+
+// 	//TODO move it to module health check
+// 	u.ReportHeartbeatMetrics()
+
+// 	return err
+// }
 
 // ReportHeartbeatMetrics emits heartbeat metrics of all the circuits with the
 // state and probe ratio.
