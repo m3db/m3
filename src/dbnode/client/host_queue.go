@@ -80,7 +80,7 @@ type queue struct {
 	fetchOpBatchSize                             tally.Histogram
 	status                                       status
 	serverSupportsV2APIs                         bool
-	middleware                                   middleware.MiddlerWareOutbound
+	middleware                                   func(rpc.TChanNode) *middleware.MiddlerWareOutbound
 }
 
 func newHostQueue(
@@ -136,9 +136,9 @@ func newHostQueue(
 	opArrayPool := newOpArrayPool(opArrayPoolOpts, opArrayPoolElemCapacity)
 	opArrayPool.Init()
 
-	mw, err := middleware.NewMiddlerWareOutbound(iOpts.Logger(), scope, enablerprovider.New(), host.ID())
+	mw := middleware.NewMiddlerWareOutbound(iOpts.Logger(), scope, enablerprovider.New(), host.ID())
 	if err != nil {
-		return nil, err
+		return nil, nil
 	}
 
 	return &queue{
@@ -693,7 +693,7 @@ func (q *queue) asyncWrite(
 		}
 
 		ctx, _ := thrift.NewContext(q.opts.WriteRequestTimeout())
-		err = q.middleware.WriteBatchRaw(ctx, req, client)
+		err = q.middleware(client).WriteBatchRaw(ctx, req)
 
 		if err == nil {
 			// All succeeded

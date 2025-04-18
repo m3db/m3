@@ -20,36 +20,43 @@ type MiddlerWareOutbound struct {
 	circuitManager *circuitManager
 	observer       *observer
 	host           string
+	next rpc.TChanNode
 }
+
+// middleware function to wrap a client
+type m3dbtsMiddleware func(rpc.TChanNode) *MiddlerWareOutbound
 
 // NewMiddlerWareOutbound returns a unary outbound circuit breaker middleware based on
 // the provided config.
-func NewMiddlerWareOutbound(logger *zap.Logger, scope tally.Scope, enabler Enabler, host string) (MiddlerWareOutbound, error) {
+func NewMiddlerWareOutbound(logger *zap.Logger, scope tally.Scope, enabler Enabler, host string) (m3dbtsMiddleware) {
+
+	return func(next rpc.TChanNode) *MiddlerWareOutbound {
 	observer, err := newObserver(host, scope)
 	if err != nil {
-		return MiddlerWareOutbound{}, err
+		return &MiddlerWareOutbound{}
 	}
 
-	return MiddlerWareOutbound{
+	return &MiddlerWareOutbound{
+		next: next,
 		enabler:        enabler,
 		logger:         logger.With(zap.String("component", _packageName)).WithOptions(zap.AddCaller()),
 		host:           host,
 		observer:       observer,
 		circuitManager: newCircuitManager(),
-	}, nil
+	}
+	}
 }
 
 // Call implements the middleware.UnaryOutbound interface.
 // Applies circuit breaker to the outbound call if a circuit breaker is available
 // for the request service and procedure.
-func (u *MiddlerWareOutbound) WriteBatchRaw(ctx tchannel.ContextWithHeaders, req *rpc.WriteBatchRawRequest, tchanNodeClient rpc.TChanNode) error {
-
+func (u *MiddlerWareOutbound) WriteBatchRaw(ctx tchannel.ContextWithHeaders, req *rpc.WriteBatchRawRequest) error {
 	if u == nil || !u.enabler.IsEnabled(ctx) {
 		u.logger.Info("Circuit breaker not enabled",
 			zap.String("host", u.host),
 		)
 		// fmt.Println("Circuit breaker not enabled", u.host)
-		return tchanNodeClient.WriteBatchRaw(ctx, req)
+		return u.next.WriteBatchRaw(ctx, req)
 	}
 
 	circuit, err := u.circuitManager.circuit("", "")
@@ -59,11 +66,11 @@ func (u *MiddlerWareOutbound) WriteBatchRaw(ctx tchannel.ContextWithHeaders, req
 			zap.Error(err),
 		)
 		// fmt.Println("Failed to create circuit breaker", u.host)
-		return tchanNodeClient.WriteBatchRaw(ctx, req)
+		return u.next.WriteBatchRaw(ctx, req)
 	}
 
 	if circuit == nil {
-		return tchanNodeClient.WriteBatchRaw(ctx, req)
+		return u.next.WriteBatchRaw(ctx, req)
 	}
 
 	edge, err := u.observer.edge(u.host)
@@ -72,7 +79,7 @@ func (u *MiddlerWareOutbound) WriteBatchRaw(ctx tchannel.ContextWithHeaders, req
 			zap.String("host", u.host),
 			zap.Error(err),
 		)
-		return tchanNodeClient.WriteBatchRaw(ctx, req)
+		return u.next.WriteBatchRaw(ctx, req)
 	}
 
 	mode := u.enabler.Mode(ctx)
@@ -90,7 +97,7 @@ func (u *MiddlerWareOutbound) WriteBatchRaw(ctx tchannel.ContextWithHeaders, req
 		}
 	}
 
-	err = tchanNodeClient.WriteBatchRaw(ctx, req)
+	err = u.next.WriteBatchRaw(ctx, req)
 	isSuccess := err == nil
 	// Report request status and metrics only when the request is allowed.
 	// isAllowed might be false when middleware is in shadow mode.
