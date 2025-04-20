@@ -137,8 +137,6 @@ func newSubClusterRemoveInstancesHelper(
 }
 
 func newSubClusterHelper(p placement.Placement, targetRF int, opts placement.Options) subClusterShardedHelper {
-	fmt.Printf("Printing final placement state4: %+v\n", p)
-
 	sph := subClusterShardedHelper{
 		rf:           targetRF,
 		instances:    make(map[string]placement.Instance, p.NumInstances()),
@@ -188,7 +186,6 @@ func (sph *subClusterShardedHelper) scanCurrentLoad() {
 	sph.currentShardsPerSubCluster = make(map[uint32]int)
 	sph.targetLoad = make(map[string]int)
 	sph.groupToWeightMap = make(map[string]uint32)
-	sph.currentShardsPerSubCluster = make(map[uint32]int)
 	sph.shardToSubClusterMap = make(map[uint32]uint32)
 	totalWeight := uint32(0)
 	for _, instance := range sph.instances {
@@ -470,7 +467,7 @@ func (sph *subClusterShardedHelper) placeShardForInitialPlacement(shards []shard
 		}
 	}
 
-	fmt.Printf("no errors from placing shards.")
+	//fmt.Printf("no errors from placing shards.")
 
 	return nil
 }

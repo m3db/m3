@@ -38,7 +38,7 @@ func (a BySubClusterIDInstanceID) Swap(i, j int) {
 }
 
 // nolint
-func TestGoodCaseSubClusters(t *testing.T) {
+func TestOneNodeAtATime(t *testing.T) {
 	i1 := placement.NewEmptyInstance("a", "r1", "z1", "endpoint", 1).SetSubClusterID(1)
 	i2 := placement.NewEmptyInstance("b", "r2", "z1", "endpoint", 1).SetSubClusterID(1)
 	i3 := placement.NewEmptyInstance("c", "r3", "z1", "endpoint", 1).SetSubClusterID(1)
@@ -58,26 +58,15 @@ func TestGoodCaseSubClusters(t *testing.T) {
 	i18 := placement.NewEmptyInstance("q", "r2", "z1", "endpoint", 1).SetSubClusterID(3)
 	i19 := placement.NewEmptyInstance("r", "r3", "z1", "endpoint", 1).SetSubClusterID(3)
 
-	//subClusterToInstanceMap := make(map[uint32][]placement.Instance)
-	//subClusterToInstanceMap[1] = []placement.Instance{i1, i3, i5, i2, i4, i6}
-	////subClusterToInstanceMap[2] = []placement.Instance{i2, i4, i6}
-	//subClusterToInstanceMap[3] = []placement.Instance{i7, i8, i9}
-
-	numShards := 64
+	numShards := 256
 	ids := make([]uint32, numShards)
 	for i := 0; i < len(ids); i++ {
 		ids[i] = uint32(i)
 	}
 
-	//helper, err := newSubClusterInitHelper(subClusterToInstanceMap, ids)
-	//require.NoError(t, err)
-	//subClusterToShardMap, err := helper.placeShards(ids)
-	//require.NoError(t, err)
-	//require.NotNil(t, subClusterToShardMap)
 	opts := placement.NewOptions().SetHasSubClusters(true).SetIsSharded(true).SetInstancesPerSubCluster(6)
 	algo := newSubClusteredAlgorithm(opts)
 	p, err := algo.InitialPlacement([]placement.Instance{i1, i2, i3, i4, i5, i6}, ids, 3)
-	fmt.Println(p)
 	require.NoError(t, err)
 	require.NotNil(t, p)
 	require.NoError(t, placement.Validate(p))
