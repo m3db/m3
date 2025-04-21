@@ -99,6 +99,73 @@ func valueFromWatch(value interface{}) Value {
 	return nil
 }
 
+type prefixWatch struct {
+	w xwatch.Watch
+}
+
+// newValueWatch creates a new ValueWatch
+func newPrefixWatch(w xwatch.Watch) PrefixWatch {
+	return &prefixWatch{w: w}
+}
+
+func (v *prefixWatch) Close() {
+	v.w.Close()
+}
+
+func (v *prefixWatch) C() <-chan struct{} {
+	return v.w.C()
+}
+
+func (v *prefixWatch) Get() map[string]Value {
+	return v.w.Get().(map[string]Value)
+}
+
+type prefixWatchable struct {
+	w xwatch.Watchable
+}
+
+// NewPrefixWatchable creates a new PrefixWatchable
+func NewPrefixWatchable() PrefixWatchable {
+	return &prefixWatchable{w: xwatch.NewPrefixWatchable()}
+}
+
+func (w *prefixWatchable) Get() map[string]Value {
+	return valueFromPrefixWatch(w.w.Get())
+}
+
+func (w *prefixWatchable) Watch() (map[string]Value, PrefixWatch, error) {
+	value, watch, err := w.w.Watch()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return valueFromPrefixWatch(value), newPrefixWatch(watch), nil
+}
+
+func (w *prefixWatchable) NumWatches() int {
+	return w.w.NumWatches()
+}
+
+func (w *prefixWatchable) Update(v map[string]Value) error {
+	return w.w.Update(v)
+}
+
+func (w *prefixWatchable) Close() {
+	w.w.Close()
+}
+
+func (w *prefixWatchable) IsClosed() bool {
+	return w.w.IsClosed()
+}
+
+func valueFromPrefixWatch(value interface{}) map[string]Value {
+	if value != nil {
+		return value.(map[string]Value)
+	}
+
+	return nil
+}
+
 type overrideOptions struct {
 	zone      string
 	env       string

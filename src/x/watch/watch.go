@@ -69,6 +69,11 @@ func NewWatchable() Watchable {
 	return &watchable{}
 }
 
+// NewPrefixWatchable returns a PrefixWatchable
+func NewPrefixWatchable() Watchable {
+	return &prefixWatchable{values: make(map[string]interface{})}
+}
+
 type watchable struct {
 	sync.RWMutex
 
@@ -179,6 +184,45 @@ func (w *watchable) closeFunc(c chan struct{}) closer {
 			}
 		}
 	}
+}
+
+type prefixWatchable struct {
+	watchable
+	values map[string]interface{}
+}
+
+func (w *prefixWatchable) Update(v interface{}) error {
+	w.Lock()
+	defer w.Unlock()
+
+	if w.closed {
+		return errClosed
+	}
+
+	// add v into the values map.
+	vMap, ok := v.(map[string]interface{})
+	if !ok {
+		return errors.New("invalid value for prefix watch")
+	}
+	for k, val := range vMap {
+		w.values[k] = val
+	}
+
+	for _, s := range w.active {
+		select {
+		case s <- struct{}{}:
+		default:
+		}
+	}
+
+	return nil
+}
+
+func (w *prefixWatchable) Get() interface{} {
+	w.RLock()
+	v := w.values
+	w.RUnlock()
+	return v
 }
 
 type watch struct {
