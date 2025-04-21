@@ -52,10 +52,7 @@ var (
 
 // NewStore creates a kv store based on etcd and watches single keys.
 func NewStore(etcdKV *clientv3.Client, opts Options) (kv.TxnStore, error) {
-	store, err := newStore[kv.Value, kv.ValueWatch](etcdKV, opts)
-	if err != nil {
-		return nil, err
-	}
+	store := newStore[kv.Value, kv.ValueWatch](etcdKV, opts)
 	clientWatchOpts := newClientWatchOptions(opts)
 	wOpts := watchmanager.NewOptions().
 		SetClient(etcdKV).
@@ -78,14 +75,11 @@ func NewStore(etcdKV *clientv3.Client, opts Options) (kv.TxnStore, error) {
 
 // NewPrefixStore creates a kv store based on etcd and watches all keys with a given prefix.
 func NewPrefixStore(etcdKV *clientv3.Client, opts Options) (kv.PrefixStore, error) {
-	store, err := newStore[map[string]kv.Value, kv.PrefixWatch](
+	store := newStore[map[string]kv.Value, kv.PrefixWatch](
 		etcdKV,
 		opts,
 	)
 
-	if err != nil {
-		return nil, err
-	}
 	clientWatchOpts := newClientWatchOptions(opts)
 	clientWatchOpts = append(clientWatchOpts, []clientv3.OpOption{clientv3.WithPrefix()}...)
 	wOpts := watchmanager.NewOptions().
@@ -110,7 +104,7 @@ func NewPrefixStore(etcdKV *clientv3.Client, opts Options) (kv.PrefixStore, erro
 func newStore[ValueType any, ValueWatchType any](
 	etcdKV *clientv3.Client,
 	opts Options,
-) (*client[ValueType, ValueWatchType], error) {
+) *client[ValueType, ValueWatchType] {
 	scope := opts.InstrumentsOptions().MetricsScope()
 
 	store := &client[ValueType, ValueWatchType]{
@@ -146,7 +140,7 @@ func newStore[ValueType any, ValueWatchType any](
 			}
 		}()
 	}
-	return store, nil
+	return store
 }
 
 func newClientWatchOptions(opts Options) []clientv3.OpOption {
@@ -493,7 +487,6 @@ func (c *client[ValueType, ValueWatchType]) getFromEtcdEvents(key string, events
 }
 
 func (c *client[ValueType, ValueWatchType]) getFromEtcdEventsForPrefix(
-	prefix string,
 	events []*clientv3.Event,
 ) (map[string]kv.Value, []string) {
 	toDelete := []string{}
@@ -559,7 +552,7 @@ func (c *client[ValueType, ValueWatchType]) updateForPrefix(prefix string, event
 		return nil
 	}
 
-	values, toDelete := c.getFromEtcdEventsForPrefix(prefix, events)
+	values, toDelete := c.getFromEtcdEventsForPrefix(events)
 
 	c.RLock()
 	w, ok := c.watchables[prefix]

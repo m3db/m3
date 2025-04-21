@@ -232,12 +232,14 @@ type PrefixStore interface {
 	WatchForPrefix(prefix string) (PrefixWatch, error)
 }
 
+// PrefixWatch is a watch for a prefix paths.
 type PrefixWatch interface {
 	C() <-chan struct{}
 	Get() map[string]Value
 	Close()
 }
 
+// Watchable is a watchable object that can be watched for updates.
 type Watchable[ValueType any, ValueWatchType any] interface {
 	Get() ValueType
 	// Watch returns the PrefixWatch that will be notified on updates
