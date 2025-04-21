@@ -162,8 +162,9 @@ func newClientWatchOptions(opts Options) []clientv3.OpOption {
 type client[ValueType any, ValueWatchType any] struct {
 	sync.RWMutex
 
-	opts           Options
-	kv             *clientv3.Client
+	opts Options
+	kv   *clientv3.Client
+	//nolint:structcheck
 	watchables     map[string]kv.Watchable[ValueType, ValueWatchType]
 	retrier        retry.Retrier
 	logger         *zap.Logger
