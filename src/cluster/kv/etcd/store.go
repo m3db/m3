@@ -498,7 +498,6 @@ func (c *client[ValueType, ValueWatchType]) getFromEtcdEventsForPrefix(
 	values := make(map[string]interface{})
 	for _, e := range events {
 		if e.Type == clientv3.EventTypeDelete {
-			fmt.Println("---->>> getFromEtcdEventsForPrefix", string(e.Kv.Key), "is deleted")
 			toDelete = append(toDelete, string(e.Kv.Key))
 			continue
 		}
