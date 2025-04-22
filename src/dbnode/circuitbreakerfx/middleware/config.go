@@ -22,12 +22,12 @@ var (
 // Enabler exposes method to check when the middleware is enabled. This interface
 // allows providing dynamic config based on Flipr/UCS.
 type Enabler interface {
-	// IsEnabled returns true when middleware is enabled
+	// IsEnabled returns true when middleware is enabled for the given service
 	// and procedure.
-	IsEnabled(ctx context.Context) bool
+	IsEnabled(ctx context.Context, service, procedure string) bool
 
-	// Mode returns the mode of the middleware
-	Mode(ctx context.Context) Mode
+	// Mode returns the mode of the middleware for the given service and procedure.
+	Mode(ctx context.Context, service, procedure string) Mode
 }
 
 // PolicyOverride defines override circuit breaker policy for a Service or

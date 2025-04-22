@@ -10,7 +10,7 @@ var (
 
 // New returns a Flipr based enabler for the middleware when Flipr property
 // is configured or fallsback to static config.
-func New() middleware.Enabler {
-	stEnabler := newStaticEnabler()
+func New(cfg middleware.Config) middleware.Enabler {
+	stEnabler := newStaticEnabler(cfg)
 	return stEnabler
 }

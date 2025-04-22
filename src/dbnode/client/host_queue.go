@@ -32,7 +32,6 @@ import (
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 
-	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/circuitbreaker"
 	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/middleware"
 	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/middleware/enablerprovider"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
@@ -138,18 +137,20 @@ func newHostQueue(
 	opArrayPool.Init()
 
 	//TODO read from config
-	cbConfig := middleware.Config{
-		Policies: map[string]circuitbreaker.Config{
-			"policy-1": circuitbreaker.Config{
-				RecoveryTime: time.Second * 300,
-			},
-		},
-		Overrides: []middleware.PolicyOverride{
-			{Service: "", Procedure: "", WithPolicy: "policy-1"},
-		},
-	}
+	// cbConfig := middleware.Config{
+	// 	Policies: map[string]circuitbreaker.Config{
+	// 		"policy-1": circuitbreaker.Config{
+	// 			RecoveryTime: time.Second * 300,
+	// 		},
+	// 	},
+	// 	Overrides: []middleware.PolicyOverride{
+	// 		{Service: "", Procedure: "", WithPolicy: "policy-1"},
+	// 	},
+	// }
 
-	mw := middleware.NewMiddlerWareOutbound(cbConfig, iOpts.Logger(), scope, enablerprovider.New(), host.ID())
+	cbconfig := opts.MiddlewareCircuitbreakerConfig()
+
+	mw := middleware.NewMiddlerWareOutbound(cbconfig, iOpts.Logger(), scope, enablerprovider.New(cbconfig), host.ID())
 	if err != nil {
 		return nil, nil
 	}

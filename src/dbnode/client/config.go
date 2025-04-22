@@ -132,7 +132,7 @@ type Configuration struct {
 	// IterateEqualTimestampStrategy specifies the iterate equal timestamp strategy.
 	IterateEqualTimestampStrategy *encoding.IterateEqualTimestampStrategy `yaml:"iterateEqualTimestampStrategy"`
 
-	CircuitBreakerConfig cb.Config `yaml:"circuitBreakerConfig"`
+	CircuitBreakerConfig *cb.Config `yaml:"circuitBreakerConfig"`
 }
 
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
@@ -466,6 +466,10 @@ func (c Configuration) NewAdminClient(
 	}
 	if c.ShardsLeavingAndInitializingCountTowardsConsistency != nil {
 		v = v.SetShardsLeavingAndInitializingCountTowardsConsistency(*c.ShardsLeavingAndInitializingCountTowardsConsistency)
+	}
+
+	if c.CircuitBreakerConfig != nil {
+		v = v.SetMiddlewareCircuitbreakerConfig(*c.CircuitBreakerConfig)
 	}
 
 	if c.ShardsLeavingCountTowardsConsistency != nil {
