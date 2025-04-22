@@ -3,7 +3,7 @@ package enablerprovider
 import (
 	"context"
 
-	"github.com/m3db/m3/src/dbnode/circuitbreaker/middleware"
+	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/middleware"
 )
 
 type (

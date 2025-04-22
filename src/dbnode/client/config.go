@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"time"
 
+	cb "github.com/m3db/m3/src/dbnode/circuitbreakerfx/middleware"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/environment"
@@ -130,6 +131,8 @@ type Configuration struct {
 
 	// IterateEqualTimestampStrategy specifies the iterate equal timestamp strategy.
 	IterateEqualTimestampStrategy *encoding.IterateEqualTimestampStrategy `yaml:"iterateEqualTimestampStrategy"`
+
+	CircuitBreakerConfig cb.Config `yaml:"circuitBreakerConfig"`
 }
 
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.

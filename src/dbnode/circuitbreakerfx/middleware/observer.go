@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/m3db/m3/src/dbnode/circuitbreaker/internal/circuitbreaker"
+	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/circuitbreaker"
 	// "go.uber.org/net/metrics"
 	// "go.uber.org/yarpc/api/transport"
 	// "go.uber.org/yarpc/yarpcerrors"

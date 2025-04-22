@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	// "code.uber.internal/go/configfx.git/cfgparse"
-	"github.com/m3db/m3/src/dbnode/circuitbreaker/internal/circuitbreaker"
+	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/circuitbreaker"
 	// "go.uber.org/yarpc/yarpcerrors"
 )
 

@@ -2,8 +2,8 @@ package circuitbreakererror
 
 import (
 	"errors"
-	"strings"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	"strings"
 	// "go.uber.org/yarpc/yarpcerrors"
 )
 

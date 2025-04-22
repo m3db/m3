@@ -3,8 +3,8 @@ package middleware
 import (
 	"context"
 	// "fmt"
-	"github.com/m3db/m3/src/dbnode/circuitbreaker/internal/circuitbreaker"
-	"github.com/m3db/m3/src/dbnode/circuitbreaker/internal/circuitbreakererror"
+	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/circuitbreaker"
+	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/circuitbreakererror"
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/uber-go/tally"
@@ -20,7 +20,7 @@ type MiddlerWareOutbound struct {
 	circuitManager *circuitManager
 	observer       *observer
 	host           string
-	next rpc.TChanNode
+	next           rpc.TChanNode
 }
 
 // middleware function to wrap a client
@@ -28,26 +28,26 @@ type m3dbtsMiddleware func(rpc.TChanNode) *MiddlerWareOutbound
 
 // NewMiddlerWareOutbound returns a unary outbound circuit breaker middleware based on
 // the provided config.
-func NewMiddlerWareOutbound(logger *zap.Logger, scope tally.Scope, enabler Enabler, host string) (m3dbtsMiddleware) {
+func NewMiddlerWareOutbound(config Config, logger *zap.Logger, scope tally.Scope, enabler Enabler, host string) m3dbtsMiddleware {
 
 	return func(next rpc.TChanNode) *MiddlerWareOutbound {
-	observer, err := newObserver(host, scope)
-	if err != nil {
-		return &MiddlerWareOutbound{}
-	}
+		observer, err := newObserver(host, scope)
+		if err != nil {
+			return &MiddlerWareOutbound{}
+		}
 
-	return &MiddlerWareOutbound{
-		next: next,
-		enabler:        enabler,
-		logger:         logger.With(zap.String("component", _packageName)).WithOptions(zap.AddCaller()),
-		host:           host,
-		observer:       observer,
-		circuitManager: newCircuitManager(),
-	}
+		return &MiddlerWareOutbound{
+			next:           next,
+			enabler:        enabler,
+			logger:         logger.With(zap.String("component", _packageName)).WithOptions(zap.AddCaller()),
+			host:           host,
+			observer:       observer,
+			circuitManager: newCircuitManager(newPolicyProvider(config)),
+		}
 	}
 }
 
-func withBreaker[T any](u *MiddlerWareOutbound, ctx tchannel.ContextWithHeaders, call func() (error)) ( error) {
+func withBreaker[T any](u *MiddlerWareOutbound, ctx tchannel.ContextWithHeaders, call func() error) error {
 	if u == nil || !u.enabler.IsEnabled(ctx) {
 		u.logger.Info("Circuit breaker not enabled",
 			zap.String("host", u.host),
@@ -113,8 +113,7 @@ func withBreaker[T any](u *MiddlerWareOutbound, ctx tchannel.ContextWithHeaders,
 	return err
 }
 
-
-func (u *MiddlerWareOutbound) WriteBatchRaw(ctx tchannel.ContextWithHeaders, req *rpc.WriteBatchRawRequest)  error {
+func (u *MiddlerWareOutbound) WriteBatchRaw(ctx tchannel.ContextWithHeaders, req *rpc.WriteBatchRawRequest) error {
 	return withBreaker[*rpc.WriteBatchRawRequest](u, ctx, func() error {
 		return u.next.WriteBatchRaw(ctx, req)
 	})

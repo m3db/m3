@@ -32,8 +32,9 @@ import (
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 
-	"github.com/m3db/m3/src/dbnode/circuitbreaker/middleware"
-	"github.com/m3db/m3/src/dbnode/circuitbreaker/middleware/enablerprovider"
+	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/circuitbreaker"
+	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/middleware"
+	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/middleware/enablerprovider"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/clock"
@@ -136,7 +137,19 @@ func newHostQueue(
 	opArrayPool := newOpArrayPool(opArrayPoolOpts, opArrayPoolElemCapacity)
 	opArrayPool.Init()
 
-	mw := middleware.NewMiddlerWareOutbound(iOpts.Logger(), scope, enablerprovider.New(), host.ID())
+	//TODO read from config
+	cbConfig := middleware.Config{
+		Policies: map[string]circuitbreaker.Config{
+			"policy-1": circuitbreaker.Config{
+				RecoveryTime: time.Second * 300,
+			},
+		},
+		Overrides: []middleware.PolicyOverride{
+			{Service: "", Procedure: "", WithPolicy: "policy-1"},
+		},
+	}
+
+	mw := middleware.NewMiddlerWareOutbound(cbConfig, iOpts.Logger(), scope, enablerprovider.New(), host.ID())
 	if err != nil {
 		return nil, nil
 	}
@@ -369,11 +382,11 @@ func (q *queue) drainWriteOpV1(
 
 	if currWriteOpsByNamespace.lenAt(idx) == q.opts.WriteBatchSize() {
 		// Reached write batch limit, write async and reset.
-			start2 := time.Now()
-			q.asyncWrite(namespace, currWriteOpsByNamespace[idx].ops,
-				currWriteOpsByNamespace[idx].elems)
-			d2 := time.Since(start2)
-			fmt.Println("Host queue asyncWrite 2 time taken:", d2.Milliseconds())
+		start2 := time.Now()
+		q.asyncWrite(namespace, currWriteOpsByNamespace[idx].ops,
+			currWriteOpsByNamespace[idx].elems)
+		d2 := time.Since(start2)
+		fmt.Println("Host queue asyncWrite 2 time taken:", d2.Milliseconds())
 		currWriteOpsByNamespace.resetAt(idx)
 	}
 
