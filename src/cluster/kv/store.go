@@ -116,8 +116,8 @@ func (v *prefixWatch) C() <-chan struct{} {
 	return v.w.C()
 }
 
-func (v *prefixWatch) Get() map[string]Value {
-	return v.w.Get().(map[string]Value)
+func (v *prefixWatch) Get() map[string]interface{} {
+	return v.w.Get().(map[string]interface{})
 }
 
 type prefixWatchable struct {
@@ -129,11 +129,11 @@ func NewPrefixWatchable() PrefixWatchable {
 	return &prefixWatchable{w: xwatch.NewPrefixWatchable()}
 }
 
-func (w *prefixWatchable) Get() map[string]Value {
-	return valueFromPrefixWatch(w.w.Get())
+func (w *prefixWatchable) Get() map[string]interface{} {
+	return w.w.Get().(map[string]interface{})
 }
 
-func (w *prefixWatchable) Watch() (map[string]Value, PrefixWatch, error) {
+func (w *prefixWatchable) Watch() (map[string]interface{}, PrefixWatch, error) {
 	value, watch, err := w.w.Watch()
 	if err != nil {
 		return nil, nil, err
@@ -146,7 +146,7 @@ func (w *prefixWatchable) NumWatches() int {
 	return w.w.NumWatches()
 }
 
-func (w *prefixWatchable) Update(v map[string]Value) error {
+func (w *prefixWatchable) Update(v map[string]interface{}) error {
 	return w.w.Update(v)
 }
 
@@ -158,9 +158,10 @@ func (w *prefixWatchable) IsClosed() bool {
 	return w.w.IsClosed()
 }
 
-func valueFromPrefixWatch(value interface{}) map[string]Value {
-	if value != nil {
-		return value.(map[string]Value)
+func valueFromPrefixWatch(value interface{}) map[string]interface{} {
+	values, ok := value.(map[string]interface{})
+	if ok {
+		return values
 	}
 
 	return nil

@@ -225,6 +225,31 @@ func (w *prefixWatchable) Get() interface{} {
 	return v
 }
 
+func (w *prefixWatchable) Watch() (interface{}, Watch, error) {
+	w.Lock()
+
+	if w.closed {
+		w.Unlock()
+		return nil, nil, errClosed
+	}
+
+	c := make(chan struct{}, 1)
+	notify := (len(w.values) > 0)
+	w.active = append(w.active, c)
+	w.Unlock()
+
+	if notify {
+		select {
+		case c <- struct{}{}:
+		default:
+		}
+	}
+
+	closeFn := w.closeFunc(c)
+	watch := &watch{o: w, c: c, closeFn: closeFn}
+	return w.Get(), watch, nil
+}
+
 type watch struct {
 	sync.Mutex
 

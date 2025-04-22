@@ -83,7 +83,7 @@ type ValueWatch interface {
 type ValueWatchable = Watchable[Value, ValueWatch]
 
 // PrefixWatchable can be watched for Prefix changes
-type PrefixWatchable = Watchable[map[string]Value, PrefixWatch]
+type PrefixWatchable = Watchable[map[string]interface{}, PrefixWatch]
 
 // OverrideOptions provides a set of options to override the default configurations of a KV store.
 type OverrideOptions interface {
@@ -228,14 +228,14 @@ type TxnStore interface {
 // of the entire list of keys that are covered by the prefix.
 // It only supports read-only operations at the moment.
 type PrefixStore interface {
-	GetForPrefix(prefix string) (map[string]Value, error)
+	GetForPrefix(prefix string) (map[string]interface{}, error)
 	WatchForPrefix(prefix string) (PrefixWatch, error)
 }
 
 // PrefixWatch is a watch for a prefix paths.
 type PrefixWatch interface {
 	C() <-chan struct{}
-	Get() map[string]Value
+	Get() map[string]interface{}
 	Close()
 }
 

@@ -1130,6 +1130,61 @@ func TestWatchWithStartRevision(t *testing.T) {
 	}
 }
 
+func TestPrefixWatchFromExist(t *testing.T) {
+	ec, opts, closeFn := testStore(t)
+	defer closeFn()
+
+	opts = opts.SetPrefix("test")
+	store, err := NewStore(ec, opts)
+	require.NoError(t, err)
+	prefixStore, err := NewPrefixStore(ec, opts)
+	require.NoError(t, err)
+
+	_, err = store.Set("foo/baz1", genProto("bar1"))
+	require.NoError(t, err)
+	value, err := store.Get("foo/baz1")
+	require.NoError(t, err)
+	verifyValue(t, value, "bar1", 1)
+
+	// perform get from prefix store and validate the value.
+	values, err := prefixStore.GetForPrefix("foo/")
+	require.NoError(t, err)
+	require.Equal(t, 1, len(values))
+	require.Contains(t, values, "test/foo/baz1")
+	verifyValue(t, values["test/foo/baz1"].(kv.Value), "bar1", 1)
+
+	w, err := prefixStore.WatchForPrefix("foo/")
+	require.NoError(t, err)
+
+	<-w.C()
+	require.Equal(t, 0, len(w.C()))
+	values = w.Get()
+	require.Equal(t, 1, len(values))
+	require.Contains(t, values, "test/foo/baz1")
+	verifyValue(t, values["test/foo/baz1"].(kv.Value), "bar1", 1)
+
+	_, err = store.Set("foo/baz2", genProto("bar2"))
+	require.NoError(t, err)
+
+	<-w.C()
+	require.Equal(t, 0, len(w.C()))
+	values = w.Get()
+	require.Equal(t, 2, len(values))
+	require.Contains(t, values, "test/foo/baz2")
+	verifyValue(t, values["test/foo/baz2"].(kv.Value), "bar2", 1)
+
+	_, err = store.Set("foo/baz3", genProto("bar3"))
+	require.NoError(t, err)
+
+	<-w.C()
+	require.Equal(t, 0, len(w.C()))
+	values = w.Get()
+	require.Equal(t, 3, len(values))
+	require.Contains(t, values, "test/foo/baz3")
+	verifyValue(t, values["test/foo/baz3"].(kv.Value), "bar3", 1)
+	w.Close()
+}
+
 func TestSerializedGets(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()

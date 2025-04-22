@@ -75,7 +75,7 @@ func NewStore(etcdKV *clientv3.Client, opts Options) (kv.TxnStore, error) {
 
 // NewPrefixStore creates a kv store based on etcd and watches all keys with a given prefix.
 func NewPrefixStore(etcdKV *clientv3.Client, opts Options) (kv.PrefixStore, error) {
-	store := newStore[map[string]kv.Value, kv.PrefixWatch](
+	store := newStore[map[string]interface{}, kv.PrefixWatch](
 		etcdKV,
 		opts,
 	)
@@ -220,10 +220,13 @@ func (c *client[ValueType, ValueWatchType]) get(key string) (kv.Value, error) {
 	return v, nil
 }
 
-func (c *client[ValueType, ValueWatchType]) GetForPrefix(prefix string) (map[string]kv.Value, error) {
+func (c *client[ValueType, ValueWatchType]) GetForPrefix(prefix string) (map[string]interface{}, error) {
+	return c.getForPrefix(c.opts.ApplyPrefix(prefix))
+}
+
+func (c *client[ValueType, ValueWatchType]) getForPrefix(prefix string) (map[string]interface{}, error) {
 	ctx, cancel := c.context()
 	defer cancel()
-	prefix = c.opts.ApplyPrefix(prefix)
 
 	var opts []clientv3.OpOption
 	if c.opts.EnableFastGets() {
@@ -240,7 +243,7 @@ func (c *client[ValueType, ValueWatchType]) GetForPrefix(prefix string) (map[str
 		return nil, kv.ErrNotFound
 	}
 
-	values := make(map[string]kv.Value)
+	values := make(map[string]interface{})
 	for _, kv := range r.Kvs {
 		values[string(kv.Key)] = newValue(kv.Value, kv.Version, kv.ModRevision)
 	}
@@ -489,10 +492,10 @@ func (c *client[ValueType, ValueWatchType]) getFromEtcdEvents(key string, events
 
 func (c *client[ValueType, ValueWatchType]) getFromEtcdEventsForPrefix(
 	events []*clientv3.Event,
-) (map[string]kv.Value, []string) {
+) (map[string]interface{}, []string) {
 	toDelete := []string{}
 
-	values := make(map[string]kv.Value)
+	values := make(map[string]interface{})
 	for _, e := range events {
 		if e.Type == clientv3.EventTypeDelete {
 			toDelete = append(toDelete, string(e.Kv.Key))
@@ -503,6 +506,25 @@ func (c *client[ValueType, ValueWatchType]) getFromEtcdEventsForPrefix(
 	}
 
 	return values, toDelete
+}
+
+func (c *client[ValueType, ValueWatchType]) getFromKVStoreForPrefix(prefix string) (map[string]interface{}, error) {
+	var (
+		nv  map[string]interface{}
+		err error
+	)
+	if execErr := c.retrier.Attempt(func() error {
+		nv, err = c.getForPrefix(prefix)
+		if err == kv.ErrNotFound {
+			// do not retry on ErrNotFound
+			return retry.NonRetryableError(err)
+		}
+		return err
+	}); execErr != nil && xerrors.GetInnerNonRetryableError(execErr) != kv.ErrNotFound {
+		return nil, execErr
+	}
+
+	return nv, nil
 }
 
 func (c *client[ValueType, ValueWatchType]) update(key string, events []*clientv3.Event) error {
@@ -549,11 +571,19 @@ func (c *client[ValueType, ValueWatchType]) update(key string, events []*clientv
 }
 
 func (c *client[ValueType, ValueWatchType]) updateForPrefix(prefix string, events []*clientv3.Event) error {
+	var (
+		values   map[string]interface{}
+		toDelete []string
+	)
 	if len(events) == 0 {
-		return nil
+		var err error
+		if values, err = c.getFromKVStoreForPrefix(prefix); err != nil {
+			// This is triggered by initializing a new watch and no value available for the key.
+			return nil
+		}
+	} else {
+		values, toDelete = c.getFromEtcdEventsForPrefix(events)
 	}
-
-	values, toDelete := c.getFromEtcdEventsForPrefix(events)
 
 	c.RLock()
 	w, ok := c.watchables[prefix]
@@ -580,7 +610,7 @@ func (c *client[ValueType, ValueWatchType]) updateForPrefix(prefix string, event
 	}
 
 	// combine the current and new values
-	combinedValues := make(map[string]kv.Value)
+	combinedValues := make(map[string]interface{})
 	for k, v := range curValue {
 		combinedValues[k] = v
 	}
