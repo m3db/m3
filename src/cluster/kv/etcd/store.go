@@ -498,6 +498,7 @@ func (c *client[ValueType, ValueWatchType]) getFromEtcdEventsForPrefix(
 	values := make(map[string]interface{})
 	for _, e := range events {
 		if e.Type == clientv3.EventTypeDelete {
+			fmt.Println("---->>> getFromEtcdEventsForPrefix", string(e.Kv.Key), "is deleted")
 			toDelete = append(toDelete, string(e.Kv.Key))
 			continue
 		}
@@ -597,33 +598,47 @@ func (c *client[ValueType, ValueWatchType]) updateForPrefix(prefix string, event
 		return fmt.Errorf("unexpected: prefix watchable not found for path: %s", prefix)
 	}
 
-	curValue := watchable.Get()
+	curValues := watchable.Get()
 
 	// Both current and new are empty.
-	if len(curValue) == 0 && len(values) == 0 {
+	if len(curValues) == 0 && len(values) == 0 {
 		return nil
 	}
 
-	if len(values) == 0 {
-		// At deletion, just update the watch to nil.
-		return watchable.Update(nil)
-	}
-
 	// combine the current and new values
-	combinedValues := make(map[string]interface{})
-	for k, v := range curValue {
-		combinedValues[k] = v
+	updatedValues := make(map[string]interface{})
+	for k, v := range curValues {
+		updatedValues[k] = v
 	}
 	for k, v := range values {
-		combinedValues[k] = v
+		updatedValues[k] = v
 	}
 
 	// delete the keys that are no longer present
 	for _, k := range toDelete {
-		delete(combinedValues, k)
+		delete(updatedValues, k)
 	}
 
-	return watchable.Update(combinedValues)
+	// number of updated values is different from the current values, so we need to update the watch
+	if len(updatedValues) != len(curValues) {
+		return watchable.Update(updatedValues)
+	}
+
+	// check if any of the values were updated
+	for k, v := range values {
+		existing, ok := curValues[k]
+		if !ok {
+			return watchable.Update(updatedValues)
+		}
+
+		newValue := v.(kv.Value)
+		existingValue := existing.(kv.Value)
+		if newValue.IsNewer(existingValue) {
+			return watchable.Update(updatedValues)
+		}
+	}
+
+	return nil
 }
 
 func (c *client[ValueType, ValueWatchType]) tickAndStop(key string) bool {

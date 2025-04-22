@@ -204,9 +204,7 @@ func (w *prefixWatchable) Update(v interface{}) error {
 	if !ok {
 		return errors.New("invalid value for prefix watch")
 	}
-	for k, val := range vMap {
-		w.values[k] = val
-	}
+	w.values = vMap
 
 	for _, s := range w.active {
 		select {
