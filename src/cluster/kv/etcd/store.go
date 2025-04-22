@@ -515,12 +515,12 @@ func (c *client[ValueType, ValueWatchType]) getFromKVStoreForPrefix(prefix strin
 	)
 	if execErr := c.retrier.Attempt(func() error {
 		nv, err = c.getForPrefix(prefix)
-		if err == kv.ErrNotFound {
+		if errors.Is(err, kv.ErrNotFound) {
 			// do not retry on ErrNotFound
 			return retry.NonRetryableError(err)
 		}
 		return err
-	}); execErr != nil && xerrors.GetInnerNonRetryableError(execErr) != kv.ErrNotFound {
+	}); execErr != nil && errors.Is(xerrors.GetInnerNonRetryableError(execErr), kv.ErrNotFound) {
 		return nil, execErr
 	}
 
