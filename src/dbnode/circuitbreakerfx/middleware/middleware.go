@@ -35,27 +35,18 @@ type m3dbtsMiddleware func(rpc.TChanNode) *MiddlerWareOutbound
 
 var (
 	sharedCircuitManager *circuitManager
+	sharedobserver       *observer
 	once                 sync.Once
 )
-
-func getSharedCircuitManager(config Config) *circuitManager {
-	once.Do(func() {
-		sharedCircuitManager = newCircuitManager(newPolicyProvider(config))
-	})
-	return sharedCircuitManager
-}
 
 // NewMiddlerWareOutbound returns a unary outbound circuit breaker middleware based on
 // the provided config.
 func NewMiddlerWareOutbound(config Config, logger *zap.Logger, scope tally.Scope, enabler Enabler, host string) m3dbtsMiddleware {
-	observer, err := newObserver(host, scope)
-	if err != nil {
-		return func(next rpc.TChanNode) *MiddlerWareOutbound {
-			logger.Error("Failed to create observer")
-			return &MiddlerWareOutbound{}
-		}
-	}
-	circuitManager := getSharedCircuitManager(config)
+
+	once.Do(func() {
+		sharedCircuitManager = newCircuitManager(newPolicyProvider(config))
+		sharedobserver, _ = newObserver(host, scope)
+	})
 
 	return func(next rpc.TChanNode) *MiddlerWareOutbound {
 		return &MiddlerWareOutbound{
@@ -63,8 +54,8 @@ func NewMiddlerWareOutbound(config Config, logger *zap.Logger, scope tally.Scope
 			enabler:        enabler,
 			logger:         logger,
 			host:           host,
-			observer:       observer,
-			circuitManager: circuitManager,
+			observer:       sharedobserver,
+			circuitManager: sharedCircuitManager,
 		}
 	}
 }
