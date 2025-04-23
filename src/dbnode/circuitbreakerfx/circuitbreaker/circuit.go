@@ -1,6 +1,7 @@
 package circuitbreaker
 
 import (
+	"fmt"
 	"math"
 	"sync"
 	"time"
@@ -49,6 +50,7 @@ type Circuit struct {
 // Returns an error if the provided config is invalid.
 func NewCircuit(config Config) (*Circuit, error) {
 	config = config.applyDefaultValues()
+	fmt.Println("recovery time cb config", config.RecoveryTime)
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
