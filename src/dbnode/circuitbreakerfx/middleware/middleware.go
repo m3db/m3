@@ -13,6 +13,11 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	service   = "service"
+	procedure = "procedure"
+)
+
 // MiddlerWareOutbound wraps a unary outbound circuit breaker middleware.
 type MiddlerWareOutbound struct {
 	enabler        Enabler
@@ -48,7 +53,7 @@ func NewMiddlerWareOutbound(config Config, logger *zap.Logger, scope tally.Scope
 }
 
 func withBreaker[T any](u *MiddlerWareOutbound, ctx tchannel.ContextWithHeaders, call func() error) error {
-	if u == nil || !u.enabler.IsEnabled(ctx, "", "") {
+	if u == nil || !u.enabler.IsEnabled(ctx, service, procedure) {
 		u.logger.Info("Circuit breaker not enabled",
 			zap.String("host", u.host),
 		)
@@ -56,7 +61,7 @@ func withBreaker[T any](u *MiddlerWareOutbound, ctx tchannel.ContextWithHeaders,
 		return call()
 	}
 
-	circuit, err := u.circuitManager.circuit("", "")
+	circuit, err := u.circuitManager.circuit(service, procedure)
 	if err != nil {
 		u.logger.Error("Failed to create circuit breaker",
 			zap.String("host", u.host),
@@ -79,7 +84,7 @@ func withBreaker[T any](u *MiddlerWareOutbound, ctx tchannel.ContextWithHeaders,
 		return call()
 	}
 
-	mode := u.enabler.Mode(ctx, "", "")
+	mode := u.enabler.Mode(ctx, service, procedure)
 	isAllowed := circuit.IsRequestAllowed()
 
 	if !isAllowed {
@@ -90,7 +95,7 @@ func withBreaker[T any](u *MiddlerWareOutbound, ctx tchannel.ContextWithHeaders,
 		edge.reportRequestRejected(circuit.Status(), mode)
 
 		if mode == Rejection {
-			return circuitbreakererror.New("", "")
+			return circuitbreakererror.New(service, procedure)
 		}
 	}
 
@@ -127,8 +132,8 @@ func (u *MiddlerWareOutbound) ReportHeartbeatMetrics() {
 	}
 
 	u.circuitManager.walk(func(sp serviceProcedure, circuit circuitbreaker.Circuiter) {
-		if circuit != nil && u.enabler.IsEnabled(context.Background(), "", "") {
-			mode := u.enabler.Mode(context.TODO(), "", "")
+		if circuit != nil && u.enabler.IsEnabled(context.Background(), service, procedure) {
+			mode := u.enabler.Mode(context.TODO(), service, procedure)
 			u.observer.reportCircuitStateHeartbeat(circuit.Status(), sp.service, sp.procedure, mode)
 		}
 	})
