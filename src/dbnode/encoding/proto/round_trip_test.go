@@ -192,6 +192,8 @@ func TestRoundTrip(t *testing.T) {
 	}
 	require.NoError(t, iter.Err())
 	require.Equal(t, len(testCases), i)
+	iter.Close()
+	iter.Reset(r, namespace.GetTestSchemaDescr(testVLSchema))
 }
 
 func TestRoundTripMidStreamSchemaChanges(t *testing.T) {

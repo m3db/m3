@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package test;
+
+message TestMessage {
+  map<string, string> map_field = 1;
+  repeated int32 repeated_field = 2;
+  TestMessage message_field = 3;
+  int32 scalar_field = 4;
+} 
