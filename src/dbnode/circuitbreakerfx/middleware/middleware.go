@@ -3,9 +3,9 @@ package middleware
 import (
 	"context"
 	// "fmt"
-	// "fmt"
 	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/circuitbreaker"
 	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/circuitbreakererror"
+	"sync"
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/uber-go/tally"
@@ -33,6 +33,18 @@ type MiddlerWareOutbound struct {
 // middleware function to wrap a client
 type m3dbtsMiddleware func(rpc.TChanNode) *MiddlerWareOutbound
 
+var (
+	sharedCircuitManager *circuitManager
+	once                 sync.Once
+)
+
+func getSharedCircuitManager(config Config) *circuitManager {
+	once.Do(func() {
+		sharedCircuitManager = newCircuitManager(newPolicyProvider(config))
+	})
+	return sharedCircuitManager
+}
+
 // NewMiddlerWareOutbound returns a unary outbound circuit breaker middleware based on
 // the provided config.
 func NewMiddlerWareOutbound(config Config, logger *zap.Logger, scope tally.Scope, enabler Enabler, host string) m3dbtsMiddleware {
@@ -43,7 +55,7 @@ func NewMiddlerWareOutbound(config Config, logger *zap.Logger, scope tally.Scope
 			return &MiddlerWareOutbound{}
 		}
 	}
-	circuitManager := newCircuitManager(newPolicyProvider(config))
+	circuitManager := getSharedCircuitManager(config)
 
 	return func(next rpc.TChanNode) *MiddlerWareOutbound {
 		return &MiddlerWareOutbound{
