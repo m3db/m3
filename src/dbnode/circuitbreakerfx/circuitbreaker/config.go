@@ -8,7 +8,7 @@ import (
 const (
 	_defaultWindowSize           = 15
 	_defaultBucketDuration       = time.Second
-	_defaultRecoveryTime         = time.Second * 300
+	_defaultRecoveryTime         = time.Second * 2
 	_defaultJitter               = time.Second * 1
 	_defaultMaxProbeTime         = time.Second * 25
 	_defaultMinimumRequests      = int64(100)

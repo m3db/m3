@@ -80,7 +80,7 @@ func withBreaker[T any](u *MiddlerWareOutbound, ctx tchannel.ContextWithHeaders,
 	}
 
 	mode := u.enabler.Mode(ctx, "", "")
-	isAllowed := circuit.IsRequestAllowed(u.host)
+	isAllowed := circuit.IsRequestAllowed()
 
 	if !isAllowed {
 		u.logger.Info("Circuit breaker request not allowed",

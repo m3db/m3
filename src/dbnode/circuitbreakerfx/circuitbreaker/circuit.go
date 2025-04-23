@@ -1,7 +1,6 @@
 package circuitbreaker
 
 import (
-	"fmt"
 	"math"
 	"sync"
 	"time"
@@ -18,7 +17,7 @@ type Circuiter interface {
 	// Note: you must call ReportRequestStatus method to report of status of
 	// the request if the request was allowed by the circuit.
 	// This method is safe for concurrent use.
-	IsRequestAllowed(host string) (allowed bool)
+	IsRequestAllowed() (allowed bool)
 
 	// ReportRequestStatus must be invoked to report the request status where
 	// true mean a successful request.
@@ -64,15 +63,7 @@ func NewCircuit(config Config) (*Circuit, error) {
 // this method before processing a request and must continue processing request
 // only when this method returns true.
 // This method is safe for concurrent use.
-func (c *Circuit) IsRequestAllowed(host string) bool {
-	fmt.Println("successfulRequests=", c.window.counters().successfulRequests, "host=", host)
-	fmt.Println("failedRequests=", c.window.counters().failedRequests, "host=", host)
-	fmt.Println("totalRequests=", c.window.counters().totalRequests, "host=", host)
-
-	fmt.Println("successfulProbeRequests=", c.window.counters().successfulProbeRequests, "host=", host)
-	fmt.Println("failedProbeRequests=", c.window.counters().failedProbeRequests, "host=", host)
-	fmt.Println("totalProbeRequests=", c.window.counters().totalProbeRequests, "host=", host)
-
+func (c *Circuit) IsRequestAllowed() bool {
 	c.window.incTotalRequests()
 
 	state := c.transitionStateIfNeeded()
@@ -80,9 +71,6 @@ func (c *Circuit) IsRequestAllowed(host string) bool {
 		c.window.incTotalProbeRequests()
 		return true
 	}
-
-	fmt.Println("cicruitstate="+state.String(), "host=", host)
-
 	return state == Healthy
 }
 
