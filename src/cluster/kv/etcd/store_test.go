@@ -87,8 +87,9 @@ func TestNoCache(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 
 	store, err := NewStore(ec, opts)
+	s := store.(*client[kv.Value, kv.ValueWatch])
 	require.NoError(t, err)
-	require.Equal(t, 0, len(store.(*client).cacheUpdatedCh))
+	require.Equal(t, 0, len(s.cacheUpdatedCh))
 
 	version, err := store.Set("foo", genProto("bar1"))
 	require.NoError(t, err)
@@ -99,7 +100,7 @@ func TestNoCache(t *testing.T) {
 	verifyValue(t, value, "bar1", 1)
 	// the will send a notification but won't trigger a sync
 	// because no cache file is set
-	require.Equal(t, 1, len(store.(*client).cacheUpdatedCh))
+	require.Equal(t, 1, len(s.cacheUpdatedCh))
 
 	closeFn()
 
@@ -110,6 +111,7 @@ func TestNoCache(t *testing.T) {
 
 	// new store but no cache file set
 	store, err = NewStore(ec, opts)
+	s = store.(*client[kv.Value, kv.ValueWatch])
 	require.NoError(t, err)
 
 	_, err = store.Set("foo", genProto("bar1"))
@@ -117,7 +119,7 @@ func TestNoCache(t *testing.T) {
 
 	_, err = store.Get("foo")
 	require.Error(t, err)
-	require.Equal(t, 0, len(store.(*client).cacheUpdatedCh))
+	require.Equal(t, 0, len(s.cacheUpdatedCh))
 }
 
 func TestCacheDirCreation(t *testing.T) {
@@ -134,6 +136,7 @@ func TestCacheDirCreation(t *testing.T) {
 	})
 
 	store, err := NewStore(ec, opts)
+	s := store.(*client[kv.Value, kv.ValueWatch])
 	require.NoError(t, err)
 
 	info, err := os.Stat(cdir)
@@ -146,7 +149,7 @@ func TestCacheDirCreation(t *testing.T) {
 	value, err := store.Get("foo")
 	require.NoError(t, err)
 	verifyValue(t, value, "bar", 1)
-	require.Equal(t, 0, len(store.(*client).cacheUpdatedCh))
+	require.Equal(t, 0, len(s.cacheUpdatedCh))
 }
 
 func TestCache(t *testing.T) {
@@ -160,8 +163,9 @@ func TestCache(t *testing.T) {
 	})
 
 	store, err := NewStore(ec, opts)
+	s := store.(*client[kv.Value, kv.ValueWatch])
 	require.NoError(t, err)
-	require.Equal(t, 0, len(store.(*client).cacheUpdatedCh))
+	require.Equal(t, 0, len(s.cacheUpdatedCh))
 
 	version, err := store.Set("foo", genProto("bar1"))
 	require.NoError(t, err)
@@ -172,7 +176,7 @@ func TestCache(t *testing.T) {
 	verifyValue(t, value, "bar1", 1)
 	for {
 		// the notification should be picked up and trigger a sync
-		if len(store.(*client).cacheUpdatedCh) == 0 {
+		if len(s.cacheUpdatedCh) == 0 {
 			break
 		}
 	}
@@ -182,10 +186,11 @@ func TestCache(t *testing.T) {
 	value, err = store.Get("foo")
 	require.NoError(t, err)
 	verifyValue(t, value, "bar1", 1)
-	require.Equal(t, 0, len(store.(*client).cacheUpdatedCh))
+	require.Equal(t, 0, len(s.cacheUpdatedCh))
 
 	// new store but with cache file
 	store, err = NewStore(ec, opts)
+	s = store.(*client[kv.Value, kv.ValueWatch])
 	require.NoError(t, err)
 
 	_, err = store.Set("key", genProto("bar1"))
@@ -193,12 +198,12 @@ func TestCache(t *testing.T) {
 
 	_, err = store.Get("key")
 	require.Error(t, err)
-	require.Equal(t, 0, len(store.(*client).cacheUpdatedCh))
+	require.Equal(t, 0, len(s.cacheUpdatedCh))
 
 	value, err = store.Get("foo")
 	require.NoError(t, err)
 	verifyValue(t, value, "bar1", 1)
-	require.Equal(t, 0, len(store.(*client).cacheUpdatedCh))
+	require.Equal(t, 0, len(s.cacheUpdatedCh))
 }
 
 func TestSetIfNotExist(t *testing.T) {
@@ -260,8 +265,8 @@ func TestWatchClose(t *testing.T) {
 	<-w1.C()
 	verifyValue(t, w1.Get(), "bar1", 1)
 
-	c := store.(*client)
-	_, ok := c.watchables["test/foo"]
+	s := store.(*client[kv.Value, kv.ValueWatch])
+	_, ok := s.watchables["test/foo"]
 	require.True(t, ok)
 
 	// closing w1 will close the go routine for the watch updates
@@ -269,9 +274,9 @@ func TestWatchClose(t *testing.T) {
 
 	// waits until the original watchable is cleaned up
 	for {
-		c.RLock()
-		_, ok = c.watchables["test/foo"]
-		c.RUnlock()
+		s.RLock()
+		_, ok = s.watchables["test/foo"]
+		s.RUnlock()
 		if !ok {
 			break
 		}
@@ -408,11 +413,11 @@ func TestGetFromKvNotFound(t *testing.T) {
 	defer closeFn()
 	store, err := NewStore(ec, opts)
 	require.NoError(t, err)
-	c := store.(*client)
-	_, err = c.Set("foo", genProto("bar1"))
+	s := store.(*client[kv.Value, kv.ValueWatch])
+	_, err = s.Set("foo", genProto("bar1"))
 	require.NoError(t, err)
 
-	val, err := c.getFromKVStore("foo2")
+	val, err := s.getFromKVStore("foo2")
 	require.NoError(t, err)
 	require.Nil(t, val)
 }
@@ -519,14 +524,14 @@ func TestWatchNonBlocking(t *testing.T) {
 
 	store, err := NewStore(ec, opts)
 	require.NoError(t, err)
-	c := store.(*client)
+	s := store.(*client[kv.Value, kv.ValueWatch])
 
-	_, err = c.Set("foo", genProto("bar1"))
+	_, err = s.Set("foo", genProto("bar1"))
 	require.NoError(t, err)
 
 	before := time.Now()
 	ecluster.Members[0].Bridge().Blackhole()
-	w1, err := c.Watch("foo")
+	w1, err := s.Watch("foo")
 	require.WithinDuration(t, time.Now(), before, 100*time.Millisecond)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(w1.C()))
@@ -642,26 +647,26 @@ func TestDelete_UpdateCache(t *testing.T) {
 	c, err := NewStore(ec, opts)
 	require.NoError(t, err)
 
-	store := c.(*client)
-	version, err := store.Set("foo", genProto("bar1"))
+	s := c.(*client[kv.Value, kv.ValueWatch])
+	version, err := s.Set("foo", genProto("bar1"))
 	require.NoError(t, err)
 	require.Equal(t, 1, version)
 
-	v, err := store.Get("foo")
+	v, err := s.Get("foo")
 	require.NoError(t, err)
 	verifyValue(t, v, "bar1", 1)
-	require.Equal(t, 1, len(store.cache.Values))
-	require.Equal(t, 1, len(store.cacheUpdatedCh))
+	require.Equal(t, 1, len(s.cache.Values))
+	require.Equal(t, 1, len(s.cacheUpdatedCh))
 
 	// drain the notification
-	<-store.cacheUpdatedCh
+	<-s.cacheUpdatedCh
 
-	v, err = store.Delete("foo")
+	v, err = s.Delete("foo")
 	require.NoError(t, err)
 	verifyValue(t, v, "bar1", 1)
 	// make sure the cache is cleaned up
-	require.Equal(t, 0, len(store.cache.Values))
-	require.Equal(t, 1, len(store.cacheUpdatedCh))
+	require.Equal(t, 0, len(s.cache.Values))
+	require.Equal(t, 1, len(s.cacheUpdatedCh))
 }
 
 func TestDelete_UpdateWatcherCache(t *testing.T) {
@@ -671,19 +676,19 @@ func TestDelete_UpdateWatcherCache(t *testing.T) {
 	setStore, err := NewStore(ec, opts)
 	require.NoError(t, err)
 
-	setClient := setStore.(*client)
-	version, err := setClient.Set("foo", genProto("bar1"))
+	s := setStore.(*client[kv.Value, kv.ValueWatch])
+	version, err := s.Set("foo", genProto("bar1"))
 	require.NoError(t, err)
 	require.Equal(t, 1, version)
 
-	setV, err := setClient.Get("foo")
+	setV, err := s.Get("foo")
 	require.NoError(t, err)
 	verifyValue(t, setV, "bar1", 1)
-	require.Equal(t, 1, len(setClient.cache.Values))
-	require.Equal(t, 1, len(setClient.cacheUpdatedCh))
+	require.Equal(t, 1, len(s.cache.Values))
+	require.Equal(t, 1, len(s.cacheUpdatedCh))
 
 	// drain the notification to ensure set received update
-	<-setClient.cacheUpdatedCh
+	<-s.cacheUpdatedCh
 
 	// make a custom cache path for the get client
 	clientCachePath, err := ioutil.TempDir("", "client-cache-dir")
@@ -695,7 +700,7 @@ func TestDelete_UpdateWatcherCache(t *testing.T) {
 		return nsFile
 	}))
 	require.NoError(t, err)
-	getClient := getStore.(*client)
+	getClient := getStore.(*client[kv.Value, kv.ValueWatch])
 
 	getW, err := getClient.Watch("foo")
 	require.NoError(t, err)
@@ -715,13 +720,13 @@ func TestDelete_UpdateWatcherCache(t *testing.T) {
 		return err == nil
 	}, time.Minute))
 
-	setV, err = setClient.Delete("foo")
+	setV, err = s.Delete("foo")
 	require.NoError(t, err)
 	verifyValue(t, setV, "bar1", 1)
 
 	// make sure the cache is cleaned up on set client
-	require.Equal(t, 0, len(setClient.cache.Values))
-	require.Equal(t, 1, len(setClient.cacheUpdatedCh))
+	require.Equal(t, 0, len(s.cache.Values))
+	require.Equal(t, 1, len(s.cacheUpdatedCh))
 
 	// make sure the cache is cleaned up on get client (mem and disk)
 	var (
@@ -795,15 +800,15 @@ func TestStaleDelete__FromGet(t *testing.T) {
 	}))
 	require.NoError(t, err)
 
-	setClient := setStore.(*client)
-	version, err := setClient.Set("foo", genProto("bar1"))
+	s := setStore.(*client[kv.Value, kv.ValueWatch])
+	version, err := s.Set("foo", genProto("bar1"))
 	require.NoError(t, err)
 	require.Equal(t, 1, version)
 
-	setV, err := setClient.Get("foo")
+	setV, err := s.Get("foo")
 	require.NoError(t, err)
 	verifyValue(t, setV, "bar1", 1)
-	require.Equal(t, 1, len(setClient.cache.Values))
+	require.Equal(t, 1, len(s.cache.Values))
 
 	// drain the notification to ensure set received update
 	var (
@@ -843,7 +848,7 @@ func TestStaleDelete__FromGet(t *testing.T) {
 		return nsFile
 	}))
 	require.NoError(t, err)
-	getClient := getStore.(*client)
+	getClient := getStore.(*client[kv.Value, kv.ValueWatch])
 
 	require.True(t, xclock.WaitUntil(func() bool {
 		getClient.cache.RLock()
@@ -878,15 +883,15 @@ func TestStaleDelete__FromWatch(t *testing.T) {
 	}))
 	require.NoError(t, err)
 
-	setClient := setStore.(*client)
-	version, err := setClient.Set("foo", genProto("bar1"))
+	s := setStore.(*client[kv.Value, kv.ValueWatch])
+	version, err := s.Set("foo", genProto("bar1"))
 	require.NoError(t, err)
 	require.Equal(t, 1, version)
 
-	setV, err := setClient.Get("foo")
+	setV, err := s.Get("foo")
 	require.NoError(t, err)
 	verifyValue(t, setV, "bar1", 1)
-	require.Equal(t, 1, len(setClient.cache.Values))
+	require.Equal(t, 1, len(s.cache.Values))
 
 	// drain the notification to ensure set received update
 	var (
@@ -928,7 +933,7 @@ func TestStaleDelete__FromWatch(t *testing.T) {
 		return nsFile
 	}))
 	require.NoError(t, err)
-	getClient := getStore.(*client)
+	getClient := getStore.(*client[kv.Value, kv.ValueWatch])
 
 	require.True(t, xclock.WaitUntil(func() bool {
 		getClient.cache.RLock()
@@ -1108,7 +1113,7 @@ func TestWatchWithStartRevision(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			cl := store.(*client).kv
+			cl := store.(*client[kv.Value, kv.ValueWatch]).kv
 
 			resp, err := cl.Get(context.Background(), "foo")
 			require.NoError(t, err)
@@ -1125,6 +1130,233 @@ func TestWatchWithStartRevision(t *testing.T) {
 	}
 }
 
+func TestPrefixWatchFromExist(t *testing.T) {
+	ec, opts, closeFn := testStore(t)
+	defer closeFn()
+
+	opts = opts.SetPrefix("test")
+	store, err := NewStore(ec, opts)
+	require.NoError(t, err)
+	prefixStore, err := NewPrefixStore(ec, opts)
+	require.NoError(t, err)
+
+	_, err = store.Set("foo/baz1", genProto("bar1"))
+	require.NoError(t, err)
+	value, err := store.Get("foo/baz1")
+	require.NoError(t, err)
+	verifyValue(t, value, "bar1", 1)
+
+	// perform get from prefix store and validate the value.
+	values, err := prefixStore.GetForPrefix("foo/")
+	require.NoError(t, err)
+	require.Equal(t, 1, len(values))
+	require.Contains(t, values, "test/foo/baz1")
+	verifyValue(t, values["test/foo/baz1"].(kv.Value), "bar1", 1)
+
+	w, err := prefixStore.WatchForPrefix("foo/")
+	require.NoError(t, err)
+
+	<-w.C()
+	require.Equal(t, 0, len(w.C()))
+	values = w.Get()
+	require.Equal(t, 1, len(values))
+	require.Contains(t, values, "test/foo/baz1")
+	verifyValue(t, values["test/foo/baz1"].(kv.Value), "bar1", 1)
+
+	_, err = store.Set("foo/baz2", genProto("bar2"))
+	require.NoError(t, err)
+
+	<-w.C()
+	require.Equal(t, 0, len(w.C()))
+	values = w.Get()
+	require.Equal(t, 2, len(values))
+	require.Contains(t, values, "test/foo/baz2")
+	verifyValue(t, values["test/foo/baz2"].(kv.Value), "bar2", 1)
+
+	_, err = store.Set("foo/baz3", genProto("bar3"))
+	require.NoError(t, err)
+
+	<-w.C()
+	require.Equal(t, 0, len(w.C()))
+	values = w.Get()
+	require.Equal(t, 3, len(values))
+	require.Contains(t, values, "test/foo/baz3")
+	verifyValue(t, values["test/foo/baz3"].(kv.Value), "bar3", 1)
+	w.Close()
+}
+
+func TestPrefixWatchFromNotExist(t *testing.T) {
+	ec, opts, closeFn := testStore(t)
+	defer closeFn()
+
+	opts = opts.SetPrefix("test")
+	store, err := NewStore(ec, opts)
+	require.NoError(t, err)
+	prefixStore, err := NewPrefixStore(ec, opts)
+	require.NoError(t, err)
+
+	w, err := prefixStore.WatchForPrefix("foo/")
+	require.NoError(t, err)
+
+	require.Equal(t, 0, len(w.C()))
+	values := w.Get()
+	require.Equal(t, 0, len(values))
+
+	_, err = store.Set("foo/baz1", genProto("bar1"))
+	require.NoError(t, err)
+
+	<-w.C()
+	require.Equal(t, 0, len(w.C()))
+	values = w.Get()
+	require.Equal(t, 1, len(values))
+	require.Contains(t, values, "test/foo/baz1")
+	verifyValue(t, values["test/foo/baz1"].(kv.Value), "bar1", 1)
+
+	_, err = store.Set("foo/baz2", genProto("bar2"))
+	require.NoError(t, err)
+
+	<-w.C()
+	require.Equal(t, 0, len(w.C()))
+	values = w.Get()
+	require.Equal(t, 2, len(values))
+	require.Contains(t, values, "test/foo/baz2")
+	verifyValue(t, values["test/foo/baz2"].(kv.Value), "bar2", 1)
+	w.Close()
+}
+
+func TestPrefixWatchDeleteExisting(t *testing.T) {
+	ec, opts, closeFn := testStore(t)
+	defer closeFn()
+
+	opts = opts.SetPrefix("test")
+	store, err := NewStore(ec, opts)
+	require.NoError(t, err)
+	prefixStore, err := NewPrefixStore(ec, opts)
+	require.NoError(t, err)
+
+	_, err = store.Set("foo/baz1", genProto("bar1"))
+	require.NoError(t, err)
+	value, err := store.Get("foo/baz1")
+	require.NoError(t, err)
+	verifyValue(t, value, "bar1", 1)
+
+	w, err := prefixStore.WatchForPrefix("foo/")
+	require.NoError(t, err)
+
+	<-w.C()
+	require.Equal(t, 0, len(w.C()))
+	values := w.Get()
+	require.Equal(t, 1, len(values))
+	require.Contains(t, values, "test/foo/baz1")
+	verifyValue(t, values["test/foo/baz1"].(kv.Value), "bar1", 1)
+
+	_, err = store.Delete("foo/baz1")
+	require.NoError(t, err)
+
+	<-w.C()
+	require.Equal(t, 0, len(w.C()))
+	values = w.Get()
+	require.Equal(t, 0, len(values))
+
+	w.Close()
+}
+
+func TestPrefixWatchDeleteNew(t *testing.T) {
+	ec, opts, closeFn := testStore(t)
+	defer closeFn()
+
+	opts = opts.SetPrefix("test")
+	store, err := NewStore(ec, opts)
+	require.NoError(t, err)
+	prefixStore, err := NewPrefixStore(ec, opts)
+	require.NoError(t, err)
+
+	w, err := prefixStore.WatchForPrefix("foo/")
+	require.NoError(t, err)
+	require.Equal(t, 0, len(w.C()))
+	values := w.Get()
+	require.Equal(t, 0, len(values))
+
+	_, err = store.Set("foo/baz1", genProto("bar1"))
+	require.NoError(t, err)
+	value, err := store.Get("foo/baz1")
+	require.NoError(t, err)
+	verifyValue(t, value, "bar1", 1)
+
+	<-w.C()
+	require.Equal(t, 0, len(w.C()))
+	values = w.Get()
+	require.Equal(t, 1, len(values))
+	require.Contains(t, values, "test/foo/baz1")
+	verifyValue(t, values["test/foo/baz1"].(kv.Value), "bar1", 1)
+
+	_, err = store.Delete("foo/baz1")
+	require.NoError(t, err)
+
+	<-w.C()
+	require.Equal(t, 0, len(w.C()))
+	values = w.Get()
+	require.Equal(t, 0, len(values))
+
+	w.Close()
+}
+
+func TestPrefixWatchDeletePartial(t *testing.T) {
+	ec, opts, closeFn := testStore(t)
+	defer closeFn()
+
+	opts = opts.SetPrefix("test")
+	store, err := NewStore(ec, opts)
+	require.NoError(t, err)
+	prefixStore, err := NewPrefixStore(ec, opts)
+	require.NoError(t, err)
+
+	w, err := prefixStore.WatchForPrefix("foo/")
+	require.NoError(t, err)
+	require.Equal(t, 0, len(w.C()))
+	values := w.Get()
+	require.Equal(t, 0, len(values))
+
+	_, err = store.Set("foo/baz1", genProto("bar1"))
+	require.NoError(t, err)
+	value, err := store.Get("foo/baz1")
+	require.NoError(t, err)
+	verifyValue(t, value, "bar1", 1)
+
+	<-w.C()
+	require.Equal(t, 0, len(w.C()))
+	values = w.Get()
+	require.Equal(t, 1, len(values))
+	require.Contains(t, values, "test/foo/baz1")
+	verifyValue(t, values["test/foo/baz1"].(kv.Value), "bar1", 1)
+
+	_, err = store.Set("foo/baz2", genProto("bar2"))
+	require.NoError(t, err)
+	value, err = store.Get("foo/baz2")
+	require.NoError(t, err)
+	verifyValue(t, value, "bar2", 1)
+
+	<-w.C()
+	require.Equal(t, 0, len(w.C()))
+	values = w.Get()
+	require.Equal(t, 2, len(values))
+	require.Contains(t, values, "test/foo/baz1")
+	require.Contains(t, values, "test/foo/baz2")
+	verifyValue(t, values["test/foo/baz1"].(kv.Value), "bar1", 1)
+	verifyValue(t, values["test/foo/baz2"].(kv.Value), "bar2", 1)
+
+	_, err = store.Delete("foo/baz1")
+	require.NoError(t, err)
+
+	<-w.C()
+	require.Equal(t, 0, len(w.C()))
+	values = w.Get()
+	require.Equal(t, 1, len(values))
+	require.Contains(t, values, "test/foo/baz2")
+	verifyValue(t, values["test/foo/baz2"].(kv.Value), "bar2", 1)
+
+	w.Close()
+}
 func TestSerializedGets(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
