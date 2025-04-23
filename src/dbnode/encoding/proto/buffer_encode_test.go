@@ -237,6 +237,7 @@ func TestBufferAppend(t *testing.T) {
 	}
 }
 
+// nolint:dupl
 func TestEncodeZigZag32(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -278,6 +279,7 @@ func TestEncodeZigZag32(t *testing.T) {
 	}
 }
 
+// nolint:dupl
 func TestEncodeZigZag64(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -317,4 +319,4 @@ func TestEncodeZigZag64(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
-} 
+}

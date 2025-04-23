@@ -236,7 +236,9 @@ func TestCustomUnmarshaller(t *testing.T) {
 		{
 			name: "repeated field",
 			fields: []*dpb.FieldDescriptorProto{
-				{Name: proto.String("field1"), Number: proto.Int32(1), Type: dpb.FieldDescriptorProto_TYPE_INT32.Enum(), Label: dpb.FieldDescriptorProto_LABEL_REPEATED.Enum()},
+				{Name: proto.String("field1"), Number: proto.Int32(1),
+					Type:  dpb.FieldDescriptorProto_TYPE_INT32.Enum(),
+					Label: dpb.FieldDescriptorProto_LABEL_REPEATED.Enum()},
 			},
 			input:          []byte{0x08, 0x2A, 0x08, 0x2B}, // field 1=[42, 43]
 			expectedCustom: []unmarshalValue{},
@@ -250,10 +252,10 @@ func TestCustomUnmarshaller(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Convert field descriptors to proto format
 			schema := createTestSchema(tt.fields, i)
-			fields := make([]*dpb.FieldDescriptorProto, 0, len(schema.GetFields()))
-			for _, f := range schema.GetFields() {
-				fields = append(fields, f.AsFieldDescriptorProto())
-			}
+			//fields := make([]*dpb.FieldDescriptorProto, 0, len(schema.GetFields()))
+			//for _, f := range schema.GetFields() {
+			//	fields = append(fields, f.AsFieldDescriptorProto())
+			//}
 
 			unmarshaller := newCustomFieldUnmarshaller(customUnmarshallerOptions{
 				skipUnknownFields: tt.skipUnknown,

@@ -374,6 +374,7 @@ func TestBufferDecodeFixed32(t *testing.T) {
 	}
 }
 
+// nolint:dupl
 func TestDecodeZigZag32(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -415,6 +416,7 @@ func TestDecodeZigZag32(t *testing.T) {
 	}
 }
 
+// nolint:dupl
 func TestDecodeZigZag64(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -458,10 +460,10 @@ func TestDecodeZigZag64(t *testing.T) {
 
 func TestBufferDecodeRawBytes(t *testing.T) {
 	tests := []struct {
-		name     string
 		buf      []byte
-		alloc    bool
 		expected []byte
+		name     string
+		alloc    bool
 		err      bool
 	}{
 		{
