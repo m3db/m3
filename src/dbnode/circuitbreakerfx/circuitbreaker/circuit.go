@@ -174,6 +174,9 @@ func (c *Circuit) processHealthyState() {
 	counters := c.window.counters()
 	successfulReqs := counters.successfulRequests.Load()
 	failedReqs := counters.failedRequests.Load()
+
+	fmt.Println("successfulReqs", successfulReqs, "failedReqs", failedReqs, "failureRatio", c.config.FailureRatio, "minReqs", c.config.MinimumRequests)
+
 	if (successfulReqs + failedReqs) < c.config.MinimumRequests {
 		// Do nothing when the reported requests are less than minimum required
 		// requests configured.
