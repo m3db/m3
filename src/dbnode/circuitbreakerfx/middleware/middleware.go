@@ -3,12 +3,14 @@ package middleware
 import (
 	"context"
 	// "fmt"
+	// "fmt"
 	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/circuitbreaker"
 	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/circuitbreakererror"
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/uber-go/tally"
 	tchannel "github.com/uber/tchannel-go"
+
 	// "go.uber.org/net/metrics"
 	"go.uber.org/zap"
 )
@@ -34,20 +36,23 @@ type m3dbtsMiddleware func(rpc.TChanNode) *MiddlerWareOutbound
 // NewMiddlerWareOutbound returns a unary outbound circuit breaker middleware based on
 // the provided config.
 func NewMiddlerWareOutbound(config Config, logger *zap.Logger, scope tally.Scope, enabler Enabler, host string) m3dbtsMiddleware {
-
-	return func(next rpc.TChanNode) *MiddlerWareOutbound {
-		observer, err := newObserver(host, scope)
-		if err != nil {
+	observer, err := newObserver(host, scope)
+	if err != nil {
+		return func(next rpc.TChanNode) *MiddlerWareOutbound {
+			logger.Error("Failed to create observer")
 			return &MiddlerWareOutbound{}
 		}
+	}
+	circuitManager := newCircuitManager(newPolicyProvider(config))
 
+	return func(next rpc.TChanNode) *MiddlerWareOutbound {
 		return &MiddlerWareOutbound{
 			next:           next,
 			enabler:        enabler,
-			logger:         logger.With(zap.String("component", _packageName)).WithOptions(zap.AddCaller()),
+			logger:         logger,
 			host:           host,
 			observer:       observer,
-			circuitManager: newCircuitManager(newPolicyProvider(config)),
+			circuitManager: circuitManager,
 		}
 	}
 }
