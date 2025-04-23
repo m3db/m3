@@ -1,7 +1,6 @@
 package circuitbreaker
 
 import (
-	"fmt"
 	"math"
 	"sync"
 	"time"
@@ -50,7 +49,6 @@ type Circuit struct {
 // Returns an error if the provided config is invalid.
 func NewCircuit(config Config) (*Circuit, error) {
 	config = config.applyDefaultValues()
-	fmt.Println("recovery time cb config", config.RecoveryTime)
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
@@ -174,8 +172,6 @@ func (c *Circuit) processHealthyState() {
 	counters := c.window.counters()
 	successfulReqs := counters.successfulRequests.Load()
 	failedReqs := counters.failedRequests.Load()
-
-	fmt.Println("successfulReqs", successfulReqs, "failedReqs", failedReqs, "failureRatio", c.config.FailureRatio, "minReqs", c.config.MinimumRequests)
 
 	if (successfulReqs + failedReqs) < c.config.MinimumRequests {
 		// Do nothing when the reported requests are less than minimum required

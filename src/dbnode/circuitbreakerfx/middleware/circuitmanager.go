@@ -1,10 +1,8 @@
 package middleware
 
 import (
-	"fmt"
-	"sync"
-
 	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/circuitbreaker"
+	"sync"
 )
 
 // circuitManager manages creation and reuse of the circuits across repeated
@@ -29,19 +27,16 @@ func newCircuitManager(policyProvider *policyProvider) *circuitManager {
 // This method will return an error only when circuit breaker circuit creation
 // results in an error.
 func (c *circuitManager) circuit(service, procedure string) (circuitbreaker.Circuiter, error) {
-	fmt.Println("circuitManager.circuit", service, procedure)
 	key := serviceProcedure{service: service, procedure: procedure}
 	c.mu.RLock()
 	circuit, ok := c.circuitCache[key]
 	c.mu.RUnlock()
 	if ok {
-		fmt.Println("circuitManager.circuit found in cache", service, procedure)
 		return circuit, nil
 	}
 
 	config, ok := c.policyProvider.policy(service, procedure)
 	if !ok {
-		fmt.Println("circuitManager.circuit not found in cache", service, procedure)
 		c.mu.Lock()
 		// When the config for a service and procedure is not found, set the circuit
 		// cache to nil to avoid recurring config lookup again in future for same
@@ -55,11 +50,9 @@ func (c *circuitManager) circuit(service, procedure string) (circuitbreaker.Circ
 	defer c.mu.Unlock()
 	// Check again if the circuit has been created concurrently.
 	if circuit, ok := c.circuitCache[key]; ok {
-		fmt.Println("circuitManager.circuit found in cache after lock", service, procedure)
 		return circuit, nil
 	}
 
-	fmt.Println("circuitManager.circuit creating new circuit", service, procedure)
 	circuit, err := circuitbreaker.NewCircuit(config)
 	if err != nil {
 		// Set the circuit cache for a service and procedure to nil, to avoid

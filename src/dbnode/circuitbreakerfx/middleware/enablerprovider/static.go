@@ -26,15 +26,7 @@ var (
 func newStaticEnabler(cfg middleware.Config) *staticEnabler {
 	se := &staticEnabler{
 		enabled: cfg.Enable,
-		svcList: make(map[svcKey]middleware.Mode, len(cfg.Shadow.ShadowForListed)+len(cfg.Shadow.NonShadowForListed)+1), // 1 for wildcard if it was not specified
-	}
-
-	for _, svc := range cfg.Shadow.ShadowForListed {
-		se.svcList[svcKey{service: svc.Service, procedure: svc.Procedure}] = middleware.Shadow
-	}
-
-	for _, svc := range cfg.Shadow.NonShadowForListed {
-		se.svcList[svcKey{service: svc.Service, procedure: svc.Procedure}] = middleware.Rejection
+		svcList: make(map[svcKey]middleware.Mode),
 	}
 
 	if cfg.EnableShadowMode {

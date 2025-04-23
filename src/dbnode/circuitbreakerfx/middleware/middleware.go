@@ -1,18 +1,12 @@
 package middleware
 
 import (
-	"context"
-	// "fmt"
-	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/circuitbreaker"
 	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/circuitbreakererror"
-	"sync"
-
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/uber-go/tally"
 	tchannel "github.com/uber/tchannel-go"
-
-	// "go.uber.org/net/metrics"
 	"go.uber.org/zap"
+	"sync"
 )
 
 const (
@@ -42,7 +36,6 @@ var (
 // NewMiddlerWareOutbound returns a unary outbound circuit breaker middleware based on
 // the provided config.
 func NewMiddlerWareOutbound(config Config, logger *zap.Logger, scope tally.Scope, enabler Enabler, host string) m3dbtsMiddleware {
-
 	once.Do(func() {
 		sharedCircuitManager = newCircuitManager(newPolicyProvider(config))
 		sharedobserver, _ = newObserver(host, scope)
@@ -65,17 +58,16 @@ func withBreaker[T any](u *MiddlerWareOutbound, ctx tchannel.ContextWithHeaders,
 		u.logger.Info("Circuit breaker not enabled",
 			zap.String("host", u.host),
 		)
-		// fmt.Println("Circuit breaker not enabled", u.host)
 		return call()
 	}
 
+	// create new or fetch cached circuit
 	circuit, err := u.circuitManager.circuit(service, procedure)
 	if err != nil {
 		u.logger.Error("Failed to create circuit breaker",
 			zap.String("host", u.host),
 			zap.Error(err),
 		)
-		// fmt.Println("Failed to create circuit breaker", u.host)
 		return call()
 	}
 
@@ -83,6 +75,7 @@ func withBreaker[T any](u *MiddlerWareOutbound, ctx tchannel.ContextWithHeaders,
 		return call()
 	}
 
+	// edge handles emitting metrics of the circuit breaker.
 	edge, err := u.observer.edge(u.host)
 	if err != nil {
 		u.logger.Error("Failed to fetch call edge",
@@ -99,9 +92,7 @@ func withBreaker[T any](u *MiddlerWareOutbound, ctx tchannel.ContextWithHeaders,
 		u.logger.Info("Circuit breaker request not allowed",
 			zap.String("host", u.host),
 		)
-
-		edge.reportRequestRejected(circuit.Status(), mode)
-
+		edge.reportRequestRejected()
 		if mode == Rejection {
 			return circuitbreakererror.New(service, procedure)
 		}
@@ -109,19 +100,15 @@ func withBreaker[T any](u *MiddlerWareOutbound, ctx tchannel.ContextWithHeaders,
 
 	err = call()
 	isSuccess := err == nil
-	// Report request status and metrics only when the request is allowed.
-	// isAllowed might be false when middleware is in shadow mode.
+
 	if isAllowed {
 		circuit.ReportRequestStatus(isSuccess)
-		edge.reportRequestComplete(circuit.Status(), isSuccess, err, mode)
+		edge.reportRequestComplete(isSuccess)
 	}
 
 	u.logger.Info("Circuit breaker call done",
 		zap.String("host", u.host),
 	)
-
-	//TODO move it to module health check
-	u.ReportHeartbeatMetrics()
 
 	return err
 }
@@ -129,20 +116,5 @@ func withBreaker[T any](u *MiddlerWareOutbound, ctx tchannel.ContextWithHeaders,
 func (u *MiddlerWareOutbound) WriteBatchRaw(ctx tchannel.ContextWithHeaders, req *rpc.WriteBatchRawRequest) error {
 	return withBreaker[*rpc.WriteBatchRawRequest](u, ctx, func() error {
 		return u.next.WriteBatchRaw(ctx, req)
-	})
-}
-
-// ReportHeartbeatMetrics emits heartbeat metrics of all the circuits with the
-// state and probe ratio.
-func (u *MiddlerWareOutbound) ReportHeartbeatMetrics() {
-	if u == nil {
-		return
-	}
-
-	u.circuitManager.walk(func(sp serviceProcedure, circuit circuitbreaker.Circuiter) {
-		if circuit != nil && u.enabler.IsEnabled(context.Background(), service, procedure) {
-			mode := u.enabler.Mode(context.TODO(), service, procedure)
-			u.observer.reportCircuitStateHeartbeat(circuit.Status(), sp.service, sp.procedure, mode)
-		}
 	})
 }

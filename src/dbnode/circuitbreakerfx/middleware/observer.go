@@ -5,9 +5,6 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/circuitbreaker"
-	// "go.uber.org/net/metrics"
-	// "go.uber.org/yarpc/api/transport"
-	// "go.uber.org/yarpc/yarpcerrors"
 	"github.com/uber-go/tally"
 )
 
@@ -36,12 +33,6 @@ type observer struct {
 }
 
 func newObserver(host string, scope tally.Scope) (*observer, error) {
-	// tags := scope.Gauge(
-	// 	map[string]string{
-	// 		"component": _packageName,
-	// 		"host":      host,
-	// 	})
-
 	scope = scope.Tagged(map[string]string{
 		"component": _packageName,
 		"host":      host,
@@ -58,13 +49,7 @@ func newObserver(host string, scope tally.Scope) (*observer, error) {
 
 // reportCircuitHeartbeat increments the circuit state heartbeat for the given
 // service and procedure provided.
-func (o *observer) reportCircuitStateHeartbeat(status *circuitbreaker.Status, service, procedure string, mode Mode) {
-	// tags := o.scope.Tagged(
-	// 	map[string]string{
-	// 		"circuit_state": status.State().String(),
-	// 		"mode":          mode.String(),
-	// 	})
-
+func (o *observer) reportCircuitStateHeartbeat(status *circuitbreaker.Status) {
 	o.circuitStateHeartbeat.Update(o.getCircuitStateHeartbeat(status.State()))
 }
 
@@ -143,41 +128,11 @@ func newCallEdge(scope tally.Scope, host string) (*callEdge, error) {
 			"host":      host,
 		})
 
-	// successes, err := scope.CounterVector(metrics.Spec{
-	// 	Name:      "circuit_breaker_successes",
-	// 	Help:      "Counter of number of successful requests in the circuit breaker.",
-	// 	ConstTags: tags,
-	// 	VarTags:   []string{_tagState, _tagProbeRatio, _tagMode},
-	// })
-	// if err != nil {
-	// 	return nil, fmt.Errorf("Failed to create successes counter: %w", err)
-	// }
-
 	successes := tags.Counter("circuit_breaker_successes")
 
 	failures := tags.Counter("circuit_breaker_failures")
 
-	// failures, err := scope.CounterVector(metrics.Spec{
-	// 	Name:      "circuit_breaker_failures",
-	// 	Help:      "Counter of number of failed requests in the circuit breaker.",
-	// 	ConstTags: tags,
-	// 	VarTags:   []string{_tagState, _tagProbeRatio, _tagErrorCode, _tagMode},
-	// })
-	// if err != nil {
-	// 	return nil, fmt.Errorf("Failed to create failures counter: %w", err)
-	// }
-
 	rejects := tags.Counter("circuit_breaker_rejects")
-
-	// rejects, err := scope.CounterVector(metrics.Spec{
-	// 	Name:      "circuit_breaker_rejects",
-	// 	Help:      "Counter of number of rejected requests in the circuit breaker.",
-	// 	ConstTags: tags,
-	// 	VarTags:   []string{_tagState, _tagProbeRatio, _tagMode},
-	// })
-	// if err != nil {
-	// 	return nil, fmt.Errorf("Failed to create rejects counter: %w", err)
-	// }
 
 	return &callEdge{
 		successes: successes,
@@ -187,10 +142,8 @@ func newCallEdge(scope tally.Scope, host string) (*callEdge, error) {
 }
 
 // reportRequestComplete increments success counter if request is successful
-// or increments failure counter with state, probe-ratio and error code.
-func (c *callEdge) reportRequestComplete(status *circuitbreaker.Status, isRequestSuccessful bool, respErr error, mode Mode) {
-	// state := status.State().String()
-	// probeRatio := probeRatioString(status.ProbeRatio())
+// or increments failure counter
+func (c *callEdge) reportRequestComplete(isRequestSuccessful bool) {
 	if isRequestSuccessful {
 		c.successes.Inc(1)
 		return
@@ -199,9 +152,8 @@ func (c *callEdge) reportRequestComplete(status *circuitbreaker.Status, isReques
 	c.failures.Inc(1)
 }
 
-// reportRequestRejected increments request rejected metric with circuit state, probe ratio
-// and mode of the middleware.
-func (c *callEdge) reportRequestRejected(status *circuitbreaker.Status, mode Mode) {
+// reportRequestRejected increments request rejected metric
+func (c *callEdge) reportRequestRejected() {
 	c.rejects.Inc(1)
 }
 
