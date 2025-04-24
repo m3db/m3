@@ -33,7 +33,6 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 
 	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/middleware"
-	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/middleware/enablerprovider"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/clock"
@@ -150,7 +149,7 @@ func newHostQueue(
 
 	cbconfig := opts.MiddlewareCircuitbreakerConfig()
 
-	mw := middleware.NewCircuitBreakerMiddleware(cbconfig, iOpts.Logger(), scope, enablerprovider.New(cbconfig), host.ID())
+	mw := middleware.NewCircuitBreakerMiddleware(cbconfig, iOpts.Logger(), scope, host.ID())
 	if err != nil {
 		return nil, nil
 	}
