@@ -23,10 +23,6 @@ type subClusteredPlacementAlgorithm struct {
 }
 
 func (a subClusteredPlacementAlgorithm) InitialPlacement(instances []placement.Instance, shards []uint32, rf int) (placement.Placement, error) {
-	//fmt.Printf("building initial placement")
-	//fmt.Printf("Printing instances: %+v\n", instances)
-	//fmt.Printf("Printing options: %+v\n", a.opts)
-
 	sph := newInitSubClusterHelper(instances, shards, rf, a.opts)
 	if err := sph.placeShardForInitialPlacement(newShards(shards)); err != nil {
 		return nil, err
@@ -36,7 +32,6 @@ func (a subClusteredPlacementAlgorithm) InitialPlacement(instances []placement.I
 		p = sph.generatePlacement()
 	)
 
-	//fmt.Printf("Printing final placement state1: %+v\n", p)
 	return tryCleanupShardState(p, a.opts)
 
 }
@@ -69,24 +64,48 @@ func (a subClusteredPlacementAlgorithm) RemoveInstances(p placement.Placement, l
 	if err := a.IsCompatibleWith(p); err != nil {
 		return nil, err
 	}
-	ph, leavingInstances, err := newSubClusterRemoveInstancesHelper(p.Clone(), leavingInstanceIDs, a.opts)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, instance := range leavingInstances {
-		if err := ph.placeShards(instance.Shards().All(), instance, ph.Instances()); err != nil {
-			return nil, err
-		}
-	}
-	p = ph.generatePlacement()
-
-	for _, instance := range leavingInstances {
-		p, _, err = addInstanceToPlacement(p, instance, withShards)
+	p = p.Clone()
+	for _, instanceID := range leavingInstanceIDs {
+		ph, leavingInstance, subclusterNonLeavingInstances, err := newSubClusterRemoveInstancesHelper(p, instanceID, a.opts)
 		if err != nil {
 			return nil, err
 		}
+		// place the shards from the leaving instance to the rest of the cluster
+		if err := ph.placeShards(leavingInstance.Shards().All(), leavingInstance, ph.Instances()); err != nil {
+			return nil, err
+		}
+		if err := ph.optimize(safe); err != nil {
+			return nil, err
+		}
+
+		if p, _, err = addInstanceToPlacement(ph.generatePlacement(), leavingInstance, withShards); err != nil {
+			return nil, err
+		}
+
+		for _, instance := range subclusterNonLeavingInstances {
+			if p, _, err = addInstanceToPlacement(p, instance, withShards); err != nil {
+				return nil, err
+			}
+		}
 	}
+	//ph, leavingInstances, err := newSubClusterRemoveInstancesHelper(p.Clone(), leavingInstanceIDs, a.opts)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
+	//for _, instance := range leavingInstances {
+	//	if err := ph.placeShards(instance.Shards().All(), instance, ph.Instances()); err != nil {
+	//		return nil, err
+	//	}
+	//}
+	//p = ph.generatePlacement()
+	//
+	//for _, instance := range leavingInstances {
+	//	p, _, err = addInstanceToPlacement(p, instance, withShards)
+	//	if err != nil {
+	//		return nil, err
+	//	}
+	//}
 	return tryCleanupShardState(p, a.opts)
 }
 

@@ -22,9 +22,9 @@ package algo
 
 import (
 	"container/heap"
-	"errors"
 	"fmt"
 	"math"
+	"sort"
 
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/shard"
@@ -32,109 +32,65 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	errAddingInstanceAlreadyExist         = errors.New("the adding instance is already in the placement")
-	errInstanceContainsNonLeavingShards   = errors.New("the adding instance contains non leaving shards")
-	errInstanceContainsInitializingShards = errors.New("the adding instance contains initializing shards")
-)
-
-type instanceType int
-
-const (
-	anyType instanceType = iota
-	withShards
-	withLeavingShardsOnly
-	withAvailableOrLeavingShardsOnly
-)
-
-type optimizeType int
-
-const (
-	// safe optimizes the load distribution without violating
-	// minimal shard movement.
-	safe optimizeType = iota
-	// unsafe optimizes the load distribution with the potential of violating
-	// minimal shard movement in order to reach best shard distribution.
-	unsafe
-)
-
-type assignLoadFn func(instance placement.Instance) error
-
-type placementHelper interface {
-	PlacementHelper
-
-	// placeShards distributes shards to the instances in the helper, with aware of where are the shards coming from.
-	placeShards(shards []shard.Shard, from placement.Instance, candidates []placement.Instance) error
-
-	// addInstance adds an instance to the placement.
-	addInstance(addingInstance placement.Instance) error
-
-	// optimize rebalances the load distribution in the cluster.
-	optimize(t optimizeType) error
-
-	// generatePlacement generates a placement.
-	generatePlacement() placement.Placement
-
-	// reclaimLeavingShards reclaims all the leaving shards on the given instance
-	// by pulling them back from the rest of the cluster.
-	reclaimLeavingShards(instance placement.Instance)
-
-	// returnInitializingShards returns all the initializing shards on the given instance
-	// by returning them back to the original owners.
-	returnInitializingShards(instance placement.Instance)
+type subclusteredhelperv2 struct {
+	targetLoad           map[string]int
+	shardToInstanceMap   map[uint32]map[placement.Instance]struct{}
+	groupToInstancesMap  map[string]map[placement.Instance]struct{}
+	subClusterToShardMap map[uint32]map[uint32]struct{}
+	groupToWeightMap     map[string]uint32
+	subClusters          map[uint32]struct{}
+	rf                   int
+	uniqueShards         []uint32
+	instances            map[string]placement.Instance
+	log                  *zap.Logger
+	opts                 placement.Options
+	totalWeight          uint32
+	maxShardSetID        uint32
 }
 
-// PlacementHelper helps the algorithm to place shards.
-type PlacementHelper interface {
-	// Instances returns the list of instances managed by the PlacementHelper.
-	Instances() []placement.Instance
-
-	// CanMoveShard checks if the shard can be moved from the instance to the target isolation group.
-	CanMoveShard(shard uint32, fromInstance placement.Instance, toIsolationGroup string) bool
+// NewSubclusteredv2PlacementHelper returns a placement subclusteredhelperv2
+func NewSubclusteredv2PlacementHelper(p placement.Placement, opts placement.Options) *subclusteredhelperv2 {
+	return newubclusteredv2Helper(p, p.ReplicaFactor(), opts)
 }
 
-type helper struct {
-	targetLoad          map[string]int
-	shardToInstanceMap  map[uint32]map[placement.Instance]struct{}
-	groupToInstancesMap map[string]map[placement.Instance]struct{}
-	groupToWeightMap    map[string]uint32
-	rf                  int
-	uniqueShards        []uint32
-	instances           map[string]placement.Instance
-	log                 *zap.Logger
-	opts                placement.Options
-	totalWeight         uint32
-	maxShardSetID       uint32
-}
-
-// NewPlacementHelper returns a placement helper
-func NewPlacementHelper(p placement.Placement, opts placement.Options) PlacementHelper {
-	return newHelper(p, p.ReplicaFactor(), opts)
-}
-
-func newInitHelper(instances []placement.Instance, ids []uint32, opts placement.Options) placementHelper {
+func newSubclusteredv2InitHelper(instances []placement.Instance, ids []uint32, opts placement.Options) *subclusteredhelperv2 {
 	emptyPlacement := placement.NewPlacement().
 		SetInstances(instances).
 		SetShards(ids).
 		SetReplicaFactor(0).
 		SetIsSharded(true).
 		SetCutoverNanos(opts.PlacementCutoverNanosFn()())
-	return newHelper(emptyPlacement, emptyPlacement.ReplicaFactor()+1, opts)
+	ph := newubclusteredv2Helper(emptyPlacement, emptyPlacement.ReplicaFactor()+1, opts)
+	targetLoad := ph.getTargetSubClusterLoad(0)
+	ph.distributeInitialShards(targetLoad)
+	return ph
 }
 
-func newAddReplicaHelper(p placement.Placement, opts placement.Options) placementHelper {
-	return newHelper(p, p.ReplicaFactor()+1, opts)
+func newubclusteredv2ReplicaHelper(p placement.Placement, opts placement.Options) *subclusteredhelperv2 {
+	ph := newubclusteredv2Helper(p, p.ReplicaFactor()+1, opts)
+	return ph
 }
 
-func newAddInstanceHelper(
+func newubclusteredv2AddInstanceHelper(
 	p placement.Placement,
 	instance placement.Instance,
 	opts placement.Options,
 	t instanceType,
-) (placementHelper, placement.Instance, error) {
+) (*subclusteredhelperv2, placement.Instance, error) {
 	instanceInPlacement, exist := p.Instance(instance.ID())
 	if !exist {
-		return newHelper(p.SetInstances(append(p.Instances(), instance)), p.ReplicaFactor(), opts), instance, nil
+		ph := newubclusteredv2Helper(p.SetInstances(append(p.Instances(), instance)), p.ReplicaFactor(), opts)
+		targetLoad := ph.getTargetSubClusterLoad(0)
+		for subClusterID, _ := range ph.subClusters {
+			if instance.SubClusterID() == subClusterID {
+				continue
+			}
+			err := ph.moveShardsToSubCluster(subClusterID, instance.SubClusterID(), targetLoad)
+			if err != nil {
+				return nil, nil, err
+			}
+		}
+		return ph, instance, nil
 	}
 
 	switch t {
@@ -151,27 +107,54 @@ func newAddInstanceHelper(
 		return nil, nil, fmt.Errorf("unexpected type %v", t)
 	}
 
-	return newHelper(p, p.ReplicaFactor(), opts), instanceInPlacement, nil
+	ph := newubclusteredv2Helper(p, p.ReplicaFactor(), opts)
+	targetLoad := ph.getTargetSubClusterLoad(0)
+	for subClusterID, _ := range ph.subClusters {
+		if instance.SubClusterID() == subClusterID {
+			continue
+		}
+		err := ph.moveShardsToSubCluster(subClusterID, instance.SubClusterID(), targetLoad)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return ph, instanceInPlacement, nil
 }
 
-func newRemoveInstanceHelper(
+func newubclusteredv2RemoveInstanceHelper(
 	p placement.Placement,
 	instanceID string,
 	opts placement.Options,
-) (placementHelper, placement.Instance, error) {
+) (*subclusteredhelperv2, placement.Instance, error) {
 	p, leavingInstance, err := removeInstanceFromPlacement(p, instanceID)
 	if err != nil {
 		return nil, nil, err
 	}
-	return newHelper(p, p.ReplicaFactor(), opts), leavingInstance, nil
+	ph := newubclusteredv2Helper(p, p.ReplicaFactor(), opts)
+	targetLoad := ph.getTargetSubClusterLoad(leavingInstance.SubClusterID())
+	subClusters := getKeys(ph.subClusters)
+	sort.Slice(subClusters, func(i, j int) bool { return subClusters[i] < subClusters[j] })
+	for _, subClusterID := range subClusters {
+		if leavingInstance.SubClusterID() == subClusterID {
+			continue
+		}
+		err := ph.moveShardsFromSubCluster(leavingInstance.SubClusterID(), subClusterID, targetLoad)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+	fmt.Println(ph.subClusterToShardMap)
+
+	return ph, leavingInstance, nil
 }
 
-func newReplaceInstanceHelper(
+func newubclusteredv2ReplaceInstanceHelper(
 	p placement.Placement,
 	instanceIDs []string,
 	addingInstances []placement.Instance,
 	opts placement.Options,
-) (placementHelper, []placement.Instance, []placement.Instance, error) {
+) (*subclusteredhelperv2, []placement.Instance, []placement.Instance, error) {
 	var (
 		leavingInstances = make([]placement.Instance, len(instanceIDs))
 		err              error
@@ -190,11 +173,11 @@ func newReplaceInstanceHelper(
 			return nil, nil, nil, err
 		}
 	}
-	return newHelper(p, p.ReplicaFactor(), opts), leavingInstances, newAddingInstances, nil
+	return newubclusteredv2Helper(p, p.ReplicaFactor(), opts), leavingInstances, newAddingInstances, nil
 }
 
-func newHelper(p placement.Placement, targetRF int, opts placement.Options) placementHelper {
-	ph := &helper{
+func newubclusteredv2Helper(p placement.Placement, targetRF int, opts placement.Options) *subclusteredhelperv2 {
+	ph := &subclusteredhelperv2{
 		rf:            targetRF,
 		instances:     make(map[string]placement.Instance, p.NumInstances()),
 		uniqueShards:  p.Shards(),
@@ -212,10 +195,161 @@ func newHelper(p placement.Placement, targetRF int, opts placement.Options) plac
 	return ph
 }
 
-func (ph *helper) scanCurrentLoad() {
+func (ph *subclusteredhelperv2) distributeInitialShards(targetLoad map[uint32]int) {
+	if ph.subClusterToShardMap == nil {
+		ph.subClusterToShardMap = make(map[uint32]map[uint32]struct{})
+	}
+
+	sort.Slice(ph.uniqueShards, func(i, j int) bool { return ph.uniqueShards[i] < ph.uniqueShards[j] })
+	i := 0
+
+	for to, shardCount := range targetLoad {
+		if _, ok := ph.subClusterToShardMap[to]; !ok {
+			ph.subClusterToShardMap[to] = make(map[uint32]struct{})
+		}
+		if len(ph.subClusterToShardMap[to]) == shardCount {
+			return
+		}
+		for i < len(ph.uniqueShards) && len(ph.subClusterToShardMap[to]) < shardCount {
+			s := ph.uniqueShards[i]
+			if _, ok := ph.subClusterToShardMap[to][s]; !ok {
+				ph.subClusterToShardMap[to][s] = struct{}{}
+				i++
+			}
+		}
+	}
+}
+
+func (ph *subclusteredhelperv2) moveShardsFromSubCluster(from uint32, to uint32, targetCount map[uint32]int) error {
+	if from == 0 {
+		return fmt.Errorf("subClusterID cannot be zero")
+	}
+	if ph.subClusterToShardMap == nil {
+		ph.subClusterToShardMap = make(map[uint32]map[uint32]struct{})
+	}
+	if _, ok := ph.subClusterToShardMap[to]; !ok {
+		ph.subClusterToShardMap[to] = make(map[uint32]struct{})
+	}
+	for s := range ph.subClusterToShardMap[to] {
+		delete(ph.subClusterToShardMap[from], s)
+	}
+	if len(ph.subClusterToShardMap[from]) == 0 {
+		delete(ph.subClusterToShardMap, from)
+		return nil
+	}
+	if len(ph.subClusterToShardMap[to]) == targetCount[to] {
+		return nil
+	}
+
+	if len(ph.subClusterToShardMap[to]) >= targetCount[to] {
+		return nil
+	}
+
+	fromShards := ph.getSubClusterShards(from)
+	i := 0
+	for i < len(fromShards) && len(ph.subClusterToShardMap[to]) < targetCount[to] {
+		s := fromShards[i]
+		if _, exists := ph.subClusterToShardMap[to][s]; !exists {
+			ph.subClusterToShardMap[to][s] = struct{}{}
+			delete(ph.subClusterToShardMap[from], s)
+			i++
+		}
+	}
+	if len(ph.subClusterToShardMap[from]) == 0 {
+		delete(ph.subClusterToShardMap, from)
+	}
+	return nil
+}
+
+func (ph *subclusteredhelperv2) moveShardsToSubCluster(from uint32, to uint32, targetCount map[uint32]int) error {
+	if from == 0 {
+		return fmt.Errorf("subClusterID cannot be zero")
+	}
+	if ph.subClusterToShardMap == nil {
+		ph.subClusterToShardMap = make(map[uint32]map[uint32]struct{})
+	}
+	if _, ok := ph.subClusterToShardMap[to]; !ok {
+		ph.subClusterToShardMap[to] = make(map[uint32]struct{})
+	}
+	if len(ph.subClusterToShardMap[to]) == targetCount[to] {
+		return nil
+	}
+
+	if _, ok := ph.subClusterToShardMap[from]; !ok {
+		return nil
+	}
+
+	for s := range ph.subClusterToShardMap[to] {
+		delete(ph.subClusterToShardMap[from], s)
+	}
+
+	if len(ph.subClusterToShardMap[from]) <= targetCount[from] {
+		return nil
+	}
+
+	fromShards := ph.getSubClusterShards(from)
+	i := 0
+	for i < len(fromShards) && len(ph.subClusterToShardMap[from]) > targetCount[from] {
+		s := fromShards[i]
+		if _, exists := ph.subClusterToShardMap[to][s]; !exists {
+			ph.subClusterToShardMap[to][s] = struct{}{}
+			delete(ph.subClusterToShardMap[from], s)
+			i++
+		}
+	}
+	return nil
+}
+
+func (ph *subclusteredhelperv2) getSubClusterShards(subClusterID uint32) []uint32 {
+	if ph.subClusterToShardMap[subClusterID] == nil {
+		ph.subClusterToShardMap[subClusterID] = make(map[uint32]struct{})
+	}
+	shards := make([]uint32, 0, len(ph.subClusterToShardMap[subClusterID]))
+	for shardID := range ph.subClusterToShardMap[subClusterID] {
+		shards = append(shards, shardID)
+		ph.subClusterToShardMap[subClusterID][shardID] = struct{}{}
+	}
+	sort.Slice(shards, func(i, j int) bool { return shards[i] < shards[j] })
+	return shards
+}
+
+func (ph *subclusteredhelperv2) getTargetSubClusterLoad(excludeSubCluster uint32) map[uint32]int {
+	totalDivided := 0
+	totalShards := len(ph.uniqueShards)
+	subClusters := getKeys(ph.subClusters)
+	if excludeSubCluster != 0 {
+		for i, v := range subClusters {
+			if v == excludeSubCluster {
+				subClusters = append(subClusters[:i], subClusters[i+1:]...)
+				break
+			}
+		}
+	}
+	sort.Slice(subClusters, func(i, j int) bool { return subClusters[i] <= subClusters[j] })
+	targetShardsPerSubCluster := make(map[uint32]int)
+	for _, subClusterID := range subClusters {
+		targetShardsPerSubCluster[subClusterID] = int(math.Floor((float64(ph.opts.InstancesPerSubCluster()) / float64(ph.opts.InstancesPerSubCluster()*len(subClusters))) * float64(totalShards)))
+		totalDivided += targetShardsPerSubCluster[subClusterID]
+	}
+
+	diff := totalShards - totalDivided
+	for _, curr := range subClusters {
+		if diff == 0 {
+			break
+		}
+		targetShardsPerSubCluster[curr]++
+		diff--
+	}
+	return targetShardsPerSubCluster
+
+}
+
+func (ph *subclusteredhelperv2) scanCurrentLoad() {
 	ph.shardToInstanceMap = make(map[uint32]map[placement.Instance]struct{}, len(ph.uniqueShards))
 	ph.groupToInstancesMap = make(map[string]map[placement.Instance]struct{})
 	ph.groupToWeightMap = make(map[string]uint32)
+	ph.subClusterToShardMap = make(map[uint32]map[uint32]struct{})
+	ph.subClusters = make(map[uint32]struct{})
 	totalWeight := uint32(0)
 	for _, instance := range ph.instances {
 		if _, exist := ph.groupToInstancesMap[instance.IsolationGroup()]; !exist {
@@ -228,6 +362,8 @@ func (ph *helper) scanCurrentLoad() {
 			continue
 		}
 
+		ph.subClusters[instance.SubClusterID()] = struct{}{}
+
 		ph.groupToWeightMap[instance.IsolationGroup()] = ph.groupToWeightMap[instance.IsolationGroup()] + instance.Weight()
 		totalWeight += instance.Weight()
 
@@ -236,12 +372,16 @@ func (ph *helper) scanCurrentLoad() {
 				continue
 			}
 			ph.assignShardToInstance(s, instance)
+			if _, exist := ph.subClusterToShardMap[instance.SubClusterID()]; !exist {
+				ph.subClusterToShardMap[instance.SubClusterID()] = make(map[uint32]struct{})
+			}
+			ph.subClusterToShardMap[instance.SubClusterID()][s.ID()] = struct{}{}
 		}
 	}
 	ph.totalWeight = totalWeight
 }
 
-func (ph *helper) buildTargetLoad() {
+func (ph *subclusteredhelperv2) buildTargetLoad() {
 	overWeightedGroups := 0
 	overWeight := uint32(0)
 	for _, weight := range ph.groupToWeightMap {
@@ -271,7 +411,97 @@ func (ph *helper) buildTargetLoad() {
 	ph.targetLoad = targetLoad
 }
 
-func (ph *helper) Instances() []placement.Instance {
+func getKeys[K comparable, V any](m map[K]V) []K {
+	keys := make([]K, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys // Returns zero value of K and false if map is empty
+}
+
+func (ph *subclusteredhelperv2) redistributeShards(targetCounts map[uint32]int) {
+	// Create a copy of the current map to avoid modifying the original
+	ph.subClusterToShardMap = make(map[uint32]map[uint32]struct{})
+	for c, sMap := range ph.subClusterToShardMap {
+		ph.subClusterToShardMap[c] = make(map[uint32]struct{})
+		for s := range sMap {
+			ph.subClusterToShardMap[c][s] = struct{}{}
+		}
+	}
+
+	// Calculate current counts and find over/under allocated objects
+	type allocation struct {
+		c          uint32
+		current    int
+		target     int
+		difference int
+	}
+
+	allocations := make([]allocation, 0, len(ph.subClusterToShardMap))
+	for c, sMap := range ph.subClusterToShardMap {
+		currentCount := len(sMap)
+		targetCount := targetCounts[c]
+		allocations = append(allocations, allocation{
+			c:          c,
+			current:    currentCount,
+			target:     targetCount,
+			difference: currentCount - targetCount,
+		})
+	}
+
+	// Sort allocations by difference (over-allocated first, then under-allocated)
+	sort.Slice(allocations, func(i, j int) bool {
+		return allocations[i].difference > allocations[j].difference
+	})
+
+	// Find objects to move
+	for i := 0; i < len(allocations); i++ {
+		if allocations[i].difference <= 0 {
+			continue // Skip if not over-allocated
+		}
+
+		// Get all objects for this c
+		objects := make([]uint32, 0, len(ph.subClusterToShardMap[allocations[i].c]))
+		for s := range ph.subClusterToShardMap[allocations[i].c] {
+			objects = append(objects, s)
+		}
+		sort.Slice(objects, func(i, j int) bool {
+			return objects[i] < objects[j] // Assuming s is comparable
+		})
+
+		// Move extra objects to under-allocated c's
+		extraCount := allocations[i].difference
+		for j := len(allocations) - 1; j > i && extraCount > 0; j-- {
+			if allocations[j].difference >= 0 {
+				continue // Skip if not under-allocated
+			}
+
+			// Calculate how many objects to move
+			toMove := min(extraCount, -allocations[j].difference)
+
+			// Move the last 'toMove' objects
+			for k := 0; k < toMove; k++ {
+				obj := objects[len(objects)-1-k]
+				delete(ph.subClusterToShardMap[allocations[i].c], obj)
+				ph.subClusterToShardMap[allocations[j].c][obj] = struct{}{}
+			}
+
+			// Update differences
+			allocations[i].difference -= toMove
+			allocations[j].difference += toMove
+			extraCount -= toMove
+		}
+	}
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func (ph *subclusteredhelperv2) Instances() []placement.Instance {
 	res := make([]placement.Instance, 0, len(ph.instances))
 	for _, instance := range ph.instances {
 		res = append(res, instance)
@@ -279,15 +509,15 @@ func (ph *helper) Instances() []placement.Instance {
 	return res
 }
 
-func (ph *helper) getShardLen() int {
+func (ph *subclusteredhelperv2) getShardLen() int {
 	return len(ph.uniqueShards)
 }
 
-func (ph *helper) targetLoadForInstance(id string) int {
+func (ph *subclusteredhelperv2) targetLoadForInstance(id string) int {
 	return ph.targetLoad[id]
 }
 
-func (ph *helper) moveOneShard(from, to placement.Instance) bool {
+func (ph *subclusteredhelperv2) moveOneShard(from, to placement.Instance) bool {
 	// The order matter here:
 	// The Unknown shards were just moved, so free to be moved around.
 	// The Initializing shards were still being initialized on the instance,
@@ -298,7 +528,7 @@ func (ph *helper) moveOneShard(from, to placement.Instance) bool {
 }
 
 // nolint: unparam
-func (ph *helper) moveOneShardInState(from, to placement.Instance, state shard.State) bool {
+func (ph *subclusteredhelperv2) moveOneShardInState(from, to placement.Instance, state shard.State) bool {
 	for _, s := range from.Shards().ShardsForState(state) {
 		if ph.moveShard(s, from, to) {
 			return true
@@ -307,7 +537,7 @@ func (ph *helper) moveOneShardInState(from, to placement.Instance, state shard.S
 	return false
 }
 
-func (ph *helper) moveShard(candidateShard shard.Shard, from, to placement.Instance) bool {
+func (ph *subclusteredhelperv2) moveShard(candidateShard shard.Shard, from, to placement.Instance) bool {
 	shardID := candidateShard.ID()
 	if !ph.canAssignInstance(shardID, from, to) {
 		return false
@@ -357,7 +587,7 @@ func (ph *helper) moveShard(candidateShard shard.Shard, from, to placement.Insta
 	return true
 }
 
-func (ph *helper) CanMoveShard(shard uint32, from placement.Instance, toIsolationGroup string) bool {
+func (ph *subclusteredhelperv2) CanMoveShard(shard uint32, from placement.Instance, toIsolationGroup string) bool {
 	if from != nil {
 		if from.IsolationGroup() == toIsolationGroup {
 			return true
@@ -371,11 +601,11 @@ func (ph *helper) CanMoveShard(shard uint32, from placement.Instance, toIsolatio
 	return true
 }
 
-func (ph *helper) buildInstanceHeap(instances []placement.Instance, availableCapacityAscending bool) (heap.Interface, error) {
+func (ph *subclusteredhelperv2) buildInstanceHeap(instances []placement.Instance, availableCapacityAscending bool) (heap.Interface, error) {
 	return newHeap(instances, availableCapacityAscending, ph.targetLoad, ph.groupToWeightMap)
 }
 
-func (ph *helper) generatePlacement() placement.Placement {
+func (ph *subclusteredhelperv2) generatePlacement() placement.Placement {
 	var instances = make([]placement.Instance, 0, len(ph.instances))
 
 	for _, instance := range ph.instances {
@@ -408,7 +638,7 @@ func (ph *helper) generatePlacement() placement.Placement {
 		SetMaxShardSetID(maxShardSetID)
 }
 
-func (ph *helper) placeShards(
+func (ph *subclusteredhelperv2) placeShards(
 	shards []shard.Shard,
 	from placement.Instance,
 	candidates []placement.Instance,
@@ -435,6 +665,7 @@ func (ph *helper) placeShards(
 		for instanceHeap.Len() > 0 {
 			tryInstance := heap.Pop(instanceHeap).(placement.Instance)
 			triedInstances = append(triedInstances, tryInstance)
+			// fmt.Println(fmt.Sprintf("Trying to move shard %d to instance %s", s.ID(), tryInstance.ID()))
 			if ph.moveShard(s, from, tryInstance) {
 				moved = true
 				break
@@ -452,12 +683,12 @@ func (ph *helper) placeShards(
 	return nil
 }
 
-func (ph *helper) returnInitializingShards(instance placement.Instance) {
+func (ph *subclusteredhelperv2) returnInitializingShards(instance placement.Instance) {
 	shardSet := getShardMap(instance.Shards().All())
 	ph.returnInitializingShardsToSource(shardSet, instance, ph.Instances())
 }
 
-func (ph *helper) returnInitializingShardsToSource(
+func (ph *subclusteredhelperv2) returnInitializingShardsToSource(
 	shardSet map[uint32]shard.Shard,
 	from placement.Instance,
 	candidates []placement.Instance,
@@ -489,7 +720,7 @@ func (ph *helper) returnInitializingShardsToSource(
 	}
 }
 
-func (ph *helper) mostUnderLoadedInstance() (placement.Instance, bool) {
+func (ph *subclusteredhelperv2) mostUnderLoadedInstance() (placement.Instance, bool) {
 	var (
 		res              placement.Instance
 		maxLoadGap       int
@@ -515,7 +746,7 @@ func (ph *helper) mostUnderLoadedInstance() (placement.Instance, bool) {
 	return nil, false
 }
 
-func (ph *helper) optimize(t optimizeType) error {
+func (ph *subclusteredhelperv2) optimize(t optimizeType) error {
 	var fn assignLoadFn
 	switch t {
 	case safe:
@@ -540,19 +771,19 @@ func (ph *helper) optimize(t optimizeType) error {
 	}
 }
 
-func (ph *helper) assignLoadToInstanceSafe(addingInstance placement.Instance) error {
+func (ph *subclusteredhelperv2) assignLoadToInstanceSafe(addingInstance placement.Instance) error {
 	return ph.assignTargetLoad(addingInstance, func(from, to placement.Instance) bool {
 		return ph.moveOneShardInState(from, to, shard.Unknown)
 	})
 }
 
-func (ph *helper) assignLoadToInstanceUnsafe(addingInstance placement.Instance) error {
+func (ph *subclusteredhelperv2) assignLoadToInstanceUnsafe(addingInstance placement.Instance) error {
 	return ph.assignTargetLoad(addingInstance, func(from, to placement.Instance) bool {
 		return ph.moveOneShard(from, to)
 	})
 }
 
-func (ph *helper) reclaimLeavingShards(instance placement.Instance) {
+func (ph *subclusteredhelperv2) reclaimLeavingShards(instance placement.Instance) {
 	if instance.Shards().NumShardsForState(shard.Leaving) == 0 {
 		// Shortcut if there is nothing to be reclaimed.
 		return
@@ -573,19 +804,29 @@ func (ph *helper) reclaimLeavingShards(instance placement.Instance) {
 	}
 }
 
-func (ph *helper) addInstance(addingInstance placement.Instance) error {
+func (ph *subclusteredhelperv2) addInstance(addingInstance placement.Instance) error {
 	ph.reclaimLeavingShards(addingInstance)
 	return ph.assignLoadToInstanceUnsafe(addingInstance)
 }
 
-func (ph *helper) assignTargetLoad(
+func (ph *subclusteredhelperv2) assignTargetLoad(
 	targetInstance placement.Instance,
 	moveOneShardFn func(from, to placement.Instance) bool,
 ) error {
 	targetLoad := ph.targetLoadForInstance(targetInstance.ID())
 
 	// try to take shards from the most loaded instances until the adding instance reaches target load
-	instanceHeap, err := ph.buildInstanceHeap(nonLeavingInstances(ph.Instances()), false)
+	instanceHeap, err := ph.buildInstanceHeap(removeSubClusterInstances(nonLeavingInstances(ph.Instances()), targetInstance.SubClusterID()), false)
+	if err != nil {
+		return err
+	}
+	for targetInstance.Shards().NumShards() < targetLoad && instanceHeap.Len() > 0 {
+		fromInstance := heap.Pop(instanceHeap).(placement.Instance)
+		if moved := moveOneShardFn(fromInstance, targetInstance); moved {
+			heap.Push(instanceHeap, fromInstance)
+		}
+	}
+	instanceHeap, err = ph.buildInstanceHeap(nonLeavingInstances(ph.Instances()), false)
 	if err != nil {
 		return err
 	}
@@ -598,7 +839,7 @@ func (ph *helper) assignTargetLoad(
 	return nil
 }
 
-func (ph *helper) canAssignInstance(shardID uint32, from, to placement.Instance) bool {
+func (ph *subclusteredhelperv2) canAssignInstance(shardID uint32, from, to placement.Instance) bool {
 	s, ok := to.Shards().Shard(shardID)
 	if ok && s.State() != shard.Leaving {
 		// NB(cw): a Leaving shard is not counted to the load of the instance
@@ -609,281 +850,17 @@ func (ph *helper) canAssignInstance(shardID uint32, from, to placement.Instance)
 		// and i1 should be able to take it and mark it as "Available"
 		return false
 	}
+	if _, exist := ph.subClusterToShardMap[to.SubClusterID()][shardID]; !exist {
+		return false
+	}
 	return ph.CanMoveShard(shardID, from, to.IsolationGroup())
 }
 
-func (ph *helper) assignShardToInstance(s shard.Shard, to placement.Instance) {
+func (ph *subclusteredhelperv2) assignShardToInstance(s shard.Shard, to placement.Instance) {
 	to.Shards().Add(s)
 
 	if _, exist := ph.shardToInstanceMap[s.ID()]; !exist {
 		ph.shardToInstanceMap[s.ID()] = make(map[placement.Instance]struct{})
 	}
 	ph.shardToInstanceMap[s.ID()][to] = struct{}{}
-}
-
-// instanceHeap provides an easy way to get best candidate instance to assign/steal a shard
-type instanceHeap struct {
-	instances         []placement.Instance
-	igToWeightMap     map[string]uint32
-	targetLoad        map[string]int
-	capacityAscending bool
-}
-
-func newHeap(
-	instances []placement.Instance,
-	capacityAscending bool,
-	targetLoad map[string]int,
-	igToWeightMap map[string]uint32,
-) (*instanceHeap, error) {
-	h := &instanceHeap{
-		capacityAscending: capacityAscending,
-		instances:         instances,
-		targetLoad:        targetLoad,
-		igToWeightMap:     igToWeightMap,
-	}
-	heap.Init(h)
-	return h, nil
-}
-
-func (h *instanceHeap) targetLoadForInstance(id string) int {
-	return h.targetLoad[id]
-}
-
-func (h *instanceHeap) Len() int {
-	return len(h.instances)
-}
-
-func (h *instanceHeap) Less(i, j int) bool {
-	instanceI := h.instances[i]
-	instanceJ := h.instances[j]
-	leftLoadOnI := h.targetLoadForInstance(instanceI.ID()) - loadOnInstance(instanceI)
-	leftLoadOnJ := h.targetLoadForInstance(instanceJ.ID()) - loadOnInstance(instanceJ)
-	// If both instance has tokens to be filled, prefer the one from bigger isolation group
-	// since it tends to be more picky in accepting shards
-	if leftLoadOnI > 0 && leftLoadOnJ > 0 && instanceI.IsolationGroup() != instanceJ.IsolationGroup() {
-		var (
-			igWeightI = h.igToWeightMap[instanceI.IsolationGroup()]
-			igWeightJ = h.igToWeightMap[instanceJ.IsolationGroup()]
-		)
-		if igWeightI != igWeightJ {
-			return igWeightI > igWeightJ
-		}
-	}
-	// compare left capacity on both instances
-	if leftLoadOnI == leftLoadOnJ {
-		return instanceI.ID() < instanceJ.ID()
-	}
-	if h.capacityAscending {
-		return leftLoadOnI > leftLoadOnJ
-	}
-	return leftLoadOnI < leftLoadOnJ
-}
-
-func (h instanceHeap) Swap(i, j int) {
-	h.instances[i], h.instances[j] = h.instances[j], h.instances[i]
-}
-
-func (h *instanceHeap) Push(i interface{}) {
-	instance := i.(placement.Instance)
-	h.instances = append(h.instances, instance)
-}
-
-func (h *instanceHeap) Pop() interface{} {
-	n := len(h.instances)
-	instance := h.instances[n-1]
-	h.instances = h.instances[0 : n-1]
-	return instance
-}
-
-func isOverWeighted(igWeight, totalWeight uint32, rf int) bool {
-	return float64(igWeight)/float64(totalWeight) >= 1.0/float64(rf)
-}
-
-func addInstanceToPlacement(
-	p placement.Placement,
-	i placement.Instance,
-	t instanceType,
-) (placement.Placement, placement.Instance, error) {
-	if _, exist := p.Instance(i.ID()); exist {
-		return nil, nil, errAddingInstanceAlreadyExist
-	}
-
-	switch t {
-	case anyType:
-	case withShards:
-		if i.Shards().NumShards() == 0 {
-			return p, i, nil
-		}
-	default:
-		return nil, nil, fmt.Errorf("unexpected type %v", t)
-	}
-
-	instance := i.Clone()
-	return p.SetInstances(append(p.Instances(), instance)), instance, nil
-}
-
-func removeInstanceFromPlacement(p placement.Placement, id string) (placement.Placement, placement.Instance, error) {
-	leavingInstance, exist := p.Instance(id)
-	if !exist {
-		return nil, nil, fmt.Errorf("instance %s does not exist in placement", id)
-	}
-	return p.SetInstances(removeInstanceFromList(p.Instances(), id)), leavingInstance, nil
-}
-
-func removeSubclusterFromPlacement(p placement.Placement, subclusterID uint32) (placement.Placement, []placement.Instance) {
-	instancesRemoved := []placement.Instance{}
-	for _, instance := range p.Instances() {
-		if instance.SubClusterID() == subclusterID {
-			instancesRemoved = append(instancesRemoved, instance)
-			p = p.SetInstances(removeInstanceFromList(p.Instances(), instance.ID()))
-		}
-	}
-	return p, instancesRemoved
-}
-
-func getShardMap(shards []shard.Shard) map[uint32]shard.Shard {
-	r := make(map[uint32]shard.Shard, len(shards))
-
-	for _, s := range shards {
-		r[s.ID()] = s
-	}
-	return r
-}
-
-func loadOnInstance(instance placement.Instance) int {
-	return instance.Shards().NumShards() - instance.Shards().NumShardsForState(shard.Leaving)
-}
-
-func nonLeavingInstances(instances []placement.Instance) []placement.Instance {
-	r := make([]placement.Instance, 0, len(instances))
-	for _, instance := range instances {
-		if instance.IsLeaving() {
-			continue
-		}
-		r = append(r, instance)
-	}
-
-	return r
-}
-
-func newShards(shardIDs []uint32) []shard.Shard {
-	r := make([]shard.Shard, len(shardIDs))
-	for i, id := range shardIDs {
-		r[i] = shard.NewShard(id).SetState(shard.Unknown)
-	}
-	return r
-}
-
-func removeInstanceFromList(instances []placement.Instance, instanceID string) []placement.Instance {
-	for i, instance := range instances {
-		if instance.ID() == instanceID {
-			last := len(instances) - 1
-			instances[i] = instances[last]
-			return instances[:last]
-		}
-	}
-	return instances
-}
-
-func markShardsAvailable(p placement.Placement, instanceID string, shardIDs []uint32, opts placement.Options) (placement.Placement, error) {
-	instance, exist := p.Instance(instanceID)
-	if !exist {
-		return nil, fmt.Errorf("instance %s does not exist in placement", instanceID)
-	}
-
-	shards := instance.Shards()
-	for _, shardID := range shardIDs {
-		s, exist := shards.Shard(shardID)
-		if !exist {
-			return nil, fmt.Errorf("shard %d does not exist in instance %s", shardID, instanceID)
-		}
-
-		if s.State() != shard.Initializing {
-			return nil, fmt.Errorf("could not mark shard %d as available, it's not in Initializing state", s.ID())
-		}
-
-		isCutoverFn := opts.IsShardCutoverFn()
-		if isCutoverFn != nil {
-			if err := isCutoverFn(s); err != nil {
-				return nil, err
-			}
-		}
-
-		p = p.SetCutoverNanos(opts.PlacementCutoverNanosFn()())
-		sourceID := s.SourceID()
-		shards.Add(shard.NewShard(shardID).SetState(shard.Available))
-
-		// There could be no source for cases like initial placement.
-		if sourceID == "" {
-			continue
-		}
-
-		sourceInstance, exist := p.Instance(sourceID)
-		if !exist {
-			return nil, fmt.Errorf("source instance %s for shard %d does not exist in placement", sourceID, shardID)
-		}
-
-		sourceShards := sourceInstance.Shards()
-		leavingShard, exist := sourceShards.Shard(shardID)
-		if !exist {
-			return nil, fmt.Errorf("shard %d does not exist in source instance %s", shardID, sourceID)
-		}
-
-		if leavingShard.State() != shard.Leaving {
-			return nil, fmt.Errorf("shard %d is not leaving instance %s", shardID, sourceID)
-		}
-
-		isCutoffFn := opts.IsShardCutoffFn()
-		if isCutoffFn != nil {
-			if err := isCutoffFn(leavingShard); err != nil {
-				return nil, err
-			}
-		}
-		sourceShards.Remove(shardID)
-		if sourceShards.NumShards() == 0 {
-			p = p.SetInstances(removeInstanceFromList(p.Instances(), sourceInstance.ID()))
-		}
-	}
-
-	return p, nil
-}
-
-// tryCleanupShardState cleans up the shard states if the user only
-// wants to keep stable shard state in the placement.
-func tryCleanupShardState(
-	p placement.Placement,
-	opts placement.Options,
-) (placement.Placement, error) {
-	if opts.ShardStateMode() == placement.StableShardStateOnly {
-		p, _, err := markAllShardsAvailable(
-			p,
-			opts.SetIsShardCutoverFn(nil).SetIsShardCutoffFn(nil),
-		)
-		return p, err
-	}
-	//fmt.Printf("Printing final placement state xyx: %+v\n", p)
-	return p, nil
-}
-
-func markAllShardsAvailable(
-	p placement.Placement,
-	opts placement.Options,
-) (placement.Placement, bool, error) {
-	var (
-		err     error
-		updated = false
-	)
-	p = p.Clone()
-	for _, instance := range p.Instances() {
-		for _, s := range instance.Shards().All() {
-			if s.State() == shard.Initializing {
-				p, err = markShardsAvailable(p, instance.ID(), []uint32{s.ID()}, opts)
-				if err != nil {
-					return nil, false, err
-				}
-				updated = true
-			}
-		}
-	}
-	return p, updated, nil
 }

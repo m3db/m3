@@ -120,20 +120,18 @@ func newSubClusteredAddInstanceHelper(
 
 func newSubClusterRemoveInstancesHelper(
 	p placement.Placement,
-	instances []string,
+	instance string,
 	opts placement.Options,
-) (subClusterShardedHelper, []placement.Instance, error) {
-	leavingInstances := make([]placement.Instance, 0, len(instances))
-	for _, instance := range instances {
-		temp, leavingInstance, err := removeInstanceFromPlacement(p, instance)
-		if err != nil {
-			return subClusterShardedHelper{}, nil, err
-		}
-		leavingInstances = append(leavingInstances, leavingInstance)
-		p = temp
+) (subClusterShardedHelper, placement.Instance, []placement.Instance, error) {
+	temp, leavingInstance, err := removeInstanceFromPlacement(p, instance)
+	if err != nil {
+		return subClusterShardedHelper{}, nil, nil, err
 	}
+	p = temp
+	temp, removedInstances := removeSubclusterFromPlacement(p, leavingInstance.SubClusterID())
+	p = temp
 
-	return newSubClusterHelper(p, p.ReplicaFactor(), opts), leavingInstances, nil
+	return newSubClusterHelper(p, p.ReplicaFactor(), opts), leavingInstance, removedInstances, nil
 }
 
 func newSubClusterHelper(p placement.Placement, targetRF int, opts placement.Options) subClusterShardedHelper {
@@ -276,16 +274,16 @@ func (sph *subClusterShardedHelper) placeShards(
 		return err
 	}
 	var triedInstances []placement.Instance
-	for i := 0; i < len(shards); i++ {
-		s := shards[i]
+	for _, s := range shardSet {
 		if s.State() == shard.Leaving {
 			continue
 		}
 		moved := false
-		for instanceHeap.Len() > 0 && i < len(shards) {
+		for instanceHeap.Len() > 0 {
 
 			tryInstance := heap.Pop(instanceHeap).(placement.Instance)
 			triedInstances = append(triedInstances, tryInstance)
+			// fmt.Println(fmt.Sprintf("Trying to move shard %d to %s %s from %s %s", s.ID(), tryInstance.ID(), tryInstance.IsolationGroup(), from.ID(), from.IsolationGroup()))
 			if sph.moveShard(s, from, tryInstance) {
 				moved = true
 				break
@@ -293,7 +291,7 @@ func (sph *subClusterShardedHelper) placeShards(
 		}
 		if !moved {
 			// This should only happen when RF > number of isolation groups.
-			return errNotEnoughIsolationGroups
+			return fmt.Errorf("shard  %v not moved", s.ID())
 		}
 		for _, triedInstance := range triedInstances {
 			heap.Push(instanceHeap, triedInstance)
@@ -430,11 +428,11 @@ func (sph *subClusterShardedHelper) generatePlacement() placement.Placement {
 func (sph *subClusterShardedHelper) placeShardForInitialPlacement(shards []shard.Shard) error {
 	// if there are shards left to be assigned, distribute them evenly
 
-	sort.Sort(ShardByID(shards))
-	sph.deterministicShuffle(shards)
 	subClusters := sph.getSubClusters()
 	for j := 0; j < sph.rf; j++ {
 		l := 0
+		//sort.Sort(ShardByID(shards))
+		//deterministicShuffle(shards, int64(j+1))
 		for _, currSubCluster := range subClusters {
 			instanceHeap, err := sph.buildInstanceHeap(nonLeavingInstances(getInstances(currSubCluster.instances)), true)
 			if err != nil {
@@ -727,8 +725,8 @@ func (sph *subClusterShardedHelper) buildTargetSubClusterLoad() {
 	sph.targetShardsPerSubCluster = make(map[uint32]int)
 	totalDivided := 0
 	totalShards := len(sph.uniqueShards)
-	for subClusterID, currCluster := range sph.subClusterMap {
-		sph.targetShardsPerSubCluster[subClusterID] = int(math.Floor((float64(currCluster.weight) / float64(sph.totalWeight)) * float64(totalShards)))
+	for subClusterID, _ := range sph.subClusterMap {
+		sph.targetShardsPerSubCluster[subClusterID] = int(math.Floor((float64(sph.opts.InstancesPerSubCluster()) / float64(sph.opts.InstancesPerSubCluster()*len(sph.subClusterMap))) * float64(totalShards)))
 		totalDivided += sph.targetShardsPerSubCluster[subClusterID]
 	}
 	temp := sph.getSubClusters()
