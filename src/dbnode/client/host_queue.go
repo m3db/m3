@@ -80,7 +80,7 @@ type queue struct {
 	fetchOpBatchSize                             tally.Histogram
 	status                                       status
 	serverSupportsV2APIs                         bool
-	middleware                                   func(rpc.TChanNode) *middleware.MiddlerWareOutbound
+	middleware                                   middleware.M3dbtsMiddleware
 }
 
 func newHostQueue(
@@ -150,7 +150,7 @@ func newHostQueue(
 
 	cbconfig := opts.MiddlewareCircuitbreakerConfig()
 
-	mw := middleware.NewMiddlerWareOutbound(cbconfig, iOpts.Logger(), scope, enablerprovider.New(cbconfig), host.ID())
+	mw := middleware.NewCircuitBreakerMiddleware(cbconfig, iOpts.Logger(), scope, enablerprovider.New(cbconfig), host.ID())
 	if err != nil {
 		return nil, nil
 	}

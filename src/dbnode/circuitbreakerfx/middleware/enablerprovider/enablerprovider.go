@@ -8,8 +8,7 @@ var (
 	_ middleware.Enabler = (*staticEnabler)(nil)
 )
 
-// New returns a Flipr based enabler for the middleware when Flipr property
-// is configured or fallsback to static config.
+// New returns a static enabler for the middleware
 func New(cfg middleware.Config) middleware.Enabler {
 	stEnabler := newStaticEnabler(cfg)
 	return stEnabler
