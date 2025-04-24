@@ -7,12 +7,20 @@ import (
 	"github.com/uber-go/tally"
 	tchannel "github.com/uber/tchannel-go"
 	"go.uber.org/zap"
+	"sync"
 	"sync/atomic"
 )
 
 const (
-	service   = "service"
-	procedure = "procedure"
+	service      = "service"
+	procedure    = "procedure"
+	_packageName = "circuit_breaker"
+)
+
+var (
+	shaaredCB     *atomic.Value
+	sharedmetrics *circuitBreakerMetrics
+	once          sync.Once
 )
 
 // MiddlerWareOutbound wraps a unary outbound circuit breaker middleware.
@@ -31,8 +39,13 @@ type M3dbtsMiddleware func(rpc.TChanNode) *circuitBreakerClient
 // NewCircuitBreakerMiddleware returns a unary outbound circuit breaker middleware based on
 // the provided config.
 func NewCircuitBreakerMiddleware(config Config, logger *zap.Logger, scope tally.Scope, enabler Enabler, host string) M3dbtsMiddleware {
-	return func(next rpc.TChanNode) *circuitBreakerClient {
-		metrics := &circuitBreakerMetrics{
+	once.Do(func() {
+		logger.Info("creating circuit breaker middleware")
+		scope = scope.Tagged(map[string]string{
+			"component": _packageName,
+			"host":      host,
+		})
+		sharedmetrics = &circuitBreakerMetrics{
 			successes: scope.Counter("circuit_breaker_successes"),
 			failures:  scope.Counter("circuit_breaker_failures"),
 			rejects:   scope.Counter("circuit_breaker_rejects"),
@@ -42,16 +55,17 @@ func NewCircuitBreakerMiddleware(config Config, logger *zap.Logger, scope tally.
 		if err != nil {
 			logger.Warn("failed to create circuit breaker, using nil", zap.Error(err))
 		}
-		cb := &atomic.Value{}
-		cb.Store(c)
-
+		shaaredCB = &atomic.Value{}
+		shaaredCB.Store(c)
+	})
+	return func(next rpc.TChanNode) *circuitBreakerClient {
 		return &circuitBreakerClient{
 			next:    next,
 			enabler: enabler,
 			logger:  logger,
 			host:    host,
-			metrics: metrics,
-			cb:      cb,
+			metrics: sharedmetrics,
+			cb:      shaaredCB,
 		}
 	}
 }
