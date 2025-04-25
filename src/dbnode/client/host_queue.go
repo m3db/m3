@@ -79,7 +79,7 @@ type queue struct {
 	fetchOpBatchSize                             tally.Histogram
 	status                                       status
 	serverSupportsV2APIs                         bool
-	middleware                                   middleware.M3dbtsMiddleware
+	middleware                                   middleware.M3DBMiddleware
 }
 
 func newHostQueue(

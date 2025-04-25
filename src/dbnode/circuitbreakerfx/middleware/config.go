@@ -4,16 +4,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/circuitbreaker"
 )
 
-// Config is a definition of the circuit breaker middleware.
+// Config represents the configuration for the circuit breaker middleware.
 type Config struct {
-
-	// Enable must be set to true to enable circuit breaker middleware.
-	Enabled bool `yaml:"enabled"`
-
-	// EnableShadowMode when set enables shadow mode where outbound requests are not
-	// blocked when circuit breaker rejects the request.
-	ShadowMode bool `yaml:"ShadowMode"`
-
-	// Configs is the user defined circuit breaker config.
+	Enabled              bool                  `yaml:"enabled"`
+	ShadowMode           bool                  `yaml:"ShadowMode"`
 	CircuitBreakerConfig circuitbreaker.Config `yaml:"circuitBreakerConfig"`
 }
