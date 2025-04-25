@@ -56,6 +56,6 @@ data gets discarded.
 
 Similarly, if the shard has its cutoff field set to some value, the shard will 
 [stop flushing](https://github.com/m3db/m3/blob/0865ebc80e85234b00532f93521438856883da9c/src/aggregator/aggregator/list.go#L323-L330) 
-once the wall clock will go past the given cutoff timestamp.
+once the wall clock goes past the given cutoff timestamp.
 
-If the shard does not have cutover/cutoff fields it will flush indefinitely.
+If the shard does not have cutover/cutoff fields, it will flush indefinitely.
