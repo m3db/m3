@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"time"
 
+	cb "github.com/m3db/m3/src/dbnode/circuitbreakerfx/middleware"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/environment"
@@ -130,6 +131,9 @@ type Configuration struct {
 
 	// IterateEqualTimestampStrategy specifies the iterate equal timestamp strategy.
 	IterateEqualTimestampStrategy *encoding.IterateEqualTimestampStrategy `yaml:"iterateEqualTimestampStrategy"`
+
+	// CircuitBreakerConfig is the configuration for the circuit breaker middleware.
+	CircuitBreakerConfig *cb.Config `yaml:"circuitBreakerConfig"`
 }
 
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
@@ -467,6 +471,10 @@ func (c Configuration) NewAdminClient(
 
 	if c.ShardsLeavingCountTowardsConsistency != nil {
 		v = v.SetShardsLeavingCountTowardsConsistency(*c.ShardsLeavingCountTowardsConsistency)
+	}
+
+	if c.CircuitBreakerConfig != nil {
+		v = v.SetMiddlewareCircuitbreakerConfig(*c.CircuitBreakerConfig)
 	}
 
 	// Cast to admin options to apply admin config options.

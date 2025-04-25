@@ -28,6 +28,7 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 
 	"github.com/m3db/m3/src/cluster/shard"
+	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/middleware"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -552,6 +553,12 @@ type Options interface {
 	// ShardsLeavingAndInitializingCountTowardsConsistency returns whether to count the writes to the shards
 	// that are leaving and initializing towards consistency level calculations.
 	ShardsLeavingAndInitializingCountTowardsConsistency() bool
+
+	// SetMiddlewareCircuitbreakerConfig sets the middleware circuit breaker config.
+	SetMiddlewareCircuitbreakerConfig(cfg middleware.Config) Options
+
+	// MiddlewareCircuitbreakerConfig returns the middleware circuit breaker config.
+	MiddlewareCircuitbreakerConfig() middleware.Config
 
 	// SetTagEncoderOptions sets the TagEncoderOptions.
 	SetTagEncoderOptions(value serialize.TagEncoderOptions) Options

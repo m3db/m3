@@ -29,6 +29,7 @@ import (
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 
+	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/middleware"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/encoding/proto"
@@ -268,6 +269,7 @@ type options struct {
 	writeShardsInitializing                             bool
 	shardsLeavingCountTowardsConsistency                bool
 	shardsLeavingAndInitializingCountTowardsConsistency bool
+	middlewareCircuitbreakerConfig                      middleware.Config
 	newConnectionFn                                     NewConnectionFn
 	readerIteratorAllocate                              encoding.ReaderIteratorAllocate
 	writeOperationPoolSize                              pool.Size
@@ -809,6 +811,16 @@ func (o *options) SetShardsLeavingAndInitializingCountTowardsConsistency(value b
 	opts := *o
 	opts.shardsLeavingAndInitializingCountTowardsConsistency = value
 	return &opts
+}
+
+func (o *options) SetMiddlewareCircuitbreakerConfig(cfg middleware.Config) Options {
+	opts := *o
+	opts.middlewareCircuitbreakerConfig = cfg
+	return &opts
+}
+
+func (o *options) MiddlewareCircuitbreakerConfig() middleware.Config {
+	return o.middlewareCircuitbreakerConfig
 }
 
 func (o *options) ShardsLeavingCountTowardsConsistency() bool {

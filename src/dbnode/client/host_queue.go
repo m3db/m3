@@ -32,6 +32,7 @@ import (
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 
+	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/middleware"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/clock"
@@ -78,6 +79,7 @@ type queue struct {
 	fetchOpBatchSize                             tally.Histogram
 	status                                       status
 	serverSupportsV2APIs                         bool
+	middleware                                   middleware.M3DBMiddleware
 }
 
 func newHostQueue(
@@ -156,6 +158,7 @@ func newHostQueue(
 		fetchOpBatchSize:                             scope.Histogram("fetch-op-batch-size", fetchOpBatchSizeBuckets),
 		drainIn:                                      make(chan []op, opsArrayLen),
 		serverSupportsV2APIs:                         opts.UseV2BatchAPIs(),
+		middleware:                                   middleware.NewCircuitBreakerMiddleware(opts.MiddlewareCircuitbreakerConfig(), iOpts.Logger(), scope, host.ID()),
 	}, nil
 }
 
@@ -674,7 +677,7 @@ func (q *queue) asyncWrite(
 		}
 
 		ctx, _ := thrift.NewContext(q.opts.WriteRequestTimeout())
-		err = client.WriteBatchRaw(ctx, req)
+		err = q.middleware(client).WriteBatchRaw(ctx, req)
 		if err == nil {
 			// All succeeded
 			callAllCompletionFns(ops, q.host, nil)

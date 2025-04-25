@@ -4,7 +4,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/circuitbreaker"
 	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/circuitbreakererror"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
-	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/uber-go/tally"
 	tchannel "github.com/uber/tchannel-go"
 	"go.uber.org/zap"
