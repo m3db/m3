@@ -88,8 +88,51 @@ type ConsumerService interface {
 	// SetMessageTTLNanos sets ttl for each message in nanoseconds.
 	SetMessageTTLNanos(value int64) ConsumerService
 
+	// DynamicFilterConfigs returns the dynamic filters for the consumer service.
+	DynamicFilterConfigs() FilterConfig
+
+	// SetDynamicFilterConfigs sets the dynamic filters for the consumer service.
+	SetDynamicFilterConfigs(value FilterConfig) ConsumerService
+
 	// String returns the string representation of the consumer service.
 	String() string
+}
+
+// FilterConfig is the filter configuration for a consumer service.
+type FilterConfig interface {
+	// StoragePolicyFilter returns the storage policy data filter of the consumer service.
+	StoragePolicyFilter() StoragePolicyFilter
+
+	// SetStoragePolicyFilter sets the storage policy data filter of the consumer service.
+	SetStoragePolicyFilter(value StoragePolicyFilter) FilterConfig
+
+	// PercentageFilter returns the percentage data filter of the consumer service.
+	PercentageFilter() PercentageFilter
+
+	// SetPercentageFilter sets the percentage data filter of the consumer service.
+	SetPercentageFilter(value PercentageFilter) FilterConfig
+
+	// ShardSetFilter returns the shard set data filter of the consumer service.
+	ShardSetFilter() ShardSetFilter
+
+	// SetShardSetFilter sets the shard set data filter of the consumer service.
+	SetShardSetFilter(value ShardSetFilter) FilterConfig
+}
+
+// PercentageFilter is sampling percentage filter for a consumer service.
+type PercentageFilter interface {
+	Percentage() float64
+}
+
+// StoragePolicyFilter is the storage policy filter for a consumer service,
+// filters metrics based on their storage policies.
+type StoragePolicyFilter interface {
+	StoragePolicies() []string
+}
+
+// ShardSetFilter is the shard set filter for a consumer service, filters metrics based on specified shard sets.
+type ShardSetFilter interface {
+	ShardSet() string
 }
 
 // Watch watches the updates of a topic.
