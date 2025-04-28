@@ -23,7 +23,7 @@ package ts
 import (
 	"bytes"
 
-	"github.com/m3db/stackadler32"
+	"github.com/v1k1/stackadler32"
 
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/pool"

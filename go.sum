@@ -1077,8 +1077,6 @@ github.com/m3db/prometheus_common v0.34.7 h1:QMABInp3m8ySuoY0gkSJ9rsjZmEemD8Fui7
 github.com/m3db/prometheus_common v0.34.7/go.mod h1:oQjNl5G6gyqrFlOiMKO911HUPgZQkmHsXrw0iBiuQJs=
 github.com/m3db/prometheus_procfs v0.8.1 h1:LsxWzVELhDU9sLsZTaFLCeAwCn7bC7qecZcK4zobs/g=
 github.com/m3db/prometheus_procfs v0.8.1/go.mod h1:N8lv8fLh3U3koZx1Bnisj60GYUMDpWb09x1R+dmMOJo=
-github.com/m3db/stackadler32 v0.0.0-20180104200216-bfebcd73ef6f h1:+FWCOZjB96lBc0L7lvz6/TW1gF5fEVd6JQNQG59CpZE=
-github.com/m3db/stackadler32 v0.0.0-20180104200216-bfebcd73ef6f/go.mod h1:VJQWii2dj/AE1cRKup4MXL4TKbbs5J4wZnNe5I1CZaw=
 github.com/m3db/stackmurmur3 v1.0.1 h1:ASTdJ6Bd2m34dgsnOBZHrwWdKGcpaavP3MokiKL/ERs=
 github.com/m3db/stackmurmur3 v1.0.1/go.mod h1:hkR/F91aDUfPxDv5Jw55ifIXV6ZW1jzNHW0d8GP02rw=
 github.com/m3db/stackmurmur3/v2 v2.0.2 h1:q/kOlC12PwOib9XziHUTM/jsCQULHnRxBz/H4hT/Aro=
@@ -1540,6 +1538,8 @@ github.com/urfave/cli v0.0.0-20171014202726-7bc6a0acffa5/go.mod h1:70zkFmudgCuE/
 github.com/urfave/cli v1.20.0/go.mod h1:70zkFmudgCuE/ngEzBv17Jvp/497gISqfk5gWijbERA=
 github.com/urfave/cli v1.22.1/go.mod h1:Gos4lmkARVdJ6EkW0WaNv/tZAAMe9V7XWyB60NtXRu0=
 github.com/urfave/cli v1.22.2/go.mod h1:Gos4lmkARVdJ6EkW0WaNv/tZAAMe9V7XWyB60NtXRu0=
+github.com/v1k1/stackadler32 v0.0.0-20250428012726-c55487302574 h1:vFRiLv8qbLFvMqeJ8UsWT8+fsEKe+1rKfH8kBpyfhIc=
+github.com/v1k1/stackadler32 v0.0.0-20250428012726-c55487302574/go.mod h1:PakF7F32b1hlKj6kDCkufgZyQisP+KvIPd9QX7FMdgw=
 github.com/valyala/bytebufferpool v1.0.0/go.mod h1:6bBcMArwyJ5K/AmCkWv1jt77kVWyCJ6HpOuEn7z0Csc=
 github.com/valyala/fasttemplate v1.0.1/go.mod h1:UQGH1tvbgY+Nz5t2n7tXsz52dQxojPUpymEIMZ47gx8=
 github.com/valyala/fasttemplate v1.2.1/go.mod h1:KHLXt3tVN2HBp8eijSv/kGJopbvo7S+qRAEEKiv+SiQ=

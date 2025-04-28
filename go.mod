@@ -33,7 +33,6 @@ require (
 	github.com/m3db/prometheus_client_model v0.2.1
 	github.com/m3db/prometheus_common v0.34.7
 	github.com/m3db/prometheus_procfs v0.8.1
-	github.com/m3db/stackadler32 v0.0.0-20180104200216-bfebcd73ef6f
 	github.com/m3db/stackmurmur3/v2 v2.0.2
 	github.com/m3dbx/pilosa v1.4.1
 	github.com/m3dbx/vellum v0.0.0-20201119082309-5b47f7a70f69
@@ -93,6 +92,7 @@ require (
 
 require (
 	github.com/twmb/murmur3 v1.1.6
+	github.com/v1k1/stackadler32 v0.0.0-20250428012726-c55487302574
 	golang.org/x/exp v0.0.0-20230725093048-515e97ebf090
 )
 
