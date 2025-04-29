@@ -165,7 +165,6 @@ func (p *placement) IsSharded() bool {
 
 func (p *placement) SetIsSharded(v bool) Placement {
 	p.isSharded = v
-	//fmt.Printf("Printing final placement state neha1: %+v\n", p)
 	return p
 }
 
@@ -176,7 +175,6 @@ func (p *placement) HasSubClusters() bool {
 func (p *placement) SetHasSubClusters(v bool) Placement {
 	// fmt.Println("we came here")
 	p.hasSubClusters = v
-	//fmt.Printf("Printing final placement state neha: %+v\n", p)
 	return p
 }
 

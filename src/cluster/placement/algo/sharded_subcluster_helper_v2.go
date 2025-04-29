@@ -26,10 +26,10 @@ import (
 	"math"
 	"sort"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/shard"
-
-	"go.uber.org/zap"
 )
 
 type subclusteredhelperv2 struct {
@@ -46,11 +46,6 @@ type subclusteredhelperv2 struct {
 	opts                 placement.Options
 	totalWeight          uint32
 	maxShardSetID        uint32
-}
-
-// NewSubclusteredv2PlacementHelper returns a placement subclusteredhelperv2
-func NewSubclusteredv2PlacementHelper(p placement.Placement, opts placement.Options) *subclusteredhelperv2 {
-	return newubclusteredv2Helper(p, p.ReplicaFactor(), opts)
 }
 
 func newSubclusteredv2InitHelper(instances []placement.Instance, ids []uint32, opts placement.Options) *subclusteredhelperv2 {
@@ -81,7 +76,7 @@ func newubclusteredv2AddInstanceHelper(
 	if !exist {
 		ph := newubclusteredv2Helper(p.SetInstances(append(p.Instances(), instance)), p.ReplicaFactor(), opts)
 		targetLoad := ph.getTargetSubClusterLoad(0)
-		for subClusterID, _ := range ph.subClusters {
+		for subClusterID := range ph.subClusters {
 			if instance.SubClusterID() == subClusterID {
 				continue
 			}
@@ -109,7 +104,7 @@ func newubclusteredv2AddInstanceHelper(
 
 	ph := newubclusteredv2Helper(p, p.ReplicaFactor(), opts)
 	targetLoad := ph.getTargetSubClusterLoad(0)
-	for subClusterID, _ := range ph.subClusters {
+	for subClusterID := range ph.subClusters {
 		if instance.SubClusterID() == subClusterID {
 			continue
 		}
@@ -381,6 +376,7 @@ func (ph *subclusteredhelperv2) scanCurrentLoad() {
 	ph.totalWeight = totalWeight
 }
 
+// nolint: dupl
 func (ph *subclusteredhelperv2) buildTargetLoad() {
 	overWeightedGroups := 0
 	overWeight := uint32(0)
@@ -417,88 +413,6 @@ func getKeys[K comparable, V any](m map[K]V) []K {
 		keys = append(keys, k)
 	}
 	return keys // Returns zero value of K and false if map is empty
-}
-
-func (ph *subclusteredhelperv2) redistributeShards(targetCounts map[uint32]int) {
-	// Create a copy of the current map to avoid modifying the original
-	ph.subClusterToShardMap = make(map[uint32]map[uint32]struct{})
-	for c, sMap := range ph.subClusterToShardMap {
-		ph.subClusterToShardMap[c] = make(map[uint32]struct{})
-		for s := range sMap {
-			ph.subClusterToShardMap[c][s] = struct{}{}
-		}
-	}
-
-	// Calculate current counts and find over/under allocated objects
-	type allocation struct {
-		c          uint32
-		current    int
-		target     int
-		difference int
-	}
-
-	allocations := make([]allocation, 0, len(ph.subClusterToShardMap))
-	for c, sMap := range ph.subClusterToShardMap {
-		currentCount := len(sMap)
-		targetCount := targetCounts[c]
-		allocations = append(allocations, allocation{
-			c:          c,
-			current:    currentCount,
-			target:     targetCount,
-			difference: currentCount - targetCount,
-		})
-	}
-
-	// Sort allocations by difference (over-allocated first, then under-allocated)
-	sort.Slice(allocations, func(i, j int) bool {
-		return allocations[i].difference > allocations[j].difference
-	})
-
-	// Find objects to move
-	for i := 0; i < len(allocations); i++ {
-		if allocations[i].difference <= 0 {
-			continue // Skip if not over-allocated
-		}
-
-		// Get all objects for this c
-		objects := make([]uint32, 0, len(ph.subClusterToShardMap[allocations[i].c]))
-		for s := range ph.subClusterToShardMap[allocations[i].c] {
-			objects = append(objects, s)
-		}
-		sort.Slice(objects, func(i, j int) bool {
-			return objects[i] < objects[j] // Assuming s is comparable
-		})
-
-		// Move extra objects to under-allocated c's
-		extraCount := allocations[i].difference
-		for j := len(allocations) - 1; j > i && extraCount > 0; j-- {
-			if allocations[j].difference >= 0 {
-				continue // Skip if not under-allocated
-			}
-
-			// Calculate how many objects to move
-			toMove := min(extraCount, -allocations[j].difference)
-
-			// Move the last 'toMove' objects
-			for k := 0; k < toMove; k++ {
-				obj := objects[len(objects)-1-k]
-				delete(ph.subClusterToShardMap[allocations[i].c], obj)
-				ph.subClusterToShardMap[allocations[j].c][obj] = struct{}{}
-			}
-
-			// Update differences
-			allocations[i].difference -= toMove
-			allocations[j].difference += toMove
-			extraCount -= toMove
-		}
-	}
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 func (ph *subclusteredhelperv2) Instances() []placement.Instance {
@@ -552,6 +466,7 @@ func (ph *subclusteredhelperv2) moveShard(candidateShard shard.Shard, from, to p
 	newShard := shard.NewShard(shardID)
 
 	if from != nil {
+		// nolint: exhaustive
 		switch candidateShard.State() {
 		case shard.Unknown, shard.Initializing:
 			from.Shards().Remove(shardID)
@@ -688,6 +603,7 @@ func (ph *subclusteredhelperv2) returnInitializingShards(instance placement.Inst
 	ph.returnInitializingShardsToSource(shardSet, instance, ph.Instances())
 }
 
+// nolint: dupl
 func (ph *subclusteredhelperv2) returnInitializingShardsToSource(
 	shardSet map[uint32]shard.Shard,
 	from placement.Instance,

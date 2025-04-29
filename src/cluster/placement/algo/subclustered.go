@@ -41,7 +41,6 @@ func (a subClusteredPlacementAlgorithm) AddReplica(p placement.Placement) (place
 }
 
 func (a subClusteredPlacementAlgorithm) AddInstances(p placement.Placement, instances []placement.Instance) (placement.Placement, error) {
-	//fmt.Printf("adding instances")
 	if err := a.IsCompatibleWith(p); err != nil {
 		return nil, err
 	}
@@ -57,7 +56,6 @@ func (a subClusteredPlacementAlgorithm) AddInstances(p placement.Placement, inst
 
 	}
 	p = ph.generatePlacement()
-	//fmt.Printf("Printing final placement state2: %+v\n", p)
 	return tryCleanupShardState(p, a.opts)
 }
 func (a subClusteredPlacementAlgorithm) RemoveInstances(p placement.Placement, leavingInstanceIDs []string) (placement.Placement, error) {
@@ -88,24 +86,6 @@ func (a subClusteredPlacementAlgorithm) RemoveInstances(p placement.Placement, l
 			}
 		}
 	}
-	//ph, leavingInstances, err := newSubClusterRemoveInstancesHelper(p.Clone(), leavingInstanceIDs, a.opts)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//
-	//for _, instance := range leavingInstances {
-	//	if err := ph.placeShards(instance.Shards().All(), instance, ph.Instances()); err != nil {
-	//		return nil, err
-	//	}
-	//}
-	//p = ph.generatePlacement()
-	//
-	//for _, instance := range leavingInstances {
-	//	p, _, err = addInstanceToPlacement(p, instance, withShards)
-	//	if err != nil {
-	//		return nil, err
-	//	}
-	//}
 	return tryCleanupShardState(p, a.opts)
 }
 
@@ -164,7 +144,6 @@ func (a subClusteredPlacementAlgorithm) MarkShardsAvailable(
 	instanceID string,
 	shardIDs ...uint32,
 ) (placement.Placement, error) {
-	//fmt.Printf("node came to mark shards available\n")
 	if err := a.IsCompatibleWith(p); err != nil {
 		return nil, err
 	}

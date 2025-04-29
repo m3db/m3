@@ -431,8 +431,6 @@ func (sph *subClusterShardedHelper) placeShardForInitialPlacement(shards []shard
 	subClusters := sph.getSubClusters()
 	for j := 0; j < sph.rf; j++ {
 		l := 0
-		//sort.Sort(ShardByID(shards))
-		//deterministicShuffle(shards, int64(j+1))
 		for _, currSubCluster := range subClusters {
 			instanceHeap, err := sph.buildInstanceHeap(nonLeavingInstances(getInstances(currSubCluster.instances)), true)
 			if err != nil {
@@ -464,8 +462,6 @@ func (sph *subClusterShardedHelper) placeShardForInitialPlacement(shards []shard
 			}
 		}
 	}
-
-	//fmt.Printf("no errors from placing shards.")
 
 	return nil
 }
@@ -725,7 +721,7 @@ func (sph *subClusterShardedHelper) buildTargetSubClusterLoad() {
 	sph.targetShardsPerSubCluster = make(map[uint32]int)
 	totalDivided := 0
 	totalShards := len(sph.uniqueShards)
-	for subClusterID, _ := range sph.subClusterMap {
+	for subClusterID := range sph.subClusterMap {
 		sph.targetShardsPerSubCluster[subClusterID] = int(math.Floor((float64(sph.opts.InstancesPerSubCluster()) / float64(sph.opts.InstancesPerSubCluster()*len(sph.subClusterMap))) * float64(totalShards)))
 		totalDivided += sph.targetShardsPerSubCluster[subClusterID]
 	}

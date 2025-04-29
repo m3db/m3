@@ -66,6 +66,7 @@ func (a subclusteredv2) InitialPlacement(
 	return tryCleanupShardState(p, a.opts)
 }
 
+// nolint: dupl
 func (a subclusteredv2) AddReplica(p placement.Placement) (placement.Placement, error) {
 	if err := a.IsCompatibleWith(p); err != nil {
 		return nil, err
@@ -140,6 +141,7 @@ func (a subclusteredv2) AddInstances(
 	return tryCleanupShardState(p, a.opts)
 }
 
+// nolint: dupl
 func (a subclusteredv2) ReplaceInstances(
 	p placement.Placement,
 	leavingInstanceIDs []string,
@@ -157,6 +159,7 @@ func (a subclusteredv2) ReplaceInstances(
 
 	for _, leavingInstance := range leavingInstances {
 		err = ph.placeShards(leavingInstance.Shards().All(), leavingInstance, addingInstances)
+		// nolint: errorlint
 		if err != nil && err != errNotEnoughIsolationGroups {
 			// errNotEnoughIsolationGroups means the adding instances do not
 			// have enough isolation groups to take all the shards, but the rest
