@@ -1,8 +1,8 @@
 package middleware
 
 import (
-	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/circuitbreaker"
-	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/circuitbreakererror"
+	"github.com/m3db/m3/src/dbnode/client/circuitbreaker/circuitbreaker"
+	"github.com/m3db/m3/src/dbnode/client/circuitbreaker/circuitbreakererror"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/uber-go/tally"
@@ -27,33 +27,40 @@ type circuitBreakerClient struct {
 	next       rpc.TChanNode
 }
 
-// M3dbMiddleware is a function that takes a TChannel client and returns a circuit breaker client.
-type M3DBMiddleware func(rpc.TChanNode) *circuitBreakerClient
+// M3dbMiddleware is a function that takes a TChannel client and returns a circuit breaker client interface.
+type M3DBMiddleware func(rpc.TChanNode) CircuitBreakerClient
 
-var (
+// CircuitBreakerClient defines the interface for a circuit breaker client.
+type CircuitBreakerClient interface {
+	WriteBatchRaw(ctx tchannel.ContextWithHeaders, req *rpc.WriteBatchRawRequest) error
+}
+
+// circuitBreakerState holds the shared state for circuit breakers
+type circuitBreakerState struct {
 	cbInitOnce sync.Map // map[string]*sync.Once
 	cbMap      sync.Map // map[string]*atomic.Value
 	metricsMap sync.Map // map[string]*circuitBreakerMetrics
-)
+}
 
 // NewCircuitBreakerMiddleware creates a new circuit breaker middleware.
 func NewCircuitBreakerMiddleware(config Config, logger *zap.Logger, scope tally.Scope, host string) M3DBMiddleware {
-	initializeCircuitBreaker(config, logger, scope, host)
+	state := &circuitBreakerState{}
+	initializeCircuitBreaker(config, logger, scope, host, state)
 
 	return func(next rpc.TChanNode) *circuitBreakerClient {
-		return createCircuitBreakerClient(config, logger, host, next)
+		return createCircuitBreakerClient(config, logger, host, next, state)
 	}
 }
 
 // initializeCircuitBreaker initializes the circuit breaker for the given host.
-func initializeCircuitBreaker(config Config, logger *zap.Logger, scope tally.Scope, host string) {
-	onceIface, _ := cbInitOnce.LoadOrStore(host, new(sync.Once))
+func initializeCircuitBreaker(config Config, logger *zap.Logger, scope tally.Scope, host string, state *circuitBreakerState) {
+	onceIface, _ := state.cbInitOnce.LoadOrStore(host, new(sync.Once))
 	once := onceIface.(*sync.Once)
 
 	once.Do(func() {
 		logger.Info("creating circuit breaker middleware", zap.String("host", host))
 		metrics := newMetrics(scope, host)
-		metricsMap.Store(host, metrics)
+		state.metricsMap.Store(host, metrics)
 
 		cb, err := circuitbreaker.NewCircuit(config.CircuitBreakerConfig)
 		if err != nil {
@@ -63,14 +70,14 @@ func initializeCircuitBreaker(config Config, logger *zap.Logger, scope tally.Sco
 
 		cbVal := &atomic.Value{}
 		cbVal.Store(cb)
-		cbMap.Store(host, cbVal)
+		state.cbMap.Store(host, cbVal)
 	})
 }
 
 // createCircuitBreakerClient creates a new circuit breaker client.
-func createCircuitBreakerClient(config Config, logger *zap.Logger, host string, next rpc.TChanNode) *circuitBreakerClient {
-	cbIface, _ := cbMap.Load(host)
-	metricsIface, _ := metricsMap.Load(host)
+func createCircuitBreakerClient(config Config, logger *zap.Logger, host string, next rpc.TChanNode, state *circuitBreakerState) *circuitBreakerClient {
+	cbIface, _ := state.cbMap.Load(host)
+	metricsIface, _ := state.metricsMap.Load(host)
 
 	return &circuitBreakerClient{
 		enabled:    config.Enabled,
