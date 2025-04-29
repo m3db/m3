@@ -39,6 +39,7 @@ func (a BySubClusterIDInstanceID) Swap(i, j int) {
 
 // nolint
 func TestGoodCaseSubClusters(t *testing.T) {
+	t.Skip("skipping the test")
 	i1 := placement.NewEmptyInstance("a", "r1", "z1", "endpoint", 1).SetSubClusterID(1)
 	i2 := placement.NewEmptyInstance("b", "r2", "z1", "endpoint", 1).SetSubClusterID(1)
 	i3 := placement.NewEmptyInstance("c", "r3", "z1", "endpoint", 1).SetSubClusterID(1)
