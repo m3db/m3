@@ -25,7 +25,7 @@ import (
 	"fmt"
 	"time"
 
-	cb "github.com/m3db/m3/src/dbnode/circuitbreakerfx/middleware"
+	cb "github.com/m3db/m3/src/dbnode/client/circuitbreaker/middleware"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/environment"

@@ -46,7 +46,7 @@ func NewCircuitBreakerMiddleware(config Config, logger *zap.Logger, scope tally.
 	state := &circuitBreakerState{}
 	initializeCircuitBreaker(config, logger, scope, host, state)
 
-	return func(next rpc.TChanNode) *circuitBreakerClient {
+	return func(next rpc.TChanNode) CircuitBreakerClient {
 		return createCircuitBreakerClient(config, logger, host, next, state)
 	}
 }

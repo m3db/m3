@@ -28,7 +28,7 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 
 	"github.com/m3db/m3/src/cluster/shard"
-	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/middleware"
+	"github.com/m3db/m3/src/dbnode/client/circuitbreaker/middleware"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -859,7 +859,7 @@ type connectionPool interface {
 	ConnectionCount() int
 
 	// NextClient gets the next client for use by the connection pool.
-	NextClient() (rpc.TChanNode, Channel, error)
+	NextClient() (rpc.TChanNode, Channel, middleware.CircuitBreakerClient, error)
 
 	// Close the connection pool.
 	Close()

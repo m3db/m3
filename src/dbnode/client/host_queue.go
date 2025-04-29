@@ -32,7 +32,7 @@ import (
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 
-	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/middleware"
+	"github.com/m3db/m3/src/dbnode/client/circuitbreaker/middleware"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/clock"
@@ -79,7 +79,7 @@ type queue struct {
 	fetchOpBatchSize                             tally.Histogram
 	status                                       status
 	serverSupportsV2APIs                         bool
-	middleware                                   middleware.M3DBMiddleware
+	middleware                                   middleware.CircuitBreakerClient
 }
 
 func newHostQueue(
@@ -135,11 +135,13 @@ func newHostQueue(
 	opArrayPool := newOpArrayPool(opArrayPoolOpts, opArrayPoolElemCapacity)
 	opArrayPool.Init()
 
+	middleware := middleware.NewCircuitBreakerMiddleware(opts.MiddlewareCircuitbreakerConfig(), iOpts.Logger(), scope, host.ID())
+
 	return &queue{
 		opts:                                   opts,
 		nowFn:                                  opts.ClockOptions().NowFn(),
 		host:                                   host,
-		connPool:                               newConnectionPool(host, opts),
+		connPool:                               newConnectionPool(host, opts, middleware),
 		writeBatchRawRequestPool:               hostQueueOpts.writeBatchRawRequestPool,
 		writeBatchRawV2RequestPool:             hostQueueOpts.writeBatchRawV2RequestPool,
 		writeBatchRawRequestElementArrayPool:   hostQueueOpts.writeBatchRawRequestElementArrayPool,
@@ -158,7 +160,6 @@ func newHostQueue(
 		fetchOpBatchSize:                             scope.Histogram("fetch-op-batch-size", fetchOpBatchSizeBuckets),
 		drainIn:                                      make(chan []op, opsArrayLen),
 		serverSupportsV2APIs:                         opts.UseV2BatchAPIs(),
-		middleware:                                   middleware.NewCircuitBreakerMiddleware(opts.MiddlewareCircuitbreakerConfig(), iOpts.Logger(), scope, host.ID()),
 	}, nil
 }
 
@@ -543,7 +544,7 @@ func (q *queue) asyncTaggedWrite(
 		// NB(bl): host is passed to writeState to determine the state of the
 		// shard on the node we're writing to
 
-		client, _, err := q.connPool.NextClient()
+		client, _, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
 			callAllCompletionFns(ops, q.host, err)
@@ -603,7 +604,7 @@ func (q *queue) asyncTaggedWriteV2(
 
 		// NB(bl): host is passed to writeState to determine the state of the
 		// shard on the node we're writing to.
-		client, _, err := q.connPool.NextClient()
+		client, _, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
 			callAllCompletionFns(ops, q.host, err)
@@ -668,7 +669,7 @@ func (q *queue) asyncWrite(
 		// NB(bl): host is passed to writeState to determine the state of the
 		// shard on the node we're writing to
 
-		client, _, err := q.connPool.NextClient()
+		_, _, middlewareClient, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
 			callAllCompletionFns(ops, q.host, err)
@@ -677,7 +678,7 @@ func (q *queue) asyncWrite(
 		}
 
 		ctx, _ := thrift.NewContext(q.opts.WriteRequestTimeout())
-		err = q.middleware(client).WriteBatchRaw(ctx, req)
+		err = middlewareClient.WriteBatchRaw(ctx, req)
 		if err == nil {
 			// All succeeded
 			callAllCompletionFns(ops, q.host, nil)
@@ -727,7 +728,7 @@ func (q *queue) asyncWriteV2(
 
 		// NB(bl): host is passed to writeState to determine the state of the
 		// shard on the node we're writing to.
-		client, _, err := q.connPool.NextClient()
+		client, _, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available.
 			callAllCompletionFns(ops, q.host, err)
@@ -780,7 +781,7 @@ func (q *queue) asyncFetch(op *fetchBatchOp) {
 			q.Done()
 		}
 
-		client, _, err := q.connPool.NextClient()
+		client, _, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
 			op.completeAll(nil, err)
@@ -833,7 +834,7 @@ func (q *queue) asyncFetchV2(
 			q.Done()
 		}
 
-		client, _, err := q.connPool.NextClient()
+		client, _, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available.
 			callAllCompletionFns(ops, nil, err)
@@ -896,7 +897,7 @@ func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
 			return
 		}
 
-		client, _, err := q.connPool.NextClient()
+		client, _, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
 			op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
@@ -941,7 +942,7 @@ func (q *queue) asyncAggregate(op *aggregateOp) {
 			return
 		}
 
-		client, _, err := q.connPool.NextClient()
+		client, _, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
 			op.CompletionFn()(aggregateResultAccumulatorOpts{host: q.host}, err)
@@ -967,7 +968,7 @@ func (q *queue) asyncTruncate(op *truncateOp) {
 	q.workerPool.Go(func() {
 		cleanup := q.Done
 
-		client, _, err := q.connPool.NextClient()
+		client, _, _, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
 			op.completionFn(nil, err)
@@ -1096,7 +1097,7 @@ func (q *queue) BorrowConnection(fn WithConnectionFn) error {
 	defer q.Done()
 	q.RUnlock()
 
-	conn, ch, err := q.connPool.NextClient()
+	conn, ch, _, err := q.connPool.NextClient()
 	if err != nil {
 		return err
 	}

@@ -29,6 +29,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/client/circuitbreaker/middleware"
 	murmur3 "github.com/m3db/stackmurmur3/v2"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
@@ -65,11 +66,13 @@ type connPool struct {
 	sleepHealthRetry   sleepFn
 	status             status
 	healthStatus       tally.Gauge
+	middleware         middleware.M3DBMiddleware
 }
 
 type conn struct {
-	channel Channel
-	client  rpc.TChanNode
+	channel              Channel
+	client               rpc.TChanNode
+	circuitBreakerClient middleware.CircuitBreakerClient
 }
 
 // NewConnectionFn is a function that creates a connection.
@@ -81,7 +84,7 @@ type healthCheckFn func(client rpc.TChanNode, opts Options, checkBootstrapped bo
 
 type sleepFn func(t time.Duration)
 
-func newConnectionPool(host topology.Host, opts Options) connectionPool {
+func newConnectionPool(host topology.Host, opts Options, m3dbMiddleware middleware.M3DBMiddleware) connectionPool {
 	seed := int64(murmur3.StringSum32(host.Address()))
 
 	scope := opts.InstrumentOptions().
@@ -103,6 +106,7 @@ func newConnectionPool(host topology.Host, opts Options) connectionPool {
 		sleepHealth:        time.Sleep,
 		sleepHealthRetry:   time.Sleep,
 		healthStatus:       scope.Gauge("health-status"),
+		middleware:         m3dbMiddleware,
 	}
 
 	return p
@@ -134,20 +138,20 @@ func (p *connPool) ConnectionCount() int {
 	return int(poolLen)
 }
 
-func (p *connPool) NextClient() (rpc.TChanNode, Channel, error) {
+func (p *connPool) NextClient() (rpc.TChanNode, Channel, middleware.CircuitBreakerClient, error) {
 	p.RLock()
 	if p.status != statusOpen {
 		p.RUnlock()
-		return nil, nil, errConnectionPoolClosed
+		return nil, nil, nil, errConnectionPoolClosed
 	}
 	if p.poolLen < 1 {
 		p.RUnlock()
-		return nil, nil, errConnectionPoolHasNoConnections
+		return nil, nil, nil, errConnectionPoolHasNoConnections
 	}
 	n := atomic.AddInt64(&p.used, 1)
 	conn := p.pool[n%p.poolLen]
 	p.RUnlock()
-	return conn.client, conn.channel, nil
+	return conn.client, conn.channel, conn.circuitBreakerClient, nil
 }
 
 func (p *connPool) Close() {
@@ -204,7 +208,7 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 				p.maybeEmitHealthStatus(healthStatusOK)
 				p.Lock()
 				if p.status == statusOpen {
-					p.pool = append(p.pool, conn{channel, client})
+					p.pool = append(p.pool, conn{channel, client, p.middleware(client)}) //TODO wrap middleware here
 					p.poolLen = int64(len(p.pool))
 				} else {
 					// NB(antanas): just being defensive.

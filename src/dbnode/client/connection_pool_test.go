@@ -178,7 +178,7 @@ func TestConnectionPoolConnectsAndRetriesConnects(t *testing.T) {
 	conns.Close()
 	doneWg.Done()
 
-	nextClient, _, err := conns.NextClient()
+	nextClient, _, _, err := conns.NextClient()
 	require.Nil(t, nextClient)
 	require.Equal(t, errConnectionPoolClosed, err)
 }
@@ -334,7 +334,7 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		return conns.ConnectionCount() == 1
 	}, 5*time.Second)
 	for i := 0; i < 2; i++ {
-		nextClient, _, err := conns.NextClient()
+		nextClient, _, _, err := conns.NextClient()
 		require.NoError(t, err)
 		require.Equal(t, client2, nextClient)
 	}
@@ -351,13 +351,13 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		// and the connection actually being removed.
 		return conns.ConnectionCount() == 0
 	}, 5*time.Second)
-	nextClient, _, err := conns.NextClient()
+	nextClient, _, _, err := conns.NextClient()
 	require.Nil(t, nextClient)
 	require.Equal(t, errConnectionPoolHasNoConnections, err)
 
 	conns.Close()
 
-	nextClient, _, err = conns.NextClient()
+	nextClient, _, _, err = conns.NextClient()
 	require.Nil(t, nextClient)
 	require.Equal(t, errConnectionPoolClosed, err)
 }
