@@ -385,6 +385,21 @@ func TestAggregationOptsToProto(t *testing.T) {
 	require.Equal(t, validAggregationOpts, *nsOpts.AggregationOptions)
 }
 
+func TestOptionsToProtoRunTimeOptions(t *testing.T) {
+	writeIndexingPerCPUConcurrency := 2.0
+	flushIndexingPerCPUConcurrency := 2.0
+	rOpts := namespace.NewRuntimeOptions().SetWriteIndexingPerCPUConcurrency(&writeIndexingPerCPUConcurrency).
+		SetFlushIndexingPerCPUConcurrency(&flushIndexingPerCPUConcurrency)
+	opts := namespace.NewOptions().SetRuntimeOptions(rOpts)
+	protoOpts, err := namespace.OptionsToProto(opts)
+	require.NoError(t, err)
+	require.Equal(t, protoOpts.
+		GetRuntimeOptions().GetFlushIndexingPerCPUConcurrency().Value, flushIndexingPerCPUConcurrency)
+	require.Equal(t, protoOpts.GetRuntimeOptions().
+		GetWriteIndexingPerCPUConcurrency().Value, writeIndexingPerCPUConcurrency)
+
+}
+
 func assertEqualMetadata(t *testing.T, name string, expected nsproto.NamespaceOptions, observed namespace.Metadata) {
 	require.Equal(t, name, observed.ID().String())
 	opts := observed.Options()
