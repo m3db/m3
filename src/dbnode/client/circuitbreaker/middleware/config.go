@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"github.com/m3db/m3/src/dbnode/circuitbreakerfx/circuitbreaker"
+	"github.com/m3db/m3/src/dbnode/client/circuitbreaker/circuitbreaker"
 )
 
 // Config represents the configuration for the circuit breaker middleware.
