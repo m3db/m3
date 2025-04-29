@@ -243,6 +243,7 @@ func TestCustomUnmarshaller(t *testing.T) {
 			input:          []byte{0x08, 0x2A, 0x08, 0x2B}, // field 1=[42, 43]
 			expectedCustom: []unmarshalValue{},
 			expectedNonCustom: []marshalledField{
+				// nolint: misspell
 				{fieldNum: 1, marshalled: []byte{0x08, 0x2A, 0x08, 0x2B}},
 			},
 		},
@@ -252,10 +253,6 @@ func TestCustomUnmarshaller(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Convert field descriptors to proto format
 			schema := createTestSchema(tt.fields, i)
-			//fields := make([]*dpb.FieldDescriptorProto, 0, len(schema.GetFields()))
-			//for _, f := range schema.GetFields() {
-			//	fields = append(fields, f.AsFieldDescriptorProto())
-			//}
 
 			unmarshaller := newCustomFieldUnmarshaller(customUnmarshallerOptions{
 				skipUnknownFields: tt.skipUnknown,
@@ -281,6 +278,7 @@ func TestCustomUnmarshaller(t *testing.T) {
 			require.Equal(t, len(tt.expectedNonCustom), len(nonCustomValues))
 			for i, expected := range tt.expectedNonCustom {
 				require.Equal(t, expected.fieldNum, nonCustomValues[i].fieldNum)
+				// nolint: misspell
 				require.Equal(t, expected.marshalled, nonCustomValues[i].marshalled)
 			}
 		})
