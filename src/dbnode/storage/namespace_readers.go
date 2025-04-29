@@ -21,9 +21,10 @@
 package storage
 
 import (
+	"sync"
+
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
-	"sync"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
