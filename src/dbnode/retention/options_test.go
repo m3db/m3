@@ -42,3 +42,113 @@ func TestEqualsFalse(t *testing.T) {
 	require.False(t, opts.Equal(otherOpts))
 	require.False(t, otherOpts.Equal(opts))
 }
+
+func TestOptionsGettersAndSetters(t *testing.T) {
+	opts := NewOptions()
+
+	// Test RetentionPeriod
+	retentionPeriod := 24 * time.Hour
+	opts = opts.SetRetentionPeriod(retentionPeriod)
+	require.Equal(t, retentionPeriod, opts.RetentionPeriod())
+
+	// Test FutureRetentionPeriod
+	futureRetentionPeriod := 12 * time.Hour
+	opts = opts.SetFutureRetentionPeriod(futureRetentionPeriod)
+	require.Equal(t, futureRetentionPeriod, opts.FutureRetentionPeriod())
+
+	// Test BlockSize
+	blockSize := 2 * time.Hour
+	opts = opts.SetBlockSize(blockSize)
+	require.Equal(t, blockSize, opts.BlockSize())
+
+	// Test BufferFuture
+	bufferFuture := 1 * time.Hour
+	opts = opts.SetBufferFuture(bufferFuture)
+	require.Equal(t, bufferFuture, opts.BufferFuture())
+
+	// Test BufferPast
+	bufferPast := 1 * time.Hour
+	opts = opts.SetBufferPast(bufferPast)
+	require.Equal(t, bufferPast, opts.BufferPast())
+
+	// Test BlockDataExpiry
+	opts = opts.SetBlockDataExpiry(true)
+	require.True(t, opts.BlockDataExpiry())
+	opts = opts.SetBlockDataExpiry(false)
+	require.False(t, opts.BlockDataExpiry())
+
+	// Test BlockDataExpiryAfterNotAccessedPeriod
+	expiryPeriod := 30 * time.Minute
+	opts = opts.SetBlockDataExpiryAfterNotAccessedPeriod(expiryPeriod)
+	require.Equal(t, expiryPeriod, opts.BlockDataExpiryAfterNotAccessedPeriod())
+}
+
+func TestOptionsValidate(t *testing.T) {
+	opts := NewOptions()
+
+	// Test valid options
+	err := opts.Validate()
+	require.NoError(t, err)
+
+	// Test with negative buffer future
+	opts = NewOptions().SetBufferFuture(-1 * time.Hour)
+	err = opts.Validate()
+	require.Error(t, err)
+
+	// Test with negative buffer past
+	opts = NewOptions().SetBufferPast(-1 * time.Hour)
+	err = opts.Validate()
+	require.Error(t, err)
+
+	// Test with zero block size
+	opts = NewOptions().SetBlockSize(0)
+	err = opts.Validate()
+	require.Error(t, err)
+
+	// Test with negative block size
+	opts = NewOptions().SetBlockSize(-1 * time.Hour)
+	err = opts.Validate()
+	require.Error(t, err)
+
+	// Test with buffer future too large
+	opts = NewOptions().
+		SetBlockSize(1 * time.Hour).
+		SetBufferFuture(2 * time.Hour)
+	err = opts.Validate()
+	require.Error(t, err)
+
+	// Test with buffer past too large
+	opts = NewOptions().
+		SetBlockSize(1 * time.Hour).
+		SetBufferPast(2 * time.Hour)
+	err = opts.Validate()
+	require.Error(t, err)
+
+	// Test with retention period too small
+	opts = NewOptions().
+		SetBlockSize(2 * time.Hour).
+		SetRetentionPeriod(1 * time.Hour)
+	err = opts.Validate()
+	require.Error(t, err)
+}
+
+func TestOptionsEdgeCases(t *testing.T) {
+	opts := NewOptions()
+
+	// Test with zero values
+	opts = opts.
+		SetRetentionPeriod(0).
+		SetBlockSize(0).
+		SetFutureRetentionPeriod(0).
+		SetBufferFuture(0).
+		SetBufferPast(0).
+		SetBlockDataExpiryAfterNotAccessedPeriod(0)
+
+	// Should not panic with zero values
+	require.Equal(t, time.Duration(0), opts.RetentionPeriod())
+	require.Equal(t, time.Duration(0), opts.BlockSize())
+	require.Equal(t, time.Duration(0), opts.FutureRetentionPeriod())
+	require.Equal(t, time.Duration(0), opts.BufferFuture())
+	require.Equal(t, time.Duration(0), opts.BufferPast())
+	require.Equal(t, time.Duration(0), opts.BlockDataExpiryAfterNotAccessedPeriod())
+}
