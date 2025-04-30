@@ -859,7 +859,7 @@ type connectionPool interface {
 	ConnectionCount() int
 
 	// NextClient gets the next client for use by the connection pool.
-	NextClient() (rpc.TChanNode, Channel, middleware.CircuitBreakerClient, error)
+	NextClient() (rpc.TChanNode, Channel, error)
 
 	// Close the connection pool.
 	Close()

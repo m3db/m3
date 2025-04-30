@@ -349,7 +349,17 @@ func defaultNewConnectionFn(
 	endpoint := &thrift.ClientOptions{HostPort: address}
 	thriftClient := thrift.NewClient(channel, nchannel.ChannelName, endpoint)
 	client := rpc.NewTChanNodeClient(thriftClient)
-	return channel, client, nil
+
+	// Create circuit breaker middleware and wrap the client
+	middleware := middleware.NewCircuitBreakerMiddleware(
+		clientOpts.MiddlewareCircuitbreakerConfig(),
+		clientOpts.InstrumentOptions().Logger(),
+		clientOpts.InstrumentOptions().MetricsScope(),
+		address,
+	)
+	wrappedClient := middleware(client)
+
+	return channel, wrappedClient, nil
 }
 
 func newOptions() *options {
