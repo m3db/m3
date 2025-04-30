@@ -30,10 +30,12 @@ import (
 	m3dbrpc "github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/m3em/generated/proto/m3em"
 	"github.com/m3db/m3/src/m3em/node"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 func newTestOptions() Options {
 	return NewOptions(nil).
+		SetInstrumentOptions(instrument.NewOptions()).
 		SetNodeOptions(
 			node.NewOptions(nil).
 				SetOperatorClientFn(func() (*grpc.ClientConn, m3em.OperatorClient, error) { return nil, nil, nil }),
@@ -48,7 +50,7 @@ func TestHealthEndpoint(t *testing.T) {
 		Bootstrapped: true,
 		Ok:           false,
 		Status:       "NOT_OK",
-	}, nil)
+	}, nil).Times(2)
 
 	opts := newTestOptions()
 	mockNode := node.NewMockServiceNode(ctrl)
@@ -63,4 +65,7 @@ func TestHealthEndpoint(t *testing.T) {
 	require.True(t, health.Bootstrapped)
 	require.False(t, health.OK)
 	require.Equal(t, "NOT_OK", health.Status)
+
+	status := testNode.Bootstrapped()
+	require.True(t, status)
 }

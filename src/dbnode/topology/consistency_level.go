@@ -97,7 +97,7 @@ func (l *ConsistencyLevel) MarshalYAML() (interface{}, error) {
 	return l.String(), nil
 }
 
-// UnmarshalYAML unmarshals an ConnectConsistencyLevel into a valid type from string.
+// UnmarshalYAML unmarshals an ConsistencyLevel into a valid type from string.
 func (l *ConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
 	if err := unmarshal(&str); err != nil {
@@ -107,7 +107,7 @@ func (l *ConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) error) erro
 		return errConsistencyLevelUnspecified
 	}
 	strs := make([]string, 0, len(validConsistencyLevels))
-	for _, valid := range validConsistencyLevels {
+	for _, valid := range ValidConsistencyLevels() {
 		if str == valid.String() {
 			*l = valid
 			return nil
@@ -209,7 +209,7 @@ func (l *ConnectConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) erro
 		}
 	}
 	return fmt.Errorf("invalid ConnectConsistencyLevel '%s' valid types are: %s",
-		str, validConnectConsistencyLevels)
+		str, ValidConnectConsistencyLevels())
 }
 
 // ReadConsistencyLevel is the consistency level for reading from a cluster
@@ -325,7 +325,7 @@ func (l *ReadConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) error) 
 		return errReadConsistencyLevelUnspecified
 	}
 	strs := make([]string, 0, len(validReadConsistencyLevels))
-	for _, valid := range validReadConsistencyLevels {
+	for _, valid := range ValidReadConsistencyLevels() {
 		if str == valid.String() {
 			*l = valid
 			return nil
