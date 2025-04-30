@@ -1,8 +1,8 @@
 package middleware
 
 import (
-	"github.com/m3db/m3/src/dbnode/client/circuitbreaker/circuitbreaker"
 	"github.com/m3db/m3/src/dbnode/client/circuitbreaker/circuitbreakererror"
+	"github.com/m3db/m3/src/dbnode/client/circuitbreaker/internal/circuitbreaker"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/uber-go/tally"
 	tchannel "github.com/uber/tchannel-go"
