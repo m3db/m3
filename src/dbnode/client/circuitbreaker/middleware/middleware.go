@@ -8,7 +8,6 @@ import (
 	tchannel "github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
-	"sync"
 	"sync/atomic"
 )
 
@@ -31,58 +30,27 @@ type CircuitBreakerClient interface {
 	rpc.TChanNode
 }
 
-// circuitBreakerState holds the shared state for circuit breakers
-type circuitBreakerState struct {
-	cbInitOnce sync.Map // map[string]*sync.Once
-	cbMap      sync.Map // map[string]*atomic.Value
-	metricsMap sync.Map // map[string]*circuitBreakerMetrics
-}
-
 // NewCircuitBreakerMiddleware creates a new circuit breaker middleware.
 func NewCircuitBreakerMiddleware(config Config, logger *zap.Logger, scope tally.Scope, host string) m3dbMiddleware {
-	state := &circuitBreakerState{}
-	initializeCircuitBreaker(config, logger, scope, host, state)
+	logger.Info("creating circuit breaker middleware", zap.String("host", host))
+
+	c, err := circuitbreaker.NewCircuit(config.CircuitBreakerConfig)
+	if err != nil {
+		logger.Warn("failed to create circuit breaker", zap.Error(err))
+	}
+	cb := &atomic.Value{}
+	cb.Store(c)
 
 	return func(next rpc.TChanNode) CircuitBreakerClient {
-		return createCircuitBreakerClient(config, logger, host, next, state)
-	}
-}
-
-// initializeCircuitBreaker initializes the circuit breaker for the given host.
-func initializeCircuitBreaker(config Config, logger *zap.Logger, scope tally.Scope, host string, state *circuitBreakerState) {
-	onceIface, _ := state.cbInitOnce.LoadOrStore(host, new(sync.Once))
-	once := onceIface.(*sync.Once)
-
-	once.Do(func() {
-		logger.Info("creating circuit breaker middleware", zap.String("host", host))
-		metrics := newMetrics(scope, host)
-		state.metricsMap.Store(host, metrics)
-
-		cb, err := circuitbreaker.NewCircuit(config.CircuitBreakerConfig)
-		if err != nil {
-			logger.Warn("failed to create circuit breaker", zap.Error(err))
-			return
+		return &circuitBreakerClient{
+			enabled:    config.Enabled,
+			shadowMode: config.ShadowMode,
+			next:       next,
+			logger:     logger,
+			host:       host,
+			metrics:    newMetrics(scope, host),
+			cb:         cb,
 		}
-
-		cbVal := &atomic.Value{}
-		cbVal.Store(cb)
-		state.cbMap.Store(host, cbVal)
-	})
-}
-
-// createCircuitBreakerClient creates a new circuit breaker client.
-func createCircuitBreakerClient(config Config, logger *zap.Logger, host string, next rpc.TChanNode, state *circuitBreakerState) *circuitBreakerClient {
-	cbIface, _ := state.cbMap.Load(host)
-	metricsIface, _ := state.metricsMap.Load(host)
-
-	return &circuitBreakerClient{
-		enabled:    config.Enabled,
-		shadowMode: config.ShadowMode,
-		next:       next,
-		logger:     logger,
-		host:       host,
-		metrics:    metricsIface.(*circuitBreakerMetrics),
-		cb:         cbIface.(*atomic.Value),
 	}
 }
 
