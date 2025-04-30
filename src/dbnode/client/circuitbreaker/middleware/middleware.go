@@ -32,8 +32,6 @@ type CircuitBreakerClient interface {
 
 // NewCircuitBreakerMiddleware creates a new circuit breaker middleware.
 func NewCircuitBreakerMiddleware(config Config, logger *zap.Logger, scope tally.Scope, host string) m3dbMiddleware {
-	logger.Info("creating circuit breaker middleware", zap.String("host", host))
-
 	c, err := circuitbreaker.NewCircuit(config.CircuitBreakerConfig)
 	if err != nil {
 		logger.Warn("failed to create circuit breaker", zap.Error(err))
@@ -57,7 +55,7 @@ func NewCircuitBreakerMiddleware(config Config, logger *zap.Logger, scope tally.
 // withBreaker executes the given call with a circuit breaker if enabled.
 func withBreaker[T any](c *circuitBreakerClient, ctx tchannel.ContextWithHeaders, call func() error) error {
 	if !c.enabled {
-		return c.executeWithoutBreaker(call)
+		return call()
 	}
 
 	cb := c.getCircuit()
@@ -70,7 +68,7 @@ func withBreaker[T any](c *circuitBreakerClient, ctx tchannel.ContextWithHeaders
 
 // executeWithoutBreaker executes the given call without a circuit breaker.
 func (c *circuitBreakerClient) executeWithoutBreaker(call func() error) error {
-	c.logger.Info("circuit breaker disabled, calling next", zap.String("host", c.host))
+	c.logger.Debug("circuit breaker disabled, calling next", zap.String("host", c.host))
 	return call()
 }
 
@@ -83,7 +81,7 @@ func (c *circuitBreakerClient) getCircuit() *circuitbreaker.Circuit {
 // handleRejectedRequest handles a rejected request by the circuit breaker.
 func (c *circuitBreakerClient) handleRejectedRequest() error {
 	c.metrics.rejects.Inc(1)
-	c.logger.Info("circuit breaker request rejected", zap.String("host", c.host))
+	c.logger.Debug("circuit breaker request rejected", zap.String("host", c.host))
 	if !c.shadowMode {
 		return circuitbreakererror.New(c.host)
 	}
@@ -98,21 +96,19 @@ func (c *circuitBreakerClient) executeWithBreaker(cb *circuitbreaker.Circuit, ca
 	} else {
 		c.handleFailure(cb)
 	}
-	c.logger.Info("circuit breaker call done", zap.String("host", c.host))
 	return err
 }
 
 // handleSuccess handles a successful request by the circuit breaker.
 func (c *circuitBreakerClient) handleSuccess(cb *circuitbreaker.Circuit) {
 	cb.ReportRequestStatus(true)
-	c.logger.Info("circuit breaker call success", zap.String("host", c.host))
 	c.metrics.successes.Inc(1)
 }
 
 // handleFailure handles a failed request by the circuit breaker.
 func (c *circuitBreakerClient) handleFailure(cb *circuitbreaker.Circuit) {
 	cb.ReportRequestStatus(false)
-	c.logger.Info("circuit breaker call failed", zap.String("host", c.host))
+	c.logger.Debug("circuit breaker call failed", zap.String("host", c.host))
 	c.metrics.failures.Inc(1)
 }
 
