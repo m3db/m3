@@ -55,7 +55,7 @@ func NewCircuitBreakerMiddleware(config Config, logger *zap.Logger, scope tally.
 // withBreaker executes the given call with a circuit breaker if enabled.
 func withBreaker[T any](c *circuitBreakerClient, ctx tchannel.ContextWithHeaders, call func() error) error {
 	if !c.enabled {
-		return call()
+		return c.executeWithoutBreaker(call)
 	}
 
 	cb := c.getCircuit()
