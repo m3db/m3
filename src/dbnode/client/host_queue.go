@@ -32,6 +32,7 @@ import (
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 
+	"github.com/m3db/m3/src/dbnode/client/circuitbreaker/middleware"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/clock"
@@ -91,6 +92,26 @@ func newHostQueue(
 	)
 	iOpts = iOpts.SetMetricsScope(scope)
 	opts = opts.SetInstrumentOptions(iOpts.SetMetricsScope(scope))
+
+	// Create circuit breaker middleware
+	cbMiddleware := middleware.NewCircuitBreakerMiddleware(
+		opts.MiddlewareCircuitbreakerConfig(),
+		opts.InstrumentOptions().Logger(),
+		opts.InstrumentOptions().MetricsScope(),
+		host.Address(),
+	)
+
+	// Create a wrapped connection function that applies the circuit breaker
+	wrappedNewConnFn := func(channelName string, address string, clientOpts Options) (Channel, rpc.TChanNode, error) {
+		channel, client, err := defaultNewConnectionFn(channelName, address, clientOpts)
+		if err != nil {
+			return nil, nil, err
+		}
+		return channel, cbMiddleware(client), nil
+	}
+
+	// Set the wrapped connection function in the options
+	opts = opts.SetNewConnectionFn(wrappedNewConnFn)
 
 	writeOpBatchSizeBuckets, err := tally.ExponentialValueBuckets(1, 2, 15)
 	if err != nil {

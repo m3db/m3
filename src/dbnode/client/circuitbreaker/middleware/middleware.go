@@ -23,8 +23,8 @@ type circuitBreakerClient struct {
 	next       rpc.TChanNode
 }
 
-// M3dbMiddleware is a function that takes a TChannel client and returns a circuit breaker client interface.
-type M3DBMiddleware func(rpc.TChanNode) CircuitBreakerClient
+// m3dbMiddleware is a function that takes a TChannel client and returns a circuit breaker client interface.
+type m3dbMiddleware func(rpc.TChanNode) CircuitBreakerClient
 
 // CircuitBreakerClient defines the interface for a circuit breaker client.
 type CircuitBreakerClient interface {
@@ -39,7 +39,7 @@ type circuitBreakerState struct {
 }
 
 // NewCircuitBreakerMiddleware creates a new circuit breaker middleware.
-func NewCircuitBreakerMiddleware(config Config, logger *zap.Logger, scope tally.Scope, host string) M3DBMiddleware {
+func NewCircuitBreakerMiddleware(config Config, logger *zap.Logger, scope tally.Scope, host string) m3dbMiddleware {
 	state := &circuitBreakerState{}
 	initializeCircuitBreaker(config, logger, scope, host, state)
 
