@@ -4,6 +4,10 @@ import (
 	"github.com/uber-go/tally"
 )
 
+const (
+	_packageName = "circuit_breaker"
+)
+
 type circuitBreakerMetrics struct {
 	successes tally.Counter // counter for successful requests
 	failures  tally.Counter // counter for failed requests

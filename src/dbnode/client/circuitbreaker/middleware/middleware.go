@@ -11,10 +11,6 @@ import (
 	"sync/atomic"
 )
 
-const (
-	_packageName = "circuit_breaker"
-)
-
 // circuitBreakerClient is a client that wraps a TChannel client with a circuit breaker.
 type circuitBreakerClient struct {
 	enabled    bool
