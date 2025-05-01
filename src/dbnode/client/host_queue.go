@@ -94,12 +94,15 @@ func newHostQueue(
 	opts = opts.SetInstrumentOptions(iOpts.SetMetricsScope(scope))
 
 	// Create circuit breaker middleware
-	cbMiddleware := middleware.NewCircuitBreakerMiddleware(
+	cbMiddleware, err := middleware.New(
 		opts.MiddlewareCircuitbreakerConfig(),
 		opts.InstrumentOptions().Logger(),
 		opts.InstrumentOptions().MetricsScope(),
 		host.Address(),
 	)
+	if err != nil {
+		return nil, err
+	}
 
 	// Create a wrapped connection function that applies the circuit breaker
 	wrappedNewConnFn := func(channelName string, address string, clientOpts Options) (Channel, rpc.TChanNode, error) {
