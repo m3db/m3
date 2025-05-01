@@ -9,21 +9,17 @@ const (
 )
 
 type circuitBreakerMetrics struct {
-	successes tally.Counter // counter for successful requests
-	failures  tally.Counter // counter for failed requests
-	rejects   tally.Counter // counter for rejected requests
+	rejects       tally.Counter
+	shadowRejects tally.Counter
+	successes     tally.Counter
+	failures      tally.Counter
 }
 
 func newMetrics(scope tally.Scope, host string) *circuitBreakerMetrics {
-	taggedScope := scope.Tagged(map[string]string{
-		"component": _packageName,
-		"host":      host,
-	})
-
-	metrics := &circuitBreakerMetrics{
-		successes: taggedScope.Counter("circuit_breaker_successes"),
-		failures:  taggedScope.Counter("circuit_breaker_failures"),
-		rejects:   taggedScope.Counter("circuit_breaker_rejects"),
+	return &circuitBreakerMetrics{
+		rejects:       scope.Tagged(map[string]string{"host": host}).Counter("circuit_breaker_rejects"),
+		shadowRejects: scope.Tagged(map[string]string{"host": host}).Counter("circuit_breaker_shadow_rejects"),
+		successes:     scope.Tagged(map[string]string{"host": host}).Counter("circuit_breaker_successes"),
+		failures:      scope.Tagged(map[string]string{"host": host}).Counter("circuit_breaker_failures"),
 	}
-	return metrics
 }
