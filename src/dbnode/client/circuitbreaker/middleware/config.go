@@ -53,10 +53,15 @@ func WatchConfig(
 	onConfigChange func(Config) error,
 ) error {
 	// Watch for changes to the circuit breaker middleware configuration
+
+	logger.Info("watching circuit breaker middleware configuration")
+
 	watch, err := store.Watch("circuitbreaker/middleware/config")
 	if err != nil {
 		return fmt.Errorf("failed to watch circuit breaker middleware configuration: %v", err)
 	}
+
+	logger.Info("watch created for circuit breaker middleware configuration")
 
 	go func() {
 		for {
@@ -68,7 +73,7 @@ func WatchConfig(
 					logger.Error("failed to get circuit breaker middleware configuration", zap.Error(err))
 					continue
 				}
-
+				logger.Info("circuit breaker middleware configuration changed", zap.Any("value", value))
 				// Unmarshal to protobuf message
 				var configProto CircuitBreakerConfigProto
 				if err := value.Unmarshal(&configProto); err != nil {
@@ -100,6 +105,6 @@ func WatchConfig(
 			}
 		}
 	}()
-
+	logger.Info("watching circuit breaker middleware configuration complete")
 	return nil
 }

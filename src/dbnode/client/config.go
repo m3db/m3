@@ -358,8 +358,17 @@ func (c Configuration) NewAdminClient(
 		SetLogHostFetchErrorSampleRate(c.LogHostFetchErrorSampleRate)
 
 	// Set up middleware config watch if we have a KV store
+	logger := iopts.Logger()
+	logger.Info("setting up middleware config watch",
+		zap.Any("envCfgs", envCfgs), zap.Any("lenEnvCfgs", len(envCfgs)))
+
 	if len(envCfgs) > 0 {
+		logger.Info("found envCfgs..")
 		kv := envCfgs[0].KVStore
+
+		logger.Info("found kv store",
+			zap.Any("kv", kv))
+
 		if kv != nil {
 			// Set up middleware config watch
 			if err := cb.WatchConfig(kv, iopts.Logger(), func(config cb.Config) error {
