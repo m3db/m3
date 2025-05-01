@@ -5,7 +5,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/client/circuitbreaker/internal/circuitbreaker"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/uber-go/tally"
-	tchannel "github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 )
@@ -37,7 +36,7 @@ func New(config Config, logger *zap.Logger, scope tally.Scope, host string) (m3d
 		return nil, err
 	}
 
-	return func(next rpc.TChanNode) (Client, error) {
+	return func(next rpc.TChanNode) Client {
 		return &client{
 			enabled:    config.Enabled,
 			shadowMode: config.ShadowMode,
@@ -46,61 +45,34 @@ func New(config Config, logger *zap.Logger, scope tally.Scope, host string) (m3d
 			host:       host,
 			metrics:    newMetrics(scope, host),
 			circuit:    c,
-		}, nil
+		}
 	}, nil
 }
 
 // withBreaker executes the given call with a circuit breaker if enabled.
-func withBreaker[T any](c *client, ctx tchannel.ContextWithHeaders, req T, call func(tchannel.ContextWithHeaders, T) error) error {
+func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.Context, T) error) error {
 	if !c.enabled {
-		return c.executeWithoutBreaker(call)
+		c.logger.Debug("circuit breaker disabled, calling next", zap.String("host", c.host))
+		return call(ctx, req)
 	}
 
 	if c.circuit == nil || !c.circuit.IsRequestAllowed() {
-		return c.handleRejectedRequest(call)
+		c.metrics.rejects.Inc(1)
+		c.logger.Debug("circuit breaker request rejected", zap.String("host", c.host))
+		if !c.shadowMode {
+			return circuitbreakererror.New(c.host)
+		}
 	}
 
-	return c.executeWithBreaker(call)
-}
-
-// executeWithoutBreaker executes the given call without a circuit breaker.
-func (c *client) executeWithoutBreaker(call func() error) error {
-	c.logger.Debug("circuit breaker disabled, calling next", zap.String("host", c.host))
-	return call()
-}
-
-// handleRejectedRequest handles a rejected request by the circuit breaker.
-func (c *client) handleRejectedRequest(call func() error) error {
-	c.metrics.rejects.Inc(1)
-	c.logger.Debug("circuit breaker request rejected", zap.String("host", c.host))
-	if !c.shadowMode {
-		return circuitbreakererror.New(c.host)
-	}
-	return call()
-}
-
-// executeWithBreaker executes the given call with a circuit breaker and handles success or failure.
-func (c *client) executeWithBreaker(call func() error) error {
-	err := call()
+	err := call(ctx, req)
 	if err == nil {
-		c.handleSuccess()
+		c.circuit.ReportRequestStatus(true)
+		c.metrics.successes.Inc(1)
 	} else {
-		c.handleFailure()
+		c.circuit.ReportRequestStatus(false)
+		c.metrics.failures.Inc(1)
 	}
 	return err
-}
-
-// handleSuccess handles a successful request by the circuit breaker.
-func (c *client) handleSuccess() {
-	c.circuit.ReportRequestStatus(true)
-	c.metrics.successes.Inc(1)
-}
-
-// handleFailure handles a failed request by the circuit breaker.
-func (c *client) handleFailure() {
-	c.circuit.ReportRequestStatus(false)
-	c.logger.Debug("circuit breaker call failed", zap.String("host", c.host))
-	c.metrics.failures.Inc(1)
 }
 
 // WriteBatchRaw is a method that writes a batch of raw data.
