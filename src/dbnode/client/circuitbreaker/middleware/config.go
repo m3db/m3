@@ -1,10 +1,12 @@
 package middleware
 
 import (
+	"encoding/base64"
 	"fmt"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/dbnode/client/circuitbreaker"
 	"go.uber.org/zap"
@@ -74,9 +76,24 @@ func WatchConfig(
 					continue
 				}
 				logger.Info("circuit breaker middleware configuration changed", zap.Any("value", value))
-				// Unmarshal to protobuf message
+
+				// Get raw bytes by unmarshaling into a StringProto
+				var stringProto commonpb.StringProto
+				if err := value.Unmarshal(&stringProto); err != nil {
+					logger.Error("failed to unmarshal value into StringProto", zap.Error(err))
+					continue
+				}
+
+				// Decode base64 value
+				decodedValue, err := base64.StdEncoding.DecodeString(stringProto.Value)
+				if err != nil {
+					logger.Error("failed to decode base64 value", zap.Error(err))
+					continue
+				}
+
+				// Unmarshal protobuf message from decoded value
 				var configProto CircuitBreakerConfigProto
-				if err := value.Unmarshal(&configProto); err != nil {
+				if err := proto.Unmarshal(decodedValue, &configProto); err != nil {
 					logger.Error("failed to unmarshal circuit breaker middleware configuration", zap.Error(err))
 					continue
 				}
