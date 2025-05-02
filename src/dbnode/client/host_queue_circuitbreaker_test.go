@@ -1,3 +1,23 @@
+// Copyright (c) 2016 Uber Technologies, Inc.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
 package client
 
 import (
@@ -70,6 +90,23 @@ func TestHostQueueCircuitBreakerIntegration(t *testing.T) {
 			circuitBreakerConfig: middleware.Config{
 				Enabled:    true,
 				ShadowMode: false,
+				CircuitBreakerConfig: circuitbreaker.Config{
+					MinimumRequests:      1,
+					FailureRatio:         0.1,
+					MinimumProbeRequests: 0,
+					WindowSize:           1,
+					BucketDuration:       time.Millisecond,
+				},
+			},
+			failCalls:     true,
+			expectedError: true,
+			numCalls:      5,
+		},
+		{
+			name: "circuit_breaker_enabled_shadow_mode_-_failed_calls",
+			circuitBreakerConfig: middleware.Config{
+				Enabled:    true,
+				ShadowMode: true,
 				CircuitBreakerConfig: circuitbreaker.Config{
 					MinimumRequests:      1,
 					FailureRatio:         0.1,
@@ -158,7 +195,16 @@ func TestHostQueueCircuitBreakerIntegration(t *testing.T) {
 			// Check the result
 			if test.expectedError {
 				if test.circuitBreakerConfig.Enabled {
-					assert.True(t, hasCircuitBreakerError(actualErrs), "Expected at least one circuit breaker rejection error")
+					if test.circuitBreakerConfig.ShadowMode {
+						// In shadow mode, we should get normal errors, not circuit breaker errors
+						assert.False(t, hasCircuitBreakerError(actualErrs), "Should not get circuit breaker errors in shadow mode")
+						for _, err := range actualErrs {
+							assert.Error(t, err)
+							assert.Contains(t, err.Error(), "mock write error")
+						}
+					} else {
+						assert.True(t, hasCircuitBreakerError(actualErrs), "Expected at least one circuit breaker rejection error")
+					}
 				}
 			} else {
 				for _, err := range actualErrs {
