@@ -372,8 +372,15 @@ func (c Configuration) NewAdminClient(
 		if kv != nil {
 			// Set up middleware config watch
 			if err := cb.WatchConfig(kv, iopts.Logger(), func(config cb.Config) error {
+				// Get the current config
+				currentConfig := v.MiddlewareCircuitbreakerConfig()
+
+				// Update only the boolean flags
+				currentConfig.Enabled = config.Enabled
+				currentConfig.ShadowMode = config.ShadowMode
+
 				// Update the middleware config
-				v.SetMiddlewareCircuitbreakerConfig(config)
+				v.SetMiddlewareCircuitbreakerConfig(currentConfig)
 				return nil
 			}); err != nil {
 				iopts.Logger().Error("failed to set up middleware config watch", zap.Error(err))
