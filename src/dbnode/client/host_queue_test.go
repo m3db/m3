@@ -20,7 +20,17 @@
 
 package client
 
-import "github.com/m3db/m3/src/x/pool"
+import (
+	"testing"
+
+	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/dbnode/client/circuitbreaker/middleware"
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
 var (
 	smallPoolOptions = pool.NewObjectPoolOptions().SetSize(1)
@@ -80,4 +90,69 @@ func newHostQueueTestOptions() Options {
 		SetWriteBatchSize(4).
 		SetFetchBatchSize(4).
 		SetHostQueueOpsFlushInterval(0)
+}
+
+func TestNewHostQueueWithCircuitBreaker(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	tests := []struct {
+		name        string
+		config      middleware.Config
+		expectError bool
+	}{
+		{
+			name: "enabled middleware",
+			config: middleware.Config{
+				Enabled: true,
+			},
+			expectError: false,
+		},
+		{
+			name: "disabled middleware",
+			config: middleware.Config{
+				Enabled: false,
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := NewMockOptions(ctrl)
+			opts.EXPECT().MiddlewareCircuitbreakerConfig().Return(tt.config).AnyTimes()
+			opts.EXPECT().InstrumentOptions().Return(instrument.NewOptions()).AnyTimes()
+			opts.EXPECT().ChannelOptions().Return(nil).AnyTimes()
+
+			// Test middleware initialization
+			cbMiddleware, err := middleware.New(
+				tt.config,
+				opts.InstrumentOptions().Logger(),
+				opts.InstrumentOptions().MetricsScope(),
+				"test-host",
+			)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			// Test connection wrapping
+			wrappedNewConnFn := func(channelName string, address string, clientOpts Options) (Channel, rpc.TChanNode, error) {
+				channel, client, err := defaultNewConnectionFn(channelName, address, clientOpts)
+				if err != nil {
+					return nil, nil, err
+				}
+				return channel, cbMiddleware(client), nil
+			}
+
+			// Test the wrapped function
+			channel, client, err := wrappedNewConnFn("test-channel", "test-address", opts)
+			assert.NoError(t, err)
+			assert.NotNil(t, channel)
+			assert.NotNil(t, client)
+			assert.Implements(t, (*rpc.TChanNode)(nil), client)
+		})
+	}
 }
