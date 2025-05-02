@@ -1,12 +1,14 @@
 package middleware
 
 import (
+	"encoding/base64"
 	"fmt"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/dbnode/client/circuitbreaker"
 	"go.uber.org/zap"
+	yaml "gopkg.in/yaml.v2"
 )
 
 // Config represents the configuration for the circuit breaker middleware.
@@ -22,15 +24,16 @@ type EtcdConfig struct {
 	ShadowMode bool `yaml:"shadowMode"`
 }
 
-// CircuitBreakerConfigProto is a protobuf message for the circuit breaker config.
-type CircuitBreakerConfigProto struct {
-	Enabled    bool `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	ShadowMode bool `protobuf:"varint,2,opt,name=shadow_mode,json=shadowMode,proto3" json:"shadow_mode,omitempty"`
+// EtcdConfigProto is a protobuf message for the etcd config.
+type EtcdConfigProto struct {
+	Enabled    bool   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	ShadowMode bool   `protobuf:"varint,2,opt,name=shadow_mode,json=shadowMode,proto3" json:"shadow_mode,omitempty"`
+	Value      string `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
 }
 
-func (m *CircuitBreakerConfigProto) Reset()         { *m = CircuitBreakerConfigProto{} }
-func (m *CircuitBreakerConfigProto) String() string { return proto.CompactTextString(m) }
-func (*CircuitBreakerConfigProto) ProtoMessage()    {}
+func (m *EtcdConfigProto) Reset()         { *m = EtcdConfigProto{} }
+func (m *EtcdConfigProto) String() string { return proto.CompactTextString(m) }
+func (*EtcdConfigProto) ProtoMessage()    {}
 
 // WatchConfig watches for changes to the circuit breaker middleware configuration in etcd.
 // It takes a kv store, logger, and a callback function that will be called when the config changes.
@@ -63,17 +66,25 @@ func WatchConfig(
 				}
 				logger.Info("circuit breaker middleware configuration changed", zap.Any("value", value))
 
-				// Unmarshal directly into CircuitBreakerConfigProto
-				var configProto CircuitBreakerConfigProto
+				// Unmarshal into EtcdConfigProto
+				var configProto EtcdConfigProto
 				if err := value.Unmarshal(&configProto); err != nil {
 					logger.Error("failed to unmarshal circuit breaker middleware configuration", zap.Error(err))
 					continue
 				}
 
-				// Convert protobuf config to our EtcdConfig type
-				etcdConfig := EtcdConfig{
-					Enabled:    configProto.Enabled,
-					ShadowMode: configProto.ShadowMode,
+				// Decode base64 string
+				decoded, err := base64.StdEncoding.DecodeString(configProto.Value)
+				if err != nil {
+					logger.Error("failed to decode base64 config", zap.Error(err))
+					continue
+				}
+
+				// Parse YAML into EtcdConfig
+				var etcdConfig EtcdConfig
+				if err := yaml.Unmarshal(decoded, &etcdConfig); err != nil {
+					logger.Error("failed to parse YAML config", zap.Error(err))
+					continue
 				}
 
 				// Create a new config with the boolean flags from etcd
