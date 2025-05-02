@@ -271,6 +271,7 @@ type options struct {
 	shardsLeavingCountTowardsConsistency                bool
 	shardsLeavingAndInitializingCountTowardsConsistency bool
 	middlewareCircuitbreakerConfig                      middleware.Config
+	middlewareEnableProvider                            middleware.EnableProvider
 	newConnectionFn                                     NewConnectionFn
 	readerIteratorAllocate                              encoding.ReaderIteratorAllocate
 	writeOperationPoolSize                              pool.Size
@@ -1202,4 +1203,14 @@ func (o *options) SetThriftContextFn(value ThriftContextFn) Options {
 
 func (o *options) ThriftContextFn() ThriftContextFn {
 	return o.thriftContextFn
+}
+
+func (o *options) SetMiddlewareEnableProvider(value middleware.EnableProvider) Options {
+	opts := *o
+	opts.middlewareEnableProvider = value
+	return &opts
+}
+
+func (o *options) MiddlewareEnableProvider() middleware.EnableProvider {
+	return o.middlewareEnableProvider
 }

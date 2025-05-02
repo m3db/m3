@@ -99,6 +99,7 @@ func newHostQueue(
 		opts.InstrumentOptions().Logger(),
 		opts.InstrumentOptions().MetricsScope(),
 		host.Address(),
+		opts.MiddlewareEnableProvider(),
 	)
 	if err != nil {
 		return nil, err

@@ -360,10 +360,16 @@ func (c Configuration) NewAdminClient(
 	if len(envCfgs) > 0 {
 		kv := envCfgs[0].KVStore
 		if kv != nil {
-			// Set up middleware config watch
-			if err := cb.WatchConfig(kv, iopts.Logger()); err != nil {
-				iopts.Logger().Error("failed to set up middleware config watch", zap.Error(err))
+			// Create a single provider instance
+			provider := cb.NewEnableProvider()
+
+			// Set up circuit breaker middleware config watch
+			if err := provider.WatchConfig(kv, iopts.Logger()); err != nil {
+				iopts.Logger().Error("failed to set up circuit breaker middleware config watch", zap.Error(err))
 			}
+
+			// Set the provider in the options
+			v = v.SetMiddlewareEnableProvider(provider)
 		}
 	}
 

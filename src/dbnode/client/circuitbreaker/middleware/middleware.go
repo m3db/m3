@@ -11,13 +11,12 @@ import (
 
 // client is a client that wraps a TChannel client with a circuit breaker.
 type client struct {
-	enabled    bool
-	shadowMode bool
-	logger     *zap.Logger
-	circuit    *circuitbreaker.Circuit
-	metrics    *circuitBreakerMetrics
-	host       string
-	next       rpc.TChanNode
+	logger   *zap.Logger
+	circuit  *circuitbreaker.Circuit
+	metrics  *circuitBreakerMetrics
+	host     string
+	next     rpc.TChanNode
+	provider EnableProvider
 }
 
 // m3dbMiddleware is a function that takes a TChannel client and returns a circuit breaker client interface.
@@ -29,7 +28,7 @@ type Client interface {
 }
 
 // New creates a new circuit breaker middleware.
-func New(config Config, logger *zap.Logger, scope tally.Scope, host string) (m3dbMiddleware, error) {
+func New(config Config, logger *zap.Logger, scope tally.Scope, host string, provider EnableProvider) (m3dbMiddleware, error) {
 	c, err := circuitbreaker.NewCircuit(config.CircuitBreakerConfig)
 	if err != nil {
 		logger.Warn("failed to create circuit breaker", zap.Error(err))
@@ -38,25 +37,26 @@ func New(config Config, logger *zap.Logger, scope tally.Scope, host string) (m3d
 
 	return func(next rpc.TChanNode) Client {
 		return &client{
-			next:    next,
-			logger:  logger,
-			host:    host,
-			metrics: newMetrics(scope, host),
-			circuit: c,
+			next:     next,
+			logger:   logger,
+			host:     host,
+			metrics:  newMetrics(scope, host),
+			circuit:  c,
+			provider: provider,
 		}
 	}, nil
 }
 
 // withBreaker executes the given call with a circuit breaker if enabled.
 func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.Context, T) error) error {
-	if !IsEnabled() {
+	if !c.provider.IsEnabled() {
 		c.logger.Debug("circuit breaker disabled, calling next", zap.String("host", c.host))
 		return call(ctx, req)
 	}
 
 	if c.circuit == nil || !c.circuit.IsRequestAllowed() {
 		c.logger.Debug("circuit breaker request rejected", zap.String("host", c.host))
-		if IsShadowMode() {
+		if c.provider.IsShadowMode() {
 			c.metrics.shadowRejects.Inc(1)
 		} else {
 			c.metrics.rejects.Inc(1)
@@ -76,19 +76,19 @@ func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.C
 
 // withBreakerWithResult executes the given call with a circuit breaker if enabled and returns both result and error.
 func withBreakerWithResult[T any, R any](c *client, ctx thrift.Context, req T, call func(thrift.Context, T) (R, error)) (R, error) {
-	if !IsEnabled() {
+	if !c.provider.IsEnabled() {
 		c.logger.Debug("circuit breaker disabled, calling next", zap.String("host", c.host))
 		return call(ctx, req)
 	}
 
 	if c.circuit == nil || !c.circuit.IsRequestAllowed() {
-		if IsShadowMode() {
+		if c.provider.IsShadowMode() {
 			c.metrics.shadowRejects.Inc(1)
 		} else {
 			c.metrics.rejects.Inc(1)
 		}
 		c.logger.Debug("circuit breaker request rejected", zap.String("host", c.host))
-		if !IsShadowMode() {
+		if !c.provider.IsShadowMode() {
 			var zero R
 			return zero, circuitbreakererror.New(c.host)
 		}
