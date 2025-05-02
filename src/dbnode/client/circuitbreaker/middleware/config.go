@@ -12,8 +12,6 @@ import (
 
 // Config represents the configuration for the circuit breaker middleware.
 type Config struct {
-	Enabled              bool                  `yaml:"enabled"`
-	ShadowMode           bool                  `yaml:"shadowMode"`
 	CircuitBreakerConfig circuitbreaker.Config `yaml:"circuitBreakerConfig"`
 }
 
@@ -37,21 +35,29 @@ var (
 	configValue atomic.Value
 )
 
-// GetConfig returns the current configuration.
-func GetConfig() Config {
+// IsEnabled returns whether the circuit breaker is enabled.
+func IsEnabled() bool {
 	if v := configValue.Load(); v != nil {
-		return v.(Config)
+		config := v.(EtcdConfig)
+		return config.Enabled
 	}
-	return Config{}
+	return false
+}
+
+// IsShadowMode returns whether the circuit breaker is in shadow mode.
+func IsShadowMode() bool {
+	if v := configValue.Load(); v != nil {
+		config := v.(EtcdConfig)
+		return config.ShadowMode
+	}
+	return false
 }
 
 // WatchConfig watches for changes to the circuit breaker middleware configuration in etcd.
-// It takes a kv store, logger, and a callback function that will be called when the config changes.
-// The callback function should handle updating the middleware with the new configuration.
+// It takes a kv store and logger.
 func WatchConfig(
 	store kv.Store,
 	logger *zap.Logger,
-	onConfigChange func(Config) error,
 ) error {
 	// Watch for changes to the circuit breaker middleware configuration
 
@@ -84,18 +90,13 @@ func WatchConfig(
 				}
 
 				// Create a new config with the boolean flags from etcd
-				config := Config{
+				config := EtcdConfig{
 					Enabled:    configProto.Enabled,
 					ShadowMode: configProto.ShadowMode,
 				}
 
 				// Store the config in atomic value
 				configValue.Store(config)
-
-				// Call the callback with the new config
-				if err := onConfigChange(config); err != nil {
-					logger.Error("failed to update circuit breaker middleware configuration", zap.Error(err))
-				}
 			}
 		}
 	}()

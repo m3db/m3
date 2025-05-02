@@ -38,28 +38,25 @@ func New(config Config, logger *zap.Logger, scope tally.Scope, host string) (m3d
 
 	return func(next rpc.TChanNode) Client {
 		return &client{
-			enabled:    config.Enabled,
-			shadowMode: config.ShadowMode,
-			next:       next,
-			logger:     logger,
-			host:       host,
-			metrics:    newMetrics(scope, host),
-			circuit:    c,
+			next:    next,
+			logger:  logger,
+			host:    host,
+			metrics: newMetrics(scope, host),
+			circuit: c,
 		}
 	}, nil
 }
 
 // withBreaker executes the given call with a circuit breaker if enabled.
 func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.Context, T) error) error {
-	config := GetConfig()
-	if !config.Enabled {
+	if !IsEnabled() {
 		c.logger.Debug("circuit breaker disabled, calling next", zap.String("host", c.host))
 		return call(ctx, req)
 	}
 
 	if c.circuit == nil || !c.circuit.IsRequestAllowed() {
 		c.logger.Debug("circuit breaker request rejected", zap.String("host", c.host))
-		if config.ShadowMode {
+		if IsShadowMode() {
 			c.metrics.shadowRejects.Inc(1)
 		} else {
 			c.metrics.rejects.Inc(1)
@@ -79,20 +76,19 @@ func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.C
 
 // withBreakerWithResult executes the given call with a circuit breaker if enabled and returns both result and error.
 func withBreakerWithResult[T any, R any](c *client, ctx thrift.Context, req T, call func(thrift.Context, T) (R, error)) (R, error) {
-	config := GetConfig()
-	if !config.Enabled {
+	if !IsEnabled() {
 		c.logger.Debug("circuit breaker disabled, calling next", zap.String("host", c.host))
 		return call(ctx, req)
 	}
 
 	if c.circuit == nil || !c.circuit.IsRequestAllowed() {
-		if config.ShadowMode {
+		if IsShadowMode() {
 			c.metrics.shadowRejects.Inc(1)
 		} else {
 			c.metrics.rejects.Inc(1)
 		}
 		c.logger.Debug("circuit breaker request rejected", zap.String("host", c.host))
-		if !config.ShadowMode {
+		if !IsShadowMode() {
 			var zero R
 			return zero, circuitbreakererror.New(c.host)
 		}
