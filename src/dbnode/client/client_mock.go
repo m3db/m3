@@ -1641,6 +1641,20 @@ func (mr *MockOptionsMockRecorder) MiddlewareCircuitbreakerConfig() *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MiddlewareCircuitbreakerConfig", reflect.TypeOf((*MockOptions)(nil).MiddlewareCircuitbreakerConfig))
 }
 
+// MiddlewareEnableProvider mocks base method.
+func (m *MockOptions) MiddlewareEnableProvider() middleware.EnableProvider {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MiddlewareEnableProvider")
+	ret0, _ := ret[0].(middleware.EnableProvider)
+	return ret0
+}
+
+// MiddlewareEnableProvider indicates an expected call of MiddlewareEnableProvider.
+func (mr *MockOptionsMockRecorder) MiddlewareEnableProvider() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MiddlewareEnableProvider", reflect.TypeOf((*MockOptions)(nil).MiddlewareEnableProvider))
+}
+
 // MinConnectionCount mocks base method.
 func (m *MockOptions) MinConnectionCount() int {
 	m.ctrl.T.Helper()
@@ -2255,6 +2269,20 @@ func (m *MockOptions) SetMiddlewareCircuitbreakerConfig(cfg middleware.Config) O
 func (mr *MockOptionsMockRecorder) SetMiddlewareCircuitbreakerConfig(cfg interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMiddlewareCircuitbreakerConfig", reflect.TypeOf((*MockOptions)(nil).SetMiddlewareCircuitbreakerConfig), cfg)
+}
+
+// SetMiddlewareEnableProvider mocks base method.
+func (m *MockOptions) SetMiddlewareEnableProvider(value middleware.EnableProvider) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetMiddlewareEnableProvider", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetMiddlewareEnableProvider indicates an expected call of SetMiddlewareEnableProvider.
+func (mr *MockOptionsMockRecorder) SetMiddlewareEnableProvider(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMiddlewareEnableProvider", reflect.TypeOf((*MockOptions)(nil).SetMiddlewareEnableProvider), value)
 }
 
 // SetMinConnectionCount mocks base method.
@@ -3484,6 +3512,20 @@ func (mr *MockAdminOptionsMockRecorder) MiddlewareCircuitbreakerConfig() *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MiddlewareCircuitbreakerConfig", reflect.TypeOf((*MockAdminOptions)(nil).MiddlewareCircuitbreakerConfig))
 }
 
+// MiddlewareEnableProvider mocks base method.
+func (m *MockAdminOptions) MiddlewareEnableProvider() middleware.EnableProvider {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MiddlewareEnableProvider")
+	ret0, _ := ret[0].(middleware.EnableProvider)
+	return ret0
+}
+
+// MiddlewareEnableProvider indicates an expected call of MiddlewareEnableProvider.
+func (mr *MockAdminOptionsMockRecorder) MiddlewareEnableProvider() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MiddlewareEnableProvider", reflect.TypeOf((*MockAdminOptions)(nil).MiddlewareEnableProvider))
+}
+
 // MinConnectionCount mocks base method.
 func (m *MockAdminOptions) MinConnectionCount() int {
 	m.ctrl.T.Helper()
@@ -4196,6 +4238,20 @@ func (m *MockAdminOptions) SetMiddlewareCircuitbreakerConfig(cfg middleware.Conf
 func (mr *MockAdminOptionsMockRecorder) SetMiddlewareCircuitbreakerConfig(cfg interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMiddlewareCircuitbreakerConfig", reflect.TypeOf((*MockAdminOptions)(nil).SetMiddlewareCircuitbreakerConfig), cfg)
+}
+
+// SetMiddlewareEnableProvider mocks base method.
+func (m *MockAdminOptions) SetMiddlewareEnableProvider(value middleware.EnableProvider) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetMiddlewareEnableProvider", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetMiddlewareEnableProvider indicates an expected call of SetMiddlewareEnableProvider.
+func (mr *MockAdminOptionsMockRecorder) SetMiddlewareEnableProvider(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMiddlewareEnableProvider", reflect.TypeOf((*MockAdminOptions)(nil).SetMiddlewareEnableProvider), value)
 }
 
 // SetMinConnectionCount mocks base method.
