@@ -11,13 +11,12 @@ import (
 
 // client is a client that wraps a TChannel client with a circuit breaker.
 type client struct {
-	enabled    bool
-	shadowMode bool
-	logger     *zap.Logger
-	circuit    *circuitbreaker.Circuit
-	metrics    *circuitBreakerMetrics
-	host       string
-	next       rpc.TChanNode
+	logger   *zap.Logger
+	circuit  *circuitbreaker.Circuit
+	metrics  *circuitBreakerMetrics
+	host     string
+	next     rpc.TChanNode
+	provider EnableProvider
 }
 
 // m3dbMiddleware is a function that takes a TChannel client and returns a circuit breaker client interface.
@@ -41,7 +40,7 @@ func NewNop() m3dbMiddleware {
 }
 
 // New creates a new circuit breaker middleware.
-func New(config Config, logger *zap.Logger, scope tally.Scope, host string) (m3dbMiddleware, error) {
+func New(config Config, logger *zap.Logger, scope tally.Scope, host string, provider EnableProvider) (m3dbMiddleware, error) {
 	c, err := circuitbreaker.NewCircuit(config.CircuitBreakerConfig)
 	if err != nil {
 		logger.Warn("failed to create circuit breaker", zap.Error(err))
@@ -50,13 +49,12 @@ func New(config Config, logger *zap.Logger, scope tally.Scope, host string) (m3d
 
 	return func(next rpc.TChanNode) Client {
 		return &client{
-			enabled:    config.Enabled,
-			shadowMode: config.ShadowMode,
-			next:       next,
-			logger:     logger,
-			host:       host,
-			metrics:    newMetrics(scope, host),
-			circuit:    c,
+			next:     next,
+			logger:   logger,
+			host:     host,
+			metrics:  newMetrics(scope, host),
+			circuit:  c,
+			provider: provider,
 		}
 	}, nil
 }
@@ -64,14 +62,14 @@ func New(config Config, logger *zap.Logger, scope tally.Scope, host string) (m3d
 // withBreaker executes the given call with a circuit breaker if enabled.
 func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.Context, T) error) error {
 	// Early return if circuit breaker is disabled or not initialized
-	if !c.enabled || c.circuit == nil {
+	if !c.provider.IsEnabled() || c.circuit == nil {
 		return call(ctx, req)
 	}
 
 	// Check if request is allowed
 	if !c.circuit.IsRequestAllowed() {
 		c.logger.Debug("circuit breaker request rejected", zap.String("host", c.host))
-		if c.shadowMode {
+		if c.provider.IsShadowMode() {
 			c.metrics.shadowRejects.Inc(1)
 		} else {
 			c.metrics.rejects.Inc(1)

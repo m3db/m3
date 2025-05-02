@@ -560,6 +560,12 @@ type Options interface {
 	// MiddlewareCircuitbreakerConfig returns the middleware circuit breaker config.
 	MiddlewareCircuitbreakerConfig() middleware.Config
 
+	// SetMiddlewareEnableProvider sets the middleware enable provider.
+	SetMiddlewareEnableProvider(value middleware.EnableProvider) Options
+
+	// MiddlewareEnableProvider returns the middleware enable provider.
+	MiddlewareEnableProvider() middleware.EnableProvider
+
 	// SetTagEncoderOptions sets the TagEncoderOptions.
 	SetTagEncoderOptions(value serialize.TagEncoderOptions) Options
 

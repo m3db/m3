@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/sampler"
 	xsync "github.com/m3db/m3/src/x/sync"
+	"go.uber.org/zap"
 )
 
 const (
@@ -325,8 +326,10 @@ func (c Configuration) NewAdminClient(
 	)
 
 	var buildAsyncPool bool
+	var envCfgs environment.ConfigureResults
 	if syncTopoInit == nil {
-		envCfgs, err := c.EnvironmentConfig.Configure(cfgParams)
+		var err error
+		envCfgs, err = c.EnvironmentConfig.Configure(cfgParams)
 		if err != nil {
 			err = fmt.Errorf("unable to create topology initializer, err: %v", err)
 			return nil, err
@@ -353,6 +356,22 @@ func (c Configuration) NewAdminClient(
 		SetLogErrorSampleRate(c.LogErrorSampleRate).
 		SetLogHostWriteErrorSampleRate(c.LogHostWriteErrorSampleRate).
 		SetLogHostFetchErrorSampleRate(c.LogHostFetchErrorSampleRate)
+
+	if len(envCfgs) > 0 {
+		kv := envCfgs[0].KVStore
+		if kv != nil {
+			// Create a single provider instance
+			provider := cb.NewEnableProvider()
+
+			// Set up circuit breaker middleware config watch
+			if err := provider.WatchConfig(kv, iopts.Logger()); err != nil {
+				iopts.Logger().Error("failed to set up circuit breaker middleware config watch", zap.Error(err))
+			}
+
+			// Set the provider in the options
+			v = v.SetMiddlewareEnableProvider(provider)
+		}
+	}
 
 	if params.ClockOptions != nil {
 		v = v.SetClockOptions(params.ClockOptions)

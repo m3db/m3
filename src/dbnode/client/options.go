@@ -28,6 +28,7 @@ import (
 
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
+	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/dbnode/client/circuitbreaker/middleware"
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -270,6 +271,7 @@ type options struct {
 	shardsLeavingCountTowardsConsistency                bool
 	shardsLeavingAndInitializingCountTowardsConsistency bool
 	middlewareCircuitbreakerConfig                      middleware.Config
+	middlewareEnableProvider                            middleware.EnableProvider
 	newConnectionFn                                     NewConnectionFn
 	readerIteratorAllocate                              encoding.ReaderIteratorAllocate
 	writeOperationPoolSize                              pool.Size
@@ -814,6 +816,8 @@ func (o *options) SetShardsLeavingAndInitializingCountTowardsConsistency(value b
 }
 
 func (o *options) SetMiddlewareCircuitbreakerConfig(cfg middleware.Config) Options {
+	log := o.instrumentOpts.Logger()
+	log.Info("SetMiddlewareCircuitbreakerConfig:setting middleware circuit breaker config", zap.Any("config", cfg))
 	opts := *o
 	opts.middlewareCircuitbreakerConfig = cfg
 	return &opts
@@ -1199,4 +1203,14 @@ func (o *options) SetThriftContextFn(value ThriftContextFn) Options {
 
 func (o *options) ThriftContextFn() ThriftContextFn {
 	return o.thriftContextFn
+}
+
+func (o *options) SetMiddlewareEnableProvider(value middleware.EnableProvider) Options {
+	opts := *o
+	opts.middlewareEnableProvider = value
+	return &opts
+}
+
+func (o *options) MiddlewareEnableProvider() middleware.EnableProvider {
+	return o.middlewareEnableProvider
 }

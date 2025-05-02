@@ -97,39 +97,36 @@ func TestNewHostQueueWithCircuitBreaker(t *testing.T) {
 	defer ctrl.Finish()
 
 	tests := []struct {
-		name        string
-		config      middleware.Config
-		expectError bool
+		name           string
+		enableProvider *testEnableProvider
+		expectError    bool
 	}{
 		{
-			name: "enabled middleware",
-			config: middleware.Config{
-				Enabled: true,
-			},
-			expectError: false,
+			name:           "enabled middleware",
+			enableProvider: &testEnableProvider{enabled: true},
+			expectError:    false,
 		},
 		{
-			name: "disabled middleware",
-			config: middleware.Config{
-				Enabled: false,
-			},
-			expectError: false,
+			name:           "disabled middleware",
+			enableProvider: &testEnableProvider{enabled: false},
+			expectError:    false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := NewMockOptions(ctrl)
-			opts.EXPECT().MiddlewareCircuitbreakerConfig().Return(tt.config).AnyTimes()
+			opts.EXPECT().MiddlewareEnableProvider().Return(tt.enableProvider).AnyTimes()
 			opts.EXPECT().InstrumentOptions().Return(instrument.NewOptions()).AnyTimes()
 			opts.EXPECT().ChannelOptions().Return(nil).AnyTimes()
 
 			// Test middleware initialization
 			cbMiddleware, err := middleware.New(
-				tt.config,
+				opts.MiddlewareCircuitbreakerConfig(),
 				opts.InstrumentOptions().Logger(),
 				opts.InstrumentOptions().MetricsScope(),
 				"test-host",
+				tt.enableProvider,
 			)
 
 			if tt.expectError {

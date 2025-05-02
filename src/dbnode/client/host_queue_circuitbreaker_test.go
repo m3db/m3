@@ -22,13 +22,14 @@ package client
 
 import (
 	"errors"
+	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/dbnode/client/circuitbreaker"
+	"go.uber.org/zap"
 	"strings"
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3/src/dbnode/client/circuitbreaker"
 
 	"github.com/m3db/m3/src/dbnode/client/circuitbreaker/middleware"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
@@ -40,6 +41,23 @@ import (
 const (
 	circuitBreakerRejectMessage = "request rejected by circuit breaker of outbound-service"
 )
+
+type testEnableProvider struct {
+	enabled    bool
+	shadowMode bool
+}
+
+func (p *testEnableProvider) IsEnabled() bool {
+	return p.enabled
+}
+
+func (p *testEnableProvider) WatchConfig(store kv.Store, logger *zap.Logger) error {
+	return nil
+}
+
+func (p *testEnableProvider) IsShadowMode() bool {
+	return p.shadowMode
+}
 
 func hasCircuitBreakerError(errs []error) bool {
 	for _, err := range errs {
@@ -57,6 +75,7 @@ func TestHostQueueCircuitBreakerIntegration(t *testing.T) {
 	tests := []struct {
 		name                 string
 		circuitBreakerConfig middleware.Config
+		enableProvider       *testEnableProvider
 		failCalls            bool
 		expectedError        bool
 		numCalls             int
@@ -64,6 +83,7 @@ func TestHostQueueCircuitBreakerIntegration(t *testing.T) {
 		{
 			name:                 "circuit_breaker_disabled_-_successful_calls",
 			circuitBreakerConfig: middleware.Config{},
+			enableProvider:       &testEnableProvider{enabled: false, shadowMode: false},
 			failCalls:            false,
 			expectedError:        false,
 			numCalls:             5,
@@ -71,25 +91,22 @@ func TestHostQueueCircuitBreakerIntegration(t *testing.T) {
 		{
 			name:                 "circuit_breaker_disabled_-_failed_calls",
 			circuitBreakerConfig: middleware.Config{},
+			enableProvider:       &testEnableProvider{enabled: false, shadowMode: false},
 			failCalls:            true,
 			expectedError:        true,
 			numCalls:             5,
 		},
 		{
-			name: "circuit_breaker_enabled_-_successful_calls",
-			circuitBreakerConfig: middleware.Config{
-				Enabled:    true,
-				ShadowMode: false,
-			},
-			failCalls:     false,
-			expectedError: false,
-			numCalls:      5,
+			name:                 "circuit_breaker_enabled_-_successful_calls",
+			circuitBreakerConfig: middleware.Config{},
+			enableProvider:       &testEnableProvider{enabled: true, shadowMode: false},
+			failCalls:            false,
+			expectedError:        false,
+			numCalls:             5,
 		},
 		{
 			name: "circuit_breaker_enabled_-_failed_calls",
 			circuitBreakerConfig: middleware.Config{
-				Enabled:    true,
-				ShadowMode: false,
 				CircuitBreakerConfig: circuitbreaker.Config{
 					MinimumRequests:      1,
 					FailureRatio:         0.1,
@@ -98,15 +115,14 @@ func TestHostQueueCircuitBreakerIntegration(t *testing.T) {
 					BucketDuration:       time.Millisecond,
 				},
 			},
-			failCalls:     true,
-			expectedError: true,
-			numCalls:      5,
+			enableProvider: &testEnableProvider{enabled: true, shadowMode: false},
+			failCalls:      true,
+			expectedError:  true,
+			numCalls:       5,
 		},
 		{
 			name: "circuit_breaker_enabled_shadow_mode_-_failed_calls",
 			circuitBreakerConfig: middleware.Config{
-				Enabled:    true,
-				ShadowMode: true,
 				CircuitBreakerConfig: circuitbreaker.Config{
 					MinimumRequests:      1,
 					FailureRatio:         0.1,
@@ -115,9 +131,10 @@ func TestHostQueueCircuitBreakerIntegration(t *testing.T) {
 					BucketDuration:       time.Millisecond,
 				},
 			},
-			failCalls:     true,
-			expectedError: true,
-			numCalls:      5,
+			enableProvider: &testEnableProvider{enabled: true, shadowMode: true},
+			failCalls:      true,
+			expectedError:  true,
+			numCalls:       5,
 		},
 	}
 
@@ -129,7 +146,8 @@ func TestHostQueueCircuitBreakerIntegration(t *testing.T) {
 			opts = opts.SetHostQueueOpsFlushSize(1).
 				SetHostQueueOpsArrayPoolSize(1).
 				SetWriteBatchSize(test.numCalls).
-				SetMiddlewareCircuitbreakerConfig(test.circuitBreakerConfig)
+				SetMiddlewareCircuitbreakerConfig(test.circuitBreakerConfig).
+				SetMiddlewareEnableProvider(test.enableProvider)
 
 			hostQueue := newTestHostQueue(opts)
 			mockConnPool := NewMockconnectionPool(ctrl)
@@ -140,6 +158,7 @@ func TestHostQueueCircuitBreakerIntegration(t *testing.T) {
 				opts.InstrumentOptions().Logger(),
 				opts.InstrumentOptions().MetricsScope(),
 				"test-host",
+				test.enableProvider,
 			)
 			require.NoError(t, err)
 
@@ -194,8 +213,8 @@ func TestHostQueueCircuitBreakerIntegration(t *testing.T) {
 
 			// Check the result
 			if test.expectedError {
-				if test.circuitBreakerConfig.Enabled {
-					if test.circuitBreakerConfig.ShadowMode {
+				if test.enableProvider.IsEnabled() {
+					if test.enableProvider.IsShadowMode() {
 						// In shadow mode, we should get normal errors, not circuit breaker errors
 						assert.False(t, hasCircuitBreakerError(actualErrs), "Should not get circuit breaker errors in shadow mode")
 						for _, err := range actualErrs {
