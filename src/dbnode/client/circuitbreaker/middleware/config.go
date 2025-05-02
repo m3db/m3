@@ -78,14 +78,14 @@ func WatchConfig(
 				logger.Info("circuit breaker middleware configuration changed", zap.Any("value", value))
 
 				// Get raw bytes by unmarshaling into a StringProto
-				var stringProto commonpb.StringProto
-				if err := value.Unmarshal(&stringProto); err != nil {
+				protoValue := &commonpb.StringProto{}
+				if err := value.Unmarshal(protoValue); err != nil {
 					logger.Error("failed to unmarshal value into StringProto", zap.Error(err))
 					continue
 				}
 
 				// Decode base64 value
-				decodedValue, err := base64.StdEncoding.DecodeString(stringProto.Value)
+				decodedValue, err := base64.StdEncoding.DecodeString(protoValue.Value)
 				if err != nil {
 					logger.Error("failed to decode base64 value", zap.Error(err))
 					continue
