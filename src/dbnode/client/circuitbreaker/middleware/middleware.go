@@ -28,6 +28,18 @@ type Client interface {
 	rpc.TChanNode
 }
 
+// noopClient is a no-op implementation of the Client interface that forwards all calls
+type nopClient struct {
+	rpc.TChanNode // Embed the interface to automatically forward all methods
+}
+
+// NewNoop returns a no-op middleware that simply forwards all calls to the underlying client
+func NewNop() m3dbMiddleware {
+	return func(next rpc.TChanNode) Client {
+		return &nopClient{next}
+	}
+}
+
 // New creates a new circuit breaker middleware.
 func New(config Config, logger *zap.Logger, scope tally.Scope, host string) (m3dbMiddleware, error) {
 	c, err := circuitbreaker.NewCircuit(config.CircuitBreakerConfig)
