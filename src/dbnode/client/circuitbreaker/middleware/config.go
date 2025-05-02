@@ -1,14 +1,12 @@
 package middleware
 
 import (
-	"encoding/base64"
 	"fmt"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/dbnode/client/circuitbreaker"
 	"go.uber.org/zap"
-	yaml "gopkg.in/yaml.v2"
 )
 
 // Config represents the configuration for the circuit breaker middleware.
@@ -26,9 +24,8 @@ type EtcdConfig struct {
 
 // EtcdConfigProto is a protobuf message for the etcd config.
 type EtcdConfigProto struct {
-	Enabled    bool   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	ShadowMode bool   `protobuf:"varint,2,opt,name=shadow_mode,json=shadowMode,proto3" json:"shadow_mode,omitempty"`
-	Value      string `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
+	Enabled    bool `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	ShadowMode bool `protobuf:"varint,2,opt,name=shadow_mode,json=shadowMode,proto3" json:"shadow_mode,omitempty"`
 }
 
 func (m *EtcdConfigProto) Reset()         { *m = EtcdConfigProto{} }
@@ -73,24 +70,10 @@ func WatchConfig(
 					continue
 				}
 
-				// Decode base64 string
-				decoded, err := base64.StdEncoding.DecodeString(configProto.Value)
-				if err != nil {
-					logger.Error("failed to decode base64 config", zap.Error(err))
-					continue
-				}
-
-				// Parse YAML into EtcdConfig
-				var etcdConfig EtcdConfig
-				if err := yaml.Unmarshal(decoded, &etcdConfig); err != nil {
-					logger.Error("failed to parse YAML config", zap.Error(err))
-					continue
-				}
-
 				// Create a new config with the boolean flags from etcd
 				config := Config{
-					Enabled:    etcdConfig.Enabled,
-					ShadowMode: etcdConfig.ShadowMode,
+					Enabled:    configProto.Enabled,
+					ShadowMode: configProto.ShadowMode,
 				}
 
 				// Call the callback with the new config
