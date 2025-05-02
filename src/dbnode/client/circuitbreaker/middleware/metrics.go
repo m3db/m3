@@ -17,9 +17,9 @@ type circuitBreakerMetrics struct {
 
 func newMetrics(scope tally.Scope, host string) *circuitBreakerMetrics {
 	return &circuitBreakerMetrics{
-		rejects:       scope.Tagged(map[string]string{"host": host}).Counter("circuit_breaker_rejects"),
-		shadowRejects: scope.Tagged(map[string]string{"host": host}).Counter("circuit_breaker_shadow_rejects"),
 		successes:     scope.Tagged(map[string]string{"host": host}).Counter("circuit_breaker_successes"),
 		failures:      scope.Tagged(map[string]string{"host": host}).Counter("circuit_breaker_failures"),
+		rejects:       scope.Tagged(map[string]string{"host": host, "mode": "live"}).Counter("circuit_breaker_rejects"),
+		shadowRejects: scope.Tagged(map[string]string{"host": host, "mode": "shadow"}).Counter("circuit_breaker_rejects"),
 	}
 }
