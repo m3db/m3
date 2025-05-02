@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"sync/atomic"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/m3db/m3/src/cluster/kv"
@@ -31,6 +32,18 @@ type EtcdConfigProto struct {
 func (m *EtcdConfigProto) Reset()         { *m = EtcdConfigProto{} }
 func (m *EtcdConfigProto) String() string { return proto.CompactTextString(m) }
 func (*EtcdConfigProto) ProtoMessage()    {}
+
+var (
+	configValue atomic.Value
+)
+
+// GetConfig returns the current configuration.
+func GetConfig() Config {
+	if v := configValue.Load(); v != nil {
+		return v.(Config)
+	}
+	return Config{}
+}
 
 // WatchConfig watches for changes to the circuit breaker middleware configuration in etcd.
 // It takes a kv store, logger, and a callback function that will be called when the config changes.
@@ -75,6 +88,9 @@ func WatchConfig(
 					Enabled:    configProto.Enabled,
 					ShadowMode: configProto.ShadowMode,
 				}
+
+				// Store the config in atomic value
+				configValue.Store(config)
 
 				// Call the callback with the new config
 				if err := onConfigChange(config); err != nil {
