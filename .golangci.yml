@@ -186,7 +186,6 @@ linters:
     - gci
     - goconst
     - gocritic
-    - golint
     - gosimple
     - govet
     - ineffassign
