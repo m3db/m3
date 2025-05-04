@@ -176,6 +176,7 @@ type options struct {
 	permitsOptions                  permits.Options
 	limitsOptions                   limits.Options
 	coreFn                          xsync.CoreFn
+	tickOptions                     TickOptions
 }
 
 // NewOptions creates a new set of storage options with defaults.
@@ -932,6 +933,16 @@ func (o *options) SetCoreFn(value xsync.CoreFn) Options {
 	opts := *o
 	opts.coreFn = value
 	return &opts
+}
+
+func (o *options) SetTickOptions(value TickOptions) Options {
+	opts := *o
+	opts.tickOptions = value
+	return &opts
+}
+
+func (o *options) TickOptions() TickOptions {
+	return o.tickOptions
 }
 
 type noOpColdFlush struct{}
