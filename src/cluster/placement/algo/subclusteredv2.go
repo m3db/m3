@@ -147,7 +147,6 @@ func (a subclusteredv2) AddInstances(
 	p = p.Clone()
 	for _, instance := range instances {
 		ph, addingInstance, err := newubclusteredv2AddInstanceHelper(p, instance, a.opts, withLeavingShardsOnly)
-		fmt.Println(ph.subClusterToShardMap)
 		if err != nil {
 			return nil, err
 		}
@@ -202,9 +201,9 @@ func (a subclusteredv2) ReplaceInstances(
 			}
 		}
 
-		if err := ph.optimize(unsafe); err != nil {
-			return nil, err
-		}
+		// if err := ph.optimize(unsafe); err != nil {
+		// 	return nil, err
+		// }
 	}
 
 	p = ph.generatePlacement()

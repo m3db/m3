@@ -94,10 +94,10 @@ func TestOneNodeAtATime(t *testing.T) {
 	}
 	require.NoError(t, validateSubClusteredPlacement(p))
 
-	//i27 := placement.NewEmptyInstance("y", "r3", "z1", "endpoint", 1)
-	i28 := placement.NewEmptyInstance("aa", "r1", "z1", "endpoint", 1)
-	//i29 := placement.NewEmptyInstance("aa", "r2", "z1", "endpoint", 1)
-	p, err = algo.ReplaceInstances(p, []string{"a"}, []placement.Instance{i28})
+	i27 := placement.NewEmptyInstance("y", "r3", "z1", "endpoint", 1)
+	i28 := placement.NewEmptyInstance("z", "r1", "z1", "endpoint", 1)
+	i29 := placement.NewEmptyInstance("aa", "r2", "z1", "endpoint", 1)
+	p, err = algo.ReplaceInstances(p, []string{"r", "a", "h"}, []placement.Instance{i27, i28, i29})
 	require.NoError(t, err)
 	require.NoError(t, placement.Validate(p))
 	p, _, err = algo.MarkAllShardsAvailable(p)
@@ -111,7 +111,7 @@ func TestOneNodeAtATime(t *testing.T) {
 	}
 	require.NoError(t, validateSubClusteredPlacement(p))
 	fmt.Println("============================================================================")
-	instancesToBemoved := []string{"aa", "b", "c", "d", "e", "f"}
+	instancesToBemoved := []string{"z", "b", "c", "d", "e", "f"}
 
 	for _, i := range instancesToBemoved {
 		p, err = algo.RemoveInstances(p, []string{i})
