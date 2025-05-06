@@ -22,21 +22,6 @@ func (u UInts) Swap(i, j int) {
 	u[i], u[j] = u[j], u[i]
 }
 
-type BySubClusterIDInstanceID []placement.Instance
-
-func (a BySubClusterIDInstanceID) Len() int { return len(a) }
-
-func (a BySubClusterIDInstanceID) Less(i, j int) bool {
-	if a[i].SubClusterID() == a[j].SubClusterID() {
-		return a[i].ID() < a[j].ID()
-	}
-	return a[i].SubClusterID() < a[j].SubClusterID()
-}
-
-func (a BySubClusterIDInstanceID) Swap(i, j int) {
-	a[i], a[j] = a[j], a[i]
-}
-
 // nolint
 func TestGoodCaseSubClusters(t *testing.T) {
 	t.Skip("skipping the test")

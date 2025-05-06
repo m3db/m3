@@ -74,6 +74,9 @@ func newubclusteredv2AddInstanceHelper(
 ) (*subclusteredhelperv2, placement.Instance, error) {
 	instanceInPlacement, exist := p.Instance(instance.ID())
 	if !exist {
+		if err := assignSubClusterID(p, opts, []placement.Instance{instance}); err != nil {
+			return nil, nil, err
+		}
 		ph := newubclusteredv2Helper(p.SetInstances(append(p.Instances(), instance)), p.ReplicaFactor(), opts)
 		targetLoad := ph.getTargetSubClusterLoad(0)
 		for subClusterID := range ph.subClusters {
@@ -139,7 +142,7 @@ func newubclusteredv2RemoveInstanceHelper(
 			return nil, nil, err
 		}
 	}
-	fmt.Println(ph.subClusterToShardMap)
+	// fmt.Println(ph.subClusterToShardMap)
 
 	return ph, leavingInstance, nil
 }
@@ -166,6 +169,25 @@ func newubclusteredv2ReplaceInstanceHelper(
 		p, newAddingInstances[i], err = addInstanceToPlacement(p, instance, anyType)
 		if err != nil {
 			return nil, nil, nil, err
+		}
+	}
+
+	// Group leaving instances by subcluster ID
+	leavingBySubcluster := make(map[uint32][]placement.Instance)
+	for _, instance := range leavingInstances {
+		leavingBySubcluster[instance.SubClusterID()] = append(leavingBySubcluster[instance.SubClusterID()], instance)
+	}
+
+	// Match adding instances with leaving instances
+	for _, addingInstance := range newAddingInstances {
+		// Try to match with any subcluster that has leaving instances
+		for subclusterID, leavingInstances := range leavingBySubcluster {
+			if len(leavingInstances) > 0 {
+				addingInstance.SetSubClusterID(subclusterID)
+				// Remove one leaving instance from this subcluster
+				leavingBySubcluster[subclusterID] = leavingInstances[1:]
+				break
+			}
 		}
 	}
 	return newubclusteredv2Helper(p, p.ReplicaFactor(), opts), leavingInstances, newAddingInstances, nil

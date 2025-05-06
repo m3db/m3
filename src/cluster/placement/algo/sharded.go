@@ -53,7 +53,6 @@ func (a shardedPlacementAlgorithm) InitialPlacement(
 	shards []uint32,
 	rf int,
 ) (placement.Placement, error) {
-	fmt.Printf("We are in sharded placement algorithm initialization\n")
 	ph := newInitHelper(placement.Instances(instances).Clone(), shards, a.opts)
 	if err := ph.placeShards(newShards(shards), nil, ph.Instances()); err != nil {
 		return nil, err

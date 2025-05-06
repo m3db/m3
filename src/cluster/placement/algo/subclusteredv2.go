@@ -22,9 +22,27 @@ package algo
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/m3db/m3/src/cluster/placement"
 )
+
+// BySubClusterIDInstanceID is a type that implements sort.Interface for a slice of placement.Instance
+// It sorts instances first by subcluster ID, then by instance ID within each subcluster
+type BySubClusterIDInstanceID []placement.Instance
+
+func (a BySubClusterIDInstanceID) Len() int { return len(a) }
+
+func (a BySubClusterIDInstanceID) Less(i, j int) bool {
+	if a[i].SubClusterID() == a[j].SubClusterID() {
+		return a[i].ID() < a[j].ID()
+	}
+	return a[i].SubClusterID() < a[j].SubClusterID()
+}
+
+func (a BySubClusterIDInstanceID) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
+}
 
 type subclusteredv2 struct {
 	opts placement.Options
@@ -47,6 +65,9 @@ func (a subclusteredv2) InitialPlacement(
 	shards []uint32,
 	rf int,
 ) (placement.Placement, error) {
+	if err := assignSubClusterID(nil, a.opts, instances); err != nil {
+		return nil, err
+	}
 	ph := newSubclusteredv2InitHelper(placement.Instances(instances).Clone(), shards, a.opts)
 	if err := ph.placeShards(newShards(shards), nil, ph.Instances()); err != nil {
 		return nil, err
@@ -226,4 +247,49 @@ func (a subclusteredv2) BalanceShards(
 	}
 
 	return tryCleanupShardState(ph.generatePlacement(), a.opts)
+}
+
+func assignSubClusterID(currPlacement placement.Placement, opts placement.Options, instances []placement.Instance) error {
+	instancesPerSubcluster := opts.InstancesPerSubCluster()
+	if instancesPerSubcluster <= 0 {
+		return fmt.Errorf("instances per subcluster is not set")
+	}
+
+	// If current placement is nil, start assigning from subcluster 1
+	nextSubclusterID := uint32(1)
+	instancesInCurrentSubcluster := 0
+	if currPlacement != nil {
+		currInstances := currPlacement.Instances()
+		sort.Sort(BySubClusterIDInstanceID(currInstances))
+
+		// Count instances in each subcluster
+		subclusterCounts := make(map[uint32]int)
+		for _, instance := range currInstances {
+			subclusterCounts[instance.SubClusterID()]++
+		}
+
+		// Find the first subcluster that isn't full
+		for subclusterID := uint32(1); ; subclusterID++ {
+			count := subclusterCounts[subclusterID]
+			if count < instancesPerSubcluster {
+				nextSubclusterID = subclusterID
+				instancesInCurrentSubcluster = count
+				break
+			}
+		}
+	}
+
+	// Assign subcluster IDs to new instances
+
+	for _, instance := range instances {
+		instance.SetSubClusterID(nextSubclusterID)
+		instancesInCurrentSubcluster++
+
+		// If we've filled the current subcluster, move to the next one
+		if instancesInCurrentSubcluster >= instancesPerSubcluster {
+			nextSubclusterID++
+			instancesInCurrentSubcluster = 0
+		}
+	}
+	return nil
 }
