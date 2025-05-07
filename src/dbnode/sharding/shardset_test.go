@@ -21,6 +21,7 @@
 package sharding
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -74,4 +75,111 @@ func TestLookupShardState(t *testing.T) {
 	shardTwoState, err := ss.LookupStateByID(2)
 	require.Equal(t, ErrInvalidShardID, err)
 	require.Equal(t, noState, shardTwoState)
+}
+
+func TestEmptyShardSet(t *testing.T) {
+	ss := NewEmptyShardSet(func(id ident.ID) uint32 { return 0 })
+	require.NotNil(t, ss)
+	require.Empty(t, ss.All())
+	require.Empty(t, ss.AllIDs())
+	require.Equal(t, uint32(math.MaxUint32), ss.Min())
+	require.Equal(t, uint32(0), ss.Max())
+
+	id := ident.StringID("test")
+	shardID := ss.Lookup(id)
+	require.Equal(t, uint32(0), shardID)
+
+	_, err := ss.LookupShard(1)
+	require.Equal(t, ErrInvalidShardID, err)
+
+	_, err = ss.LookupStateByID(1)
+	require.Equal(t, ErrInvalidShardID, err)
+}
+
+func TestHashFunctions(t *testing.T) {
+	defaultFn := DefaultHashFn(10)
+	id := ident.StringID("test")
+	hash := defaultFn(id)
+	require.True(t, hash < 10)
+
+	seed := uint32(42)
+	hashFn := NewHashFn(10, seed)
+	hash1 := hashFn(id)
+	hash2 := hashFn(id)
+	require.Equal(t, hash1, hash2)
+	require.True(t, hash1 < 10)
+
+	hashGen := NewHashGenWithSeed(seed)
+	hashFn = hashGen(10)
+	hash1 = hashFn(id)
+	hash2 = hashFn(id)
+	require.Equal(t, hash1, hash2)
+	require.True(t, hash1 < 10)
+}
+
+func TestShardOperations(t *testing.T) {
+	states := []shard.State{
+		shard.Available,
+		shard.Initializing,
+		shard.Leaving,
+	}
+	for _, state := range states {
+		shards := NewShards([]uint32{1, 2, 3}, state)
+		require.Len(t, shards, 3)
+		for _, s := range shards {
+			require.Equal(t, state, s.State())
+		}
+	}
+
+	shards := NewShards([]uint32{1, 2, 3}, shard.Available)
+	ids := IDs(shards)
+	require.Equal(t, []uint32{1, 2, 3}, ids)
+}
+
+func TestShardSetEdgeCases(t *testing.T) {
+	ss, err := NewShardSet(
+		NewShards([]uint32{1}, shard.Available),
+		func(id ident.ID) uint32 { return 1 },
+	)
+	require.NoError(t, err)
+	require.Equal(t, uint32(1), ss.Min())
+	require.Equal(t, uint32(1), ss.Max())
+
+	ss, err = NewShardSet(
+		NewShards([]uint32{0, math.MaxUint32}, shard.Available),
+		func(id ident.ID) uint32 { return 0 },
+	)
+	require.NoError(t, err)
+	require.Equal(t, uint32(0), ss.Min())
+	require.Equal(t, uint32(math.MaxUint32), ss.Max())
+
+	ss, err = NewShardSet(
+		NewShards([]uint32{0}, shard.Available),
+		func(id ident.ID) uint32 { return 0 },
+	)
+	require.NoError(t, err)
+	require.Equal(t, uint32(0), ss.Min())
+	require.Equal(t, uint32(0), ss.Max())
+}
+
+func TestShardSetValidation(t *testing.T) {
+	ss, err := NewShardSet(nil, func(id ident.ID) uint32 { return 0 })
+	require.NoError(t, err)
+	require.NotNil(t, ss)
+
+	ss, err = NewShardSet([]shard.Shard{}, func(id ident.ID) uint32 { return 0 })
+	require.NoError(t, err)
+	require.NotNil(t, ss)
+
+	ss, err = NewShardSet(
+		NewShards([]uint32{1, 2, 3}, shard.Available),
+		func(id ident.ID) uint32 { return 0 },
+	)
+	require.NoError(t, err)
+
+	_, err = ss.LookupShard(999)
+	require.Equal(t, ErrInvalidShardID, err)
+
+	_, err = ss.LookupStateByID(999)
+	require.Equal(t, ErrInvalidShardID, err)
 }
