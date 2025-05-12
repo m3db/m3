@@ -172,23 +172,9 @@ func newubclusteredv2ReplaceInstanceHelper(
 		}
 	}
 
-	// Group leaving instances by subcluster ID
-	leavingBySubcluster := make(map[uint32][]placement.Instance)
-	for _, instance := range leavingInstances {
-		leavingBySubcluster[instance.SubClusterID()] = append(leavingBySubcluster[instance.SubClusterID()], instance)
-	}
-
 	// Match adding instances with leaving instances
-	for _, addingInstance := range newAddingInstances {
-		// Try to match with any subcluster that has leaving instances
-		for subclusterID, leavingInstances := range leavingBySubcluster {
-			if len(leavingInstances) > 0 {
-				addingInstance.SetSubClusterID(subclusterID)
-				// Remove one leaving instance from this subcluster
-				leavingBySubcluster[subclusterID] = leavingInstances[1:]
-				break
-			}
-		}
+	for i, addingInstance := range newAddingInstances {
+		addingInstance.SetSubClusterID(leavingInstances[i].SubClusterID())
 	}
 	return newubclusteredv2Helper(p, p.ReplicaFactor(), opts), leavingInstances, newAddingInstances, nil
 }
