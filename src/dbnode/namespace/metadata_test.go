@@ -105,3 +105,13 @@ func TestMetadataValidateRetentionErr(t *testing.T) {
 	_, err = NewMetadata(testID, testOpts1)
 	require.Error(t, err)
 }
+
+func TestForceColdWritesEnabledForMetadatas(t *testing.T) {
+	opts := NewOptions().SetColdWritesEnabled(false)
+	nsmd, err := NewMetadata(ident.StringID("some-string"), opts)
+	require.NoError(t, err)
+	mds := ForceColdWritesEnabledForMetadatas([]Metadata{nsmd})
+	for _, md := range mds {
+		require.True(t, md.Options().ColdWritesEnabled())
+	}
+}
