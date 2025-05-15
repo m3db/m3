@@ -70,4 +70,26 @@ func TestRuntimeOptionsManagerUpdate(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	assert.Equal(t, true, l.runtimeOptions().WriteNewSeriesAsync())
+
+	mgr.Close()
+}
+
+func TestNoOpOptionsManager(t *testing.T) {
+	opts := NewOptions()
+	manager := NewNoOpOptionsManager(opts)
+
+	assert.NotNil(t, manager)
+	assert.Equal(t, opts, manager.Get())
+
+	err := manager.Update(NewOptions())
+	assert.EqualError(t, err, "no-op options manager cannot update options")
+
+	assert.Equal(t, opts, manager.Get())
+
+	l := &mockListener{}
+	closer := manager.RegisterListener(l)
+	assert.NotNil(t, closer)
+	closer.Close()
+
+	manager.Close()
 }
