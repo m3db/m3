@@ -183,8 +183,8 @@ func validateSubClusteredPlacement(p placement.Placement) error {
 		}
 	}
 	for shard, igs := range shardToIGMap {
-		if len(igs) != 3 {
-			return fmt.Errorf("shardToIGMap[%d]: expected 3, actual %d", shard, len(igs))
+		if len(igs) != p.ReplicaFactor() {
+			return fmt.Errorf("shardToIGMap[%d]: expected %d, actual %d", shard, p.ReplicaFactor(), len(igs))
 		}
 	}
 	return nil

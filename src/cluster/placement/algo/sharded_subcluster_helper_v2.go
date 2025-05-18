@@ -24,7 +24,9 @@ import (
 	"container/heap"
 	"fmt"
 	"math"
+	"math/rand"
 	"sort"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -33,36 +35,44 @@ import (
 )
 
 type subclusteredhelperv2 struct {
-	targetLoad           map[string]int
-	shardToInstanceMap   map[uint32]map[placement.Instance]struct{}
-	groupToInstancesMap  map[string]map[placement.Instance]struct{}
-	subClusterToShardMap map[uint32]map[uint32]struct{}
-	groupToWeightMap     map[string]uint32
-	subClusters          map[uint32]struct{}
-	rf                   int
-	uniqueShards         []uint32
-	instances            map[string]placement.Instance
-	log                  *zap.Logger
-	opts                 placement.Options
-	totalWeight          uint32
-	maxShardSetID        uint32
+	targetLoad          map[string]int
+	shardToInstanceMap  map[uint32]map[placement.Instance]struct{}
+	groupToInstancesMap map[string]map[placement.Instance]struct{}
+	groupToWeightMap    map[string]uint32
+	subClusters         map[uint32]*subcluster
+	rf                  int
+	uniqueShards        []uint32
+	instances           map[string]placement.Instance
+	log                 *zap.Logger
+	opts                placement.Options
+	totalWeight         uint32
+	maxShardSetID       uint32
 }
 
-func newSubclusteredv2InitHelper(instances []placement.Instance, ids []uint32, opts placement.Options) *subclusteredhelperv2 {
+type subcluster struct {
+	id               uint32
+	targetShardCount int
+	instances        map[string]placement.Instance
+	shardMap         map[uint32]int
+}
+
+func newSubclusteredv2InitHelper(instances []placement.Instance, ids []uint32, opts placement.Options) (*subclusteredhelperv2, error) {
 	emptyPlacement := placement.NewPlacement().
 		SetInstances(instances).
 		SetShards(ids).
 		SetReplicaFactor(0).
 		SetIsSharded(true).
 		SetCutoverNanos(opts.PlacementCutoverNanosFn()())
-	ph := newubclusteredv2Helper(emptyPlacement, emptyPlacement.ReplicaFactor()+1, opts)
-	targetLoad := ph.getTargetSubClusterLoad(0)
-	ph.distributeInitialShards(targetLoad)
-	return ph
+	ph := newubclusteredv2Helper(emptyPlacement, emptyPlacement.ReplicaFactor()+1, opts, 0)
+	err := ph.validateInstanceWeight(instances, nil)
+	if err != nil {
+		return nil, err
+	}
+	return ph, nil
 }
 
 func newubclusteredv2ReplicaHelper(p placement.Placement, opts placement.Options) *subclusteredhelperv2 {
-	ph := newubclusteredv2Helper(p, p.ReplicaFactor()+1, opts)
+	ph := newubclusteredv2Helper(p, p.ReplicaFactor()+1, opts, 0)
 	return ph
 }
 
@@ -77,17 +87,7 @@ func newubclusteredv2AddInstanceHelper(
 		if err := assignSubClusterID(p, opts, []placement.Instance{instance}); err != nil {
 			return nil, nil, err
 		}
-		ph := newubclusteredv2Helper(p.SetInstances(append(p.Instances(), instance)), p.ReplicaFactor(), opts)
-		targetLoad := ph.getTargetSubClusterLoad(0)
-		for subClusterID := range ph.subClusters {
-			if instance.SubClusterID() == subClusterID {
-				continue
-			}
-			err := ph.moveShardsToSubCluster(subClusterID, instance.SubClusterID(), targetLoad)
-			if err != nil {
-				return nil, nil, err
-			}
-		}
+		ph := newubclusteredv2Helper(p.SetInstances(append(p.Instances(), instance)), p.ReplicaFactor(), opts, 0)
 		return ph, instance, nil
 	}
 
@@ -105,19 +105,7 @@ func newubclusteredv2AddInstanceHelper(
 		return nil, nil, fmt.Errorf("unexpected type %v", t)
 	}
 
-	ph := newubclusteredv2Helper(p, p.ReplicaFactor(), opts)
-	targetLoad := ph.getTargetSubClusterLoad(0)
-	for subClusterID := range ph.subClusters {
-		if instance.SubClusterID() == subClusterID {
-			continue
-		}
-		err := ph.moveShardsToSubCluster(subClusterID, instance.SubClusterID(), targetLoad)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-
-	return ph, instanceInPlacement, nil
+	return newubclusteredv2Helper(p, p.ReplicaFactor(), opts, 0), instanceInPlacement, nil
 }
 
 func newubclusteredv2RemoveInstanceHelper(
@@ -129,21 +117,7 @@ func newubclusteredv2RemoveInstanceHelper(
 	if err != nil {
 		return nil, nil, err
 	}
-	ph := newubclusteredv2Helper(p, p.ReplicaFactor(), opts)
-	targetLoad := ph.getTargetSubClusterLoad(leavingInstance.SubClusterID())
-	subClusters := getKeys(ph.subClusters)
-	sort.Slice(subClusters, func(i, j int) bool { return subClusters[i] < subClusters[j] })
-	for _, subClusterID := range subClusters {
-		if leavingInstance.SubClusterID() == subClusterID {
-			continue
-		}
-		err := ph.moveShardsFromSubCluster(leavingInstance.SubClusterID(), subClusterID, targetLoad)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-	// fmt.Println(ph.subClusterToShardMap)
-
+	ph := newubclusteredv2Helper(p, p.ReplicaFactor(), opts, leavingInstance.SubClusterID())
 	return ph, leavingInstance, nil
 }
 
@@ -176,10 +150,10 @@ func newubclusteredv2ReplaceInstanceHelper(
 	for i, addingInstance := range newAddingInstances {
 		addingInstance.SetSubClusterID(leavingInstances[i].SubClusterID())
 	}
-	return newubclusteredv2Helper(p, p.ReplicaFactor(), opts), leavingInstances, newAddingInstances, nil
+	return newubclusteredv2Helper(p, p.ReplicaFactor(), opts, 0), leavingInstances, newAddingInstances, nil
 }
 
-func newubclusteredv2Helper(p placement.Placement, targetRF int, opts placement.Options) *subclusteredhelperv2 {
+func newubclusteredv2Helper(p placement.Placement, targetRF int, opts placement.Options, subClusterToExclude uint32) *subclusteredhelperv2 {
 	ph := &subclusteredhelperv2{
 		rf:            targetRF,
 		instances:     make(map[string]placement.Instance, p.NumInstances()),
@@ -195,164 +169,15 @@ func newubclusteredv2Helper(p placement.Placement, targetRF int, opts placement.
 
 	ph.scanCurrentLoad()
 	ph.buildTargetLoad()
+	ph.buildTargetSubclusterLoad(subClusterToExclude)
 	return ph
-}
-
-func (ph *subclusteredhelperv2) distributeInitialShards(targetLoad map[uint32]int) {
-	if ph.subClusterToShardMap == nil {
-		ph.subClusterToShardMap = make(map[uint32]map[uint32]struct{})
-	}
-
-	sort.Slice(ph.uniqueShards, func(i, j int) bool { return ph.uniqueShards[i] < ph.uniqueShards[j] })
-	i := 0
-
-	for to, shardCount := range targetLoad {
-		if _, ok := ph.subClusterToShardMap[to]; !ok {
-			ph.subClusterToShardMap[to] = make(map[uint32]struct{})
-		}
-		if len(ph.subClusterToShardMap[to]) == shardCount {
-			return
-		}
-		for i < len(ph.uniqueShards) && len(ph.subClusterToShardMap[to]) < shardCount {
-			s := ph.uniqueShards[i]
-			if _, ok := ph.subClusterToShardMap[to][s]; !ok {
-				ph.subClusterToShardMap[to][s] = struct{}{}
-				i++
-			}
-		}
-	}
-}
-
-func (ph *subclusteredhelperv2) moveShardsFromSubCluster(from uint32, to uint32, targetCount map[uint32]int) error {
-	if from == 0 {
-		return fmt.Errorf("subClusterID cannot be zero")
-	}
-	if ph.subClusterToShardMap == nil {
-		ph.subClusterToShardMap = make(map[uint32]map[uint32]struct{})
-	}
-	if _, ok := ph.subClusterToShardMap[to]; !ok {
-		ph.subClusterToShardMap[to] = make(map[uint32]struct{})
-	}
-	for s := range ph.subClusterToShardMap[to] {
-		delete(ph.subClusterToShardMap[from], s)
-	}
-	if len(ph.subClusterToShardMap[from]) == 0 {
-		delete(ph.subClusterToShardMap, from)
-		return nil
-	}
-	if len(ph.subClusterToShardMap[to]) == targetCount[to] {
-		return nil
-	}
-
-	if len(ph.subClusterToShardMap[to]) >= targetCount[to] {
-		return nil
-	}
-
-	fromShards := ph.getSubClusterShards(from)
-	i := 0
-	for i < len(fromShards) && len(ph.subClusterToShardMap[to]) < targetCount[to] {
-		s := fromShards[i]
-		if _, exists := ph.subClusterToShardMap[to][s]; !exists {
-			ph.subClusterToShardMap[to][s] = struct{}{}
-			delete(ph.subClusterToShardMap[from], s)
-			i++
-		}
-	}
-	if len(ph.subClusterToShardMap[from]) == 0 {
-		delete(ph.subClusterToShardMap, from)
-	}
-	return nil
-}
-
-func (ph *subclusteredhelperv2) moveShardsToSubCluster(from uint32, to uint32, targetCount map[uint32]int) error {
-	if from == 0 {
-		return fmt.Errorf("subClusterID cannot be zero")
-	}
-	if ph.subClusterToShardMap == nil {
-		ph.subClusterToShardMap = make(map[uint32]map[uint32]struct{})
-	}
-	if _, ok := ph.subClusterToShardMap[to]; !ok {
-		ph.subClusterToShardMap[to] = make(map[uint32]struct{})
-	}
-	if len(ph.subClusterToShardMap[to]) == targetCount[to] {
-		return nil
-	}
-
-	if _, ok := ph.subClusterToShardMap[from]; !ok {
-		return nil
-	}
-
-	for s := range ph.subClusterToShardMap[to] {
-		delete(ph.subClusterToShardMap[from], s)
-	}
-
-	if len(ph.subClusterToShardMap[from]) <= targetCount[from] {
-		return nil
-	}
-
-	fromShards := ph.getSubClusterShards(from)
-	i := 0
-	for i < len(fromShards) && len(ph.subClusterToShardMap[from]) > targetCount[from] {
-		s := fromShards[i]
-		if _, exists := ph.subClusterToShardMap[to][s]; !exists {
-			ph.subClusterToShardMap[to][s] = struct{}{}
-			delete(ph.subClusterToShardMap[from], s)
-			i++
-		}
-	}
-	return nil
-}
-
-func (ph *subclusteredhelperv2) getSubClusterShards(subClusterID uint32) []uint32 {
-	if ph.subClusterToShardMap[subClusterID] == nil {
-		ph.subClusterToShardMap[subClusterID] = make(map[uint32]struct{})
-	}
-	shards := make([]uint32, 0, len(ph.subClusterToShardMap[subClusterID]))
-	for shardID := range ph.subClusterToShardMap[subClusterID] {
-		shards = append(shards, shardID)
-		ph.subClusterToShardMap[subClusterID][shardID] = struct{}{}
-	}
-	sort.Slice(shards, func(i, j int) bool { return shards[i] < shards[j] })
-	return shards
-}
-
-func (ph *subclusteredhelperv2) getTargetSubClusterLoad(excludeSubCluster uint32) map[uint32]int {
-	totalDivided := 0
-	totalShards := len(ph.uniqueShards)
-	subClusters := getKeys(ph.subClusters)
-	if excludeSubCluster != 0 {
-		for i, v := range subClusters {
-			if v == excludeSubCluster {
-				subClusters = append(subClusters[:i], subClusters[i+1:]...)
-				break
-			}
-		}
-	}
-	sort.Slice(subClusters, func(i, j int) bool { return subClusters[i] <= subClusters[j] })
-	targetShardsPerSubCluster := make(map[uint32]int)
-	for _, subClusterID := range subClusters {
-		targetShardsPerSubCluster[subClusterID] = int(math.Floor((float64(ph.opts.InstancesPerSubCluster()) / float64(ph.opts.InstancesPerSubCluster()*len(subClusters))) * float64(totalShards)))
-		totalDivided += targetShardsPerSubCluster[subClusterID]
-	}
-
-	diff := totalShards - totalDivided
-	for _, curr := range subClusters {
-		if diff == 0 {
-			break
-		}
-		targetShardsPerSubCluster[curr]++
-		diff--
-	}
-	return targetShardsPerSubCluster
-
 }
 
 func (ph *subclusteredhelperv2) scanCurrentLoad() {
 	ph.shardToInstanceMap = make(map[uint32]map[placement.Instance]struct{}, len(ph.uniqueShards))
 	ph.groupToInstancesMap = make(map[string]map[placement.Instance]struct{})
 	ph.groupToWeightMap = make(map[string]uint32)
-	ph.subClusterToShardMap = make(map[uint32]map[uint32]struct{})
-	ph.subClusters = make(map[uint32]struct{})
+	ph.subClusters = make(map[uint32]*subcluster)
 	totalWeight := uint32(0)
 	for _, instance := range ph.instances {
 		if _, exist := ph.groupToInstancesMap[instance.IsolationGroup()]; !exist {
@@ -365,20 +190,25 @@ func (ph *subclusteredhelperv2) scanCurrentLoad() {
 			continue
 		}
 
-		ph.subClusters[instance.SubClusterID()] = struct{}{}
+		subClusterID := instance.SubClusterID()
+		if _, exist := ph.subClusters[subClusterID]; !exist {
+			ph.subClusters[subClusterID] = &subcluster{
+				id:        subClusterID,
+				instances: make(map[string]placement.Instance),
+				shardMap:  make(map[uint32]int),
+			}
+		}
 
-		ph.groupToWeightMap[instance.IsolationGroup()] = ph.groupToWeightMap[instance.IsolationGroup()] + instance.Weight()
-		totalWeight += instance.Weight()
+		ph.groupToWeightMap[instance.IsolationGroup()] = ph.groupToWeightMap[instance.IsolationGroup()] + 1 // if we are checking that all instance weight is same than we can simply the calculation by assuming it as 1
+		totalWeight += 1
+		ph.subClusters[subClusterID].instances[instance.ID()] = instance
 
 		for _, s := range instance.Shards().All() {
 			if s.State() == shard.Leaving {
 				continue
 			}
 			ph.assignShardToInstance(s, instance)
-			if _, exist := ph.subClusterToShardMap[instance.SubClusterID()]; !exist {
-				ph.subClusterToShardMap[instance.SubClusterID()] = make(map[uint32]struct{})
-			}
-			ph.subClusterToShardMap[instance.SubClusterID()][s.ID()] = struct{}{}
+			ph.subClusters[subClusterID].shardMap[s.ID()] += 1
 		}
 	}
 	ph.totalWeight = totalWeight
@@ -415,9 +245,31 @@ func (ph *subclusteredhelperv2) buildTargetLoad() {
 	ph.targetLoad = targetLoad
 }
 
-func getKeys[K comparable, V any](m map[K]V) []K {
+func (ph *subclusteredhelperv2) buildTargetSubclusterLoad(subClusterToExclude uint32) {
+	totalShards := len(ph.uniqueShards)
+	subClusters := getKeys(ph.subClusters, subClusterToExclude)
+	sort.Slice(subClusters, func(i, j int) bool { return subClusters[i] <= subClusters[j] })
+	totalDivided := 0
+	for _, subClusterID := range subClusters {
+		ph.subClusters[subClusterID].targetShardCount = int(math.Floor(float64(totalShards) / float64(len(subClusters))))
+		totalDivided += ph.subClusters[subClusterID].targetShardCount
+	}
+	diff := totalShards - totalDivided
+	for _, curr := range subClusters {
+		if diff == 0 {
+			break
+		}
+		ph.subClusters[curr].targetShardCount++
+		diff--
+	}
+}
+
+func getKeys[K comparable, V any](m map[K]V, excludeKey K) []K {
 	keys := make([]K, 0, len(m))
 	for k := range m {
+		if k == excludeKey {
+			continue
+		}
 		keys = append(keys, k)
 	}
 	return keys // Returns zero value of K and false if map is empty
@@ -451,7 +303,9 @@ func (ph *subclusteredhelperv2) moveOneShard(from, to placement.Instance) bool {
 
 // nolint: unparam
 func (ph *subclusteredhelperv2) moveOneShardInState(from, to placement.Instance, state shard.State) bool {
-	for _, s := range from.Shards().ShardsForState(state) {
+	shards := from.Shards().ShardsForState(state)
+	shuffledShards := shuffleShards(shards)
+	for _, s := range shuffledShards {
 		if ph.moveShard(s, from, to) {
 			return true
 		}
@@ -487,6 +341,12 @@ func (ph *subclusteredhelperv2) moveShard(candidateShard shard.Shard, from, to p
 		}
 
 		delete(ph.shardToInstanceMap[shardID], from)
+		if fromsubcluster, exist := ph.subClusters[from.SubClusterID()]; exist {
+			fromsubcluster.shardMap[shardID] -= 1
+			if fromsubcluster.shardMap[shardID] == 0 {
+				delete(fromsubcluster.shardMap, shardID)
+			}
+		}
 	}
 
 	curShard, ok := to.Shards().Shard(shardID)
@@ -507,6 +367,7 @@ func (ph *subclusteredhelperv2) moveShard(candidateShard shard.Shard, from, to p
 	}
 
 	ph.assignShardToInstance(newShard, to)
+	ph.subClusters[to.SubClusterID()].shardMap[shardID] += 1
 	return true
 }
 
@@ -588,7 +449,6 @@ func (ph *subclusteredhelperv2) placeShards(
 		for instanceHeap.Len() > 0 {
 			tryInstance := heap.Pop(instanceHeap).(placement.Instance)
 			triedInstances = append(triedInstances, tryInstance)
-			// fmt.Println(fmt.Sprintf("Trying to move shard %d to instance %s", s.ID(), tryInstance.ID()))
 			if ph.moveShard(s, from, tryInstance) {
 				moved = true
 				break
@@ -750,7 +610,7 @@ func (ph *subclusteredhelperv2) assignTargetLoad(
 			heap.Push(instanceHeap, fromInstance)
 		}
 	}
-	instanceHeap, err = ph.buildInstanceHeap(nonLeavingInstances(ph.Instances()), false)
+	instanceHeap, err = ph.buildInstanceHeap(nonLeavingInstances(getSubClusterInstances(ph.Instances(), targetInstance.SubClusterID())), false)
 	if err != nil {
 		return err
 	}
@@ -774,8 +634,45 @@ func (ph *subclusteredhelperv2) canAssignInstance(shardID uint32, from, to place
 		// and i1 should be able to take it and mark it as "Available"
 		return false
 	}
-	if _, exist := ph.subClusterToShardMap[to.SubClusterID()][shardID]; !exist {
+	tosubcluster := ph.subClusters[to.SubClusterID()]
+	if tosubcluster.targetShardCount == 0 {
 		return false
+	}
+	if from != nil {
+		if from.SubClusterID() == to.SubClusterID() {
+			return ph.CanMoveShard(shardID, from, to.IsolationGroup())
+		}
+	}
+	if len(tosubcluster.shardMap) == tosubcluster.targetShardCount {
+		if _, exists := tosubcluster.shardMap[shardID]; !exists {
+			return false
+		}
+	}
+	for instance := range ph.shardToInstanceMap[shardID] {
+		if from != nil {
+			if instance.SubClusterID() == from.SubClusterID() {
+				continue
+			}
+			intersection := findMapKeyIntersection(tosubcluster.shardMap, ph.subClusters[instance.SubClusterID()].shardMap)
+			if _, exist := intersection[shardID]; exist {
+				continue
+			}
+		}
+		if instance.SubClusterID() != to.SubClusterID() {
+			return false
+		}
+	}
+	if from != nil && from.SubClusterID() != to.SubClusterID() {
+		fromsubcluster, exist := ph.subClusters[from.SubClusterID()]
+		if exist && len(fromsubcluster.shardMap) == fromsubcluster.targetShardCount {
+			return false
+		}
+		if exist && len(fromsubcluster.shardMap) > fromsubcluster.targetShardCount {
+			intersection := findMapKeyIntersection(tosubcluster.shardMap, fromsubcluster.shardMap)
+			if _, exist := intersection[shardID]; !exist && len(intersection) == (len(fromsubcluster.shardMap)-fromsubcluster.targetShardCount) {
+				return false
+			}
+		}
 	}
 	return ph.CanMoveShard(shardID, from, to.IsolationGroup())
 }
@@ -787,4 +684,83 @@ func (ph *subclusteredhelperv2) assignShardToInstance(s shard.Shard, to placemen
 		ph.shardToInstanceMap[s.ID()] = make(map[placement.Instance]struct{})
 	}
 	ph.shardToInstanceMap[s.ID()][to] = struct{}{}
+}
+
+func (ph *subclusteredhelperv2) validateInstanceWeight(newInstances []placement.Instance, existingInstances []placement.Instance) error {
+
+	// Get the weight of existing instances
+	expectedWeight := uint32(math.MaxUint32)
+	for _, instance := range existingInstances {
+		if expectedWeight == math.MaxUint32 {
+			expectedWeight = instance.Weight()
+			continue
+		}
+		if instance.Weight() != expectedWeight {
+			return fmt.Errorf("inconsistent instance weights: instance %s has weight %d, expected %d",
+				instance.ID(), instance.Weight(), expectedWeight)
+		}
+	}
+
+	for _, instance := range newInstances {
+		if expectedWeight == math.MaxUint32 {
+			expectedWeight = instance.Weight()
+			continue
+		}
+		if instance.Weight() != expectedWeight {
+			return fmt.Errorf("inconsistent instance weights: instance %s has weight %d, expected %d",
+				instance.ID(), instance.Weight(), expectedWeight)
+		}
+	}
+
+	return nil
+}
+
+func removeSubclusterInstancesFromPlacement(p placement.Placement, subclusterID uint32) (placement.Placement, []placement.Instance) {
+	instancesRemoved := []placement.Instance{}
+	for _, instance := range p.Instances() {
+		if instance.SubClusterID() == subclusterID {
+			instancesRemoved = append(instancesRemoved, instance)
+			p = p.SetInstances(removeInstanceFromList(p.Instances(), instance.ID()))
+		}
+	}
+	return p, instancesRemoved
+}
+
+// findMapKeyIntersection returns a map containing keys that exist in both input maps
+func findMapKeyIntersection(map1, map2 map[uint32]int) map[uint32]struct{} {
+	// Create a map to store keys from the first map
+	keys := make(map[uint32]struct{})
+	for k := range map1 {
+		keys[k] = struct{}{}
+	}
+
+	// Create result map for intersection
+	intersection := make(map[uint32]struct{})
+
+	// Find intersection by checking which keys from map1 exist in map2
+	for k := range map2 {
+		if _, exists := keys[k]; exists {
+			intersection[k] = struct{}{}
+		}
+	}
+
+	return intersection
+}
+
+// shuffleShards randomly shuffles a slice of shards
+func shuffleShards(shards []shard.Shard) []shard.Shard {
+	// Create a copy of the shards slice to avoid modifying the original
+	shuffled := make([]shard.Shard, len(shards))
+	copy(shuffled, shards)
+
+	// Initialize random seed
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	// Fisher-Yates shuffle algorithm
+	for i := len(shuffled) - 1; i > 0; i-- {
+		j := r.Intn(i + 1)
+		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+	}
+
+	return shuffled
 }

@@ -765,3 +765,13 @@ func removeSubClusterInstances(instances []placement.Instance, cluster uint32) [
 
 	return r
 }
+
+func getSubClusterInstances(instances []placement.Instance, subClusterID uint32) []placement.Instance {
+	r := make([]placement.Instance, 0, len(instances))
+	for _, instance := range instances {
+		if instance.SubClusterID() == subClusterID {
+			r = append(r, instance)
+		}
+	}
+	return r
+}
