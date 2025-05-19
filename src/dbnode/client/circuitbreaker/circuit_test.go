@@ -358,7 +358,6 @@ type circuitTest struct {
 	givenSuccessProbes int
 	givenFailedProbes  int
 	givenTotalRequests int
-	expectedReset      bool
 }
 
 func runCircuitTest(t *testing.T, tests []circuitTest, windowSize int, processFunc func(*Circuit)) {
@@ -420,7 +419,6 @@ func TestProcessProbingState(t *testing.T) {
 				state:           Probing,
 				probeRatioIndex: 0,
 			},
-			expectedReset: false,
 		},
 		{
 			description:        "first_ratio_probed_move_to_next_probe_ratio",
@@ -446,7 +444,6 @@ func TestProcessProbingState(t *testing.T) {
 				state:           Probing,
 				probeRatioIndex: 1,
 			},
-			expectedReset: false,
 		},
 		{
 			description:        "no_change_when_probe_ratio_reached_but_probes_are_less_than_configured_minimum_probes",
@@ -471,7 +468,6 @@ func TestProcessProbingState(t *testing.T) {
 				state:           Probing,
 				probeRatioIndex: 0,
 			},
-			expectedReset: false,
 		},
 		{
 			description:        "probe_complete_must_complete_and_move_to_healthy",
@@ -497,7 +493,6 @@ func TestProcessProbingState(t *testing.T) {
 				state:           Healthy,
 				probeRatioIndex: -1,
 			},
-			expectedReset: true,
 		},
 		{
 			description:        "probe_failure_rate_is_high_must_move_to_unhealthy",
@@ -524,7 +519,6 @@ func TestProcessProbingState(t *testing.T) {
 				probeRatioIndex: -1,
 				recoveryTimeout: time.Unix(11, 1),
 			},
-			expectedReset: true,
 		},
 		{
 			description:        "must_not_anything_when_status_not_in_probing_state",
@@ -550,7 +544,6 @@ func TestProcessProbingState(t *testing.T) {
 				state:           Healthy,
 				probeRatioIndex: -1,
 			},
-			expectedReset: false,
 		},
 	}
 	runCircuitTest(t, tests, 1, func(c *Circuit) { c.processProbingState() })
@@ -583,7 +576,6 @@ func TestProcessHealthyState(t *testing.T) {
 				state:           Healthy,
 				probeRatioIndex: -1,
 			},
-			expectedReset: false,
 		},
 		{
 			description:        "must_move_to_probing_state",
@@ -609,7 +601,6 @@ func TestProcessHealthyState(t *testing.T) {
 				state:           Probing,
 				probeRatioIndex: 0,
 			},
-			expectedReset: false,
 		},
 		{
 			description:        "must_move_to_unhealthy_state",
@@ -636,7 +627,6 @@ func TestProcessHealthyState(t *testing.T) {
 				probeRatioIndex: -1,
 				recoveryTimeout: clock.now.Add(time.Second),
 			},
-			expectedReset: true,
 		},
 	}
 	runCircuitTest(t, tests, 15, func(c *Circuit) { c.processHealthyState() })
@@ -908,12 +898,24 @@ func TestReportRequestStatus(t *testing.T) {
 
 			circuit.ReportRequestStatus(test.givenReportSuccess)
 			assertStatus(t, test.expectedStatus, circuit.status)
-			assert.Equal(t, test.expectTotalRequests, circuit.window.aggregatedCounters.totalRequests.Load(), "unexpected total requests")
-			assert.Equal(t, test.expectedTotalProbes, circuit.window.aggregatedCounters.totalProbeRequests.Load(), "unexpected total probe requests")
-			assert.Equal(t, test.expectedFailureProbeRequests, circuit.window.aggregatedCounters.failedProbeRequests.Load(), "unexpected failure probe requests")
-			assert.Equal(t, test.expectedFailureRequests, circuit.window.aggregatedCounters.failedRequests.Load(), "unexpected failure requests")
-			assert.Equal(t, test.expectedSuccessProbeRequests, circuit.window.aggregatedCounters.successfulProbeRequests.Load(), "unexpected success probe requests")
-			assert.Equal(t, test.expectedSuccessRequests, circuit.window.aggregatedCounters.successfulRequests.Load(), "unexpected success requests")
+			assert.Equal(t, test.expectTotalRequests,
+				circuit.window.aggregatedCounters.totalRequests.Load(),
+				"unexpected total requests")
+			assert.Equal(t, test.expectedTotalProbes,
+				circuit.window.aggregatedCounters.totalProbeRequests.Load(),
+				"unexpected total probe requests")
+			assert.Equal(t, test.expectedFailureProbeRequests,
+				circuit.window.aggregatedCounters.failedProbeRequests.Load(),
+				"unexpected failure probe requests")
+			assert.Equal(t, test.expectedFailureRequests,
+				circuit.window.aggregatedCounters.failedRequests.Load(),
+				"unexpected failure requests")
+			assert.Equal(t, test.expectedSuccessProbeRequests,
+				circuit.window.aggregatedCounters.successfulProbeRequests.Load(),
+				"unexpected success probe requests")
+			assert.Equal(t, test.expectedSuccessRequests,
+				circuit.window.aggregatedCounters.successfulRequests.Load(),
+				"unexpected success requests")
 		})
 	}
 }
@@ -1473,7 +1475,7 @@ func TestE2E(t *testing.T) {
 		description string
 		// now is a time where each step controls at what precise time it's requests
 		// must be dispatched. This time is set to the mock clock to simulate real
-		// behaviour.
+		// behavior.
 		now time.Time
 		// totalReqs are number of requests to be dispatched in this step.
 		totalReqs int
@@ -1602,7 +1604,9 @@ func TestE2E(t *testing.T) {
 
 		require.Equal(t, step.expectedEndState, circuit.status.State(), "unexpected state at step:%s", step.description)
 		if step.expectedEndProbeRatio != 0 {
-			assert.Equal(t, step.expectedEndProbeRatio, circuit.config.ProbeRatios[circuit.status.probeRatioIndex], "unexpected probe ratio at step:%s", step.description)
+			assert.Equal(t, step.expectedEndProbeRatio,
+				circuit.config.ProbeRatios[circuit.status.probeRatioIndex],
+				"unexpected probe ratio at step:%s", step.description)
 		}
 	}
 
