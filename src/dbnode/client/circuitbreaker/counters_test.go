@@ -14,7 +14,7 @@ func TestCountersReset(t *testing.T) {
 	})
 
 	t.Run("reset", func(t *testing.T) {
-		counters := counters{
+		testCounters := counters{
 			totalRequests:           *atomic.NewInt64(1),
 			totalProbeRequests:      *atomic.NewInt64(1),
 			successfulRequests:      *atomic.NewInt64(1),
@@ -22,13 +22,13 @@ func TestCountersReset(t *testing.T) {
 			failedRequests:          *atomic.NewInt64(1),
 			failedProbeRequests:     *atomic.NewInt64(1),
 		}
-		counters.reset()
-		assert.Zero(t, counters.failedProbeRequests.Load(), "expected failed probes to reset to 0")
-		assert.Zero(t, counters.failedRequests.Load(), "expected failed requests to reset to 0")
-		assert.Zero(t, counters.successfulProbeRequests.Load(), "expected successful probes to reset to 0")
-		assert.Zero(t, counters.successfulRequests.Load(), "expected successful requests to reset to 0")
-		assert.Zero(t, counters.totalProbeRequests.Load(), "expected total probes to reset to 0")
-		assert.Zero(t, counters.totalRequests.Load(), "expected total requests to reset to 0")
+		testCounters.reset()
+		assert.Zero(t, testCounters.failedProbeRequests.Load(), "expected failed probes to reset to 0")
+		assert.Zero(t, testCounters.failedRequests.Load(), "expected failed requests to reset to 0")
+		assert.Zero(t, testCounters.successfulProbeRequests.Load(), "expected successful probes to reset to 0")
+		assert.Zero(t, testCounters.successfulRequests.Load(), "expected successful requests to reset to 0")
+		assert.Zero(t, testCounters.totalProbeRequests.Load(), "expected total probes to reset to 0")
+		assert.Zero(t, testCounters.totalRequests.Load(), "expected total requests to reset to 0")
 	})
 }
 
