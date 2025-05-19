@@ -71,15 +71,7 @@ func TestWriteBatchRaw(t *testing.T) {
 	host := "test-host"
 
 	t.Run("circuit_breaker_disabled", func(t *testing.T) {
-		config := Config{
-			Enabled: false,
-			CircuitBreakerConfig: circuitbreaker.Config{
-				WindowSize:      15,
-				BucketDuration:  time.Second,
-				FailureRatio:    0.1,
-				MinimumRequests: 1,
-			},
-		}
+		config := newTestConfig(false, false)
 		middleware, err := New(config, logger, scope, host)
 		require.NoError(t, err)
 
@@ -123,16 +115,7 @@ func TestWriteBatchRaw(t *testing.T) {
 	})
 
 	t.Run("circuit_breaker_rejected_in_shadow_mode", func(t *testing.T) {
-		config := Config{
-			Enabled:    true,
-			ShadowMode: true,
-			CircuitBreakerConfig: circuitbreaker.Config{
-				WindowSize:      15,
-				BucketDuration:  time.Second,
-				FailureRatio:    0.1,
-				MinimumRequests: 1,
-			},
-		}
+		config := newTestConfig(true, true),
 		middleware, err := New(config, logger, scope, host)
 		require.NoError(t, err)
 
@@ -153,15 +136,7 @@ func TestWriteBatchRaw(t *testing.T) {
 	})
 
 	t.Run("circuit_breaker_success", func(t *testing.T) {
-		config := Config{
-			Enabled: true,
-			CircuitBreakerConfig: circuitbreaker.Config{
-				WindowSize:      15,
-				BucketDuration:  time.Second,
-				FailureRatio:    0.1,
-				MinimumRequests: 1,
-			},
-		}
+		config := newTestConfig(true, false)
 		middleware, err := New(config, logger, scope, host)
 		require.NoError(t, err)
 
