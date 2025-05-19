@@ -97,6 +97,8 @@ func (c *Circuit) ReportRequestStatus(success bool) {
 		}
 
 		c.processProbingState()
+	case Unhealthy:
+		// No action needed in unhealthy state
 	}
 }
 
@@ -159,6 +161,8 @@ func (c *Circuit) transitionStateIfNeeded() State {
 		// Calling the assertion here enables probe state to notice latest RPS.
 		c.processProbingState()
 		return c.status.State()
+	case Healthy:
+		// No state transition needed in healthy state
 	}
 
 	return state

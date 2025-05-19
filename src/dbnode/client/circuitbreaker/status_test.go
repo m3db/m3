@@ -74,9 +74,9 @@ func TestProbeRatio(t *testing.T) {
 
 func testTimeoutComplete(t *testing.T, name string, timeout time.Time, isComplete func(*Status) bool) {
 	t.Run("before_"+name, func(t *testing.T) {
-		mockClock := mockClock{now: time.Unix(9, 1)}
+		testClock := mockClock{now: time.Unix(9, 1)}
 		status := Status{
-			clock: &mockClock,
+			clock: &testClock,
 		}
 		if name == "probe_timeout" {
 			status.probeTimeout = timeout
@@ -87,9 +87,9 @@ func testTimeoutComplete(t *testing.T, name string, timeout time.Time, isComplet
 	})
 
 	t.Run("after_"+name, func(t *testing.T) {
-		mockClock := mockClock{now: time.Unix(10, 2)}
+		testClock := mockClock{now: time.Unix(10, 2)}
 		status := Status{
-			clock: &mockClock,
+			clock: &testClock,
 		}
 		if name == "probe_timeout" {
 			status.probeTimeout = timeout

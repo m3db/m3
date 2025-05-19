@@ -31,7 +31,7 @@ func (a *atomicMockClock) updateTime(now time.Time) {
 	a.nowInNano.Store(now.UnixNano())
 }
 
-func testBucketMethod(t *testing.T, name string, testFunc func(*testing.T, *bucket)) {
+func testBucketMethod(t *testing.T, testFunc func(*testing.T, *bucket)) {
 	t.Run("nil_bucket", func(t *testing.T) {
 		var bucket *bucket
 		testFunc(t, bucket)
@@ -60,7 +60,7 @@ func createTestBuckets(startTime int64, requestCount int64) []bucket {
 }
 
 func TestBucketIsExpired(t *testing.T) {
-	testBucketMethod(t, "isExpired", func(t *testing.T, bucket *bucket) {
+	testBucketMethod(t, func(t *testing.T, bucket *bucket) {
 		if bucket == nil {
 			require.True(t, bucket.isExpired(time.Unix(10, 0)), "expected bucket expired for nil bucket")
 			return
@@ -72,7 +72,7 @@ func TestBucketIsExpired(t *testing.T) {
 }
 
 func TestBucketShouldDrop(t *testing.T) {
-	testBucketMethod(t, "shouldDrop", func(t *testing.T, bucket *bucket) {
+	testBucketMethod(t, func(t *testing.T, bucket *bucket) {
 		if bucket == nil {
 			require.False(t, bucket.shouldDrop(time.Unix(10, 0)), "expected bucket should not drop")
 			return
