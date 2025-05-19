@@ -350,51 +350,18 @@ func TestShouldProbe(t *testing.T) {
 	}
 }
 
-type circuitTest struct {
-	description        string
-	givenConfig        Config
-	initialStatus      *Status
-	expectedStatus     *Status
-	givenSuccessProbes int
-	givenFailedProbes  int
-	givenTotalRequests int
-}
-
-func runCircuitTest(t *testing.T, tests []circuitTest, windowSize int, processFunc func(*Circuit)) {
-	clock := &mockClock{now: time.Unix(10, 1)}
-	for _, test := range tests {
-		t.Run(test.description, func(t *testing.T) {
-			circuit := Circuit{
-				config: test.givenConfig,
-				window: newSlidingWindow(windowSize, time.Second),
-				status: NewStatus(test.givenConfig),
-			}
-			circuit.status.state = test.initialStatus.state
-			circuit.status.recoveryTimeout = test.initialStatus.recoveryTimeout
-			circuit.status.probeTimeout = test.initialStatus.probeTimeout
-			circuit.status.probeRatioIndex = test.initialStatus.probeRatioIndex
-			circuit.status.clock = clock
-			circuit.window.clock = clock
-
-			// Increment appropriate counters based on test case
-			for i := 0; i < test.givenSuccessProbes; i++ {
-				circuit.window.incSuccessfulProbeRequests()
-			}
-			for i := 0; i < test.givenFailedProbes; i++ {
-				circuit.window.incFailedProbeRequests()
-			}
-			for i := 0; i < test.givenTotalRequests; i++ {
-				circuit.window.incTotalRequests()
-			}
-
-			processFunc(&circuit)
-			assertStatus(t, test.expectedStatus, circuit.status)
-		})
-	}
-}
-
 func TestProcessProbingState(t *testing.T) {
-	tests := []circuitTest{
+	clock := &mockClock{now: time.Unix(10, 1)}
+	tests := []struct {
+		description        string
+		givenSuccessProbes int
+		givenFailedProbes  int
+		givenTotalRequests int
+		givenConfig        Config
+		initialStatus      *Status
+		expectedStatus     *Status
+		expectedReset      bool
+	}{
 		{
 			description:        "no_status_change_as_reported_probes_less_than_first_ratio",
 			givenSuccessProbes: 10,
@@ -493,6 +460,7 @@ func TestProcessProbingState(t *testing.T) {
 				state:           Healthy,
 				probeRatioIndex: -1,
 			},
+			expectedReset: true,
 		},
 		{
 			description:        "probe_failure_rate_is_high_must_move_to_unhealthy",
@@ -519,6 +487,7 @@ func TestProcessProbingState(t *testing.T) {
 				probeRatioIndex: -1,
 				recoveryTimeout: time.Unix(11, 1),
 			},
+			expectedReset: true,
 		},
 		{
 			description:        "must_not_anything_when_status_not_in_probing_state",
@@ -546,24 +515,136 @@ func TestProcessProbingState(t *testing.T) {
 			},
 		},
 	}
-	runCircuitTest(t, tests, 1, func(c *Circuit) { c.processProbingState() })
+	for _, test := range tests {
+		t.Run(test.description, func(t *testing.T) {
+			circuit := Circuit{
+				config: test.givenConfig,
+				window: newSlidingWindow(1, time.Second),
+				status: NewStatus(test.givenConfig),
+			}
+			circuit.status.state = test.initialStatus.state
+			circuit.status.recoveryTimeout = test.initialStatus.recoveryTimeout
+			circuit.status.probeTimeout = test.initialStatus.probeTimeout
+			circuit.status.probeRatioIndex = test.initialStatus.probeRatioIndex
+			circuit.status.clock = clock
+			circuit.window.clock = clock
+			for i := 0; i < test.givenSuccessProbes; i++ {
+				circuit.window.incSuccessfulProbeRequests()
+			}
+
+			for i := 0; i < test.givenFailedProbes; i++ {
+				circuit.window.incFailedProbeRequests()
+			}
+
+			for i := 0; i < test.givenTotalRequests; i++ {
+				circuit.window.incTotalRequests()
+			}
+
+			circuit.processProbingState()
+			assertStatus(t, test.expectedStatus, circuit.status)
+		})
+	}
+
+	t.Run("must_not_skip_probe_ratio_when_probe_ratio_changes_concurrently", func(t *testing.T) {
+		config := Config{
+			WindowSize:           15,
+			BucketDuration:       time.Second,
+			RecoveryTime:         time.Second,
+			Jitter:               1,
+			MaxProbeTime:         time.Second * 25,
+			MinimumRequests:      1,
+			FailureRatio:         0.5,
+			ProbeRatios:          []float64{0.2, 0.4, 0.6},
+			MinimumProbeRequests: 1,
+		}
+		circuit := Circuit{
+			config: config,
+			window: newSlidingWindow(1, time.Second),
+			status: NewStatus(config),
+		}
+		circuit.status.state = Probing
+		circuit.status.probeRatioIndex = 1
+		circuit.status.clock = clock
+		circuit.window.clock = clock
+		for i := 0; i < 100; i++ {
+			circuit.window.incSuccessfulProbeRequests()
+		}
+
+		for i := 0; i < 1; i++ {
+			circuit.window.incFailedProbeRequests()
+		}
+
+		for i := 0; i < 200; i++ {
+			circuit.window.incTotalRequests()
+		}
+
+		// Simulate updating the probe ratio concurrently.
+		circuit.mu.Lock()
+		go func() {
+			// Sleep ensures that we delay changing the probe ratio, we want to ensure
+			// circuit.processProbingState() below reads the old probe ratio and waits
+			// on the mutex lock.
+			time.Sleep(time.Millisecond * 100)
+			circuit.status.moveToNextProbeRatio()
+			circuit.mu.Unlock()
+		}()
+
+		// This call reads the old probe ratio and waits on lock until the above
+		// routine updates the probe index and unlocks the mutex.
+		circuit.processProbingState()
+		assertStatus(t, &Status{state: Probing, probeRatioIndex: 2}, circuit.status)
+	})
 }
 
 func TestProcessHealthyState(t *testing.T) {
 	clock := &mockClock{now: time.Unix(10, 1)}
-	tests := []circuitTest{
+	tests := []struct {
+		description          string
+		givenSuccessRequests int
+		givenFailedRequests  int
+		givenTotalRequests   int
+		givenConfig          Config
+		initialStatus        *Status
+		expectedStatus       *Status
+		expectedReset        bool
+	}{
 		{
-			description:        "no_status_change_as_reported_requests_less_than_minimum_requests",
-			givenSuccessProbes: 10,
-			givenFailedProbes:  8,
-			givenTotalRequests: 19,
+			description:          "no_status_change_as_reported_requests_less_than_minimum_requests",
+			givenSuccessRequests: 10,
+			givenFailedRequests:  8,
+			givenTotalRequests:   19,
 			givenConfig: Config{
 				WindowSize:           15,
 				BucketDuration:       time.Second,
 				RecoveryTime:         time.Second,
 				Jitter:               1,
 				MaxProbeTime:         time.Second * 25,
-				MinimumRequests:      20,
+				MinimumRequests:      1,
+				FailureRatio:         0.5,
+				ProbeRatios:          []float64{0.2, 0.4, 0.6},
+				MinimumProbeRequests: 100,
+			},
+			initialStatus: &Status{
+				state:           Healthy,
+				probeRatioIndex: -1,
+			},
+			expectedStatus: &Status{
+				state:           Healthy,
+				probeRatioIndex: -1,
+			},
+		},
+		{
+			description:          "above_min_requests_but_error_rate_low_must_stay_healthy",
+			givenSuccessRequests: 100,
+			givenFailedRequests:  20,
+			givenTotalRequests:   200,
+			givenConfig: Config{
+				WindowSize:           15,
+				BucketDuration:       time.Second,
+				RecoveryTime:         time.Second,
+				Jitter:               1,
+				MaxProbeTime:         time.Second * 25,
+				MinimumRequests:      100,
 				FailureRatio:         0.5,
 				ProbeRatios:          []float64{0.2, 0.4, 0.6},
 				MinimumProbeRequests: 1,
@@ -578,42 +659,17 @@ func TestProcessHealthyState(t *testing.T) {
 			},
 		},
 		{
-			description:        "must_move_to_probing_state",
-			givenSuccessProbes: 10,
-			givenFailedProbes:  8,
-			givenTotalRequests: 20,
+			description:          "high_failure_rate_must_move_to_unhealthy_state",
+			givenSuccessRequests: 50,
+			givenFailedRequests:  59,
+			givenTotalRequests:   110,
 			givenConfig: Config{
 				WindowSize:           15,
 				BucketDuration:       time.Second,
 				RecoveryTime:         time.Second,
 				Jitter:               1,
 				MaxProbeTime:         time.Second * 25,
-				MinimumRequests:      20,
-				FailureRatio:         0.5,
-				ProbeRatios:          []float64{0.2, 0.4, 0.6},
-				MinimumProbeRequests: 1,
-			},
-			initialStatus: &Status{
-				state:           Healthy,
-				probeRatioIndex: -1,
-			},
-			expectedStatus: &Status{
-				state:           Probing,
-				probeRatioIndex: 0,
-			},
-		},
-		{
-			description:        "must_move_to_unhealthy_state",
-			givenSuccessProbes: 10,
-			givenFailedProbes:  10,
-			givenTotalRequests: 20,
-			givenConfig: Config{
-				WindowSize:           15,
-				BucketDuration:       time.Second,
-				RecoveryTime:         time.Second,
-				Jitter:               1,
-				MaxProbeTime:         time.Second * 25,
-				MinimumRequests:      20,
+				MinimumRequests:      100,
 				FailureRatio:         0.5,
 				ProbeRatios:          []float64{0.2, 0.4, 0.6},
 				MinimumProbeRequests: 1,
@@ -629,7 +685,35 @@ func TestProcessHealthyState(t *testing.T) {
 			},
 		},
 	}
-	runCircuitTest(t, tests, 15, func(c *Circuit) { c.processHealthyState() })
+	for _, test := range tests {
+		t.Run(test.description, func(t *testing.T) {
+			circuit := Circuit{
+				config: test.givenConfig,
+				window: newSlidingWindow(15, time.Second),
+				status: NewStatus(test.givenConfig),
+			}
+			circuit.status.state = test.initialStatus.state
+			circuit.status.recoveryTimeout = test.initialStatus.recoveryTimeout
+			circuit.status.probeTimeout = test.initialStatus.probeTimeout
+			circuit.status.probeRatioIndex = test.initialStatus.probeRatioIndex
+			circuit.status.clock = clock
+			circuit.window.clock = clock
+			for i := 0; i < test.givenSuccessRequests; i++ {
+				circuit.window.incSuccessfulRequests()
+			}
+
+			for i := 0; i < test.givenFailedRequests; i++ {
+				circuit.window.incFailedRequests()
+			}
+
+			for i := 0; i < test.givenTotalRequests; i++ {
+				circuit.window.incTotalRequests()
+			}
+
+			circuit.processHealthyState()
+			assertStatus(t, test.expectedStatus, circuit.status)
+		})
+	}
 }
 
 func TestReportRequestStatus(t *testing.T) {
@@ -898,24 +982,12 @@ func TestReportRequestStatus(t *testing.T) {
 
 			circuit.ReportRequestStatus(test.givenReportSuccess)
 			assertStatus(t, test.expectedStatus, circuit.status)
-			assert.Equal(t, test.expectTotalRequests,
-				circuit.window.aggregatedCounters.totalRequests.Load(),
-				"unexpected total requests")
-			assert.Equal(t, test.expectedTotalProbes,
-				circuit.window.aggregatedCounters.totalProbeRequests.Load(),
-				"unexpected total probe requests")
-			assert.Equal(t, test.expectedFailureProbeRequests,
-				circuit.window.aggregatedCounters.failedProbeRequests.Load(),
-				"unexpected failure probe requests")
-			assert.Equal(t, test.expectedFailureRequests,
-				circuit.window.aggregatedCounters.failedRequests.Load(),
-				"unexpected failure requests")
-			assert.Equal(t, test.expectedSuccessProbeRequests,
-				circuit.window.aggregatedCounters.successfulProbeRequests.Load(),
-				"unexpected success probe requests")
-			assert.Equal(t, test.expectedSuccessRequests,
-				circuit.window.aggregatedCounters.successfulRequests.Load(),
-				"unexpected success requests")
+			assert.Equal(t, test.expectTotalRequests, circuit.window.aggregatedCounters.totalRequests.Load(), "unexpected total requests")
+			assert.Equal(t, test.expectedTotalProbes, circuit.window.aggregatedCounters.totalProbeRequests.Load(), "unexpected total probe requests")
+			assert.Equal(t, test.expectedFailureProbeRequests, circuit.window.aggregatedCounters.failedProbeRequests.Load(), "unexpected failure probe requests")
+			assert.Equal(t, test.expectedFailureRequests, circuit.window.aggregatedCounters.failedRequests.Load(), "unexpected failure requests")
+			assert.Equal(t, test.expectedSuccessProbeRequests, circuit.window.aggregatedCounters.successfulProbeRequests.Load(), "unexpected success probe requests")
+			assert.Equal(t, test.expectedSuccessRequests, circuit.window.aggregatedCounters.successfulRequests.Load(), "unexpected success requests")
 		})
 	}
 }
@@ -1449,9 +1521,7 @@ func TestIsRequestAllowed(t *testing.T) {
 			} else if test.expectedStatus.state == Probing && test.expectedAllow {
 				expectedProbeRequests++
 			}
-			assert.Equal(t, expectedProbeRequests,
-				circuit.window.counters().totalProbeRequests.Load(),
-				"unexpected probe requests")
+			assert.Equal(t, expectedProbeRequests, circuit.window.counters().totalProbeRequests.Load(), "unexpected probe requests")
 		})
 	}
 }
@@ -1477,7 +1547,7 @@ func TestE2E(t *testing.T) {
 		description string
 		// now is a time where each step controls at what precise time it's requests
 		// must be dispatched. This time is set to the mock clock to simulate real
-		// behavior.
+		// behaviour.
 		now time.Time
 		// totalReqs are number of requests to be dispatched in this step.
 		totalReqs int
@@ -1509,41 +1579,17 @@ func TestE2E(t *testing.T) {
 		{description: "u_bucket_10", now: time.Unix(30, 1), totalReqs: 100, expectedEndState: Unhealthy},
 		// Now the time is beyond the recovery timeout (unhealthy started at 25, now it is 31)
 		// Must transition to probing state at first ratio 0.05.
-		{
-			description:           "p_bucket_11_1",
-			now:                   time.Unix(31, 1),
-			totalReqs:             5,
-			expectedEndState:      Probing,
-			expectedEndProbeRatio: 0.05,
-		},
+		{description: "p_bucket_11_1", now: time.Unix(31, 1), totalReqs: 5, expectedEndState: Probing, expectedEndProbeRatio: 0.05},
 		// Must move probing to second ratio 0.15 as this bucket has seen 11(6+5)
 		// probes which is more than the config.MinimumProbeRequests of 10 requests
 		// and the first probe ratio 0.05 of 82rps => 4requests.
-		{
-			description:           "p_bucket_11_2",
-			now:                   time.Unix(31, 2),
-			totalReqs:             6,
-			expectedEndState:      Probing,
-			expectedEndProbeRatio: 0.15,
-		},
+		{description: "p_bucket_11_2", now: time.Unix(31, 2), totalReqs: 6, expectedEndState: Probing, expectedEndProbeRatio: 0.15},
 		// Must move probing to third ratio 0.30 as this bucket has seen 21(10+6+5)
 		// probes which is more than the second probe ratio 0.15 of 84rps => 21 requests.
-		{
-			description:           "p_bucket_11_3",
-			now:                   time.Unix(31, 3),
-			totalReqs:             10,
-			expectedEndState:      Probing,
-			expectedEndProbeRatio: 0.3,
-		},
+		{description: "p_bucket_11_3", now: time.Unix(31, 3), totalReqs: 10, expectedEndState: Probing, expectedEndProbeRatio: 0.3},
 		// Must move probing to fourth ratio 0.50 as this bucket has seen 41(20+10+6+5)
 		// probes which is more than the third probe ratio 0.30 of 88rps => 27 requests.
-		{
-			description:           "p_bucket_11_3",
-			now:                   time.Unix(31, 4),
-			totalReqs:             20,
-			expectedEndState:      Probing,
-			expectedEndProbeRatio: 0.5,
-		},
+		{description: "p_bucket_11_3", now: time.Unix(31, 4), totalReqs: 20, expectedEndState: Probing, expectedEndProbeRatio: 0.5},
 		// Must transition to healthy state has last 4 buckets has seen 61(20+20+10+6+5)
 		// probes which is more than last probe ratio 0.50 of 92rps => 46 requests.
 		{description: "bucket_11_4", now: time.Unix(31, 5), totalReqs: 20, expectedEndState: Healthy},
@@ -1570,40 +1616,16 @@ func TestE2E(t *testing.T) {
 		{description: "u_bucket_28", now: time.Unix(48, 1), totalReqs: 1000, expectedEndState: Unhealthy},
 		// Must transition to probing state as it's beyond the recovery time of 5s.
 		// Must be probing at first ratio 0.05.
-		{
-			description:           "p_bucket_29",
-			now:                   time.Unix(49, 1),
-			totalReqs:             40,
-			expectedEndState:      Probing,
-			expectedEndProbeRatio: 0.05,
-		},
+		{description: "p_bucket_29", now: time.Unix(49, 1), totalReqs: 40, expectedEndState: Probing, expectedEndProbeRatio: 0.05},
 		// Must move probing to second ratio 0.15 as this bucket has seen 120(80+40)
 		// probes which is more than the first probe ratio 0.05 of 824rps (4120/5).
-		{
-			description:           "p_bucket_29_1",
-			now:                   time.Unix(49, 2),
-			totalReqs:             80,
-			expectedEndState:      Probing,
-			expectedEndProbeRatio: 0.15,
-		},
+		{description: "p_bucket_29_1", now: time.Unix(49, 2), totalReqs: 80, expectedEndState: Probing, expectedEndProbeRatio: 0.15},
 		// Must move probing to third ratio 0.30 as this bucket has seen 250(130+80+40)
 		// probes which is more than the second probe ratio 0.15 of 850rps (4250/5).
-		{
-			description:           "p_bucket_29_2",
-			now:                   time.Unix(49, 4),
-			totalReqs:             130,
-			expectedEndState:      Probing,
-			expectedEndProbeRatio: 0.30,
-		},
+		{description: "p_bucket_29_2", now: time.Unix(49, 4), totalReqs: 130, expectedEndState: Probing, expectedEndProbeRatio: 0.30},
 		// Must move probing to fourth ratio 0.50 as this bucket has seen 430(180+130+80+40)
 		// probes which is more than the second probe ratio 0.30 of 886rps (4430/5).
-		{
-			description:           "p_bucket_29_3",
-			now:                   time.Unix(49, 5),
-			totalReqs:             180,
-			expectedEndState:      Probing,
-			expectedEndProbeRatio: 0.50,
-		},
+		{description: "p_bucket_29_3", now: time.Unix(49, 5), totalReqs: 180, expectedEndState: Probing, expectedEndProbeRatio: 0.50},
 		// Must move to healthy after noticing 445 probes 460(30+180+130+80+40) in this time bucket
 		// which is more than last probe ratio of 0.5 of 892rps (4460/5).
 		{description: "bucket_29_4", now: time.Unix(49, 5), totalReqs: 30, expectedEndState: Healthy},
@@ -1654,9 +1676,7 @@ func TestE2E(t *testing.T) {
 
 		require.Equal(t, step.expectedEndState, circuit.status.State(), "unexpected state at step:%s", step.description)
 		if step.expectedEndProbeRatio != 0 {
-			assert.Equal(t, step.expectedEndProbeRatio,
-				circuit.config.ProbeRatios[circuit.status.probeRatioIndex],
-				"unexpected probe ratio at step:%s", step.description)
+			assert.Equal(t, step.expectedEndProbeRatio, circuit.config.ProbeRatios[circuit.status.probeRatioIndex], "unexpected probe ratio at step:%s", step.description)
 		}
 	}
 

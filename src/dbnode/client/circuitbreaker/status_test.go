@@ -72,40 +72,44 @@ func TestProbeRatio(t *testing.T) {
 	})
 }
 
-func testTimeoutComplete(t *testing.T, name string, timeout time.Time, isComplete func(*Status) bool) {
-	t.Run("before_"+name, func(t *testing.T) {
-		testClock := mockClock{now: time.Unix(9, 1)}
-		status := Status{
-			clock: &testClock,
-		}
-		if name == "probe_timeout" {
-			status.probeTimeout = timeout
-		} else {
-			status.recoveryTimeout = timeout
-		}
-		assert.False(t, isComplete(&status), "unexpected "+name)
-	})
-
-	t.Run("after_"+name, func(t *testing.T) {
-		testClock := mockClock{now: time.Unix(10, 2)}
-		status := Status{
-			clock: &testClock,
-		}
-		if name == "probe_timeout" {
-			status.probeTimeout = timeout
-		} else {
-			status.recoveryTimeout = timeout
-		}
-		assert.True(t, isComplete(&status), "unexpected "+name)
-	})
-}
-
 func TestProbeTimeoutComplete(t *testing.T) {
-	testTimeoutComplete(t, "probe_timeout", time.Unix(10, 1), (*Status).isProbeTimeoutComplete)
+	t.Run("before_probe_timeout", func(t *testing.T) {
+		mockClock := mockClock{now: time.Unix(9, 1)}
+		status := Status{
+			clock:        &mockClock,
+			probeTimeout: time.Unix(10, 1),
+		}
+		assert.False(t, status.isProbeTimeoutComplete(), "unexpected probe timeout")
+	})
+
+	t.Run("after_probe_timeout", func(t *testing.T) {
+		mockClock := mockClock{now: time.Unix(10, 2)}
+		status := Status{
+			clock:        &mockClock,
+			probeTimeout: time.Unix(10, 1),
+		}
+		assert.True(t, status.isProbeTimeoutComplete(), "unexpected probe timeout")
+	})
 }
 
 func TestRecoveryTimeoutComplete(t *testing.T) {
-	testTimeoutComplete(t, "recovery_timeout", time.Unix(10, 1), (*Status).isRecoveryTimeoutComplete)
+	t.Run("before_recovery_timeout", func(t *testing.T) {
+		mockClock := mockClock{now: time.Unix(9, 1)}
+		status := Status{
+			clock:           &mockClock,
+			recoveryTimeout: time.Unix(10, 1),
+		}
+		assert.False(t, status.isRecoveryTimeoutComplete(), "unexpected recovery timeout")
+	})
+
+	t.Run("after_recovery_timeout", func(t *testing.T) {
+		mockClock := mockClock{now: time.Unix(10, 2)}
+		status := Status{
+			clock:           &mockClock,
+			recoveryTimeout: time.Unix(10, 1),
+		}
+		assert.True(t, status.isRecoveryTimeoutComplete(), "unexpected recovery timeout")
+	})
 }
 
 func TestSetProbing(t *testing.T) {

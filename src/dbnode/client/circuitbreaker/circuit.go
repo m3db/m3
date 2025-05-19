@@ -97,8 +97,6 @@ func (c *Circuit) ReportRequestStatus(success bool) {
 		}
 
 		c.processProbingState()
-	case Unhealthy:
-		// No action needed in unhealthy state
 	}
 }
 
@@ -147,7 +145,7 @@ func (c *Circuit) transitionStateIfNeeded() State {
 			return c.status.State()
 		}
 
-		// Must assert the probing state behavior here to handle an edge case which
+		// Must assert the probing state behaviour here to handle an edge case which
 		// happens due to the eviction of a large RPS bucket which could delay probe
 		// state changes.
 		// Example: assume buckets with the following - [10000rps, 100rps, 100rps, 100rps]
@@ -161,8 +159,6 @@ func (c *Circuit) transitionStateIfNeeded() State {
 		// Calling the assertion here enables probe state to notice latest RPS.
 		c.processProbingState()
 		return c.status.State()
-	case Healthy:
-		// No state transition needed in healthy state
 	}
 
 	return state
