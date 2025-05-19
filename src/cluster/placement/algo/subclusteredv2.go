@@ -243,6 +243,7 @@ func (a subclusteredv2) BalanceShards(
 	p placement.Placement,
 ) (placement.Placement, error) {
 	ph := newubclusteredv2Helper(p, p.ReplicaFactor(), a.opts, 0)
+	// fmt.Println("Target load per instance:", ph.targetLoad)
 	if err := ph.optimize(unsafe); err != nil {
 		return nil, fmt.Errorf("shard balance optimization failed: %w", err)
 	}

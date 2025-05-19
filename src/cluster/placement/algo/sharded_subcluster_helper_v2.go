@@ -549,6 +549,7 @@ func (ph *subclusteredhelperv2) optimize(t optimizeType) error {
 		}
 
 		uniq[ins.ID()] = struct{}{}
+		// fmt.Printf("assigning load to instance %s, target load: %d, current load: %d, subcluster id: %d\n", ins.ID(), ph.targetLoad[ins.ID()], loadOnInstance(ins), ins.SubClusterID())
 		if err := fn(ins); err != nil {
 			return err
 		}
@@ -763,4 +764,26 @@ func shuffleShards(shards []shard.Shard) []shard.Shard {
 	}
 
 	return shuffled
+}
+
+// removeSubClusterInstances returns instances that are not in the specified subcluster
+func removeSubClusterInstances(instances []placement.Instance, subclusterID uint32) []placement.Instance {
+	var result []placement.Instance
+	for _, instance := range instances {
+		if instance.SubClusterID() != subclusterID {
+			result = append(result, instance)
+		}
+	}
+	return result
+}
+
+// getSubClusterInstances returns instances that are in the specified subcluster
+func getSubClusterInstances(instances []placement.Instance, subclusterID uint32) []placement.Instance {
+	var result []placement.Instance
+	for _, instance := range instances {
+		if instance.SubClusterID() == subclusterID {
+			result = append(result, instance)
+		}
+	}
+	return result
 }

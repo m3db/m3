@@ -50,25 +50,28 @@ func getMaxShardDiffInSubclusters(p placement.Placement) map[uint32]int {
 
 func TestSubclusteredV2AddInstances(t *testing.T) {
 	tests := []struct {
-		name             string
-		rf               int
-		instancesPerSub  int
-		subclustersToAdd int
-		shards           int
+		name                          string
+		rf                            int
+		instancesPerSub               int
+		subclustersToAdd              int
+		shards                        int
+		subclusterToAddAfterRebalance int
 	}{
 		{
-			name:             "RF=3, 6 instances per subcluster, start with 12 add 6",
-			rf:               3,
-			instancesPerSub:  6,
-			subclustersToAdd: 120,
-			shards:           4096,
+			name:                          "RF=3, 6 instances per subcluster, start with 12 add 6",
+			rf:                            3,
+			instancesPerSub:               6,
+			subclustersToAdd:              28,
+			shards:                        4096,
+			subclusterToAddAfterRebalance: 2,
 		},
 		{
-			name:             "RF=3, 9 instances per subcluster, start with 18 add 9",
-			rf:               3,
-			instancesPerSub:  9,
-			subclustersToAdd: 6,
-			shards:           128,
+			name:                          "RF=3, 9 instances per subcluster, start with 18 add 9",
+			rf:                            3,
+			instancesPerSub:               9,
+			subclustersToAdd:              6,
+			shards:                        4096,
+			subclusterToAddAfterRebalance: 5,
 		},
 	}
 
@@ -126,30 +129,39 @@ func TestSubclusteredV2AddInstances(t *testing.T) {
 			// Add instances one by one
 			currentPlacement := p
 
-			newPlacement, err := algo.AddInstances(currentPlacement, newInstances)
-			require.NoError(t, err)
-			require.NotNil(t, newPlacement)
+			for i := 0; i < len(newInstances); i++ {
+				newPlacement, err := algo.AddInstances(currentPlacement, []placement.Instance{newInstances[i]})
+				require.NoError(t, err)
+				require.NotNil(t, newPlacement)
+				currentPlacement = newPlacement
+			}
 
 			// Verify the placement after addition
-			require.NoError(t, placement.Validate(newPlacement))
 
-			newPlacement, marked, err = algo.MarkAllShardsAvailable(newPlacement)
+			// Verify the placement after addition
+			require.NoError(t, placement.Validate(currentPlacement))
+
+			currentPlacement, marked, err = algo.MarkAllShardsAvailable(currentPlacement)
 			require.NoError(t, err)
 			require.True(t, marked)
 
-			currentPlacement = newPlacement
 			require.NoError(t, validateSubClusteredPlacement(currentPlacement))
+			printPlacement(currentPlacement)
 
 			// Get max shard differences before rebalancing
 			beforeRebalanceDiffs := getMaxShardDiffInSubclusters(currentPlacement)
 			maxBeforeDiff := 0
+			maxBeforeDiffGtTen := 0
 			for _, diff := range beforeRebalanceDiffs {
 				if diff > maxBeforeDiff {
 					maxBeforeDiff = diff
 				}
+				if diff > 10 {
+					maxBeforeDiffGtTen++
+				}
 			}
 			t.Logf("Maximum shard difference before rebalancing: %d", maxBeforeDiff)
-
+			t.Logf("Number of subclusters with more than 10 shard differences: %d", maxBeforeDiffGtTen)
 			balancedplacement := currentPlacement.Clone()
 
 			balancedplacement, err = algo.BalanceShards(balancedplacement)
@@ -172,6 +184,44 @@ func TestSubclusteredV2AddInstances(t *testing.T) {
 			// Final validation after all additions
 			require.NoError(t, placement.Validate(balancedplacement))
 			require.NoError(t, validateSubClusteredPlacement(balancedplacement))
+
+			if tt.subclusterToAddAfterRebalance > 0 {
+				instancesToAdd := make([]placement.Instance, tt.instancesPerSub*tt.subclusterToAddAfterRebalance)
+				for i := 0; i < (tt.instancesPerSub * tt.subclusterToAddAfterRebalance); i++ {
+					instancesToAdd[i] = placement.NewInstance().
+						SetID(fmt.Sprintf("RI%d", tt.instancesPerSub+i)).
+						SetIsolationGroup(fmt.Sprintf("R%d", (tt.instancesPerSub+i)%tt.rf)).
+						SetWeight(1).
+						SetEndpoint(fmt.Sprintf("E%d", tt.instancesPerSub+i)).
+						SetShards(shard.NewShards(nil))
+				}
+				newPlacement, err := algo.AddInstances(balancedplacement, instancesToAdd)
+				require.NoError(t, err)
+				require.NotNil(t, newPlacement)
+				balancedplacement = newPlacement
+
+				balancedplacement, marked, err = algo.MarkAllShardsAvailable(balancedplacement)
+				require.NoError(t, err)
+				require.True(t, marked)
+
+				require.NoError(t, validateSubClusteredPlacement(balancedplacement))
+				printPlacement(balancedplacement)
+
+				beforeRebalanceDiffs := getMaxShardDiffInSubclusters(currentPlacement)
+				maxBeforeDiff := 0
+				maxBeforeDiffGtTen := 0
+				for _, diff := range beforeRebalanceDiffs {
+					if diff > maxBeforeDiff {
+						maxBeforeDiff = diff
+					}
+					if diff > 10 {
+						maxBeforeDiffGtTen++
+					}
+				}
+				t.Logf("Maximum shard difference before rebalancing: %d", maxBeforeDiff)
+				t.Logf("Number of subclusters with more than 10 shard differences: %d", maxBeforeDiffGtTen)
+
+			}
 		})
 	}
 }

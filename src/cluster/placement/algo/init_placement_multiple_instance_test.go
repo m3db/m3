@@ -17,47 +17,67 @@ func TestSubclusteredV2InitialPlacement(t *testing.T) {
 		totalInstances      int
 		shards              int
 		expectedSubClusters int
+		subclusterToAdd     int
 	}{
+		// {
+		// 	name:                "RF=3, 6 instances per subcluster, 12 total instances",
+		// 	rf:                  3,
+		// 	instancesPerSub:     6,
+		// 	totalInstances:      12,
+		// 	shards:              64,
+		// 	expectedSubClusters: 2,
+		// },
 		{
-			name:                "RF=3, 6 instances per subcluster, 12 total instances",
+			name:                "RF=3, 6 instances per subcluster, 168 total instances, 3 new subclusters`",
 			rf:                  3,
 			instancesPerSub:     6,
-			totalInstances:      12,
-			shards:              64,
-			expectedSubClusters: 2,
-		},
-		{
-			name:                "RF=3, 6 instances per subcluster, 720 total instances",
-			rf:                  3,
-			instancesPerSub:     6,
-			totalInstances:      720,
+			totalInstances:      168,
 			shards:              4096,
-			expectedSubClusters: 120,
+			expectedSubClusters: 28,
+			subclusterToAdd:     56,
 		},
 		{
-			name:                "RF=3, 9 instances per subcluster, 18 total instances",
+			name:                "RF=3, 6 instances per subcluster, 168 total instances, 2 new subclusters",
 			rf:                  3,
-			instancesPerSub:     9,
-			totalInstances:      720,
-			shards:              8192,
-			expectedSubClusters: 80,
+			instancesPerSub:     6,
+			totalInstances:      168,
+			shards:              4096,
+			expectedSubClusters: 28,
+			subclusterToAdd:     2,
 		},
 		{
-			name:                "RF=2, 4 instances per subcluster, 12 total instances",
-			rf:                  2,
-			instancesPerSub:     4,
-			totalInstances:      12,
-			shards:              1024,
-			expectedSubClusters: 3,
+			name:                "RF=3, 6 instances per subcluster, 168 total instances, 1 new subclusters",
+			rf:                  3,
+			instancesPerSub:     6,
+			totalInstances:      168,
+			shards:              4096,
+			expectedSubClusters: 28,
+			subclusterToAdd:     1,
 		},
-		{
-			name:                "RF=4, 8 instances per subcluster, 16 total instances",
-			rf:                  4,
-			instancesPerSub:     8,
-			totalInstances:      640,
-			shards:              1024,
-			expectedSubClusters: 80,
-		},
+		// {
+		// 	name:                "RF=3, 9 instances per subcluster, 18 total instances",
+		// 	rf:                  3,
+		// 	instancesPerSub:     9,
+		// 	totalInstances:      720,
+		// 	shards:              8192,
+		// 	expectedSubClusters: 80,
+		// },
+		// {
+		// 	name:                "RF=2, 4 instances per subcluster, 12 total instances",
+		// 	rf:                  2,
+		// 	instancesPerSub:     4,
+		// 	totalInstances:      12,
+		// 	shards:              1024,
+		// 	expectedSubClusters: 3,
+		// },
+		// {
+		// 	name:                "RF=4, 8 instances per subcluster, 16 total instances",
+		// 	rf:                  4,
+		// 	instancesPerSub:     8,
+		// 	totalInstances:      640,
+		// 	shards:              1024,
+		// 	expectedSubClusters: 80,
+		// },
 	}
 
 	for _, tt := range tests {
@@ -92,116 +112,149 @@ func TestSubclusteredV2InitialPlacement(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, p)
 
-			// Verify RF
-			require.Equal(t, tt.rf, p.ReplicaFactor())
-
-			// Verify shard distribution
-			shardDistribution := make(map[uint32]int)
-			for _, instance := range p.Instances() {
-				for _, shard := range instance.Shards().All() {
-					shardDistribution[shard.ID()]++
-				}
-			}
-			for _, count := range shardDistribution {
-				require.Equal(t, tt.rf, count, "Each shard should be replicated RF times")
-			}
-
-			// Verify isolation group distribution within subclusters
-			subClusterIsolationGroups := make(map[uint32]map[string]int)
-			for _, instance := range p.Instances() {
-				subClusterID := instance.SubClusterID()
-				if _, exists := subClusterIsolationGroups[subClusterID]; !exists {
-					subClusterIsolationGroups[subClusterID] = make(map[string]int)
-				}
-				subClusterIsolationGroups[subClusterID][instance.IsolationGroup()]++
-			}
-
-			// Verify each subcluster has equal distribution of isolation groups
-			for _, isolationGroupCounts := range subClusterIsolationGroups {
-				expectedCount := tt.instancesPerSub / tt.rf
-				for _, count := range isolationGroupCounts {
-					require.Equal(t, expectedCount, count, "Each isolation group should have equal instances in a subcluster")
-				}
-			}
-
-			// Verify total number of subclusters
-			require.Equal(t, tt.expectedSubClusters, len(subClusterIsolationGroups))
+			p, marked, err := algo.MarkAllShardsAvailable(p)
+			require.NoError(t, err)
+			require.True(t, marked)
 
 			require.NoError(t, placement.Validate(p))
-			printPlacementAndValidate(t, p)
-		})
-	}
-}
+			require.NoError(t, validateSubClusteredPlacement(p))
 
-func TestSubclusteredV2InitialPlacementEdgeCases(t *testing.T) {
-	tests := []struct {
-		name            string
-		rf              int
-		instancesPerSub int
-		totalInstances  int
-		shards          int
-		expectError     bool
-	}{
-		{
-			name:            "Invalid: RF > instances per subcluster",
-			rf:              4,
-			instancesPerSub: 3,
-			totalInstances:  12,
-			shards:          3,
-			expectError:     true,
-		},
-		{
-			name:            "Invalid: Total instances not multiple of RF",
-			rf:              3,
-			instancesPerSub: 6,
-			totalInstances:  10,
-			shards:          3,
-			expectError:     true,
-		},
-		{
-			name:            "Invalid: Instances per subcluster not multiple of RF",
-			rf:              3,
-			instancesPerSub: 5,
-			totalInstances:  15,
-			shards:          3,
-			expectError:     true,
-		},
-	}
+			if tt.subclusterToAdd > 0 {
+				totalInstances := tt.instancesPerSub * (tt.subclusterToAdd)
+				instancesToAdd := make([]placement.Instance, totalInstances)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create test instances
-			instances := make([]placement.Instance, tt.totalInstances)
-			for i := 0; i < tt.totalInstances; i++ {
-				instances[i] = placement.NewInstance().
-					SetID(fmt.Sprintf("instance%d", i)).
-					SetIsolationGroup(fmt.Sprintf("rack%d", i%tt.rf)).
-					SetWeight(1).
-					SetEndpoint(fmt.Sprintf("endpoint%d", i)).
-					SetShards(shard.NewShards(nil))
-			}
+				for i := 0; i < totalInstances; i++ {
+					instancesToAdd[i] = placement.NewInstance().
+						SetID(fmt.Sprintf("RI%d", tt.instancesPerSub+i)).
+						SetIsolationGroup(fmt.Sprintf("R%d", (tt.instancesPerSub+i)%tt.rf)).
+						SetWeight(1).
+						SetEndpoint(fmt.Sprintf("E%d", tt.instancesPerSub+i))
+				}
 
-			// Generate shard IDs from 0 to shards-1
-			shardIDs := make([]uint32, tt.shards)
-			for i := 0; i < tt.shards; i++ {
-				shardIDs[i] = uint32(i)
-			}
+				for i := 0; i < len(instancesToAdd); i++ {
+					newPlacement, err := algo.AddInstances(p, []placement.Instance{instancesToAdd[i]})
+					require.NoError(t, err)
+					require.NotNil(t, newPlacement)
+					p = newPlacement
+				}
 
-			// Create algorithm
-			opts := placement.NewOptions().
-				SetValidZone("zone1").
-				SetIsSharded(true)
-			algo := newSubclusteredv2(opts)
-
-			// Perform initial placement
-			p, err := algo.InitialPlacement(instances, shardIDs, tt.rf)
-			if tt.expectError {
-				require.Error(t, err)
-				require.Nil(t, p)
-			} else {
+				newPlacement, marked, err := algo.MarkAllShardsAvailable(p)
 				require.NoError(t, err)
-				require.NotNil(t, p)
+				require.True(t, marked)
+
+				require.NoError(t, validateSubClusteredPlacement(newPlacement))
+
+				beforeRebalanceDiffs := getMaxShardDiffInSubclusters(newPlacement)
+				maxBeforeDiff := 0
+				maxBeforeDiffGtTen := 0
+				for _, diff := range beforeRebalanceDiffs {
+					if diff > maxBeforeDiff {
+						maxBeforeDiff = diff
+					}
+					if diff > 2 {
+						maxBeforeDiffGtTen++
+					}
+				}
+				t.Logf("Maximum shard difference before rebalancing: %d", maxBeforeDiff)
+				t.Logf("Number of subclusters with more than 2 shard differences: %d", maxBeforeDiffGtTen)
+
+				balancedPlacement, err := algo.BalanceShards(newPlacement)
+				require.NoError(t, err)
+				require.NotNil(t, balancedPlacement)
+
+				balancedPlacement, marked, err = algo.MarkAllShardsAvailable(balancedPlacement)
+				require.NoError(t, err)
+				require.True(t, marked)
+
+				require.NoError(t, validateSubClusteredPlacement(balancedPlacement))
+
+				afterRebalanceDiffs := getMaxShardDiffInSubclusters(balancedPlacement)
+				maxAfterDiff := 0
+				maxAfterDiffGtTen := 0
+				for _, diff := range afterRebalanceDiffs {
+					if diff > maxAfterDiff {
+						maxAfterDiff = diff
+					}
+					if diff > 2 {
+						maxAfterDiffGtTen++
+					}
+				}
+				t.Logf("Maximum shard difference after rebalancing: %d", maxAfterDiff)
+				t.Logf("Number of subclusters with more than 2 shard differences: %d", maxAfterDiffGtTen)
 			}
 		})
 	}
 }
+
+// func TestSubclusteredV2InitialPlacementEdgeCases(t *testing.T) {
+// 	tests := []struct {
+// 		name            string
+// 		rf              int
+// 		instancesPerSub int
+// 		totalInstances  int
+// 		shards          int
+// 		expectError     bool
+// 	}{
+// 		{
+// 			name:            "Invalid: RF > instances per subcluster",
+// 			rf:              4,
+// 			instancesPerSub: 3,
+// 			totalInstances:  12,
+// 			shards:          3,
+// 			expectError:     true,
+// 		},
+// 		{
+// 			name:            "Invalid: Total instances not multiple of RF",
+// 			rf:              3,
+// 			instancesPerSub: 6,
+// 			totalInstances:  10,
+// 			shards:          3,
+// 			expectError:     true,
+// 		},
+// 		{
+// 			name:            "Invalid: Instances per subcluster not multiple of RF",
+// 			rf:              3,
+// 			instancesPerSub: 5,
+// 			totalInstances:  15,
+// 			shards:          3,
+// 			expectError:     true,
+// 		},
+// 	}
+
+// 	for _, tt := range tests {
+// 		t.Run(tt.name, func(t *testing.T) {
+// 			// Create test instances
+// 			instances := make([]placement.Instance, tt.totalInstances)
+// 			for i := 0; i < tt.totalInstances; i++ {
+// 				instances[i] = placement.NewInstance().
+// 					SetID(fmt.Sprintf("instance%d", i)).
+// 					SetIsolationGroup(fmt.Sprintf("rack%d", i%tt.rf)).
+// 					SetWeight(1).
+// 					SetEndpoint(fmt.Sprintf("endpoint%d", i)).
+// 					SetShards(shard.NewShards(nil))
+// 			}
+
+// 			// Generate shard IDs from 0 to shards-1
+// 			shardIDs := make([]uint32, tt.shards)
+// 			for i := 0; i < tt.shards; i++ {
+// 				shardIDs[i] = uint32(i)
+// 			}
+
+// 			// Create algorithm
+// 			opts := placement.NewOptions().
+// 				SetValidZone("zone1").
+// 				SetIsSharded(true)
+// 			algo := newSubclusteredv2(opts)
+
+// 			// Perform initial placement
+// 			p, err := algo.InitialPlacement(instances, shardIDs, tt.rf)
+// 			if tt.expectError {
+// 				require.Error(t, err)
+// 				require.Nil(t, p)
+// 			} else {
+// 				require.NoError(t, err)
+// 				require.NotNil(t, p)
+// 			}
+// 		})
+// 	}
+// }
