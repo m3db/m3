@@ -35,7 +35,7 @@ type nopClient struct {
 }
 
 // NewNoop returns a no-op middleware that simply forwards all calls to the underlying client
-func NewNop() m3dbMiddleware {
+func NewNop() M3DBMiddleware {
 	return func(next rpc.TChanNode) Client {
 		return &nopClient{next}
 	}

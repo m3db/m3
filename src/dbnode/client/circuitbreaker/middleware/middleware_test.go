@@ -11,7 +11,7 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 
-	"github.com/m3db/m3/src/dbnode/client/circuitbreaker/internal/circuitbreaker"
+	"github.com/m3db/m3/src/dbnode/client/circuitbreaker"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 )
 

@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
+	"go.uber.org/zap"
 )
 
 const _defaultHostQueueOpsArraySize = 8
@@ -94,14 +95,21 @@ func newHostQueue(
 	opts = opts.SetInstrumentOptions(iOpts.SetMetricsScope(scope))
 
 	// Create circuit breaker middleware
-	cbMiddleware, err := middleware.New(
-		opts.MiddlewareCircuitbreakerConfig(),
-		opts.InstrumentOptions().Logger(),
-		opts.InstrumentOptions().MetricsScope(),
-		host.Address(),
-	)
-	if err != nil {
-		return nil, err
+	var middlewareFn middleware.M3DBMiddleware
+	if opts.MiddlewareCircuitbreakerConfig().Enabled {
+		var err error
+		middlewareFn, err = middleware.New(
+			opts.MiddlewareCircuitbreakerConfig(),
+			opts.InstrumentOptions().Logger(),
+			scope,
+			host.Address(),
+		)
+		if err != nil {
+			opts.InstrumentOptions().Logger().Warn("failed to create circuit breaker middleware", zap.Error(err))
+			return nil, err
+		}
+	} else {
+		middlewareFn = middleware.NewNop()
 	}
 
 	// Create a wrapped connection function that applies the circuit breaker
@@ -110,7 +118,7 @@ func newHostQueue(
 		if err != nil {
 			return nil, nil, err
 		}
-		return channel, cbMiddleware(client), nil
+		return channel, middlewareFn(client), nil
 	}
 
 	// Set the wrapped connection function in the options
