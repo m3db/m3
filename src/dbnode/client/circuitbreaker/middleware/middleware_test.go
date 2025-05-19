@@ -115,7 +115,7 @@ func TestWriteBatchRaw(t *testing.T) {
 	})
 
 	t.Run("circuit_breaker_rejected_in_shadow_mode", func(t *testing.T) {
-		config := newTestConfig(true, true),
+		config := newTestConfig(true, true)
 		middleware, err := New(config, logger, scope, host)
 		require.NoError(t, err)
 
