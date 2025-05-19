@@ -1,8 +1,9 @@
 package circuitbreakererror
 
 import (
-	xerrors "github.com/m3db/m3/src/x/errors"
 	"strings"
+
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 // circuitBreakerError is an error type that indicates a circuit breaker error.
