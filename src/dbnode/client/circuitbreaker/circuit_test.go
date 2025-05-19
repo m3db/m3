@@ -982,12 +982,24 @@ func TestReportRequestStatus(t *testing.T) {
 
 			circuit.ReportRequestStatus(test.givenReportSuccess)
 			assertStatus(t, test.expectedStatus, circuit.status)
-			assert.Equal(t, test.expectTotalRequests, circuit.window.aggregatedCounters.totalRequests.Load(), "unexpected total requests")
-			assert.Equal(t, test.expectedTotalProbes, circuit.window.aggregatedCounters.totalProbeRequests.Load(), "unexpected total probe requests")
-			assert.Equal(t, test.expectedFailureProbeRequests, circuit.window.aggregatedCounters.failedProbeRequests.Load(), "unexpected failure probe requests")
-			assert.Equal(t, test.expectedFailureRequests, circuit.window.aggregatedCounters.failedRequests.Load(), "unexpected failure requests")
-			assert.Equal(t, test.expectedSuccessProbeRequests, circuit.window.aggregatedCounters.successfulProbeRequests.Load(), "unexpected success probe requests")
-			assert.Equal(t, test.expectedSuccessRequests, circuit.window.aggregatedCounters.successfulRequests.Load(), "unexpected success requests")
+			assert.Equal(t, test.expectTotalRequests,
+				circuit.window.aggregatedCounters.totalRequests.Load(),
+				"unexpected total requests")
+			assert.Equal(t, test.expectedTotalProbes,
+				circuit.window.aggregatedCounters.totalProbeRequests.Load(),
+				"unexpected total probe requests")
+			assert.Equal(t, test.expectedFailureProbeRequests,
+				circuit.window.aggregatedCounters.failedProbeRequests.Load(),
+				"unexpected failure probe requests")
+			assert.Equal(t, test.expectedFailureRequests,
+				circuit.window.aggregatedCounters.failedRequests.Load(),
+				"unexpected failure requests")
+			assert.Equal(t, test.expectedSuccessProbeRequests,
+				circuit.window.aggregatedCounters.successfulProbeRequests.Load(),
+				"unexpected success probe requests")
+			assert.Equal(t, test.expectedSuccessRequests,
+				circuit.window.aggregatedCounters.successfulRequests.Load(),
+				"unexpected success requests")
 		})
 	}
 }
@@ -1521,7 +1533,9 @@ func TestIsRequestAllowed(t *testing.T) {
 			} else if test.expectedStatus.state == Probing && test.expectedAllow {
 				expectedProbeRequests++
 			}
-			assert.Equal(t, expectedProbeRequests, circuit.window.counters().totalProbeRequests.Load(), "unexpected probe requests")
+			assert.Equal(t, expectedProbeRequests,
+				circuit.window.counters().totalProbeRequests.Load(),
+				"unexpected probe requests")
 		})
 	}
 }
@@ -1579,17 +1593,33 @@ func TestE2E(t *testing.T) {
 		{description: "u_bucket_10", now: time.Unix(30, 1), totalReqs: 100, expectedEndState: Unhealthy},
 		// Now the time is beyond the recovery timeout (unhealthy started at 25, now it is 31)
 		// Must transition to probing state at first ratio 0.05.
-		{description: "p_bucket_11_1", now: time.Unix(31, 1), totalReqs: 5, expectedEndState: Probing, expectedEndProbeRatio: 0.05},
+		{description: "p_bucket_11_1",
+			now:                   time.Unix(31, 1),
+			totalReqs:             5,
+			expectedEndState:      Probing,
+			expectedEndProbeRatio: 0.05},
 		// Must move probing to second ratio 0.15 as this bucket has seen 11(6+5)
 		// probes which is more than the config.MinimumProbeRequests of 10 requests
 		// and the first probe ratio 0.05 of 82rps => 4requests.
-		{description: "p_bucket_11_2", now: time.Unix(31, 2), totalReqs: 6, expectedEndState: Probing, expectedEndProbeRatio: 0.15},
+		{description: "p_bucket_11_2",
+			now:                   time.Unix(31, 2),
+			totalReqs:             6,
+			expectedEndState:      Probing,
+			expectedEndProbeRatio: 0.15},
 		// Must move probing to third ratio 0.30 as this bucket has seen 21(10+6+5)
 		// probes which is more than the second probe ratio 0.15 of 84rps => 21 requests.
-		{description: "p_bucket_11_3", now: time.Unix(31, 3), totalReqs: 10, expectedEndState: Probing, expectedEndProbeRatio: 0.3},
+		{description: "p_bucket_11_3",
+			now:                   time.Unix(31, 3),
+			totalReqs:             10,
+			expectedEndState:      Probing,
+			expectedEndProbeRatio: 0.3},
 		// Must move probing to fourth ratio 0.50 as this bucket has seen 41(20+10+6+5)
 		// probes which is more than the third probe ratio 0.30 of 88rps => 27 requests.
-		{description: "p_bucket_11_3", now: time.Unix(31, 4), totalReqs: 20, expectedEndState: Probing, expectedEndProbeRatio: 0.5},
+		{description: "p_bucket_11_3",
+			now:                   time.Unix(31, 4),
+			totalReqs:             20,
+			expectedEndState:      Probing,
+			expectedEndProbeRatio: 0.5},
 		// Must transition to healthy state has last 4 buckets has seen 61(20+20+10+6+5)
 		// probes which is more than last probe ratio 0.50 of 92rps => 46 requests.
 		{description: "bucket_11_4", now: time.Unix(31, 5), totalReqs: 20, expectedEndState: Healthy},
@@ -1616,16 +1646,32 @@ func TestE2E(t *testing.T) {
 		{description: "u_bucket_28", now: time.Unix(48, 1), totalReqs: 1000, expectedEndState: Unhealthy},
 		// Must transition to probing state as it's beyond the recovery time of 5s.
 		// Must be probing at first ratio 0.05.
-		{description: "p_bucket_29", now: time.Unix(49, 1), totalReqs: 40, expectedEndState: Probing, expectedEndProbeRatio: 0.05},
+		{description: "p_bucket_29",
+			now:                   time.Unix(49, 1),
+			totalReqs:             40,
+			expectedEndState:      Probing,
+			expectedEndProbeRatio: 0.05},
 		// Must move probing to second ratio 0.15 as this bucket has seen 120(80+40)
 		// probes which is more than the first probe ratio 0.05 of 824rps (4120/5).
-		{description: "p_bucket_29_1", now: time.Unix(49, 2), totalReqs: 80, expectedEndState: Probing, expectedEndProbeRatio: 0.15},
+		{description: "p_bucket_29_1",
+			now:                   time.Unix(49, 2),
+			totalReqs:             80,
+			expectedEndState:      Probing,
+			expectedEndProbeRatio: 0.15},
 		// Must move probing to third ratio 0.30 as this bucket has seen 250(130+80+40)
 		// probes which is more than the second probe ratio 0.15 of 850rps (4250/5).
-		{description: "p_bucket_29_2", now: time.Unix(49, 4), totalReqs: 130, expectedEndState: Probing, expectedEndProbeRatio: 0.30},
+		{description: "p_bucket_29_2",
+			now:                   time.Unix(49, 4),
+			totalReqs:             130,
+			expectedEndState:      Probing,
+			expectedEndProbeRatio: 0.30},
 		// Must move probing to fourth ratio 0.50 as this bucket has seen 430(180+130+80+40)
 		// probes which is more than the second probe ratio 0.30 of 886rps (4430/5).
-		{description: "p_bucket_29_3", now: time.Unix(49, 5), totalReqs: 180, expectedEndState: Probing, expectedEndProbeRatio: 0.50},
+		{description: "p_bucket_29_3",
+			now:                   time.Unix(49, 5),
+			totalReqs:             180,
+			expectedEndState:      Probing,
+			expectedEndProbeRatio: 0.50},
 		// Must move to healthy after noticing 445 probes 460(30+180+130+80+40) in this time bucket
 		// which is more than last probe ratio of 0.5 of 892rps (4460/5).
 		{description: "bucket_29_4", now: time.Unix(49, 5), totalReqs: 30, expectedEndState: Healthy},

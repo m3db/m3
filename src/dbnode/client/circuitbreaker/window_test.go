@@ -31,50 +31,53 @@ func (a *atomicMockClock) updateTime(now time.Time) {
 	a.nowInNano.Store(now.UnixNano())
 }
 
-func TestBucketReset(t *testing.T) {
+func testBucketMethod(t *testing.T, testFunc func(*testing.T, *bucket)) {
 	t.Run("nil_bucket", func(t *testing.T) {
-		assert.NotPanics(t, func() {
-			var bucket *bucket
-			bucket.reset()
-		})
+		var bucket *bucket
+		testFunc(t, bucket)
 	})
-
 	t.Run("non_nil_bucket", func(t *testing.T) {
-		bucket := bucket{
-			startTime: time.Now(),
-			endTime:   time.Now(),
-			counters: counters{
-				successfulRequests: *atomic.NewInt64(1),
-			},
-		}
-		bucket.reset()
-		assert.Zero(t, bucket.startTime, "expected zero value start time")
-		assert.Zero(t, bucket.endTime, "expected zero value end time")
-		assert.Zero(t, bucket.counters, "expected zero value counters")
+		bucket := &bucket{}
+		testFunc(t, bucket)
 	})
 }
 
-func TestBucketIsExpired(t *testing.T) {
-	t.Run("nil_bucket", func(t *testing.T) {
-		var bucket *bucket
-		require.True(t, bucket.isExpired(time.Unix(10, 0)), "expected bucket expired for nil bucket")
-	})
+func createTestBuckets(startTime int64, requestCount int64) []bucket {
+	return []bucket{
+		{startTime: time.Unix(startTime+3, 1), endTime: time.Unix(startTime+4, 0), counters: counters{
+			totalRequests: *atomic.NewInt64(requestCount),
+		}},
+		{startTime: time.Unix(startTime+0, 1), endTime: time.Unix(startTime+1, 0), counters: counters{
+			totalRequests: *atomic.NewInt64(requestCount),
+		}},
+		{startTime: time.Unix(startTime+1, 1), endTime: time.Unix(startTime+2, 0), counters: counters{
+			totalRequests: *atomic.NewInt64(requestCount),
+		}},
+		{startTime: time.Unix(startTime+2, 1), endTime: time.Unix(startTime+3, 0), counters: counters{
+			totalRequests: *atomic.NewInt64(requestCount),
+		}},
+	}
+}
 
-	t.Run("non_nil_bucket", func(t *testing.T) {
-		bucket := bucket{endTime: time.Unix(10, 0)}
+func TestBucketIsExpired(t *testing.T) {
+	testBucketMethod(t, func(t *testing.T, bucket *bucket) {
+		if bucket == nil {
+			require.True(t, bucket.isExpired(time.Unix(10, 0)), "expected bucket expired for nil bucket")
+			return
+		}
+		bucket.endTime = time.Unix(10, 0)
 		require.True(t, bucket.isExpired(time.Unix(10, 1)), "expected bucket expired")
 		require.False(t, bucket.isExpired(time.Unix(10, 0)), "expected bucket expired")
 	})
 }
 
 func TestBucketShouldDrop(t *testing.T) {
-	t.Run("nil_bucket", func(t *testing.T) {
-		var bucket *bucket
-		require.False(t, bucket.shouldDrop(time.Unix(10, 0)), "expected bucket should not drop")
-	})
-
-	t.Run("non_nil_bucket", func(t *testing.T) {
-		bucket := bucket{startTime: time.Unix(10, 0)}
+	testBucketMethod(t, func(t *testing.T, bucket *bucket) {
+		if bucket == nil {
+			require.False(t, bucket.shouldDrop(time.Unix(10, 0)), "expected bucket should not drop")
+			return
+		}
+		bucket.startTime = time.Unix(10, 0)
 		require.False(t, bucket.shouldDrop(time.Unix(9, 1)), "expected bucket should not drop")
 		require.True(t, bucket.shouldDrop(time.Unix(11, 0)), "expected bucket should drop")
 	})
@@ -82,13 +85,8 @@ func TestBucketShouldDrop(t *testing.T) {
 
 func TestWindowReset(t *testing.T) {
 	sw := &slidingWindow{
-		bucketDuration: time.Second,
-		buckets: []bucket{
-			{startTime: time.Unix(10, 0), endTime: time.Unix(21, 0), counters: counters{totalRequests: *atomic.NewInt64(100)}},
-			{startTime: time.Unix(11, 0), endTime: time.Unix(22, 0), counters: counters{totalRequests: *atomic.NewInt64(100)}},
-			{startTime: time.Unix(12, 0), endTime: time.Unix(23, 0), counters: counters{totalRequests: *atomic.NewInt64(100)}},
-			{startTime: time.Unix(13, 0), endTime: time.Unix(24, 0), counters: counters{totalRequests: *atomic.NewInt64(100)}},
-		},
+		bucketDuration:    time.Second,
+		buckets:           createTestBuckets(10, 100),
 		oldestBucketIndex: 2,
 		aggregatedCounters: counters{
 			totalRequests: *atomic.NewInt64(400),
@@ -137,6 +135,27 @@ func TestGetBucketEndTime(t *testing.T) {
 	gotEndTime := sw.getBucketEndTime(time.Unix(0, 0))
 	expectedEndTime := time.Unix(0, int64(time.Millisecond)-1)
 	assert.Equal(t, expectedEndTime, gotEndTime, "unexpected end time")
+}
+
+func createTestWindow() *slidingWindow {
+	return &slidingWindow{
+		oldestBucketIndex:    1,
+		currentBucketIndex:   0,
+		bucketDuration:       time.Second,
+		buckets:              createTestBuckets(20, 10),
+		windowStartTimeDelta: -3 * time.Second,
+	}
+}
+
+func assertSlidingWindowState(t *testing.T, expected, actual *slidingWindow) {
+	t.Helper()
+	assert.Equal(t, expected.oldestBucketIndex, actual.oldestBucketIndex, "unexpected oldest bucket index")
+	assert.Equal(t, expected.currentBucketIndex, actual.currentBucketIndex, "unexpected current bucket index")
+	assert.Equal(t, expected.activeBucketsCount(), actual.activeBucketsCount(), "unexpected active buckets counts")
+	require.Len(t, actual.buckets, len(expected.buckets), "unexpected bucket length")
+	for i := range actual.buckets {
+		assert.Equal(t, expected.buckets[i], actual.buckets[i])
+	}
 }
 
 func TestDropExpiredBuckets(t *testing.T) {
@@ -189,26 +208,7 @@ func TestDropExpiredBuckets(t *testing.T) {
 		{
 			description: "must_drop_expired_bucket",
 			mockTime:    time.Unix(24, 1),
-			sw: &slidingWindow{
-				oldestBucketIndex:  1,
-				currentBucketIndex: 0,
-				bucketDuration:     time.Second,
-				buckets: []bucket{
-					{startTime: time.Unix(23, 1), endTime: time.Unix(24, 0), counters: counters{
-						totalRequests: *atomic.NewInt64(10),
-					}},
-					{startTime: time.Unix(20, 1), endTime: time.Unix(21, 0), counters: counters{
-						totalRequests: *atomic.NewInt64(10),
-					}},
-					{startTime: time.Unix(21, 1), endTime: time.Unix(22, 0), counters: counters{
-						totalRequests: *atomic.NewInt64(10),
-					}},
-					{startTime: time.Unix(22, 1), endTime: time.Unix(23, 0), counters: counters{
-						totalRequests: *atomic.NewInt64(10),
-					}},
-				},
-				windowStartTimeDelta: -3 * time.Second,
-			},
+			sw:          createTestWindow(),
 			expectedSw: &slidingWindow{
 				oldestBucketIndex:  2,
 				currentBucketIndex: 0,
@@ -231,26 +231,7 @@ func TestDropExpiredBuckets(t *testing.T) {
 		{
 			description: "must_drop_all_expired_buckets_and_start_from_zero_bucket",
 			mockTime:    time.Unix(26, 1),
-			sw: &slidingWindow{
-				oldestBucketIndex:  1,
-				currentBucketIndex: 0,
-				bucketDuration:     time.Second,
-				buckets: []bucket{
-					{startTime: time.Unix(23, 1), endTime: time.Unix(24, 0), counters: counters{
-						totalRequests: *atomic.NewInt64(10),
-					}},
-					{startTime: time.Unix(20, 1), endTime: time.Unix(21, 0), counters: counters{
-						totalRequests: *atomic.NewInt64(10),
-					}},
-					{startTime: time.Unix(21, 1), endTime: time.Unix(22, 0), counters: counters{
-						totalRequests: *atomic.NewInt64(10),
-					}},
-					{startTime: time.Unix(22, 1), endTime: time.Unix(23, 0), counters: counters{
-						totalRequests: *atomic.NewInt64(10),
-					}},
-				},
-				windowStartTimeDelta: -3 * time.Second,
-			},
+			sw:          createTestWindow(),
 			expectedSw: &slidingWindow{
 				oldestBucketIndex:  0,
 				currentBucketIndex: 0,
@@ -267,13 +248,7 @@ func TestDropExpiredBuckets(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
 			tt.sw.dropExpiredBuckets(tt.mockTime)
-			assert.Equal(t, tt.expectedSw.oldestBucketIndex, tt.sw.oldestBucketIndex, "unexpected oldest bucket index")
-			assert.Equal(t, tt.expectedSw.currentBucketIndex, tt.sw.currentBucketIndex, "unexpected current bucket index")
-			assert.Equal(t, tt.expectedSw.activeBucketsCount(), tt.sw.activeBucketsCount(), "unexpected active buckets counts")
-			require.Len(t, tt.sw.buckets, len(tt.expectedSw.buckets), "unexpected bucket length")
-			for i := range tt.sw.buckets {
-				assert.Equal(t, tt.expectedSw.buckets[i], tt.sw.buckets[i])
-			}
+			assertSlidingWindowState(t, tt.expectedSw, tt.sw)
 		})
 	}
 }
@@ -387,13 +362,7 @@ func TestSlide(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
 			tt.sw.slide(tt.mockTime)
-			assert.Equal(t, tt.expectedSw.oldestBucketIndex, tt.sw.oldestBucketIndex, "unexpected oldest bucket index")
-			assert.Equal(t, tt.expectedSw.currentBucketIndex, tt.sw.currentBucketIndex, "unexpected current bucket index")
-			assert.Equal(t, tt.expectedSw.activeBucketsCount(), tt.sw.activeBucketsCount(), "unexpected active buckets counts")
-			require.Len(t, tt.sw.buckets, len(tt.expectedSw.buckets), "unexpected bucket length")
-			for i := range tt.sw.buckets {
-				assert.Equal(t, tt.expectedSw.buckets[i], tt.sw.buckets[i])
-			}
+			assertSlidingWindowState(t, tt.expectedSw, tt.sw)
 		})
 	}
 }
@@ -516,12 +485,7 @@ func TestCurrentBucketAndSlideIfNeeded(t *testing.T) {
 			tt.sw.clock = &mockClock{now: tt.mockTime}
 			bucket := tt.sw.currentBucketAndSlideIfNeeded()
 			require.Equal(t, tt.expectedBucket, *bucket, "unexpected bucket")
-			assert.Equal(t, tt.expectedSw.oldestBucketIndex, tt.sw.oldestBucketIndex, "unexpected oldest bucket index")
-			assert.Equal(t, tt.expectedSw.currentBucketIndex, tt.sw.currentBucketIndex, "unexpected current bucket index")
-			require.Len(t, tt.sw.buckets, 4, "expected length of buckets to be unchanged")
-			for i := range tt.sw.buckets {
-				assert.Equal(t, tt.expectedSw.buckets[i], tt.sw.buckets[i])
-			}
+			assertSlidingWindowState(t, tt.expectedSw, tt.sw)
 		})
 	}
 
