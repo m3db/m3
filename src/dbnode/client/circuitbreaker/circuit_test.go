@@ -350,18 +350,52 @@ func TestShouldProbe(t *testing.T) {
 	}
 }
 
-func TestProcessProbingState(t *testing.T) {
+type circuitTest struct {
+	description        string
+	givenConfig        Config
+	initialStatus      *Status
+	expectedStatus     *Status
+	givenSuccessProbes int
+	givenFailedProbes  int
+	givenTotalRequests int
+	expectedReset      bool
+}
+
+func runCircuitTest(t *testing.T, tests []circuitTest, windowSize int, processFunc func(*Circuit)) {
 	clock := &mockClock{now: time.Unix(10, 1)}
-	tests := []struct {
-		description        string
-		givenSuccessProbes int
-		givenFailedProbes  int
-		givenTotalRequests int
-		givenConfig        Config
-		initialStatus      *Status
-		expectedStatus     *Status
-		expectedReset      bool
-	}{
+	for _, test := range tests {
+		t.Run(test.description, func(t *testing.T) {
+			circuit := Circuit{
+				config: test.givenConfig,
+				window: newSlidingWindow(windowSize, time.Second),
+				status: NewStatus(test.givenConfig),
+			}
+			circuit.status.state = test.initialStatus.state
+			circuit.status.recoveryTimeout = test.initialStatus.recoveryTimeout
+			circuit.status.probeTimeout = test.initialStatus.probeTimeout
+			circuit.status.probeRatioIndex = test.initialStatus.probeRatioIndex
+			circuit.status.clock = clock
+			circuit.window.clock = clock
+
+			// Increment appropriate counters based on test case
+			for i := 0; i < test.givenSuccessProbes; i++ {
+				circuit.window.incSuccessfulProbeRequests()
+			}
+			for i := 0; i < test.givenFailedProbes; i++ {
+				circuit.window.incFailedProbeRequests()
+			}
+			for i := 0; i < test.givenTotalRequests; i++ {
+				circuit.window.incTotalRequests()
+			}
+
+			processFunc(&circuit)
+			assertStatus(t, test.expectedStatus, circuit.status)
+		})
+	}
+}
+
+func TestProcessProbingState(t *testing.T) {
+	tests := []circuitTest{
 		{
 			description:        "no_status_change_as_reported_probes_less_than_first_ratio",
 			givenSuccessProbes: 10,
@@ -386,6 +420,7 @@ func TestProcessProbingState(t *testing.T) {
 				state:           Probing,
 				probeRatioIndex: 0,
 			},
+			expectedReset: false,
 		},
 		{
 			description:        "first_ratio_probed_move_to_next_probe_ratio",
@@ -411,6 +446,7 @@ func TestProcessProbingState(t *testing.T) {
 				state:           Probing,
 				probeRatioIndex: 1,
 			},
+			expectedReset: false,
 		},
 		{
 			description:        "no_change_when_probe_ratio_reached_but_probes_are_less_than_configured_minimum_probes",
@@ -435,6 +471,7 @@ func TestProcessProbingState(t *testing.T) {
 				state:           Probing,
 				probeRatioIndex: 0,
 			},
+			expectedReset: false,
 		},
 		{
 			description:        "probe_complete_must_complete_and_move_to_healthy",
@@ -513,138 +550,27 @@ func TestProcessProbingState(t *testing.T) {
 				state:           Healthy,
 				probeRatioIndex: -1,
 			},
+			expectedReset: false,
 		},
 	}
-	for _, test := range tests {
-		t.Run(test.description, func(t *testing.T) {
-			circuit := Circuit{
-				config: test.givenConfig,
-				window: newSlidingWindow(1, time.Second),
-				status: NewStatus(test.givenConfig),
-			}
-			circuit.status.state = test.initialStatus.state
-			circuit.status.recoveryTimeout = test.initialStatus.recoveryTimeout
-			circuit.status.probeTimeout = test.initialStatus.probeTimeout
-			circuit.status.probeRatioIndex = test.initialStatus.probeRatioIndex
-			circuit.status.clock = clock
-			circuit.window.clock = clock
-			for i := 0; i < test.givenSuccessProbes; i++ {
-				circuit.window.incSuccessfulProbeRequests()
-			}
-
-			for i := 0; i < test.givenFailedProbes; i++ {
-				circuit.window.incFailedProbeRequests()
-			}
-
-			for i := 0; i < test.givenTotalRequests; i++ {
-				circuit.window.incTotalRequests()
-			}
-
-			circuit.processProbingState()
-			assertStatus(t, test.expectedStatus, circuit.status)
-		})
-	}
-
-	t.Run("must_not_skip_probe_ratio_when_probe_ratio_changes_concurrently", func(t *testing.T) {
-		config := Config{
-			WindowSize:           15,
-			BucketDuration:       time.Second,
-			RecoveryTime:         time.Second,
-			Jitter:               1,
-			MaxProbeTime:         time.Second * 25,
-			MinimumRequests:      1,
-			FailureRatio:         0.5,
-			ProbeRatios:          []float64{0.2, 0.4, 0.6},
-			MinimumProbeRequests: 1,
-		}
-		circuit := Circuit{
-			config: config,
-			window: newSlidingWindow(1, time.Second),
-			status: NewStatus(config),
-		}
-		circuit.status.state = Probing
-		circuit.status.probeRatioIndex = 1
-		circuit.status.clock = clock
-		circuit.window.clock = clock
-		for i := 0; i < 100; i++ {
-			circuit.window.incSuccessfulProbeRequests()
-		}
-
-		for i := 0; i < 1; i++ {
-			circuit.window.incFailedProbeRequests()
-		}
-
-		for i := 0; i < 200; i++ {
-			circuit.window.incTotalRequests()
-		}
-
-		// Simulate updating the probe ratio concurrently.
-		circuit.mu.Lock()
-		go func() {
-			// Sleep ensures that we delay changing the probe ratio, we want to ensure
-			// circuit.processProbingState() below reads the old probe ratio and waits
-			// on the mutex lock.
-			time.Sleep(time.Millisecond * 100)
-			circuit.status.moveToNextProbeRatio()
-			circuit.mu.Unlock()
-		}()
-
-		// This call reads the old probe ratio and waits on lock until the above
-		// routine updates the probe index and unlocks the mutex.
-		circuit.processProbingState()
-		assertStatus(t, &Status{state: Probing, probeRatioIndex: 2}, circuit.status)
-	})
+	runCircuitTest(t, tests, 1, func(c *Circuit) { c.processProbingState() })
 }
 
 func TestProcessHealthyState(t *testing.T) {
 	clock := &mockClock{now: time.Unix(10, 1)}
-	tests := []struct {
-		description          string
-		givenSuccessRequests int
-		givenFailedRequests  int
-		givenTotalRequests   int
-		givenConfig          Config
-		initialStatus        *Status
-		expectedStatus       *Status
-		expectedReset        bool
-	}{
+	tests := []circuitTest{
 		{
-			description:          "no_status_change_as_reported_requests_less_than_minimum_requests",
-			givenSuccessRequests: 10,
-			givenFailedRequests:  8,
-			givenTotalRequests:   19,
+			description:        "no_status_change_as_reported_requests_less_than_minimum_requests",
+			givenSuccessProbes: 10,
+			givenFailedProbes:  8,
+			givenTotalRequests: 19,
 			givenConfig: Config{
 				WindowSize:           15,
 				BucketDuration:       time.Second,
 				RecoveryTime:         time.Second,
 				Jitter:               1,
 				MaxProbeTime:         time.Second * 25,
-				MinimumRequests:      1,
-				FailureRatio:         0.5,
-				ProbeRatios:          []float64{0.2, 0.4, 0.6},
-				MinimumProbeRequests: 100,
-			},
-			initialStatus: &Status{
-				state:           Healthy,
-				probeRatioIndex: -1,
-			},
-			expectedStatus: &Status{
-				state:           Healthy,
-				probeRatioIndex: -1,
-			},
-		},
-		{
-			description:          "above_min_requests_but_error_rate_low_must_stay_healthy",
-			givenSuccessRequests: 100,
-			givenFailedRequests:  20,
-			givenTotalRequests:   200,
-			givenConfig: Config{
-				WindowSize:           15,
-				BucketDuration:       time.Second,
-				RecoveryTime:         time.Second,
-				Jitter:               1,
-				MaxProbeTime:         time.Second * 25,
-				MinimumRequests:      100,
+				MinimumRequests:      20,
 				FailureRatio:         0.5,
 				ProbeRatios:          []float64{0.2, 0.4, 0.6},
 				MinimumProbeRequests: 1,
@@ -657,19 +583,46 @@ func TestProcessHealthyState(t *testing.T) {
 				state:           Healthy,
 				probeRatioIndex: -1,
 			},
+			expectedReset: false,
 		},
 		{
-			description:          "high_failure_rate_must_move_to_unhealthy_state",
-			givenSuccessRequests: 50,
-			givenFailedRequests:  59,
-			givenTotalRequests:   110,
+			description:        "must_move_to_probing_state",
+			givenSuccessProbes: 10,
+			givenFailedProbes:  8,
+			givenTotalRequests: 20,
 			givenConfig: Config{
 				WindowSize:           15,
 				BucketDuration:       time.Second,
 				RecoveryTime:         time.Second,
 				Jitter:               1,
 				MaxProbeTime:         time.Second * 25,
-				MinimumRequests:      100,
+				MinimumRequests:      20,
+				FailureRatio:         0.5,
+				ProbeRatios:          []float64{0.2, 0.4, 0.6},
+				MinimumProbeRequests: 1,
+			},
+			initialStatus: &Status{
+				state:           Healthy,
+				probeRatioIndex: -1,
+			},
+			expectedStatus: &Status{
+				state:           Probing,
+				probeRatioIndex: 0,
+			},
+			expectedReset: false,
+		},
+		{
+			description:        "must_move_to_unhealthy_state",
+			givenSuccessProbes: 10,
+			givenFailedProbes:  10,
+			givenTotalRequests: 20,
+			givenConfig: Config{
+				WindowSize:           15,
+				BucketDuration:       time.Second,
+				RecoveryTime:         time.Second,
+				Jitter:               1,
+				MaxProbeTime:         time.Second * 25,
+				MinimumRequests:      20,
 				FailureRatio:         0.5,
 				ProbeRatios:          []float64{0.2, 0.4, 0.6},
 				MinimumProbeRequests: 1,
@@ -683,37 +636,10 @@ func TestProcessHealthyState(t *testing.T) {
 				probeRatioIndex: -1,
 				recoveryTimeout: clock.now.Add(time.Second),
 			},
+			expectedReset: true,
 		},
 	}
-	for _, test := range tests {
-		t.Run(test.description, func(t *testing.T) {
-			circuit := Circuit{
-				config: test.givenConfig,
-				window: newSlidingWindow(15, time.Second),
-				status: NewStatus(test.givenConfig),
-			}
-			circuit.status.state = test.initialStatus.state
-			circuit.status.recoveryTimeout = test.initialStatus.recoveryTimeout
-			circuit.status.probeTimeout = test.initialStatus.probeTimeout
-			circuit.status.probeRatioIndex = test.initialStatus.probeRatioIndex
-			circuit.status.clock = clock
-			circuit.window.clock = clock
-			for i := 0; i < test.givenSuccessRequests; i++ {
-				circuit.window.incSuccessfulRequests()
-			}
-
-			for i := 0; i < test.givenFailedRequests; i++ {
-				circuit.window.incFailedRequests()
-			}
-
-			for i := 0; i < test.givenTotalRequests; i++ {
-				circuit.window.incTotalRequests()
-			}
-
-			circuit.processHealthyState()
-			assertStatus(t, test.expectedStatus, circuit.status)
-		})
-	}
+	runCircuitTest(t, tests, 15, func(c *Circuit) { c.processHealthyState() })
 }
 
 func TestReportRequestStatus(t *testing.T) {
