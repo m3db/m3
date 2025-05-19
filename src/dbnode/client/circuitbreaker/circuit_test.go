@@ -350,6 +350,16 @@ func TestShouldProbe(t *testing.T) {
 	}
 }
 
+// setupCircuitStatus initializes the circuit's status with the given test status and clock
+func setupCircuitStatus(circuit *Circuit, testStatus *Status, clock *mockClock) {
+	circuit.status.state = testStatus.state
+	circuit.status.recoveryTimeout = testStatus.recoveryTimeout
+	circuit.status.probeTimeout = testStatus.probeTimeout
+	circuit.status.probeRatioIndex = testStatus.probeRatioIndex
+	circuit.status.clock = clock
+	circuit.window.clock = clock
+}
+
 func TestProcessProbingState(t *testing.T) {
 	clock := &mockClock{now: time.Unix(10, 1)}
 	tests := []struct {
@@ -522,12 +532,7 @@ func TestProcessProbingState(t *testing.T) {
 				window: newSlidingWindow(1, time.Second),
 				status: NewStatus(test.givenConfig),
 			}
-			circuit.status.state = test.initialStatus.state
-			circuit.status.recoveryTimeout = test.initialStatus.recoveryTimeout
-			circuit.status.probeTimeout = test.initialStatus.probeTimeout
-			circuit.status.probeRatioIndex = test.initialStatus.probeRatioIndex
-			circuit.status.clock = clock
-			circuit.window.clock = clock
+			setupCircuitStatus(&circuit, test.initialStatus, clock)
 			for i := 0; i < test.givenSuccessProbes; i++ {
 				circuit.window.incSuccessfulProbeRequests()
 			}
@@ -1561,7 +1566,7 @@ func TestE2E(t *testing.T) {
 		description string
 		// now is a time where each step controls at what precise time it's requests
 		// must be dispatched. This time is set to the mock clock to simulate real
-		// behaviour.
+		// behavior.
 		now time.Time
 		// totalReqs are number of requests to be dispatched in this step.
 		totalReqs int
@@ -1722,7 +1727,8 @@ func TestE2E(t *testing.T) {
 
 		require.Equal(t, step.expectedEndState, circuit.status.State(), "unexpected state at step:%s", step.description)
 		if step.expectedEndProbeRatio != 0 {
-			assert.Equal(t, step.expectedEndProbeRatio, circuit.config.ProbeRatios[circuit.status.probeRatioIndex], "unexpected probe ratio at step:%s", step.description)
+			assert.Equal(t, step.expectedEndProbeRatio, circuit.config.ProbeRatios[circuit.status.probeRatioIndex],
+				"unexpected probe ratio at step:%s", step.description)
 		}
 	}
 

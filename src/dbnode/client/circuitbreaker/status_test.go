@@ -113,9 +113,9 @@ func TestTimeoutComplete(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockClock := mockClock{now: tt.clockTime}
+			clock := mockClock{now: tt.clockTime}
 			status := Status{
-				clock: &mockClock,
+				clock: &clock,
 			}
 			if strings.Contains(tt.name, "probe") {
 				status.probeTimeout = tt.timeout
