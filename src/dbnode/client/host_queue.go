@@ -31,6 +31,7 @@ import (
 
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
+	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/dbnode/client/circuitbreaker/middleware"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
@@ -39,7 +40,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
-	"go.uber.org/zap"
 )
 
 const _defaultHostQueueOpsArraySize = 8

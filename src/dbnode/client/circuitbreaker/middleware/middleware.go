@@ -34,7 +34,7 @@ type nopClient struct {
 	rpc.TChanNode // Embed the interface to automatically forward all methods
 }
 
-// NewNoop returns a no-op middleware that simply forwards all calls to the underlying client
+// NewNop returns a no-op middleware that simply forwards all calls to the underlying client
 func NewNop() M3DBMiddleware {
 	return func(next rpc.TChanNode) Client {
 		return &nopClient{next}
