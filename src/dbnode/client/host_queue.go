@@ -98,12 +98,13 @@ func newHostQueue(
 	var middlewareFn middleware.M3DBMiddleware
 	if opts.MiddlewareCircuitbreakerConfig().Enabled {
 		var err error
-		middlewareFn, err = middleware.New(
-			opts.MiddlewareCircuitbreakerConfig(),
-			opts.InstrumentOptions().Logger(),
-			scope,
-			host.Address(),
-		)
+		params := middleware.Params{
+			Config: opts.MiddlewareCircuitbreakerConfig(),
+			Logger: opts.InstrumentOptions().Logger(),
+			Scope:  scope,
+			Host:   host.Address(),
+		}
+		middlewareFn, err = middleware.New(params)
 		if err != nil {
 			opts.InstrumentOptions().Logger().Warn("failed to create circuit breaker middleware", zap.Error(err))
 			return nil, err

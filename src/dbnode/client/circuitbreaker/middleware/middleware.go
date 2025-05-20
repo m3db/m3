@@ -36,22 +36,30 @@ func NewNop() M3DBMiddleware {
 	}
 }
 
+// Params contains all parameters needed to create a new middleware
+type Params struct {
+	Config Config
+	Logger *zap.Logger
+	Scope  tally.Scope
+	Host   string
+}
+
 // New creates a new circuit breaker middleware.
-func New(config Config, logger *zap.Logger, scope tally.Scope, host string) (M3DBMiddleware, error) {
-	c, err := circuitbreaker.NewCircuit(config.CircuitBreakerConfig)
+func New(params Params) (M3DBMiddleware, error) {
+	c, err := circuitbreaker.NewCircuit(params.Config.CircuitBreakerConfig)
 	if err != nil {
-		logger.Warn("failed to create circuit breaker", zap.Error(err))
+		params.Logger.Warn("failed to create circuit breaker", zap.Error(err))
 		return nil, err
 	}
 
 	return func(next rpc.TChanNode) Client {
 		return &client{
-			enabled:    config.Enabled,
-			shadowMode: config.ShadowMode,
+			enabled:    params.Config.Enabled,
+			shadowMode: params.Config.ShadowMode,
 			next:       next,
-			logger:     logger,
-			host:       host,
-			metrics:    newMetrics(scope, host),
+			logger:     params.Logger,
+			host:       params.Host,
+			metrics:    newMetrics(params.Scope, params.Host),
 			circuit:    c,
 		}
 	}, nil
