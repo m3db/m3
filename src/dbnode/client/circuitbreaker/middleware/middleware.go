@@ -29,11 +29,6 @@ type Client interface {
 	rpc.TChanNode
 }
 
-// noopClient is a no-op implementation of the Client interface that forwards all calls
-type nopClient struct {
-	rpc.TChanNode // Embed the interface to automatically forward all methods
-}
-
 // NewNop returns a no-op middleware that simply forwards all calls to the underlying client
 func NewNop() M3DBMiddleware {
 	return func(next rpc.TChanNode) Client {
