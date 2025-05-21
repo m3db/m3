@@ -35,6 +35,12 @@ func NewEnableProvider() EnableProvider {
 	return &enableProvider{}
 }
 
+func NewNopEnableProvider() EnableProvider {
+	return &nopEnableProvider{}
+}
+
+type nopEnableProvider struct{}
+
 // IsEnabled returns whether the circuit breaker is enabled.
 func (p *enableProvider) IsEnabled() bool {
 	if v := p.configValue.Load(); v != nil {
@@ -95,5 +101,17 @@ func (p *enableProvider) WatchConfig(store kv.Store, logger *zap.Logger) error {
 		}
 	}()
 	logger.Info("watching circuit breaker middleware configuration complete")
+	return nil
+}
+
+func (p *nopEnableProvider) IsEnabled() bool {
+	return false
+}
+
+func (p *nopEnableProvider) IsShadowMode() bool {
+	return false
+}
+
+func (p *nopEnableProvider) WatchConfig(store kv.Store, logger *zap.Logger) error {
 	return nil
 }

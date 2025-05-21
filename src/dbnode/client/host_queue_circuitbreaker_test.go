@@ -36,10 +36,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/m3db/m3/src/dbnode/client/circuitbreaker"
-	"github.com/m3db/m3/src/dbnode/client/circuitbreaker/middleware"
-	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 )
 
 const (
