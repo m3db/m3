@@ -126,12 +126,12 @@ func TestNewHostQueueWithCircuitBreaker(t *testing.T) {
 			opts.EXPECT().ChannelOptions().Return(nil).AnyTimes()
 
 			// Test middleware initialization
-			cbMiddleware, err := middleware.New(
-				tt.config,
-				opts.InstrumentOptions().Logger(),
-				opts.InstrumentOptions().MetricsScope(),
-				"test-host",
-			)
+			middlewareFn, err := middleware.New(middleware.Params{
+				Config: tt.config,
+				Logger: opts.InstrumentOptions().Logger(),
+				Scope:  opts.InstrumentOptions().MetricsScope(),
+				Host:   "test-host",
+			})
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -145,7 +145,7 @@ func TestNewHostQueueWithCircuitBreaker(t *testing.T) {
 				if err != nil {
 					return nil, nil, err
 				}
-				return channel, cbMiddleware(client), nil
+				return channel, middlewareFn(client), nil
 			}
 
 			// Test the wrapped function

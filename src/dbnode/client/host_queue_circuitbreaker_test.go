@@ -134,15 +134,15 @@ func TestHostQueueCircuitBreakerIntegration(t *testing.T) {
 			mockConnPool := NewMockconnectionPool(ctrl)
 
 			// Create middleware and wrap the mock node
-			cbMiddleware, err := middleware.New(
-				test.circuitBreakerConfig,
-				opts.InstrumentOptions().Logger(),
-				opts.InstrumentOptions().MetricsScope(),
-				"test-host",
-			)
+			middlewareFn, err := middleware.New(middleware.Params{
+				Config: test.circuitBreakerConfig,
+				Logger: opts.InstrumentOptions().Logger(),
+				Scope:  opts.InstrumentOptions().MetricsScope(),
+				Host:   "test-host",
+			})
 			require.NoError(t, err)
 
-			wrappedNode := cbMiddleware(mockNode)
+			wrappedNode := middlewareFn(mockNode)
 
 			// Set up expectations on the mock node
 			if test.failCalls {
