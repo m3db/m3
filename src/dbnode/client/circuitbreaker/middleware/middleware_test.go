@@ -32,6 +32,7 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/dbnode/client/circuitbreaker"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 )
@@ -39,8 +40,6 @@ import (
 // newTestConfig creates a common test configuration for middleware tests
 func newTestConfig(enabled, shadowMode bool) Config {
 	return Config{
-		Enabled:    enabled,
-		ShadowMode: shadowMode,
 		CircuitBreakerConfig: circuitbreaker.Config{
 			MinimumRequests:      1,
 			FailureRatio:         0.1,
@@ -49,6 +48,31 @@ func newTestConfig(enabled, shadowMode bool) Config {
 			BucketDuration:       time.Millisecond,
 		},
 	}
+}
+
+// newTestEnableProvider creates a test enable provider
+func newTestEnableProvider(enabled, shadowMode bool) EnableProvider {
+	return &testEnableProvider{
+		enabled:    enabled,
+		shadowMode: shadowMode,
+	}
+}
+
+type testEnableProvider struct {
+	enabled    bool
+	shadowMode bool
+}
+
+func (p *testEnableProvider) IsEnabled() bool {
+	return p.enabled
+}
+
+func (p *testEnableProvider) IsShadowMode() bool {
+	return p.shadowMode
+}
+
+func (p *testEnableProvider) WatchConfig(store kv.Store, logger *zap.Logger) error {
+	return nil
 }
 
 func TestNew(t *testing.T) {
@@ -63,19 +87,11 @@ func TestNew(t *testing.T) {
 		{
 			name: "valid params",
 			params: Params{
-				Config: Config{
-					Enabled: true,
-					CircuitBreakerConfig: circuitbreaker.Config{
-						MinimumRequests:      1,
-						FailureRatio:         0.1,
-						MinimumProbeRequests: 0,
-						WindowSize:           1,
-						BucketDuration:       time.Millisecond,
-					},
-				},
-				Logger: zap.NewNop(),
-				Scope:  tally.NoopScope,
-				Host:   "test-host",
+				Config:         newTestConfig(true, false),
+				Logger:         zap.NewNop(),
+				Scope:          tally.NoopScope,
+				Host:           "test-host",
+				EnableProvider: newTestEnableProvider(true, false),
 			},
 			expectError: false,
 		},
@@ -83,7 +99,6 @@ func TestNew(t *testing.T) {
 			name: "invalid circuit breaker config",
 			params: Params{
 				Config: Config{
-					Enabled: true,
 					CircuitBreakerConfig: circuitbreaker.Config{
 						MinimumRequests:      -1, // Invalid config
 						FailureRatio:         0.1,
@@ -92,9 +107,10 @@ func TestNew(t *testing.T) {
 						BucketDuration:       time.Millisecond,
 					},
 				},
-				Logger: zap.NewNop(),
-				Scope:  tally.NoopScope,
-				Host:   "test-host",
+				Logger:         zap.NewNop(),
+				Scope:          tally.NoopScope,
+				Host:           "test-host",
+				EnableProvider: newTestEnableProvider(true, false),
 			},
 			expectError: true,
 		},
@@ -132,10 +148,11 @@ func TestClient_WriteBatchRaw(t *testing.T) {
 		{
 			name: "successful write",
 			params: Params{
-				Config: newTestConfig(true, false),
-				Logger: zap.NewNop(),
-				Scope:  tally.NoopScope,
-				Host:   "test-host",
+				Config:         newTestConfig(true, false),
+				Logger:         zap.NewNop(),
+				Scope:          tally.NoopScope,
+				Host:           "test-host",
+				EnableProvider: newTestEnableProvider(true, false),
 			},
 			mockBehavior: func(mockNode *rpc.MockTChanNode) {
 				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(nil)
@@ -146,10 +163,11 @@ func TestClient_WriteBatchRaw(t *testing.T) {
 		{
 			name: "failed write",
 			params: Params{
-				Config: newTestConfig(true, false),
-				Logger: zap.NewNop(),
-				Scope:  tally.NoopScope,
-				Host:   "test-host",
+				Config:         newTestConfig(true, false),
+				Logger:         zap.NewNop(),
+				Scope:          tally.NoopScope,
+				Host:           "test-host",
+				EnableProvider: newTestEnableProvider(true, false),
 			},
 			mockBehavior: func(mockNode *rpc.MockTChanNode) {
 				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(errors.New("write error"))
@@ -160,10 +178,11 @@ func TestClient_WriteBatchRaw(t *testing.T) {
 		{
 			name: "circuit breaker disabled",
 			params: Params{
-				Config: newTestConfig(false, false),
-				Logger: zap.NewNop(),
-				Scope:  tally.NoopScope,
-				Host:   "test-host",
+				Config:         newTestConfig(false, false),
+				Logger:         zap.NewNop(),
+				Scope:          tally.NoopScope,
+				Host:           "test-host",
+				EnableProvider: newTestEnableProvider(false, false),
 			},
 			mockBehavior: func(mockNode *rpc.MockTChanNode) {
 				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(nil)
@@ -214,10 +233,11 @@ func TestClient_ShadowMode(t *testing.T) {
 		{
 			name: "shadow mode enabled - request goes through",
 			params: Params{
-				Config: newTestConfig(true, true),
-				Logger: zap.NewNop(),
-				Scope:  tally.NoopScope,
-				Host:   "test-host",
+				Config:         newTestConfig(true, true),
+				Logger:         zap.NewNop(),
+				Scope:          tally.NoopScope,
+				Host:           "test-host",
+				EnableProvider: newTestEnableProvider(true, true),
 			},
 			mockBehavior: func(mockNode *rpc.MockTChanNode) {
 				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(nil)
@@ -227,10 +247,11 @@ func TestClient_ShadowMode(t *testing.T) {
 		{
 			name: "shadow mode enabled - request fails",
 			params: Params{
-				Config: newTestConfig(true, true),
-				Logger: zap.NewNop(),
-				Scope:  tally.NoopScope,
-				Host:   "test-host",
+				Config:         newTestConfig(true, true),
+				Logger:         zap.NewNop(),
+				Scope:          tally.NoopScope,
+				Host:           "test-host",
+				EnableProvider: newTestEnableProvider(true, true),
 			},
 			mockBehavior: func(mockNode *rpc.MockTChanNode) {
 				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(errors.New("write error"))
