@@ -416,6 +416,7 @@ func TestConfiguration(t *testing.T) {
     shardsLeavingCountTowardsConsistency: null
     shardsLeavingAndInitializingCountTowardsConsistency: null
     iterateEqualTimestampStrategy: null
+    circuitBreakerConfig: null
   gcPercentage: 100
   tick: null
   bootstrap:
