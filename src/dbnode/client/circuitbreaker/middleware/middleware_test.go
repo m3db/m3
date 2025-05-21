@@ -196,7 +196,7 @@ func TestClient_WriteBatchRaw(t *testing.T) {
 			circuit := client.(interface {
 				Circuit() *circuitbreaker.Circuit
 			}).Circuit()
-			assert.Equal(t, tt.expectedState, circuit.State())
+			assert.Equal(t, tt.expectedState, circuit.Status().State())
 		})
 	}
 }
