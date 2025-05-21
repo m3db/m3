@@ -4,26 +4,16 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/dbnode/generated/proto/circuitbreaker"
 	"go.uber.org/zap"
 )
 
-// EtcdConfig represents the configuration stored in etcd.
-type EtcdConfig struct {
+// EnableConfig represents the configuration stored in etcd.
+type EnableConfig struct {
 	Enabled    bool `yaml:"enabled"`
 	ShadowMode bool `yaml:"shadowMode"`
 }
-
-// EtcdConfigProto is a protobuf message for the etcd config.
-type EtcdConfigProto struct {
-	Enabled    bool `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	ShadowMode bool `protobuf:"varint,2,opt,name=shadow_mode,json=shadowMode,proto3" json:"shadow_mode,omitempty"`
-}
-
-func (m *EtcdConfigProto) Reset()         { *m = EtcdConfigProto{} }
-func (m *EtcdConfigProto) String() string { return proto.CompactTextString(m) }
-func (*EtcdConfigProto) ProtoMessage()    {}
 
 // EnableProvider defines the interface for checking if the circuit breaker is enabled.
 type EnableProvider interface {
@@ -48,7 +38,7 @@ func NewEnableProvider() EnableProvider {
 // IsEnabled returns whether the circuit breaker is enabled.
 func (p *enableProvider) IsEnabled() bool {
 	if v := p.configValue.Load(); v != nil {
-		config := v.(EtcdConfig)
+		config := v.(EnableConfig)
 		return config.Enabled
 	}
 	return false
@@ -57,7 +47,7 @@ func (p *enableProvider) IsEnabled() bool {
 // IsShadowMode returns whether the circuit breaker is in shadow mode.
 func (p *enableProvider) IsShadowMode() bool {
 	if v := p.configValue.Load(); v != nil {
-		config := v.(EtcdConfig)
+		config := v.(EnableConfig)
 		return config.ShadowMode
 	}
 	return false
@@ -86,15 +76,15 @@ func (p *enableProvider) WatchConfig(store kv.Store, logger *zap.Logger) error {
 				}
 				logger.Info("circuit breaker middleware configuration changed", zap.Any("value", value))
 
-				// Unmarshal into EtcdConfigProto
-				var configProto EtcdConfigProto
+				// Unmarshal into EnableConfigProto
+				var configProto circuitbreaker.EnableConfigProto
 				if err := value.Unmarshal(&configProto); err != nil {
 					logger.Error("failed to unmarshal circuit breaker middleware configuration", zap.Error(err))
 					continue
 				}
 
 				// Create a new config with the boolean flags from etcd
-				config := EtcdConfig{
+				config := EnableConfig{
 					Enabled:    configProto.Enabled,
 					ShadowMode: configProto.ShadowMode,
 				}

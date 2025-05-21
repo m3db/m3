@@ -365,7 +365,7 @@ func (c Configuration) NewAdminClient(
 
 			// Set up circuit breaker middleware config watch
 			if err := provider.WatchConfig(kv, iopts.Logger()); err != nil {
-				iopts.Logger().Error("failed to set up circuit breaker middleware config watch", zap.Error(err))
+				return nil, fmt.Errorf("failed to set up circuit breaker middleware config watch: %v", err)
 			}
 
 			// Set the provider in the options

@@ -62,7 +62,7 @@ func New(config Config, logger *zap.Logger, scope tally.Scope, host string, prov
 // withBreaker executes the given call with a circuit breaker if enabled.
 func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.Context, T) error) error {
 	// Early return if circuit breaker is disabled or not initialized
-	if !c.provider.IsEnabled() || c.circuit == nil {
+	if c.circuit == nil || !c.provider.IsEnabled() {
 		return call(ctx, req)
 	}
 
