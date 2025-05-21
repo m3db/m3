@@ -4,10 +4,6 @@ import (
 	"github.com/uber-go/tally"
 )
 
-const (
-	_packageName = "circuit_breaker"
-)
-
 type circuitBreakerMetrics struct {
 	rejects       tally.Counter
 	shadowRejects tally.Counter

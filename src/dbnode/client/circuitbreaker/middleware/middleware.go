@@ -1,12 +1,13 @@
 package middleware
 
 import (
-	"github.com/m3db/m3/src/dbnode/client/circuitbreaker"
-	"github.com/m3db/m3/src/dbnode/client/circuitbreaker/circuitbreakererror"
-	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/dbnode/client/circuitbreaker"
+	"github.com/m3db/m3/src/dbnode/client/circuitbreaker/circuitbreakererror"
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 )
 
 // client is a client that wraps a TChannel client with a circuit breaker.
@@ -19,42 +20,46 @@ type client struct {
 	provider EnableProvider
 }
 
-// m3dbMiddleware is a function that takes a TChannel client and returns a circuit breaker client interface.
-type m3dbMiddleware func(rpc.TChanNode) Client
+// M3DBMiddleware is a function that takes a TChannel client and returns a circuit breaker client interface.
+type M3DBMiddleware func(rpc.TChanNode) Client
 
 // Client defines the interface for a circuit breaker client.
 type Client interface {
 	rpc.TChanNode
 }
 
-// noopClient is a no-op implementation of the Client interface that forwards all calls
-type nopClient struct {
-	rpc.TChanNode // Embed the interface to automatically forward all methods
-}
-
-// NewNoop returns a no-op middleware that simply forwards all calls to the underlying client
-func NewNop() m3dbMiddleware {
+// NewNop returns a no-op middleware that simply forwards all calls to the underlying client
+func NewNop() M3DBMiddleware {
 	return func(next rpc.TChanNode) Client {
-		return &nopClient{next}
+		return next
 	}
 }
 
+// Params contains all parameters needed to create a new middleware
+type Params struct {
+	Config         Config
+	Logger         *zap.Logger
+	Scope          tally.Scope
+	Host           string
+	enableProvider EnableProvider
+}
+
 // New creates a new circuit breaker middleware.
-func New(config Config, logger *zap.Logger, scope tally.Scope, host string, provider EnableProvider) (m3dbMiddleware, error) {
-	c, err := circuitbreaker.NewCircuit(config.CircuitBreakerConfig)
+func New(params Params) (M3DBMiddleware, error) {
+	c, err := circuitbreaker.NewCircuit(params.Config.CircuitBreakerConfig)
 	if err != nil {
-		logger.Warn("failed to create circuit breaker", zap.Error(err))
+		params.Logger.Warn("failed to create circuit breaker", zap.Error(err))
 		return nil, err
 	}
 
 	return func(next rpc.TChanNode) Client {
 		return &client{
 			next:     next,
-			logger:   logger,
-			host:     host,
-			metrics:  newMetrics(scope, host),
+			logger:   params.Logger,
+			host:     params.Host,
+			metrics:  newMetrics(params.Scope, params.Host),
 			circuit:  c,
-			provider: provider,
+			provider: params.enableProvider,
 		}
 	}, nil
 }
@@ -99,11 +104,17 @@ func (c *client) Aggregate(ctx thrift.Context, req *rpc.AggregateQueryRequest) (
 	return c.next.Aggregate(ctx, req)
 }
 
-func (c *client) AggregateRaw(ctx thrift.Context, req *rpc.AggregateQueryRawRequest) (*rpc.AggregateQueryRawResult_, error) {
+func (c *client) AggregateRaw(
+	ctx thrift.Context,
+	req *rpc.AggregateQueryRawRequest,
+) (*rpc.AggregateQueryRawResult_, error) {
 	return c.next.AggregateRaw(ctx, req)
 }
 
-func (c *client) AggregateTiles(ctx thrift.Context, req *rpc.AggregateTilesRequest) (*rpc.AggregateTilesResult_, error) {
+func (c *client) AggregateTiles(
+	ctx thrift.Context,
+	req *rpc.AggregateTilesRequest,
+) (*rpc.AggregateTilesResult_, error) {
 	return c.next.AggregateTiles(ctx, req)
 }
 
@@ -111,19 +122,30 @@ func (c *client) Bootstrapped(ctx thrift.Context) (*rpc.NodeBootstrappedResult_,
 	return c.next.Bootstrapped(ctx)
 }
 
-func (c *client) BootstrappedInPlacementOrNoPlacement(ctx thrift.Context) (*rpc.NodeBootstrappedInPlacementOrNoPlacementResult_, error) {
+func (c *client) BootstrappedInPlacementOrNoPlacement(
+	ctx thrift.Context,
+) (*rpc.NodeBootstrappedInPlacementOrNoPlacementResult_, error) {
 	return c.next.BootstrappedInPlacementOrNoPlacement(ctx)
 }
 
-func (c *client) DebugIndexMemorySegments(ctx thrift.Context, req *rpc.DebugIndexMemorySegmentsRequest) (*rpc.DebugIndexMemorySegmentsResult_, error) {
+func (c *client) DebugIndexMemorySegments(
+	ctx thrift.Context,
+	req *rpc.DebugIndexMemorySegmentsRequest,
+) (*rpc.DebugIndexMemorySegmentsResult_, error) {
 	return c.next.DebugIndexMemorySegments(ctx, req)
 }
 
-func (c *client) DebugProfileStart(ctx thrift.Context, req *rpc.DebugProfileStartRequest) (*rpc.DebugProfileStartResult_, error) {
+func (c *client) DebugProfileStart(
+	ctx thrift.Context,
+	req *rpc.DebugProfileStartRequest,
+) (*rpc.DebugProfileStartResult_, error) {
 	return c.next.DebugProfileStart(ctx, req)
 }
 
-func (c *client) DebugProfileStop(ctx thrift.Context, req *rpc.DebugProfileStopRequest) (*rpc.DebugProfileStopResult_, error) {
+func (c *client) DebugProfileStop(
+	ctx thrift.Context,
+	req *rpc.DebugProfileStopRequest,
+) (*rpc.DebugProfileStopResult_, error) {
 	return c.next.DebugProfileStop(ctx, req)
 }
 
@@ -135,15 +157,24 @@ func (c *client) FetchBatchRaw(ctx thrift.Context, req *rpc.FetchBatchRawRequest
 	return c.next.FetchBatchRaw(ctx, req)
 }
 
-func (c *client) FetchBatchRawV2(ctx thrift.Context, req *rpc.FetchBatchRawV2Request) (*rpc.FetchBatchRawResult_, error) {
+func (c *client) FetchBatchRawV2(
+	ctx thrift.Context,
+	req *rpc.FetchBatchRawV2Request,
+) (*rpc.FetchBatchRawResult_, error) {
 	return c.next.FetchBatchRawV2(ctx, req)
 }
 
-func (c *client) FetchBlocksMetadataRawV2(ctx thrift.Context, req *rpc.FetchBlocksMetadataRawV2Request) (*rpc.FetchBlocksMetadataRawV2Result_, error) {
+func (c *client) FetchBlocksMetadataRawV2(
+	ctx thrift.Context,
+	req *rpc.FetchBlocksMetadataRawV2Request,
+) (*rpc.FetchBlocksMetadataRawV2Result_, error) {
 	return c.next.FetchBlocksMetadataRawV2(ctx, req)
 }
 
-func (c *client) FetchBlocksRaw(ctx thrift.Context, req *rpc.FetchBlocksRawRequest) (*rpc.FetchBlocksRawResult_, error) {
+func (c *client) FetchBlocksRaw(
+	ctx thrift.Context,
+	req *rpc.FetchBlocksRawRequest,
+) (*rpc.FetchBlocksRawResult_, error) {
 	return c.next.FetchBlocksRaw(ctx, req)
 }
 
@@ -159,11 +190,15 @@ func (c *client) GetWriteNewSeriesAsync(ctx thrift.Context) (*rpc.NodeWriteNewSe
 	return c.next.GetWriteNewSeriesAsync(ctx)
 }
 
-func (c *client) GetWriteNewSeriesBackoffDuration(ctx thrift.Context) (*rpc.NodeWriteNewSeriesBackoffDurationResult_, error) {
+func (c *client) GetWriteNewSeriesBackoffDuration(
+	ctx thrift.Context,
+) (*rpc.NodeWriteNewSeriesBackoffDurationResult_, error) {
 	return c.next.GetWriteNewSeriesBackoffDuration(ctx)
 }
 
-func (c *client) GetWriteNewSeriesLimitPerShardPerSecond(ctx thrift.Context) (*rpc.NodeWriteNewSeriesLimitPerShardPerSecondResult_, error) {
+func (c *client) GetWriteNewSeriesLimitPerShardPerSecond(
+	ctx thrift.Context,
+) (*rpc.NodeWriteNewSeriesLimitPerShardPerSecondResult_, error) {
 	return c.next.GetWriteNewSeriesLimitPerShardPerSecond(ctx)
 }
 
@@ -179,19 +214,31 @@ func (c *client) Repair(ctx thrift.Context) error {
 	return c.next.Repair(ctx)
 }
 
-func (c *client) SetPersistRateLimit(ctx thrift.Context, req *rpc.NodeSetPersistRateLimitRequest) (*rpc.NodePersistRateLimitResult_, error) {
+func (c *client) SetPersistRateLimit(
+	ctx thrift.Context,
+	req *rpc.NodeSetPersistRateLimitRequest,
+) (*rpc.NodePersistRateLimitResult_, error) {
 	return c.next.SetPersistRateLimit(ctx, req)
 }
 
-func (c *client) SetWriteNewSeriesAsync(ctx thrift.Context, req *rpc.NodeSetWriteNewSeriesAsyncRequest) (*rpc.NodeWriteNewSeriesAsyncResult_, error) {
+func (c *client) SetWriteNewSeriesAsync(
+	ctx thrift.Context,
+	req *rpc.NodeSetWriteNewSeriesAsyncRequest,
+) (*rpc.NodeWriteNewSeriesAsyncResult_, error) {
 	return c.next.SetWriteNewSeriesAsync(ctx, req)
 }
 
-func (c *client) SetWriteNewSeriesBackoffDuration(ctx thrift.Context, req *rpc.NodeSetWriteNewSeriesBackoffDurationRequest) (*rpc.NodeWriteNewSeriesBackoffDurationResult_, error) {
+func (c *client) SetWriteNewSeriesBackoffDuration(
+	ctx thrift.Context,
+	req *rpc.NodeSetWriteNewSeriesBackoffDurationRequest,
+) (*rpc.NodeWriteNewSeriesBackoffDurationResult_, error) {
 	return c.next.SetWriteNewSeriesBackoffDuration(ctx, req)
 }
 
-func (c *client) SetWriteNewSeriesLimitPerShardPerSecond(ctx thrift.Context, req *rpc.NodeSetWriteNewSeriesLimitPerShardPerSecondRequest) (*rpc.NodeWriteNewSeriesLimitPerShardPerSecondResult_, error) {
+func (c *client) SetWriteNewSeriesLimitPerShardPerSecond(
+	ctx thrift.Context,
+	req *rpc.NodeSetWriteNewSeriesLimitPerShardPerSecondRequest,
+) (*rpc.NodeWriteNewSeriesLimitPerShardPerSecondResult_, error) {
 	return c.next.SetWriteNewSeriesLimitPerShardPerSecond(ctx, req)
 }
 
@@ -217,4 +264,9 @@ func (c *client) WriteTaggedBatchRaw(ctx thrift.Context, req *rpc.WriteTaggedBat
 
 func (c *client) WriteTaggedBatchRawV2(ctx thrift.Context, req *rpc.WriteTaggedBatchRawV2Request) error {
 	return c.next.WriteTaggedBatchRawV2(ctx, req)
+}
+
+// Circuit returns the circuit breaker instance.
+func (c *client) Circuit() *circuitbreaker.Circuit {
+	return c.circuit
 }

@@ -36,6 +36,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/dbnode/client/circuitbreaker"
+	"github.com/m3db/m3/src/dbnode/client/circuitbreaker/middleware"
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 )
 
 const (
@@ -153,16 +157,16 @@ func TestHostQueueCircuitBreakerIntegration(t *testing.T) {
 			mockConnPool := NewMockconnectionPool(ctrl)
 
 			// Create middleware and wrap the mock node
-			cbMiddleware, err := middleware.New(
-				test.circuitBreakerConfig,
-				opts.InstrumentOptions().Logger(),
-				opts.InstrumentOptions().MetricsScope(),
-				"test-host",
-				test.enableProvider,
-			)
+			middlewareFn, err := middleware.New(middleware.Params{
+				Config:         test.circuitBreakerConfig,
+				Logger:         opts.InstrumentOptions().Logger(),
+				Scope:          opts.InstrumentOptions().MetricsScope(),
+				Host:           "test-host",
+				EnableProvider: test.enableProvider,
+			})
 			require.NoError(t, err)
 
-			wrappedNode := cbMiddleware(mockNode)
+			wrappedNode := middlewareFn(mockNode)
 
 			// Set up expectations on the mock node
 			if test.failCalls {

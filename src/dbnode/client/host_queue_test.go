@@ -24,12 +24,13 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/client/circuitbreaker/middleware"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -121,13 +122,13 @@ func TestNewHostQueueWithCircuitBreaker(t *testing.T) {
 			opts.EXPECT().ChannelOptions().Return(nil).AnyTimes()
 
 			// Test middleware initialization
-			cbMiddleware, err := middleware.New(
-				opts.MiddlewareCircuitbreakerConfig(),
-				opts.InstrumentOptions().Logger(),
-				opts.InstrumentOptions().MetricsScope(),
-				"test-host",
-				tt.enableProvider,
-			)
+			middlewareFn, err := middleware.New(middleware.Params{
+				Config:         opts.MiddlewareCircuitbreakerConfig(),
+				Logger:         opts.InstrumentOptions().Logger(),
+				Scope:          opts.InstrumentOptions().MetricsScope(),
+				Host:           "test-host",
+				EnableProvider: tt.enableProvider,
+			})
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -141,7 +142,7 @@ func TestNewHostQueueWithCircuitBreaker(t *testing.T) {
 				if err != nil {
 					return nil, nil, err
 				}
-				return channel, cbMiddleware(client), nil
+				return channel, middlewareFn(client), nil
 			}
 
 			// Test the wrapped function

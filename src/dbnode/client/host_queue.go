@@ -31,6 +31,7 @@ import (
 
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
+	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/dbnode/client/circuitbreaker/middleware"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
@@ -94,15 +95,23 @@ func newHostQueue(
 	opts = opts.SetInstrumentOptions(iOpts.SetMetricsScope(scope))
 
 	// Create circuit breaker middleware
-	cbMiddleware, err := middleware.New(
-		opts.MiddlewareCircuitbreakerConfig(),
-		opts.InstrumentOptions().Logger(),
-		opts.InstrumentOptions().MetricsScope(),
-		host.Address(),
-		opts.MiddlewareEnableProvider(),
-	)
-	if err != nil {
-		return nil, err
+	var middlewareFn middleware.M3DBMiddleware
+	if opts.MiddlewareCircuitbreakerConfig().Enabled {
+		var err error
+		params := middleware.Params{
+			Config:         opts.MiddlewareCircuitbreakerConfig(),
+			Logger:         opts.InstrumentOptions().Logger(),
+			Scope:          scope,
+			Host:           host.Address(),
+			EnableProvider: opts.MiddlewareEnableProvider(),
+		}
+		middlewareFn, err = middleware.New(params)
+		if err != nil {
+			opts.InstrumentOptions().Logger().Warn("failed to create circuit breaker middleware", zap.Error(err))
+			return nil, err
+		}
+	} else {
+		middlewareFn = middleware.NewNop()
 	}
 
 	// Create a wrapped connection function that applies the circuit breaker
@@ -111,7 +120,7 @@ func newHostQueue(
 		if err != nil {
 			return nil, nil, err
 		}
-		return channel, cbMiddleware(client), nil
+		return channel, middlewareFn(client), nil
 	}
 
 	// Set the wrapped connection function in the options
