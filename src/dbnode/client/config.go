@@ -38,7 +38,6 @@ import (
 	"github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/sampler"
 	xsync "github.com/m3db/m3/src/x/sync"
-	"go.uber.org/zap"
 )
 
 const (

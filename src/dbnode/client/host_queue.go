@@ -96,7 +96,7 @@ func newHostQueue(
 
 	// Create circuit breaker middleware
 	var middlewareFn middleware.M3DBMiddleware
-	if opts.MiddlewareCircuitbreakerConfig().Enabled {
+	if opts.MiddlewareEnableProvider().IsEnabled() {
 		var err error
 		params := middleware.Params{
 			Config:         opts.MiddlewareCircuitbreakerConfig(),

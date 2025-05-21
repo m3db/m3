@@ -41,7 +41,7 @@ type Params struct {
 	Logger         *zap.Logger
 	Scope          tally.Scope
 	Host           string
-	enableProvider EnableProvider
+	EnableProvider EnableProvider
 }
 
 // New creates a new circuit breaker middleware.
@@ -59,7 +59,7 @@ func New(params Params) (M3DBMiddleware, error) {
 			host:     params.Host,
 			metrics:  newMetrics(params.Scope, params.Host),
 			circuit:  c,
-			provider: params.enableProvider,
+			provider: params.EnableProvider,
 		}
 	}, nil
 }
