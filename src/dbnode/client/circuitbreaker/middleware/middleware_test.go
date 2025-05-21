@@ -21,7 +21,6 @@
 package middleware
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -124,11 +123,11 @@ func TestClient_WriteBatchRaw(t *testing.T) {
 	defer ctrl.Finish()
 
 	tests := []struct {
-		name           string
-		params         Params
-		mockBehavior   func(*rpc.MockTChanNode)
-		expectedError  bool
-		expectedStatus circuitbreaker.Status
+		name          string
+		params        Params
+		mockBehavior  func(*rpc.MockTChanNode)
+		expectedError bool
+		expectedState circuitbreaker.State
 	}{
 		{
 			name: "successful write",
@@ -141,8 +140,8 @@ func TestClient_WriteBatchRaw(t *testing.T) {
 			mockBehavior: func(mockNode *rpc.MockTChanNode) {
 				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(nil)
 			},
-			expectedError:  false,
-			expectedStatus: circuitbreaker.Healthy,
+			expectedError: false,
+			expectedState: circuitbreaker.Healthy,
 		},
 		{
 			name: "failed write",
@@ -155,8 +154,8 @@ func TestClient_WriteBatchRaw(t *testing.T) {
 			mockBehavior: func(mockNode *rpc.MockTChanNode) {
 				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(errors.New("write error"))
 			},
-			expectedError:  true,
-			expectedStatus: circuitbreaker.Unhealthy,
+			expectedError: true,
+			expectedState: circuitbreaker.Unhealthy,
 		},
 		{
 			name: "circuit breaker disabled",
@@ -169,8 +168,8 @@ func TestClient_WriteBatchRaw(t *testing.T) {
 			mockBehavior: func(mockNode *rpc.MockTChanNode) {
 				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(nil)
 			},
-			expectedError:  false,
-			expectedStatus: circuitbreaker.Healthy,
+			expectedError: false,
+			expectedState: circuitbreaker.Healthy,
 		},
 	}
 
@@ -193,9 +192,11 @@ func TestClient_WriteBatchRaw(t *testing.T) {
 				assert.NoError(t, err)
 			}
 
-			// Verify circuit breaker status
-			circuit := client.(*client).circuit
-			assert.Equal(t, tt.expectedStatus, circuit.Status())
+			// Verify circuit breaker state
+			circuit := client.(interface {
+				Circuit() *circuitbreaker.Circuit
+			}).Circuit()
+			assert.Equal(t, tt.expectedState, circuit.State())
 		})
 	}
 }
