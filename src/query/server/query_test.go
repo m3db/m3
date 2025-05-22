@@ -161,12 +161,75 @@ func TestMultiProcessSetsProcessLabel(t *testing.T) {
 		assert.False(t, result.MultiProcessIsParentCleanExit)
 	}()
 
-	r, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/metrics", metricsPort)) //nolint
-	require.NoError(t, err)
-	defer r.Body.Close()
-	bodyBytes, err := ioutil.ReadAll(r.Body)
-	require.NoError(t, err)
-	metricsResponse := string(bodyBytes)
+	// Give the server a moment to fully initialize
+	time.Sleep(2 * time.Second)
+
+	// First wait for server to be healthy
+	maxWait := 30 * time.Second
+	startAt := time.Now()
+	var lastHealthErr error
+	for time.Since(startAt) < maxWait {
+		req, err := http.NewRequestWithContext(context.TODO(), "GET", fmt.Sprintf("http://127.0.0.1:%d/health", metricsPort), nil)
+		if err != nil {
+			lastHealthErr = err
+			t.Logf("Health check request failed: %v", err)
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			lastHealthErr = err
+			t.Logf("Health check failed: %v", err)
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		if resp.StatusCode == http.StatusOK {
+			t.Logf("Health check passed after %v", time.Since(startAt))
+			resp.Body.Close()
+			break
+		}
+		t.Logf("Health check returned status %d", resp.StatusCode)
+		resp.Body.Close()
+		time.Sleep(500 * time.Millisecond)
+	}
+	require.NoError(t, lastHealthErr, "server health check failed within timeout")
+
+	// Now wait for metrics endpoint to be ready
+	startAt = time.Now()
+	var metricsResponse string
+	var lastMetricsErr error
+	for time.Since(startAt) < maxWait {
+		req, err := http.NewRequestWithContext(context.TODO(), "GET", fmt.Sprintf("http://127.0.0.1:%d/metrics", metricsPort), nil)
+		if err != nil {
+			lastMetricsErr = err
+			t.Logf("Metrics request failed: %v", err)
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			lastMetricsErr = err
+			t.Logf("Metrics check failed: %v", err)
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		bodyBytes, err := ioutil.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			lastMetricsErr = err
+			t.Logf("Failed to read metrics response: %v", err)
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		metricsResponse = string(bodyBytes)
+		if metricsResponse != "" {
+			t.Logf("Metrics endpoint available after %v", time.Since(startAt))
+			break
+		}
+		t.Logf("Empty metrics response received")
+		time.Sleep(500 * time.Millisecond)
+	}
+	require.NotEmpty(t, metricsResponse, "metrics endpoint did not become available within timeout. Last error: %v", lastMetricsErr)
 	assert.Contains(t, metricsResponse, "coordinator_runtime_memory_allocated{multiprocess_id=\"1\"}")
 	assert.Contains(t, metricsResponse, "coordinator_ingest_success{multiprocess_id=\"1\"}")
 }
@@ -220,7 +283,7 @@ func TestPromRemoteBackend(t *testing.T) {
 
 	cfg := configFromYAML(t, fmt.Sprintf(`
 prometheusRemoteBackend:
-  endpoints: 
+  endpoints:
   - name: defaultEndpointForTests
     address: "%s"
 
