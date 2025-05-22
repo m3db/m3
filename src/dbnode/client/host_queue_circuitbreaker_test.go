@@ -170,6 +170,7 @@ func TestHostQueueCircuitBreakerIntegration(t *testing.T) {
 			var wg sync.WaitGroup
 			wg.Add(test.numCalls)
 			var actualErrs []error
+			var mu sync.Mutex // Add mutex to protect actualErrs
 
 			for i := 0; i < test.numCalls; i++ {
 				writeOp := testWriteOp(
@@ -179,7 +180,9 @@ func TestHostQueueCircuitBreakerIntegration(t *testing.T) {
 					1234567890,
 					rpc.TimeType_UNIX_SECONDS,
 					func(result interface{}, err error) {
+						mu.Lock()
 						actualErrs = append(actualErrs, err)
+						mu.Unlock()
 						wg.Done()
 					},
 				)
