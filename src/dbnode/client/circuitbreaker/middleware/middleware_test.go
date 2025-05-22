@@ -38,7 +38,7 @@ import (
 )
 
 // newTestConfig creates a common test configuration for middleware tests
-func newTestConfig(enabled, shadowMode bool) Config {
+func newTestConfig() Config {
 	return Config{
 		CircuitBreakerConfig: circuitbreaker.Config{
 			MinimumRequests:      1,
@@ -87,7 +87,7 @@ func TestNew(t *testing.T) {
 		{
 			name: "valid params",
 			params: Params{
-				Config:         newTestConfig(true, false),
+				Config:         newTestConfig(),
 				Logger:         zap.NewNop(),
 				Scope:          tally.NoopScope,
 				Host:           "test-host",
@@ -148,7 +148,7 @@ func TestClient_WriteBatchRaw(t *testing.T) {
 		{
 			name: "successful write",
 			params: Params{
-				Config:         newTestConfig(true, false),
+				Config:         newTestConfig(),
 				Logger:         zap.NewNop(),
 				Scope:          tally.NoopScope,
 				Host:           "test-host",
@@ -163,7 +163,7 @@ func TestClient_WriteBatchRaw(t *testing.T) {
 		{
 			name: "failed write",
 			params: Params{
-				Config:         newTestConfig(true, false),
+				Config:         newTestConfig(),
 				Logger:         zap.NewNop(),
 				Scope:          tally.NoopScope,
 				Host:           "test-host",
@@ -178,7 +178,7 @@ func TestClient_WriteBatchRaw(t *testing.T) {
 		{
 			name: "circuit breaker disabled",
 			params: Params{
-				Config:         newTestConfig(false, false),
+				Config:         newTestConfig(),
 				Logger:         zap.NewNop(),
 				Scope:          tally.NoopScope,
 				Host:           "test-host",
@@ -233,7 +233,7 @@ func TestClient_ShadowMode(t *testing.T) {
 		{
 			name: "shadow mode enabled - request goes through",
 			params: Params{
-				Config:         newTestConfig(true, true),
+				Config:         newTestConfig(),
 				Logger:         zap.NewNop(),
 				Scope:          tally.NoopScope,
 				Host:           "test-host",
@@ -247,7 +247,7 @@ func TestClient_ShadowMode(t *testing.T) {
 		{
 			name: "shadow mode enabled - request fails",
 			params: Params{
-				Config:         newTestConfig(true, true),
+				Config:         newTestConfig(),
 				Logger:         zap.NewNop(),
 				Scope:          tally.NoopScope,
 				Host:           "test-host",

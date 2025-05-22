@@ -22,20 +22,20 @@ package client
 
 import (
 	"errors"
-	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3/src/cluster/kv"
-	"github.com/m3db/m3/src/dbnode/client/circuitbreaker"
-	"go.uber.org/zap"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/client/circuitbreaker/middleware"
-	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
-
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/dbnode/client/circuitbreaker"
+	"github.com/m3db/m3/src/dbnode/client/circuitbreaker/middleware"
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 )
 
 const (
