@@ -118,6 +118,7 @@ func TestNewHostQueueWithCircuitBreaker(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := NewMockOptions(ctrl)
 			opts.EXPECT().MiddlewareEnableProvider().Return(tt.enableProvider).AnyTimes()
+			opts.EXPECT().MiddlewareCircuitbreakerConfig().Return(middleware.Config{}).AnyTimes()
 			opts.EXPECT().InstrumentOptions().Return(instrument.NewOptions()).AnyTimes()
 			opts.EXPECT().ChannelOptions().Return(nil).AnyTimes()
 
