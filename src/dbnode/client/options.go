@@ -28,7 +28,6 @@ import (
 
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
-	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/dbnode/client/circuitbreaker/middleware"
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -816,8 +815,6 @@ func (o *options) SetShardsLeavingAndInitializingCountTowardsConsistency(value b
 }
 
 func (o *options) SetMiddlewareCircuitbreakerConfig(cfg middleware.Config) Options {
-	log := o.instrumentOpts.Logger()
-	log.Info("SetMiddlewareCircuitbreakerConfig:setting middleware circuit breaker config", zap.Any("config", cfg))
 	opts := *o
 	opts.middlewareCircuitbreakerConfig = cfg
 	return &opts
