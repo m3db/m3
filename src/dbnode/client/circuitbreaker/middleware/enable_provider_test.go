@@ -21,6 +21,7 @@
 package middleware
 
 import (
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -57,8 +58,8 @@ func TestEnableProvider_WatchConfig(t *testing.T) {
 	logger := zap.NewNop()
 
 	// Test-scoped variables to control config state
-	var expectedEnabled bool
-	var expectedShadowMode bool
+	var expectedEnabled atomic.Bool
+	var expectedShadowMode atomic.Bool
 
 	// Create a channel to simulate watch updates
 	watchChan := make(chan struct{})
@@ -69,8 +70,8 @@ func TestEnableProvider_WatchConfig(t *testing.T) {
 	mockStore.EXPECT().Get(_configPath).Return(mockValue, nil).AnyTimes()
 	mockValue.EXPECT().Unmarshal(gomock.Any()).DoAndReturn(func(v interface{}) error {
 		proto := v.(*circuitbreaker.EnableConfigProto)
-		proto.Enabled = expectedEnabled
-		proto.ShadowMode = expectedShadowMode
+		proto.Enabled = expectedEnabled.Load()
+		proto.ShadowMode = expectedShadowMode.Load()
 		return nil
 	}).AnyTimes()
 
@@ -83,8 +84,8 @@ func TestEnableProvider_WatchConfig(t *testing.T) {
 	assert.False(t, provider.IsShadowMode())
 
 	// Test config update
-	expectedEnabled = true
-	expectedShadowMode = true
+	expectedEnabled.Store(true)
+	expectedShadowMode.Store(true)
 	watchChan <- struct{}{}
 	time.Sleep(100 * time.Millisecond)
 	assert.True(t, provider.IsEnabled())
@@ -104,8 +105,8 @@ func TestEnableProvider_WatchConfig(t *testing.T) {
 	// Restore normal behavior
 	mockValue.EXPECT().Unmarshal(gomock.Any()).DoAndReturn(func(v interface{}) error {
 		proto := v.(*circuitbreaker.EnableConfigProto)
-		proto.Enabled = expectedEnabled
-		proto.ShadowMode = expectedShadowMode
+		proto.Enabled = expectedEnabled.Load()
+		proto.ShadowMode = expectedShadowMode.Load()
 		return nil
 	}).AnyTimes()
 
@@ -121,8 +122,8 @@ func TestEnableProvider_WatchConfig(t *testing.T) {
 	}
 
 	for _, update := range updates {
-		expectedEnabled = update.enabled
-		expectedShadowMode = update.shadowMode
+		expectedEnabled.Store(update.enabled)
+		expectedShadowMode.Store(update.shadowMode)
 		watchChan <- struct{}{}
 		for i := 0; i < 10; i++ {
 			if provider.IsEnabled() == update.enabled && provider.IsShadowMode() == update.shadowMode {
@@ -138,8 +139,8 @@ func TestEnableProvider_WatchConfig(t *testing.T) {
 	close(watchChan)
 	time.Sleep(100 * time.Millisecond)
 	// After channel close, state should remain at last set values
-	assert.Equal(t, expectedEnabled, provider.IsEnabled())
-	assert.Equal(t, expectedShadowMode, provider.IsShadowMode())
+	assert.Equal(t, expectedEnabled.Load(), provider.IsEnabled())
+	assert.Equal(t, expectedShadowMode.Load(), provider.IsShadowMode())
 }
 
 func TestEnableProvider_DefaultValues(t *testing.T) {
