@@ -72,8 +72,10 @@ func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.C
 	}
 
 	// Check if request is allowed
-	if !c.circuit.IsRequestAllowed() {
-		c.logger.Debug("circuit breaker request rejected", zap.String("host", c.host))
+	isAllowed := c.circuit.IsRequestAllowed()
+
+	// If request is not allowed, log and return error
+	if !isAllowed {
 		if c.provider.IsShadowMode() {
 			c.metrics.shadowRejects.Inc(1)
 		} else {
@@ -82,14 +84,17 @@ func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.C
 		}
 	}
 
-	// Execute the request and update circuit breaker state
+	// Execute the request and update metrics
 	err := call(ctx, req)
 	if err == nil {
-		c.circuit.ReportRequestStatus(true)
 		c.metrics.successes.Inc(1)
 	} else {
-		c.circuit.ReportRequestStatus(false)
 		c.metrics.failures.Inc(1)
+	}
+
+	// Report request status to circuit breaker
+	if isAllowed {
+		c.circuit.ReportRequestStatus(err == nil)
 	}
 	return err
 }
@@ -264,9 +269,4 @@ func (c *client) WriteTaggedBatchRaw(ctx thrift.Context, req *rpc.WriteTaggedBat
 
 func (c *client) WriteTaggedBatchRawV2(ctx thrift.Context, req *rpc.WriteTaggedBatchRawV2Request) error {
 	return c.next.WriteTaggedBatchRawV2(ctx, req)
-}
-
-// Circuit returns the circuit breaker instance.
-func (c *client) Circuit() *circuitbreaker.Circuit {
-	return c.circuit
 }
