@@ -271,8 +271,3 @@ func (c *client) WriteTaggedBatchRaw(ctx thrift.Context, req *rpc.WriteTaggedBat
 func (c *client) WriteTaggedBatchRawV2(ctx thrift.Context, req *rpc.WriteTaggedBatchRawV2Request) error {
 	return c.next.WriteTaggedBatchRawV2(ctx, req)
 }
-
-// Circuit returns the circuit breaker instance.
-func (c *client) Circuit() *circuitbreaker.Circuit {
-	return c.circuit
-}
