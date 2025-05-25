@@ -126,11 +126,11 @@ func TestClient_WriteBatchRaw(t *testing.T) {
 		name          string
 		params        Params
 		mockBehavior  func(*rpc.MockTChanNode)
+		verifyState   func(*testing.T, *client)
 		expectedError bool
-		expectedState circuitbreaker.State
 	}{
 		{
-			name: "successful write",
+			name: "circuit breaker enabled - successful write",
 			params: Params{
 				Config: newTestConfig(true, false),
 				Logger: zap.NewNop(),
@@ -138,13 +138,18 @@ func TestClient_WriteBatchRaw(t *testing.T) {
 				Host:   "test-host",
 			},
 			mockBehavior: func(mockNode *rpc.MockTChanNode) {
-				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(nil)
+				// Expect two successful writes
+				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(nil).Times(2)
+			},
+			verifyState: func(t *testing.T, c *client) {
+				assert.True(t, c.enabled)
+				assert.NotNil(t, c.circuit)
+				assert.Equal(t, circuitbreaker.Healthy, c.circuit.Status().State())
 			},
 			expectedError: false,
-			expectedState: circuitbreaker.Healthy,
 		},
 		{
-			name: "failed write",
+			name: "circuit breaker enabled - failed write transitions to unhealthy",
 			params: Params{
 				Config: newTestConfig(true, false),
 				Logger: zap.NewNop(),
@@ -152,13 +157,20 @@ func TestClient_WriteBatchRaw(t *testing.T) {
 				Host:   "test-host",
 			},
 			mockBehavior: func(mockNode *rpc.MockTChanNode) {
+				// First request fails
 				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(errors.New("write error"))
+				// Second request should be rejected by circuit breaker
+				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Times(0)
+			},
+			verifyState: func(t *testing.T, c *client) {
+				assert.True(t, c.enabled)
+				assert.NotNil(t, c.circuit)
+				assert.Equal(t, circuitbreaker.Unhealthy, c.circuit.Status().State())
 			},
 			expectedError: true,
-			expectedState: circuitbreaker.Unhealthy,
 		},
 		{
-			name: "circuit breaker disabled",
+			name: "circuit breaker disabled - requests pass through",
 			params: Params{
 				Config: newTestConfig(false, false),
 				Logger: zap.NewNop(),
@@ -166,10 +178,45 @@ func TestClient_WriteBatchRaw(t *testing.T) {
 				Host:   "test-host",
 			},
 			mockBehavior: func(mockNode *rpc.MockTChanNode) {
-				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(nil)
+				// Both requests should go through when disabled
+				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(nil).Times(2)
+			},
+			verifyState: func(t *testing.T, c *client) {
+				assert.False(t, c.enabled)
+				assert.NotNil(t, c.circuit)
+				assert.Equal(t, circuitbreaker.Healthy, c.circuit.Status().State())
 			},
 			expectedError: false,
-			expectedState: circuitbreaker.Healthy,
+		},
+		{
+			name: "circuit breaker enabled - unhealthy state rejects requests",
+			params: Params{
+				Config: Config{
+					Enabled:    true,
+					ShadowMode: false,
+					CircuitBreakerConfig: circuitbreaker.Config{
+						MinimumRequests: 1,
+						FailureRatio:    0.1,
+						WindowSize:      1,
+						BucketDuration:  time.Millisecond,
+					},
+				},
+				Logger: zap.NewNop(),
+				Scope:  tally.NoopScope,
+				Host:   "test-host",
+			},
+			mockBehavior: func(mockNode *rpc.MockTChanNode) {
+				// First request fails to trigger unhealthy state
+				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(errors.New("write error"))
+				// Second request should be rejected by circuit breaker
+				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Times(0)
+			},
+			verifyState: func(t *testing.T, c *client) {
+				assert.True(t, c.enabled)
+				assert.NotNil(t, c.circuit)
+				assert.Equal(t, circuitbreaker.Unhealthy, c.circuit.Status().State())
+			},
+			expectedError: true,
 		},
 	}
 
@@ -181,22 +228,42 @@ func TestClient_WriteBatchRaw(t *testing.T) {
 			mockNode := rpc.NewMockTChanNode(ctrl)
 			tt.mockBehavior(mockNode)
 
-			client := middlewareFn(mockNode)
+			clientInterface := middlewareFn(mockNode)
 			ctx, cancel := thrift.NewContext(time.Second)
 			defer cancel()
 
-			err = client.WriteBatchRaw(ctx, &rpc.WriteBatchRawRequest{})
+			// First request to potentially trigger unhealthy state
+			node, ok := clientInterface.(rpc.TChanNode)
+			require.True(t, ok, "Client must implement rpc.TChanNode")
+			err = node.WriteBatchRaw(ctx, &rpc.WriteBatchRawRequest{})
 			if tt.expectedError {
 				assert.Error(t, err)
+				if err != nil {
+					assert.Contains(t, err.Error(), "write error")
+				}
 			} else {
 				assert.NoError(t, err)
 			}
 
 			// Verify circuit breaker state
-			circuit := client.(interface {
-				Circuit() *circuitbreaker.Circuit
-			}).Circuit()
-			assert.Equal(t, tt.expectedState, circuit.Status().State())
+			clientImpl, ok := clientInterface.(*client)
+			require.True(t, ok, "Client must be of type *client")
+			tt.verifyState(t, clientImpl)
+
+			// Second request to test circuit breaker behavior
+			err = node.WriteBatchRaw(ctx, &rpc.WriteBatchRawRequest{})
+			if tt.expectedError {
+				assert.Error(t, err)
+				if err != nil {
+					if clientImpl.circuit.Status().State() == circuitbreaker.Unhealthy {
+						assert.Contains(t, err.Error(), "circuit breaker")
+					} else {
+						assert.Contains(t, err.Error(), "write error")
+					}
+				}
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
 }
