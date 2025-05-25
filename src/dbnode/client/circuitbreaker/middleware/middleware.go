@@ -58,8 +58,10 @@ func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.C
 	}
 
 	// Check if request is allowed
-	if !c.circuit.IsRequestAllowed() {
-		c.logger.Debug("circuit breaker request rejected", zap.String("host", c.host))
+	isAllowed := c.circuit.IsRequestAllowed()
+
+	// If request is not allowed, log and return error
+	if !isAllowed {
 		if c.shadowMode {
 			c.metrics.shadowRejects.Inc(1)
 		} else {
@@ -71,11 +73,13 @@ func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.C
 	// Execute the request and update circuit breaker state
 	err := call(ctx, req)
 	if err == nil {
-		c.circuit.ReportRequestStatus(true)
 		c.metrics.successes.Inc(1)
 	} else {
-		c.circuit.ReportRequestStatus(false)
 		c.metrics.failures.Inc(1)
+	}
+
+	if isAllowed {
+		c.circuit.ReportRequestStatus(err == nil)
 	}
 	return err
 }
