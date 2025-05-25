@@ -159,7 +159,7 @@ func TestClient_WriteBatchRaw(t *testing.T) {
 				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(nil).Times(2)
 			},
 			verifyState: func(t *testing.T, c *client) {
-				assert.True(t, c.enabled)
+				assert.True(t, c.provider.IsEnabled())
 				assert.NotNil(t, c.circuit)
 				assert.Equal(t, circuitbreaker.Healthy, c.circuit.Status().State())
 			},
@@ -181,7 +181,7 @@ func TestClient_WriteBatchRaw(t *testing.T) {
 				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Times(0)
 			},
 			verifyState: func(t *testing.T, c *client) {
-				assert.True(t, c.enabled)
+				assert.True(t, c.provider.IsEnabled())
 				assert.NotNil(t, c.circuit)
 				assert.Equal(t, circuitbreaker.Unhealthy, c.circuit.Status().State())
 			},
@@ -201,7 +201,7 @@ func TestClient_WriteBatchRaw(t *testing.T) {
 				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(nil).Times(2)
 			},
 			verifyState: func(t *testing.T, c *client) {
-				assert.False(t, c.enabled)
+				assert.False(t, c.provider.IsEnabled())
 				assert.NotNil(t, c.circuit)
 				assert.Equal(t, circuitbreaker.Healthy, c.circuit.Status().State())
 			},
@@ -211,18 +211,18 @@ func TestClient_WriteBatchRaw(t *testing.T) {
 			name: "circuit breaker enabled - unhealthy state rejects requests",
 			params: Params{
 				Config: Config{
-					Enabled:    true,
-					ShadowMode: false,
 					CircuitBreakerConfig: circuitbreaker.Config{
-						MinimumRequests: 1,
-						FailureRatio:    0.1,
-						WindowSize:      1,
-						BucketDuration:  time.Millisecond,
+						MinimumRequests:      1,
+						FailureRatio:         0.1,
+						MinimumProbeRequests: 0,
+						WindowSize:           1,
+						BucketDuration:       time.Millisecond,
 					},
 				},
-				Logger: zap.NewNop(),
-				Scope:  tally.NoopScope,
-				Host:   "test-host",
+				Logger:         zap.NewNop(),
+				Scope:          tally.NoopScope,
+				Host:           "test-host",
+				EnableProvider: newTestEnableProvider(true, false),
 			},
 			mockBehavior: func(mockNode *rpc.MockTChanNode) {
 				// First request fails to trigger unhealthy state
@@ -231,7 +231,7 @@ func TestClient_WriteBatchRaw(t *testing.T) {
 				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Times(0)
 			},
 			verifyState: func(t *testing.T, c *client) {
-				assert.True(t, c.enabled)
+				assert.True(t, c.provider.IsEnabled())
 				assert.NotNil(t, c.circuit)
 				assert.Equal(t, circuitbreaker.Unhealthy, c.circuit.Status().State())
 			},
