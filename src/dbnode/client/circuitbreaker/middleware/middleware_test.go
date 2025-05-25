@@ -51,6 +51,48 @@ func newTestConfig(enabled, shadowMode bool) Config {
 	}
 }
 
+// newTestParams creates common test parameters
+func newTestParams(enabled bool) Params {
+	return Params{
+		Config: newTestConfig(enabled, false), // shadowMode is false
+		Logger: zap.NewNop(),
+		Scope:  tally.NoopScope,
+		Host:   "test-host",
+	}
+}
+
+// newUnhealthyStateMockBehavior creates mock behavior for unhealthy state
+func newUnhealthyStateMockBehavior() func(*rpc.MockTChanNode) {
+	return func(mockNode *rpc.MockTChanNode) {
+		// First request fails to trigger unhealthy state
+		mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(errors.New("write error"))
+		// Second request should be rejected by circuit breaker
+		mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Times(0)
+	}
+}
+
+// newSuccessfulWriteMockBehavior creates mock behavior for successful writes
+func newSuccessfulWriteMockBehavior() func(*rpc.MockTChanNode) {
+	return func(mockNode *rpc.MockTChanNode) {
+		// Expect two successful writes
+		mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(nil).Times(2)
+	}
+}
+
+// verifyUnhealthyState verifies circuit breaker is in unhealthy state
+func verifyUnhealthyState(t *testing.T, c *client) {
+	assert.True(t, c.enabled)
+	assert.NotNil(t, c.circuit)
+	assert.Equal(t, circuitbreaker.Unhealthy, c.circuit.Status().State())
+}
+
+// verifyHealthyState verifies circuit breaker is in healthy state
+func verifyHealthyState(t *testing.T, c *client, enabled bool) {
+	assert.Equal(t, enabled, c.enabled)
+	assert.NotNil(t, c.circuit)
+	assert.Equal(t, circuitbreaker.Healthy, c.circuit.Status().State())
+}
+
 func TestNew(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -130,92 +172,35 @@ func TestClient_WriteBatchRaw(t *testing.T) {
 		expectedError bool
 	}{
 		{
-			name: "circuit breaker enabled - successful write",
-			params: Params{
-				Config: newTestConfig(true, false),
-				Logger: zap.NewNop(),
-				Scope:  tally.NoopScope,
-				Host:   "test-host",
-			},
-			mockBehavior: func(mockNode *rpc.MockTChanNode) {
-				// Expect two successful writes
-				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(nil).Times(2)
-			},
+			name:         "circuit breaker enabled - successful write",
+			params:       newTestParams(true),
+			mockBehavior: newSuccessfulWriteMockBehavior(),
 			verifyState: func(t *testing.T, c *client) {
-				assert.True(t, c.enabled)
-				assert.NotNil(t, c.circuit)
-				assert.Equal(t, circuitbreaker.Healthy, c.circuit.Status().State())
+				verifyHealthyState(t, c, true)
 			},
 			expectedError: false,
 		},
 		{
-			name: "circuit breaker enabled - failed write transitions to unhealthy",
-			params: Params{
-				Config: newTestConfig(true, false),
-				Logger: zap.NewNop(),
-				Scope:  tally.NoopScope,
-				Host:   "test-host",
-			},
-			mockBehavior: func(mockNode *rpc.MockTChanNode) {
-				// First request fails
-				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(errors.New("write error"))
-				// Second request should be rejected by circuit breaker
-				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Times(0)
-			},
-			verifyState: func(t *testing.T, c *client) {
-				assert.True(t, c.enabled)
-				assert.NotNil(t, c.circuit)
-				assert.Equal(t, circuitbreaker.Unhealthy, c.circuit.Status().State())
-			},
+			name:          "circuit breaker enabled - failed write transitions to unhealthy",
+			params:        newTestParams(true),
+			mockBehavior:  newUnhealthyStateMockBehavior(),
+			verifyState:   verifyUnhealthyState,
 			expectedError: true,
 		},
 		{
-			name: "circuit breaker disabled - requests pass through",
-			params: Params{
-				Config: newTestConfig(false, false),
-				Logger: zap.NewNop(),
-				Scope:  tally.NoopScope,
-				Host:   "test-host",
-			},
-			mockBehavior: func(mockNode *rpc.MockTChanNode) {
-				// Both requests should go through when disabled
-				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(nil).Times(2)
-			},
+			name:         "circuit breaker disabled - requests pass through",
+			params:       newTestParams(false),
+			mockBehavior: newSuccessfulWriteMockBehavior(),
 			verifyState: func(t *testing.T, c *client) {
-				assert.False(t, c.enabled)
-				assert.NotNil(t, c.circuit)
-				assert.Equal(t, circuitbreaker.Healthy, c.circuit.Status().State())
+				verifyHealthyState(t, c, false)
 			},
 			expectedError: false,
 		},
 		{
-			name: "circuit breaker enabled - unhealthy state rejects requests",
-			params: Params{
-				Config: Config{
-					Enabled:    true,
-					ShadowMode: false,
-					CircuitBreakerConfig: circuitbreaker.Config{
-						MinimumRequests: 1,
-						FailureRatio:    0.1,
-						WindowSize:      1,
-						BucketDuration:  time.Millisecond,
-					},
-				},
-				Logger: zap.NewNop(),
-				Scope:  tally.NoopScope,
-				Host:   "test-host",
-			},
-			mockBehavior: func(mockNode *rpc.MockTChanNode) {
-				// First request fails to trigger unhealthy state
-				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(errors.New("write error"))
-				// Second request should be rejected by circuit breaker
-				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Times(0)
-			},
-			verifyState: func(t *testing.T, c *client) {
-				assert.True(t, c.enabled)
-				assert.NotNil(t, c.circuit)
-				assert.Equal(t, circuitbreaker.Unhealthy, c.circuit.Status().State())
-			},
+			name:          "circuit breaker enabled - unhealthy state rejects requests",
+			params:        newTestParams(true),
+			mockBehavior:  newUnhealthyStateMockBehavior(),
+			verifyState:   verifyUnhealthyState,
 			expectedError: true,
 		},
 	}
