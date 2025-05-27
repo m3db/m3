@@ -22,10 +22,14 @@ package proto
 
 import (
 	"bytes"
+	"fmt"
 	"math"
 	"testing"
 	"time"
 
+	"github.com/golang/protobuf/proto"
+	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
+	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/stretchr/testify/require"
 )
@@ -177,4 +181,163 @@ func assertAttributesEqualMarshalledBytes(
 
 	require.NoError(t, err)
 	require.Equal(t, expectedMarshalled, actualMarshalled)
+}
+
+func TestCustomUnmarshaller(t *testing.T) {
+	tests := []struct {
+		name              string
+		fields            []*dpb.FieldDescriptorProto
+		input             []byte
+		expectedCustom    []unmarshalValue
+		expectedNonCustom []marshalledField
+		skipUnknown       bool
+		expectError       bool
+	}{
+		{
+			name: "empty message",
+			fields: []*dpb.FieldDescriptorProto{
+				{Name: proto.String("field1"), Number: proto.Int32(1), Type: dpb.FieldDescriptorProto_TYPE_INT32.Enum()},
+			},
+			input:             []byte{},
+			expectedCustom:    []unmarshalValue{},
+			expectedNonCustom: []marshalledField{},
+		},
+		{
+			name: "single int32 field",
+			fields: []*dpb.FieldDescriptorProto{
+				{Name: proto.String("field1"), Number: proto.Int32(1), Type: dpb.FieldDescriptorProto_TYPE_INT32.Enum()},
+			},
+			input: []byte{0x08, 0x2A}, // field 1, value 42
+			expectedCustom: []unmarshalValue{
+				{fieldNumber: 1, v: 42},
+			},
+			expectedNonCustom: []marshalledField{},
+		},
+		{
+			name: "unknown field with skip",
+			fields: []*dpb.FieldDescriptorProto{
+				{Name: proto.String("field1"), Number: proto.Int32(1), Type: dpb.FieldDescriptorProto_TYPE_INT32.Enum()},
+			},
+			input: []byte{0x08, 0x2A, 0x10, 0x01}, // field 1=42, unknown field 2=1
+			expectedCustom: []unmarshalValue{
+				{fieldNumber: 1, v: 42},
+			},
+			expectedNonCustom: []marshalledField{},
+			skipUnknown:       true,
+		},
+		{
+			name: "unknown field without skip",
+			fields: []*dpb.FieldDescriptorProto{
+				{Name: proto.String("field1"), Number: proto.Int32(1), Type: dpb.FieldDescriptorProto_TYPE_INT32.Enum()},
+			},
+			input:       []byte{0x08, 0x2A, 0x10, 0x01}, // field 1=42, unknown field 2=1
+			expectError: true,
+		},
+		{
+			name: "repeated field",
+			fields: []*dpb.FieldDescriptorProto{
+				{Name: proto.String("field1"), Number: proto.Int32(1),
+					Type:  dpb.FieldDescriptorProto_TYPE_INT32.Enum(),
+					Label: dpb.FieldDescriptorProto_LABEL_REPEATED.Enum()},
+			},
+			input:          []byte{0x08, 0x2A, 0x08, 0x2B}, // field 1=[42, 43]
+			expectedCustom: []unmarshalValue{},
+			expectedNonCustom: []marshalledField{
+				// nolint: misspell
+				{fieldNum: 1, marshalled: []byte{0x08, 0x2A, 0x08, 0x2B}},
+			},
+		},
+	}
+
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Convert field descriptors to proto format
+			schema := createTestSchema(tt.fields, i)
+
+			unmarshaller := newCustomFieldUnmarshaller(customUnmarshallerOptions{
+				skipUnknownFields: tt.skipUnknown,
+			})
+
+			err := unmarshaller.resetAndUnmarshal(schema, tt.input)
+			if tt.expectError {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			// Verify custom values
+			customValues := unmarshaller.sortedCustomFieldValues()
+			require.Equal(t, len(tt.expectedCustom), len(customValues))
+			for i, expected := range tt.expectedCustom {
+				require.Equal(t, expected.fieldNumber, customValues[i].fieldNumber)
+				require.Equal(t, expected.v, customValues[i].v)
+			}
+
+			// Verify non-custom values
+			nonCustomValues := unmarshaller.sortedNonCustomFieldValues()
+			require.Equal(t, len(tt.expectedNonCustom), len(nonCustomValues))
+			for i, expected := range tt.expectedNonCustom {
+				require.Equal(t, expected.fieldNum, nonCustomValues[i].fieldNum)
+				// nolint: misspell
+				require.Equal(t, expected.marshalled, nonCustomValues[i].marshalled)
+			}
+		})
+	}
+}
+
+func TestUnmarshalValue(t *testing.T) {
+	tests := []struct {
+		name      string
+		value     unmarshalValue
+		asBool    bool
+		asUint64  uint64
+		asInt64   int64
+		asFloat64 float64
+		asBytes   []byte
+	}{
+		{
+			name:      "bool false",
+			value:     unmarshalValue{v: 0},
+			asBool:    false,
+			asUint64:  0,
+			asInt64:   0,
+			asFloat64: 0.0,
+		},
+		{
+			name:    "bytes",
+			value:   unmarshalValue{bytes: []byte{0x01, 0x02, 0x03}},
+			asBytes: []byte{0x01, 0x02, 0x03},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.asBool, tt.value.asBool())
+			require.Equal(t, tt.asUint64, tt.value.asUint64())
+			require.Equal(t, tt.asInt64, tt.value.asInt64())
+			require.Equal(t, tt.asFloat64, tt.value.asFloat64())
+			require.Equal(t, tt.asBytes, tt.value.asBytes())
+		})
+	}
+}
+
+func createTestSchema(fields []*dpb.FieldDescriptorProto, i int) *desc.MessageDescriptor {
+	// Generate a unique name for each schema
+	uniqueName := fmt.Sprintf("test_%d.proto", i)
+
+	msg := &dpb.DescriptorProto{
+		Name:  proto.String("TestMessage"),
+		Field: fields,
+	}
+	file := &dpb.FileDescriptorProto{
+		Name:        proto.String(uniqueName),
+		Package:     proto.String("test"),
+		MessageType: []*dpb.DescriptorProto{msg},
+		Syntax:      proto.String("proto3"),
+	}
+	fd, err := desc.CreateFileDescriptor(file)
+	if err != nil {
+		panic(err)
+	}
+	return fd.GetMessageTypes()[0]
 }
