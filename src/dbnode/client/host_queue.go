@@ -125,9 +125,12 @@ func newHostQueue(
 	}
 
 	// Set the wrapped connection function in the options
+	opts.InstrumentOptions().Logger().Info("setting wrapped new connection function", zap.Any("NewConnectionFn=", opts.NewConnectionFn()))
 	if opts.NewConnectionFn() == nil { // do not override if already set for test purposes
+		opts.InstrumentOptions().Logger().Info("setting wrapped new connection function called", zap.Any("NewConnectionFn=", opts.NewConnectionFn()))
 		opts = opts.SetNewConnectionFn(wrappedNewConnFn)
 	}
+	opts.InstrumentOptions().Logger().Info("setting wrapped new connection function done", zap.Any("NewConnectionFn=", opts.NewConnectionFn()))
 
 	writeOpBatchSizeBuckets, err := tally.ExponentialValueBuckets(1, 2, 15)
 	if err != nil {
