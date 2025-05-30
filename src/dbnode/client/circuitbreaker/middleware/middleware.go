@@ -48,6 +48,7 @@ type Params struct {
 func New(params Params) (M3DBMiddleware, error) {
 	params.Logger.Info("creating circuit breaker middleware", zap.Any("config", params.Config))
 	c, err := circuitbreaker.NewCircuit(params.Config.CircuitBreakerConfig)
+	params.Logger.Info("created circuit breaker", zap.Any("circuit", c))
 	if err != nil {
 		params.Logger.Warn("failed to create circuit breaker", zap.Error(err))
 		return nil, err
