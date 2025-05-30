@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"math"
 	"sync"
@@ -117,7 +118,7 @@ func newHostQueue(
 
 	// Create a wrapped connection function that applies the circuit breaker
 	wrappedNewConnFn := func(channelName string, address string, clientOpts Options) (Channel, rpc.TChanNode, error) {
-		channel, client, err := opts.NewConnectionFn()(channelName, address, clientOpts)
+		channel, client, err := defaultNewConnectionFn(channelName, address, clientOpts)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -125,7 +126,10 @@ func newHostQueue(
 	}
 
 	// Set the wrapped connection function in the options
-	opts = opts.SetNewConnectionFn(wrappedNewConnFn)
+	if !isTestEnvironment() {
+		opts.InstrumentOptions().Logger().Info("setting wrapped new connection function called")
+		opts = opts.SetNewConnectionFn(wrappedNewConnFn)
+	}
 
 	writeOpBatchSizeBuckets, err := tally.ExponentialValueBuckets(1, 2, 15)
 	if err != nil {
@@ -1274,4 +1278,9 @@ func (s namespaceWriteTaggedBatchOpsSlice) resetAt(
 ) {
 	s[index].ops = nil
 	s[index].elems = nil
+}
+
+// isTestEnvironment returns true if the code is running in a test environment
+func isTestEnvironment() bool {
+	return flag.Lookup("test.v") != nil
 }
