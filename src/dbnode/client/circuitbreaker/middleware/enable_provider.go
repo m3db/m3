@@ -101,6 +101,7 @@ func (p *enableProvider) WatchConfig(store kv.Store, logger *zap.Logger) error {
 				ShadowMode: configProto.ShadowMode,
 			}
 
+			logger.Info("circuit breaker middleware configuration changed2", zap.Any("config", config))
 			// Store the config in atomic value
 			p.configValue.Store(config)
 		}

@@ -46,6 +46,7 @@ type Params struct {
 
 // New creates a new circuit breaker middleware.
 func New(params Params) (M3DBMiddleware, error) {
+	params.Logger.Info("creating circuit breaker middleware", zap.Any("config", params.Config))
 	c, err := circuitbreaker.NewCircuit(params.Config.CircuitBreakerConfig)
 	if err != nil {
 		params.Logger.Warn("failed to create circuit breaker", zap.Error(err))
@@ -66,6 +67,7 @@ func New(params Params) (M3DBMiddleware, error) {
 
 // withBreaker executes the given call with a circuit breaker if enabled.
 func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.Context, T) error) error {
+	c.logger.Info("withBreaker", zap.Any("circuit", c.circuit), zap.Any("provider", c.provider))
 	// Early return if circuit breaker is disabled or not initialized
 	if c.circuit == nil || !c.provider.IsEnabled() {
 		return call(ctx, req)
