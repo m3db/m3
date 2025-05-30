@@ -128,6 +128,7 @@ func newHostQueue(
 
 	// Set the wrapped connection function in the options
 	if opts.NewConnectionFn() == nil { // do not override if already set for test purposes
+		opts.InstrumentOptions().Logger().Info("setting wrapped new connection function")
 		opts = opts.SetNewConnectionFn(wrappedNewConnFn)
 	}
 
@@ -713,6 +714,7 @@ func (q *queue) asyncWrite(
 		}
 
 		ctx, _ := thrift.NewContext(q.opts.WriteRequestTimeout())
+		q.opts.InstrumentOptions().Logger().Info("writing batch raw", zap.Any("req", req))
 		err = client.WriteBatchRaw(ctx, req)
 		if err == nil {
 			// All succeeded
