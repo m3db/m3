@@ -101,6 +101,7 @@ func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.C
 
 // WriteBatchRaw is a method that writes a batch of raw data.
 func (c *client) WriteBatchRaw(ctx thrift.Context, req *rpc.WriteBatchRawRequest) error {
+	c.logger.Info("WriteBatchRaw called", zap.Any("req", req))
 	return withBreaker(c, ctx, req, c.next.WriteBatchRaw)
 }
 
