@@ -85,8 +85,94 @@ type Producer interface {
 	Close(ct CloseType)
 }
 
+// FilterFuncType specifies the type of filter function.
+type FilterFuncType uint8
+
+const (
+	// ShardSetFilter filters messages based on a shard set.
+	ShardSetFilter FilterFuncType = iota
+	// StoragePolicyFilter filters messages based on a storage policy.
+	StoragePolicyFilter
+	// PercentageFilter filters messages on a sampling percentage.
+	PercentageFilter
+	// AcceptAllFilter accepts all messages.
+	AcceptAllFilter
+	// UnspecifiedFilter is any filter that is not one of the well known types.
+	UnspecifiedFilter
+)
+
+func (f FilterFuncType) String() string {
+	switch f {
+
+	case ShardSetFilter:
+		return "ShardSetFilter"
+	case StoragePolicyFilter:
+		return "StoragePolicyFilter"
+	case PercentageFilter:
+		return "PercentageFilter"
+	case AcceptAllFilter:
+		return "AcceptAllFilter"
+	case UnspecifiedFilter:
+		return "UnspecifiedFilter"
+	}
+
+	return "Unknown"
+}
+
+// FilterFuncConfigSourceType specifies the configuration source of the filter function.
+type FilterFuncConfigSourceType uint8
+
+const (
+	// StaticConfig is static configuration that is applied once at service startup.
+	StaticConfig FilterFuncConfigSourceType = iota
+	// DynamicConfig is dynamic configuration that can be updated at runtime.
+	DynamicConfig
+)
+
+func (f FilterFuncConfigSourceType) String() string {
+	switch f {
+
+	case StaticConfig:
+		return "StaticConfig"
+	case DynamicConfig:
+		return "DynamicConfig"
+	}
+
+	return "Unknown"
+}
+
+// FilterFuncMetadata contains metadata about a filter function.
+type FilterFuncMetadata struct {
+	FilterType FilterFuncType
+	SourceType FilterFuncConfigSourceType
+}
+
+// NewFilterFuncMetadata creates a new filter function metadata.
+func NewFilterFuncMetadata(
+	filterType FilterFuncType,
+	sourceType FilterFuncConfigSourceType) FilterFuncMetadata {
+	return FilterFuncMetadata{
+		FilterType: filterType,
+		SourceType: sourceType,
+	}
+}
+
 // FilterFunc can filter message.
-type FilterFunc func(m Message) bool
+type FilterFunc struct {
+	Function func(m Message) bool
+	Metadata FilterFuncMetadata
+}
+
+// NewFilterFunc creates a new filter function.
+func NewFilterFunc(
+	function func(m Message) bool,
+	filterType FilterFuncType,
+	sourceType FilterFuncConfigSourceType) FilterFunc {
+	return FilterFunc{
+		Function: function,
+		Metadata: NewFilterFuncMetadata(filterType, sourceType),
+	}
+}
 
 // Options configs a producer.
 type Options interface {
