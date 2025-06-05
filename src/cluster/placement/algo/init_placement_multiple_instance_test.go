@@ -118,6 +118,7 @@ func TestSubclusteredV2InitialPlacement(t *testing.T) {
 
 			require.NoError(t, placement.Validate(p))
 			require.NoError(t, validateSubClusteredPlacement(p))
+			printPlacement(p)
 
 			if tt.subclusterToAdd > 0 {
 				totalInstances := tt.instancesPerSub * (tt.subclusterToAdd)
@@ -144,19 +145,8 @@ func TestSubclusteredV2InitialPlacement(t *testing.T) {
 
 				require.NoError(t, validateSubClusteredPlacement(newPlacement))
 
-				beforeRebalanceDiffs := getMaxShardDiffInSubclusters(newPlacement)
-				maxBeforeDiff := 0
-				maxBeforeDiffGtTen := 0
-				for _, diff := range beforeRebalanceDiffs {
-					if diff > maxBeforeDiff {
-						maxBeforeDiff = diff
-					}
-					if diff > 2 {
-						maxBeforeDiffGtTen++
-					}
-				}
-				t.Logf("Maximum shard difference before rebalancing: %d", maxBeforeDiff)
-				t.Logf("Number of subclusters with more than 2 shard differences: %d", maxBeforeDiffGtTen)
+				maxDiffSubclusterID, maxBeforeDiff := getMaxShardDiffInSubclusters(newPlacement)
+				t.Logf("Maximum shard difference before rebalancing: %d (subcluster %d)", maxBeforeDiff, maxDiffSubclusterID)
 
 				balancedPlacement, err := algo.BalanceShards(newPlacement)
 				require.NoError(t, err)
@@ -168,19 +158,8 @@ func TestSubclusteredV2InitialPlacement(t *testing.T) {
 
 				require.NoError(t, validateSubClusteredPlacement(balancedPlacement))
 
-				afterRebalanceDiffs := getMaxShardDiffInSubclusters(balancedPlacement)
-				maxAfterDiff := 0
-				maxAfterDiffGtTen := 0
-				for _, diff := range afterRebalanceDiffs {
-					if diff > maxAfterDiff {
-						maxAfterDiff = diff
-					}
-					if diff > 2 {
-						maxAfterDiffGtTen++
-					}
-				}
-				t.Logf("Maximum shard difference after rebalancing: %d", maxAfterDiff)
-				t.Logf("Number of subclusters with more than 2 shard differences: %d", maxAfterDiffGtTen)
+				maxDiffSubclusterIDAfter, maxAfterDiff := getMaxShardDiffInSubclusters(balancedPlacement)
+				t.Logf("Maximum shard difference after rebalancing: %d (subcluster %d)", maxAfterDiff, maxDiffSubclusterIDAfter)
 			}
 		})
 	}

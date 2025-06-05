@@ -117,6 +117,10 @@ func newubclusteredv2RemoveInstanceHelper(
 	if err != nil {
 		return nil, nil, err
 	}
+	subclusterInstances := getSubClusterInstances(p.Instances(), leavingInstance.SubClusterID())
+	if len(subclusterInstances) == opts.InstancesPerSubCluster() {
+		return newubclusteredv2Helper(p, p.ReplicaFactor(), opts, 0), leavingInstance, nil
+	}
 	ph := newubclusteredv2Helper(p, p.ReplicaFactor(), opts, leavingInstance.SubClusterID())
 	return ph, leavingInstance, nil
 }

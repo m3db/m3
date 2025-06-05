@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// getMaxShardDiffInSubclusters returns the maximum difference in shard count between instances within each subcluster
-func getMaxShardDiffInSubclusters(p placement.Placement) map[uint32]int {
+// getMaxShardDiffInSubclusters returns the subcluster ID with the maximum shard difference and the difference value
+func getMaxShardDiffInSubclusters(p placement.Placement) (uint32, int) {
 	// Map to store shard counts per instance in each subcluster
 	subclusterShardCounts := make(map[uint32]map[string]int)
 
@@ -23,8 +23,10 @@ func getMaxShardDiffInSubclusters(p placement.Placement) map[uint32]int {
 		subclusterShardCounts[subclusterID][instance.ID()] = instance.Shards().NumShards()
 	}
 
-	// Calculate max difference for each subcluster
-	maxDiffs := make(map[uint32]int)
+	// Find the subcluster with the maximum difference
+	var maxDiffSubclusterID uint32
+	var globalMaxDiff int
+
 	for subclusterID, instanceCounts := range subclusterShardCounts {
 		var minCount, maxCount int
 		first := true
@@ -42,10 +44,15 @@ func getMaxShardDiffInSubclusters(p placement.Placement) map[uint32]int {
 				maxCount = count
 			}
 		}
-		maxDiffs[subclusterID] = maxCount - minCount
+
+		diff := maxCount - minCount
+		if diff > globalMaxDiff {
+			globalMaxDiff = diff
+			maxDiffSubclusterID = subclusterID
+		}
 	}
 
-	return maxDiffs
+	return maxDiffSubclusterID, globalMaxDiff
 }
 
 func TestSubclusteredV2AddInstances(t *testing.T) {
@@ -149,19 +156,8 @@ func TestSubclusteredV2AddInstances(t *testing.T) {
 			printPlacement(currentPlacement)
 
 			// Get max shard differences before rebalancing
-			beforeRebalanceDiffs := getMaxShardDiffInSubclusters(currentPlacement)
-			maxBeforeDiff := 0
-			maxBeforeDiffGtTen := 0
-			for _, diff := range beforeRebalanceDiffs {
-				if diff > maxBeforeDiff {
-					maxBeforeDiff = diff
-				}
-				if diff > 10 {
-					maxBeforeDiffGtTen++
-				}
-			}
-			t.Logf("Maximum shard difference before rebalancing: %d", maxBeforeDiff)
-			t.Logf("Number of subclusters with more than 10 shard differences: %d", maxBeforeDiffGtTen)
+			maxDiffSubclusterID, maxBeforeDiff := getMaxShardDiffInSubclusters(currentPlacement)
+			t.Logf("Maximum shard difference before rebalancing: %d (subcluster %d)", maxBeforeDiff, maxDiffSubclusterID)
 			balancedplacement := currentPlacement.Clone()
 
 			balancedplacement, err = algo.BalanceShards(balancedplacement)
@@ -172,14 +168,8 @@ func TestSubclusteredV2AddInstances(t *testing.T) {
 			require.NoError(t, err)
 
 			// Get max shard differences after rebalancing
-			afterRebalanceDiffs := getMaxShardDiffInSubclusters(balancedplacement)
-			maxAfterDiff := 0
-			for _, diff := range afterRebalanceDiffs {
-				if diff > maxAfterDiff {
-					maxAfterDiff = diff
-				}
-			}
-			t.Logf("Maximum shard difference after rebalancing: %d", maxAfterDiff)
+			maxDiffSubclusterIDAfter, maxAfterDiff := getMaxShardDiffInSubclusters(balancedplacement)
+			t.Logf("Maximum shard difference after rebalancing: %d (subcluster %d)", maxAfterDiff, maxDiffSubclusterIDAfter)
 
 			// Final validation after all additions
 			require.NoError(t, placement.Validate(balancedplacement))
@@ -207,19 +197,8 @@ func TestSubclusteredV2AddInstances(t *testing.T) {
 				require.NoError(t, validateSubClusteredPlacement(balancedplacement))
 				printPlacement(balancedplacement)
 
-				beforeRebalanceDiffs := getMaxShardDiffInSubclusters(currentPlacement)
-				maxBeforeDiff := 0
-				maxBeforeDiffGtTen := 0
-				for _, diff := range beforeRebalanceDiffs {
-					if diff > maxBeforeDiff {
-						maxBeforeDiff = diff
-					}
-					if diff > 10 {
-						maxBeforeDiffGtTen++
-					}
-				}
-				t.Logf("Maximum shard difference before rebalancing: %d", maxBeforeDiff)
-				t.Logf("Number of subclusters with more than 10 shard differences: %d", maxBeforeDiffGtTen)
+				maxDiffSubclusterIDFinal, maxFinalDiff := getMaxShardDiffInSubclusters(currentPlacement)
+				t.Logf("Maximum shard difference after final addition: %d (subcluster %d)", maxFinalDiff, maxDiffSubclusterIDFinal)
 
 			}
 		})
