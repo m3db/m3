@@ -78,6 +78,9 @@ func (p *enableProvider) WatchConfig(store kv.Store, logger *zap.Logger) error {
 
 	logger.Info("watch created for circuit breaker middleware configuration")
 
+	currentValue, err := store.Get(_configPath)
+	logger.Info("current value", zap.Any("value", currentValue))
+
 	go func() {
 		for range watch.C() {
 			// Get the current value
