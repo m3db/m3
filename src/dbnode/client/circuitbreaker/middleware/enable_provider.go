@@ -79,14 +79,20 @@ func (p *enableProvider) WatchConfig(store kv.Store, logger *zap.Logger) error {
 	logger.Info("watch created for circuit breaker middleware configuration")
 
 	currentValue, err := store.Get(_configPath)
-	logger.Info("current value2", zap.Any("currentValue", currentValue))
+	if err != nil {
+		logger.Error("failed to get circuit breaker middleware configuration currentValue", zap.Error(err))
+	} else if currentValue != nil {
+		logger.Info("current value2", zap.Any("currentValue", currentValue))
 
-	var configProto2 circuitbreaker.EnableConfigProto
-	if err := currentValue.Unmarshal(&configProto2); err != nil {
-		logger.Error("failed to unmarshal circuit breaker middleware configuration2", zap.Error(err))
+		var configProto2 circuitbreaker.EnableConfigProto
+		if err := currentValue.Unmarshal(&configProto2); err != nil {
+			logger.Error("failed to unmarshal circuit breaker middleware configuration2", zap.Error(err))
 
+		} else {
+			logger.Info("current value3", zap.Any("configProto2.Enabled", configProto2.Enabled), zap.Any("configProto2.ShadowMode", configProto2.ShadowMode))
+		}
 	} else {
-		logger.Info("current value3", zap.Any("configProto2.Enabled", configProto2.Enabled), zap.Any("configProto2.ShadowMode", configProto2.ShadowMode))
+		logger.Info("current value is nil")
 	}
 
 	go func() {
