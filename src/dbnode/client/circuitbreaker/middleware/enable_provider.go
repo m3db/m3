@@ -69,27 +69,34 @@ func (p *enableProvider) IsShadowMode() bool {
 
 // printAllKeys prints all keys from the etcd store
 func printAllKeys(store kv.Store, logger *zap.Logger) {
-	// Get the underlying etcd client
-	etcdStore, ok := store.(interface {
-		GetAll() (map[string]kv.Value, error)
-	})
-	if !ok {
-		logger.Error("store does not support GetAll operation")
-		return
+	// Try to get the store's keys using known paths
+	knownPaths := []string{
+		_configPath,
+		"namespaces",
+		"placement",
+		"placement/instances",
+		"placement/shard",
+		"placement/namespace",
+		"placement/namespace/instances",
+		"placement/namespace/shard",
+		"placement/namespace/placement",
+		"placement/namespace/placement/instances",
+		"placement/namespace/placement/shard",
 	}
 
-	// Get all keys and values
-	allValues, err := etcdStore.GetAll()
-	if err != nil {
-		logger.Error("failed to get all keys from store", zap.Error(err))
-		return
-	}
-
-	// Print all keys
-	logger.Info("all keys in store:")
-	for key, value := range allValues {
+	logger.Info("checking known paths in store:")
+	for _, path := range knownPaths {
+		value, err := store.Get(path)
+		if err != nil {
+			if err != kv.ErrNotFound {
+				logger.Error("error getting value for path",
+					zap.String("path", path),
+					zap.Error(err))
+			}
+			continue
+		}
 		logger.Info("key found",
-			zap.String("key", key),
+			zap.String("path", path),
 			zap.Int("version", value.Version()))
 	}
 }
