@@ -67,9 +67,39 @@ func (p *enableProvider) IsShadowMode() bool {
 	return false
 }
 
+// printAllKeys prints all keys from the etcd store
+func printAllKeys(store kv.Store, logger *zap.Logger) {
+	// Get the underlying etcd client
+	etcdStore, ok := store.(interface {
+		GetAll() (map[string]kv.Value, error)
+	})
+	if !ok {
+		logger.Error("store does not support GetAll operation")
+		return
+	}
+
+	// Get all keys and values
+	allValues, err := etcdStore.GetAll()
+	if err != nil {
+		logger.Error("failed to get all keys from store", zap.Error(err))
+		return
+	}
+
+	// Print all keys
+	logger.Info("all keys in store:")
+	for key, value := range allValues {
+		logger.Info("key found",
+			zap.String("key", key),
+			zap.Int("version", value.Version()))
+	}
+}
+
 // WatchConfig watches for changes to the circuit breaker middleware configuration in etcd.
 func (p *enableProvider) WatchConfig(store kv.Store, logger *zap.Logger) error {
 	logger.Info("watching circuit breaker middleware configuration")
+
+	// Print all keys before watching
+	printAllKeys(store, logger)
 
 	watch, err := store.Watch(_configPath)
 	if err != nil {
@@ -79,6 +109,7 @@ func (p *enableProvider) WatchConfig(store kv.Store, logger *zap.Logger) error {
 	logger.Info("watch created for circuit breaker middleware configuration")
 
 	currentValue, err := store.Get(_configPath)
+
 	if err != nil {
 		logger.Error("failed to get circuit breaker middleware configuration currentValue", zap.Error(err))
 	} else if currentValue != nil {
