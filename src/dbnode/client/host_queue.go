@@ -98,6 +98,13 @@ func newHostQueue(
 	// Create circuit breaker middleware
 	var middlewareFn middleware.M3DBMiddleware
 	provider := opts.MiddlewareEnableProvider()
+	if provider == nil {
+		opts.InstrumentOptions().Logger().Info("provider is nil")
+	} else {
+		opts.InstrumentOptions().Logger().Info("provider is not nil")
+		opts.InstrumentOptions().Logger().Info("provider.IsEnabled()", zap.Bool("IsEnabled", provider.IsEnabled()))
+	}
+
 	if provider != nil && provider.IsEnabled() {
 		opts.InstrumentOptions().Logger().Info("creating circuit breaker middleware")
 		var err error

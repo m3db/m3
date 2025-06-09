@@ -356,14 +356,18 @@ func (c Configuration) NewAdminClient(
 		SetLogHostWriteErrorSampleRate(c.LogHostWriteErrorSampleRate).
 		SetLogHostFetchErrorSampleRate(c.LogHostFetchErrorSampleRate)
 
+	iopts.Logger().Info("HERE1")
 	if len(envCfgs) > 0 {
 		kv := envCfgs[0].KVStore
 		if kv != nil {
+			iopts.Logger().Info("kv is not nil")
 			// Create a single provider instance
 			provider := cb.NewEnableProvider()
 
 			// Set up circuit breaker middleware config watch
 			if err := provider.WatchConfig(kv, iopts.Logger()); err != nil {
+				iopts.Logger().Error("failed to set up circuit breaker middleware config watch2")
+
 				return nil, fmt.Errorf("failed to set up circuit breaker middleware config watch: %w", err)
 			}
 
