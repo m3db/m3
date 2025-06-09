@@ -105,24 +105,19 @@ func newHostQueue(
 		opts.InstrumentOptions().Logger().Info("provider.IsEnabled()", zap.Bool("IsEnabled", provider.IsEnabled()))
 	}
 
-	if provider != nil && provider.IsEnabled() {
-		opts.InstrumentOptions().Logger().Info("creating circuit breaker middleware")
-		var err error
-		params := middleware.Params{
-			Config:         opts.MiddlewareCircuitbreakerConfig(),
-			Logger:         opts.InstrumentOptions().Logger(),
-			Scope:          scope,
-			Host:           host.Address(),
-			EnableProvider: provider,
-		}
-		middlewareFn, err = middleware.New(params)
-		if err != nil {
-			opts.InstrumentOptions().Logger().Warn("failed to create circuit breaker middleware", zap.Error(err))
-			return nil, err
-		}
-	} else {
-		opts.InstrumentOptions().Logger().Info("creating nop circuit breaker middleware")
-		middlewareFn = middleware.NewNop()
+	opts.InstrumentOptions().Logger().Info("creating circuit breaker middleware")
+	var err error
+	params := middleware.Params{
+		Config:         opts.MiddlewareCircuitbreakerConfig(),
+		Logger:         opts.InstrumentOptions().Logger(),
+		Scope:          scope,
+		Host:           host.Address(),
+		EnableProvider: provider,
+	}
+	middlewareFn, err = middleware.New(params)
+	if err != nil {
+		opts.InstrumentOptions().Logger().Warn("failed to create circuit breaker middleware", zap.Error(err))
+		return nil, err
 	}
 
 	// Create a wrapped connection function that applies the circuit breaker
@@ -723,7 +718,6 @@ func (q *queue) asyncWrite(
 		}
 
 		ctx, _ := thrift.NewContext(q.opts.WriteRequestTimeout())
-		q.opts.InstrumentOptions().Logger().Info("writing batch raw in asyncWrite", zap.Any("req", req))
 		err = client.WriteBatchRaw(ctx, req)
 		if err == nil {
 			// All succeeded
