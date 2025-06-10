@@ -70,7 +70,7 @@ func TestSubclusteredV2ReplaceInstances(t *testing.T) {
 				SetInstancesPerSubCluster(tt.instancesPerSub).
 				SetHasSubClusters(true).
 				SetAllowPartialReplace(false)
-			algo := newSubclusteredv2(opts)
+			algo := newSubclusteredShardedAlgorithm(opts)
 
 			// Perform initial placement
 			p, err := algo.InitialPlacement(instances, shardIDs, tt.rf)

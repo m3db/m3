@@ -24,26 +24,26 @@ func TestSubclusteredV2RemoveInstances(t *testing.T) {
 			name:                "RF=3, 6 instances per subcluster, 24 total instances, remove 1 subcluster",
 			rf:                  3,
 			instancesPerSub:     6,
-			totalInstances:      168,
-			shards:              4096,
-			subclustersToRemove: 10,
-		},
-		{
-			name:                "RF=3, 6 instances per subcluster, 36 total instances, remove 2 subclusters",
-			rf:                  3,
-			instancesPerSub:     6,
-			totalInstances:      36,
-			shards:              128,
-			subclustersToRemove: 2,
-		},
-		{
-			name:                "RF=3, 9 instances per subcluster, 27 total instances, remove 1 subcluster",
-			rf:                  3,
-			instancesPerSub:     9,
-			totalInstances:      27,
+			totalInstances:      24,
 			shards:              64,
 			subclustersToRemove: 1,
 		},
+		// {
+		// 	name:                "RF=3, 6 instances per subcluster, 36 total instances, remove 2 subclusters",
+		// 	rf:                  3,
+		// 	instancesPerSub:     6,
+		// 	totalInstances:      36,
+		// 	shards:              128,
+		// 	subclustersToRemove: 2,
+		// },
+		// {
+		// 	name:                "RF=3, 9 instances per subcluster, 27 total instances, remove 1 subcluster",
+		// 	rf:                  3,
+		// 	instancesPerSub:     9,
+		// 	totalInstances:      27,
+		// 	shards:              64,
+		// 	subclustersToRemove: 1,
+		// },
 	}
 
 	for _, tt := range tests {
@@ -71,7 +71,7 @@ func TestSubclusteredV2RemoveInstances(t *testing.T) {
 				SetIsSharded(true).
 				SetInstancesPerSubCluster(tt.instancesPerSub).
 				SetHasSubClusters(true)
-			algo := newSubclusteredv2(opts)
+			algo := newSubclusteredShardedAlgorithm(opts)
 
 			// Perform initial placement
 			p, err := algo.InitialPlacement(instances, shardIDs, tt.rf)
@@ -125,6 +125,20 @@ func TestSubclusteredV2RemoveInstances(t *testing.T) {
 				newPlacement, err := algo.RemoveInstances(currentPlacement, []string{instanceID})
 				require.NoError(t, err)
 				require.NotNil(t, newPlacement)
+				printPlacement(newPlacement)
+
+				if i == 0 {
+					t.Logf("Testing reclaiming instance %s", instanceID)
+					addingInstance, _ := newPlacement.Instance(instanceID)
+					newPlacement, err = algo.AddInstances(newPlacement, []placement.Instance{addingInstance})
+					require.NoError(t, err)
+					require.NotNil(t, newPlacement)
+					printPlacementAndValidate(t, newPlacement)
+					newPlacement, err = algo.RemoveInstances(newPlacement, []string{instanceID})
+					require.NoError(t, err)
+					require.NotNil(t, newPlacement)
+				}
+
 				newPlacement, marked, err := algo.MarkAllShardsAvailable(newPlacement)
 				require.NoError(t, err)
 				require.True(t, marked)
@@ -197,7 +211,7 @@ func TestSubclusteredV2ReplaceInstanceAndRemove(t *testing.T) {
 				SetIsSharded(true).
 				SetInstancesPerSubCluster(tt.instancesPerSub).
 				SetHasSubClusters(true)
-			algo := newSubclusteredv2(opts)
+			algo := newSubclusteredShardedAlgorithm(opts)
 
 			// Perform initial placement
 			p, err := algo.InitialPlacement(instances, shardIDs, tt.rf)

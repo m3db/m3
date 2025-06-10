@@ -46,15 +46,15 @@ func (a BySubClusterIDInstanceID) Swap(i, j int) {
 	a[i], a[j] = a[j], a[i]
 }
 
-type subclusteredv2 struct {
+type subclusteredShardedAlgorithm struct {
 	opts placement.Options
 }
 
-func newSubclusteredv2(opts placement.Options) placement.Algorithm {
-	return subclusteredv2{opts: opts}
+func newSubclusteredShardedAlgorithm(opts placement.Options) placement.Algorithm {
+	return subclusteredShardedAlgorithm{opts: opts}
 }
 
-func (a subclusteredv2) IsCompatibleWith(p placement.Placement) error {
+func (a subclusteredShardedAlgorithm) IsCompatibleWith(p placement.Placement) error {
 	if !p.IsSharded() {
 		return errIncompatibleWithShardedAlgo
 	}
@@ -62,7 +62,7 @@ func (a subclusteredv2) IsCompatibleWith(p placement.Placement) error {
 	return nil
 }
 
-func (a subclusteredv2) InitialPlacement(
+func (a subclusteredShardedAlgorithm) InitialPlacement(
 	instances []placement.Instance,
 	shards []uint32,
 	rf int,
@@ -70,7 +70,7 @@ func (a subclusteredv2) InitialPlacement(
 	if err := assignSubClusterID(nil, a.opts, instances); err != nil {
 		return nil, err
 	}
-	ph, err := newSubclusteredv2InitHelper(placement.Instances(instances).Clone(), shards, a.opts)
+	ph, err := newSubclusteredInitHelper(placement.Instances(instances).Clone(), shards, a.opts)
 	if err != nil {
 		return nil, err
 	}
@@ -90,13 +90,16 @@ func (a subclusteredv2) InitialPlacement(
 }
 
 // nolint: dupl
-func (a subclusteredv2) AddReplica(p placement.Placement) (placement.Placement, error) {
+func (a subclusteredShardedAlgorithm) AddReplica(p placement.Placement) (placement.Placement, error) {
 	if err := a.IsCompatibleWith(p); err != nil {
 		return nil, err
 	}
 
 	p = p.Clone()
-	ph := newubclusteredv2ReplicaHelper(p, a.opts)
+	ph, err := newubclusteredAddReplicaHelper(p, a.opts)
+	if err != nil {
+		return nil, err
+	}
 	if err := ph.placeShards(newShards(p.Shards()), nil, nonLeavingInstances(ph.Instances())); err != nil {
 		return nil, err
 	}
@@ -108,7 +111,7 @@ func (a subclusteredv2) AddReplica(p placement.Placement) (placement.Placement, 
 	return tryCleanupShardState(ph.generatePlacement(), a.opts)
 }
 
-func (a subclusteredv2) RemoveInstances(
+func (a subclusteredShardedAlgorithm) RemoveInstances(
 	p placement.Placement,
 	instanceIDs []string,
 ) (placement.Placement, error) {
@@ -118,7 +121,7 @@ func (a subclusteredv2) RemoveInstances(
 
 	p = p.Clone()
 	for _, instanceID := range instanceIDs {
-		ph, leavingInstance, err := newubclusteredv2RemoveInstanceHelper(p, instanceID, a.opts)
+		ph, leavingInstance, err := newubclusteredRemoveInstanceHelper(p, instanceID, a.opts)
 		if err != nil {
 			return nil, err
 		}
@@ -138,7 +141,7 @@ func (a subclusteredv2) RemoveInstances(
 	return tryCleanupShardState(p, a.opts)
 }
 
-func (a subclusteredv2) AddInstances(
+func (a subclusteredShardedAlgorithm) AddInstances(
 	p placement.Placement,
 	instances []placement.Instance,
 ) (placement.Placement, error) {
@@ -148,7 +151,7 @@ func (a subclusteredv2) AddInstances(
 
 	p = p.Clone()
 	for _, instance := range instances {
-		ph, addingInstance, err := newubclusteredv2AddInstanceHelper(p, instance, a.opts, withLeavingShardsOnly)
+		ph, addingInstance, err := newubclusteredAddInstanceHelper(p, instance, a.opts, withLeavingShardsOnly)
 		if err != nil {
 			return nil, err
 		}
@@ -164,7 +167,7 @@ func (a subclusteredv2) AddInstances(
 }
 
 // nolint: dupl
-func (a subclusteredv2) ReplaceInstances(
+func (a subclusteredShardedAlgorithm) ReplaceInstances(
 	p placement.Placement,
 	leavingInstanceIDs []string,
 	addingInstances []placement.Instance,
@@ -174,7 +177,7 @@ func (a subclusteredv2) ReplaceInstances(
 	}
 
 	p = p.Clone()
-	ph, leavingInstances, addingInstances, err := newubclusteredv2ReplaceInstanceHelper(p, leavingInstanceIDs, addingInstances, a.opts)
+	ph, leavingInstances, addingInstances, err := newubclusteredReplaceInstanceHelper(p, leavingInstanceIDs, addingInstances, a.opts)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +220,7 @@ func (a subclusteredv2) ReplaceInstances(
 	return tryCleanupShardState(p, a.opts)
 }
 
-func (a subclusteredv2) MarkShardsAvailable(
+func (a subclusteredShardedAlgorithm) MarkShardsAvailable(
 	p placement.Placement,
 	instanceID string,
 	shardIDs ...uint32,
@@ -229,7 +232,7 @@ func (a subclusteredv2) MarkShardsAvailable(
 	return markShardsAvailable(p.Clone(), instanceID, shardIDs, a.opts)
 }
 
-func (a subclusteredv2) MarkAllShardsAvailable(
+func (a subclusteredShardedAlgorithm) MarkAllShardsAvailable(
 	p placement.Placement,
 ) (placement.Placement, bool, error) {
 	if err := a.IsCompatibleWith(p); err != nil {
@@ -239,10 +242,13 @@ func (a subclusteredv2) MarkAllShardsAvailable(
 	return markAllShardsAvailable(p, a.opts)
 }
 
-func (a subclusteredv2) BalanceShards(
+func (a subclusteredShardedAlgorithm) BalanceShards(
 	p placement.Placement,
 ) (placement.Placement, error) {
-	ph := newubclusteredv2Helper(p, p.ReplicaFactor(), a.opts, 0)
+	ph, err := newubclusteredHelper(p, p.ReplicaFactor(), a.opts, 0)
+	if err != nil {
+		return nil, err
+	}
 	// fmt.Println("Target load per instance:", ph.targetLoad)
 	if err := ph.optimize(unsafe); err != nil {
 		return nil, fmt.Errorf("shard balance optimization failed: %w", err)

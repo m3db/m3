@@ -38,7 +38,7 @@ func NewAlgorithm(opts placement.Options) placement.Algorithm {
 
 	if opts.HasSubClusters() {
 		fmt.Printf("we are here in algo.")
-		return newSubclusteredv2(opts)
+		return newSubclusteredShardedAlgorithm(opts)
 	}
 
 	if opts.IsSharded() {

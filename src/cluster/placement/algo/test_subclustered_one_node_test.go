@@ -40,7 +40,7 @@ func TestOneNodeAtATime(t *testing.T) {
 	}
 
 	opts := placement.NewOptions().SetHasSubClusters(true).SetIsSharded(true).SetInstancesPerSubCluster(6)
-	algo := newSubclusteredv2(opts)
+	algo := newSubclusteredShardedAlgorithm(opts)
 	p, err := algo.InitialPlacement([]placement.Instance{i1, i2, i3, i4, i5, i6}, ids, 3)
 	require.NoError(t, err)
 	require.NotNil(t, p)

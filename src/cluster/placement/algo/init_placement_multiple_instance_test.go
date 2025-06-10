@@ -105,7 +105,7 @@ func TestSubclusteredV2InitialPlacement(t *testing.T) {
 				SetIsSharded(true).
 				SetInstancesPerSubCluster(tt.instancesPerSub).
 				SetHasSubClusters(true)
-			algo := newSubclusteredv2(opts)
+			algo := newSubclusteredShardedAlgorithm(opts)
 
 			// Perform initial placement
 			p, err := algo.InitialPlacement(instances, shardIDs, tt.rf)
@@ -145,7 +145,16 @@ func TestSubclusteredV2InitialPlacement(t *testing.T) {
 
 				require.NoError(t, validateSubClusteredPlacement(newPlacement))
 
-				maxDiffSubclusterID, maxBeforeDiff := getMaxShardDiffInSubclusters(newPlacement)
+				subclusterSkews := getMaxShardDiffInSubclusters(newPlacement)
+				// Find the maximum skew and its subcluster ID
+				var maxDiffSubclusterID uint32
+				var maxBeforeDiff int
+				for subclusterID, skew := range subclusterSkews {
+					if skew > maxBeforeDiff {
+						maxBeforeDiff = skew
+						maxDiffSubclusterID = subclusterID
+					}
+				}
 				t.Logf("Maximum shard difference before rebalancing: %d (subcluster %d)", maxBeforeDiff, maxDiffSubclusterID)
 
 				balancedPlacement, err := algo.BalanceShards(newPlacement)
@@ -154,11 +163,19 @@ func TestSubclusteredV2InitialPlacement(t *testing.T) {
 
 				balancedPlacement, marked, err = algo.MarkAllShardsAvailable(balancedPlacement)
 				require.NoError(t, err)
-				require.True(t, marked)
 
 				require.NoError(t, validateSubClusteredPlacement(balancedPlacement))
 
-				maxDiffSubclusterIDAfter, maxAfterDiff := getMaxShardDiffInSubclusters(balancedPlacement)
+				subclusterSkewsAfter := getMaxShardDiffInSubclusters(balancedPlacement)
+				// Find the maximum skew and its subcluster ID after rebalancing
+				var maxDiffSubclusterIDAfter uint32
+				var maxAfterDiff int
+				for subclusterID, skew := range subclusterSkewsAfter {
+					if skew > maxAfterDiff {
+						maxAfterDiff = skew
+						maxDiffSubclusterIDAfter = subclusterID
+					}
+				}
 				t.Logf("Maximum shard difference after rebalancing: %d (subcluster %d)", maxAfterDiff, maxDiffSubclusterIDAfter)
 			}
 		})

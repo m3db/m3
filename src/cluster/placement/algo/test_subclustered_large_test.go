@@ -45,7 +45,7 @@ func TestLargeSubclusterPlacement(t *testing.T) {
 		SetIsSharded(true).
 		SetInstancesPerSubCluster(instancesPerBatch)
 
-	algo := newSubclusteredv2(opts)
+	algo := newSubclusteredShardedAlgorithm(opts)
 
 	// Generate initial batch of instances
 	initialInstances := generateInstances(instancesPerBatch, 0)
