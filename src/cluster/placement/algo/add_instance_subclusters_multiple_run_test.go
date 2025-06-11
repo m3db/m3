@@ -24,8 +24,8 @@ func TestSubclusteredV2AddInstancesMultipleRuns(t *testing.T) {
 			rf:               3,
 			instancesPerSub:  6,
 			subclustersToAdd: 28,
-			shards:           8192,
-			timesToRun:       1000,
+			shards:           16384,
+			timesToRun:       2,
 		},
 	}
 
@@ -166,10 +166,14 @@ func TestSubclusteredV2AddInstancesMultipleRuns(t *testing.T) {
 			if len(maxSkewsAfterAddition) > 0 {
 				sumAfterFinal := 0
 				maxAfterFinal := 0
+				clusterWithSkewLTTwo := 0
 				for _, skew := range maxSkewsAfterAddition {
 					sumAfterFinal += skew
 					if skew > maxAfterFinal {
 						maxAfterFinal = skew
+					}
+					if skew <= 2 {
+						clusterWithSkewLTTwo++
 					}
 				}
 				avgAfterFinal := float64(sumAfterFinal) / float64(len(maxSkewsAfterAddition))

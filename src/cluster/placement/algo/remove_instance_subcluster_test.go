@@ -153,6 +153,9 @@ func TestSubclusteredV2RemoveInstances(t *testing.T) {
 			require.NoError(t, placement.Validate(currentPlacement))
 			printPlacementAndValidate(t, currentPlacement)
 
+			_, globalMaxSkew, subclustersWithMaxSkewGTTwo := getMaxShardDiffInSubclusters(currentPlacement)
+			t.Logf("Maximum shard difference after removals: %d (subcluster %d)", globalMaxSkew, subclustersWithMaxSkewGTTwo)
+
 			// Verify final state
 			finalInstances := currentPlacement.Instances()
 			expectedInstances := tt.totalInstances - (tt.instancesPerSub * tt.subclustersToRemove)

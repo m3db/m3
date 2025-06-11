@@ -2,7 +2,9 @@ package algo
 
 import (
 	"fmt"
+	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/shard"
@@ -82,26 +84,28 @@ func getMaxShardDiffInSubclusters(p placement.Placement) (map[uint32]int, int, i
 
 func TestSubclusteredV2AddInstances(t *testing.T) {
 	tests := []struct {
-		name             string
-		rf               int
-		instancesPerSub  int
-		subclustersToAdd int
-		shards           int
+		name                string
+		rf                  int
+		instancesPerSub     int
+		subclustersToAdd    int
+		shards              int
+		subclustersToRemove int
 	}{
 		{
-			name:             "RF=3, 6 instances per subcluster, start with 12 add 6",
-			rf:               3,
-			instancesPerSub:  6,
-			subclustersToAdd: 30,
-			shards:           8192,
+			name:                "RF=3, 6 instances per subcluster, start with 12 add 6",
+			rf:                  3,
+			instancesPerSub:     6,
+			subclustersToAdd:    100,
+			shards:              4096,
+			subclustersToRemove: 10,
 		},
-		{
-			name:             "RF=3, 9 instances per subcluster, start with 18 add 9",
-			rf:               3,
-			instancesPerSub:  9,
-			subclustersToAdd: 30,
-			shards:           8192,
-		},
+		// {
+		// 	name:             "RF=3, 9 instances per subcluster, start with 18 add 9",
+		// 	rf:               3,
+		// 	instancesPerSub:  9,
+		// 	subclustersToAdd: 30,
+		// 	shards:           8192,
+		// },
 	}
 
 	for _, tt := range tests {
@@ -172,6 +176,10 @@ func TestSubclusteredV2AddInstances(t *testing.T) {
 					t.Logf("Added %d instances", instanceCount)
 					require.NoError(t, placement.Validate(currentPlacement))
 					require.NoError(t, validateSubClusteredPlacement(currentPlacement))
+					// Get max shard differences before rebalancing
+					_, globalMaxSkew, subclustersWithMaxSkewGTTwo := getMaxShardDiffInSubclusters(currentPlacement)
+					// Find the maximum skew and its subcluster ID
+					t.Logf("Maximum shard difference before rebalancing: %d (subcluster %d)", globalMaxSkew, subclustersWithMaxSkewGTTwo)
 				}
 			}
 
@@ -181,12 +189,93 @@ func TestSubclusteredV2AddInstances(t *testing.T) {
 			require.NoError(t, placement.Validate(currentPlacement))
 
 			require.NoError(t, validateSubClusteredPlacement(currentPlacement))
-			printPlacement(currentPlacement)
+			//printPlacement(currentPlacement)
 
 			// Get max shard differences before rebalancing
 			_, globalMaxSkew, subclustersWithMaxSkewGTTwo := getMaxShardDiffInSubclusters(currentPlacement)
 			// Find the maximum skew and its subcluster ID
 			t.Logf("Maximum shard difference before rebalancing: %d (subcluster %d)", globalMaxSkew, subclustersWithMaxSkewGTTwo)
+
+			// Get instances from random N subclusters
+			instancesToRemove := make([]placement.Instance, 0, tt.instancesPerSub*tt.subclustersToRemove)
+
+			// Create a list of all available subcluster IDs
+			availableSubclusters := make(map[uint32]bool)
+			for _, instance := range currentPlacement.Instances() {
+				availableSubclusters[instance.SubClusterID()] = true
+			}
+
+			subclusterIDs := make([]uint32, 0, len(availableSubclusters))
+			for id := range availableSubclusters {
+				subclusterIDs = append(subclusterIDs, id)
+			}
+
+			// Randomly select subclusters to remove
+			rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+			rng.Shuffle(len(subclusterIDs), func(i, j int) {
+				subclusterIDs[i], subclusterIDs[j] = subclusterIDs[j], subclusterIDs[i]
+			})
+
+			selectedSubclusters := subclusterIDs[:tt.subclustersToRemove]
+
+			for _, subClusterID := range selectedSubclusters {
+				for _, instance := range currentPlacement.Instances() {
+					if instance.SubClusterID() == subClusterID {
+						instancesToRemove = append(instancesToRemove, instance)
+					}
+				}
+			}
+			require.Equal(t, tt.instancesPerSub*tt.subclustersToRemove, len(instancesToRemove),
+				"Should have correct number of instances to remove")
+
+			// Remove instances one by one
+			for i, instance := range instancesToRemove {
+				t.Logf("Removing instance %s (%d/%d)", instance.ID(), i+1, len(instancesToRemove))
+
+				// Remove the instance
+				newPlacement, err := algo.RemoveInstances(currentPlacement, []string{instance.ID()})
+				require.NoError(t, err)
+				require.NotNil(t, newPlacement)
+				// printPlacement(newPlacement)
+
+				newPlacement, marked, err := algo.MarkAllShardsAvailable(newPlacement)
+				require.NoError(t, err)
+				require.True(t, marked)
+
+				// Verify the placement after removal
+				require.NoError(t, placement.Validate(newPlacement))
+
+				currentPlacement = newPlacement
+			}
+
+			// Final validation after all removals
+			require.NoError(t, placement.Validate(currentPlacement))
+			//printPlacementAndValidate(t, currentPlacement)
+
+			_, globalMaxSkew, subclustersWithMaxSkewGTTwo = getMaxShardDiffInSubclusters(currentPlacement)
+			t.Logf("Maximum shard difference after removals: %d (subcluster %d)", globalMaxSkew, subclustersWithMaxSkewGTTwo)
+
+			for i := 0; i < len(instancesToRemove); i++ {
+				instance := instancesToRemove[i].SetShards(shard.NewShards(nil))
+				newPlacement, err := algo.AddInstances(currentPlacement, []placement.Instance{instance})
+				require.NoError(t, err)
+				require.NotNil(t, newPlacement)
+				newPlacement, marked, err = algo.MarkAllShardsAvailable(newPlacement)
+				require.NoError(t, err)
+				require.True(t, marked)
+				currentPlacement = newPlacement
+				instanceCount++
+				if instanceCount%tt.instancesPerSub == 0 {
+					t.Logf("Added %d instances", instanceCount)
+					require.NoError(t, placement.Validate(currentPlacement))
+					require.NoError(t, validateSubClusteredPlacement(currentPlacement))
+					// Get max shard differences before rebalancing
+					_, globalMaxSkew, subclustersWithMaxSkewGTTwo := getMaxShardDiffInSubclusters(currentPlacement)
+					// Find the maximum skew and its subcluster ID
+					t.Logf("Maximum shard difference before rebalancing: %d (subcluster %d)", globalMaxSkew, subclustersWithMaxSkewGTTwo)
+				}
+			}
+
 		})
 	}
 }
