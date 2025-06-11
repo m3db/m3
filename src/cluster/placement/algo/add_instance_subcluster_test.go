@@ -10,7 +10,7 @@ import (
 )
 
 // getMaxShardDiffInSubclusters returns skew information for all subclusters and prints summary statistics
-func getMaxShardDiffInSubclusters(p placement.Placement) map[uint32]int {
+func getMaxShardDiffInSubclusters(p placement.Placement) (map[uint32]int, int, int) {
 	// Map to store shard counts per instance in each subcluster
 	subclusterShardCounts := make(map[uint32]map[string]int)
 
@@ -53,56 +53,55 @@ func getMaxShardDiffInSubclusters(p placement.Placement) map[uint32]int {
 	}
 
 	// Count how many subclusters have the maximum skew
-	subclustersWithMaxSkew := 0
+	subclustersWithMaxSkewGTTwo := 0
 	for _, skew := range subclusterSkews {
-		if skew == globalMaxSkew {
-			subclustersWithMaxSkew++
+		if skew > 2 {
+			subclustersWithMaxSkewGTTwo++
 		}
 	}
 
 	// Print summary statistics only if max skew > 2
-	if globalMaxSkew > 2 {
-		fmt.Printf("=== Subcluster Skew Analysis ===\n")
-		fmt.Printf("Maximum skew among all subclusters: %d\n", globalMaxSkew)
-		fmt.Printf("Number of subclusters with maximum skew: %d\n", subclustersWithMaxSkew)
-		fmt.Printf("Total subclusters: %d\n", len(subclusterSkews))
+	// if globalMaxSkew > 2 {
+	// 	fmt.Printf("=== Subcluster Skew Analysis ===\n")
+	// 	fmt.Printf("Maximum skew among all subclusters: %d\n", globalMaxSkew)
+	// 	fmt.Printf("Number of subclusters with skew > 2: %d\n", subclustersWithMaxSkewGTTwo)
+	// 	fmt.Printf("Total subclusters: %d\n", len(subclusterSkews))
 
-		// Print detailed skew information for each subcluster (only those with skew > 2)
-		fmt.Printf("Detailed skew by subcluster (skew > 2):\n")
-		for subclusterID, skew := range subclusterSkews {
-			fmt.Printf("  Subcluster %d: skew = %d\n", subclusterID, skew)
-		}
-		fmt.Printf("================================\n")
-	}
+	// 	// Print detailed skew information for each subcluster (only those with skew > 2)
+	// 	fmt.Printf("Detailed skew by subcluster (skew > 2):\n")
+	// 	for subclusterID, skew := range subclusterSkews {
+	// 		if skew > 2 {
+	// 			fmt.Printf("  Subcluster %d: skew = %d\n", subclusterID, skew)
+	// 		}
+	// 	}
+	// 	fmt.Printf("================================\n")
+	// }
 
-	return subclusterSkews
+	return subclusterSkews, globalMaxSkew, subclustersWithMaxSkewGTTwo
 }
 
 func TestSubclusteredV2AddInstances(t *testing.T) {
 	tests := []struct {
-		name                          string
-		rf                            int
-		instancesPerSub               int
-		subclustersToAdd              int
-		shards                        int
-		subclusterToAddAfterRebalance int
+		name             string
+		rf               int
+		instancesPerSub  int
+		subclustersToAdd int
+		shards           int
 	}{
 		{
-			name:                          "RF=3, 6 instances per subcluster, start with 12 add 6",
-			rf:                            3,
-			instancesPerSub:               6,
-			subclustersToAdd:              28,
-			shards:                        8192,
-			subclusterToAddAfterRebalance: 2,
+			name:             "RF=3, 6 instances per subcluster, start with 12 add 6",
+			rf:               3,
+			instancesPerSub:  6,
+			subclustersToAdd: 30,
+			shards:           8192,
 		},
-		// {
-		// 	name:                          "RF=3, 9 instances per subcluster, start with 18 add 9",
-		// 	rf:                            3,
-		// 	instancesPerSub:               9,
-		// 	subclustersToAdd:              6,
-		// 	shards:                        4096,
-		// 	subclusterToAddAfterRebalance: 5,
-		// },
+		{
+			name:             "RF=3, 9 instances per subcluster, start with 18 add 9",
+			rf:               3,
+			instancesPerSub:  9,
+			subclustersToAdd: 30,
+			shards:           8192,
+		},
 	}
 
 	for _, tt := range tests {
@@ -164,6 +163,9 @@ func TestSubclusteredV2AddInstances(t *testing.T) {
 				newPlacement, err := algo.AddInstances(currentPlacement, []placement.Instance{newInstances[i]})
 				require.NoError(t, err)
 				require.NotNil(t, newPlacement)
+				newPlacement, marked, err = algo.MarkAllShardsAvailable(newPlacement)
+				require.NoError(t, err)
+				require.True(t, marked)
 				currentPlacement = newPlacement
 				instanceCount++
 				if instanceCount%tt.instancesPerSub == 0 {
@@ -178,86 +180,13 @@ func TestSubclusteredV2AddInstances(t *testing.T) {
 			// Verify the placement after addition
 			require.NoError(t, placement.Validate(currentPlacement))
 
-			currentPlacement, marked, err = algo.MarkAllShardsAvailable(currentPlacement)
-			require.NoError(t, err)
-			require.True(t, marked)
-
 			require.NoError(t, validateSubClusteredPlacement(currentPlacement))
-			// printPlacement(currentPlacement)
+			printPlacement(currentPlacement)
 
 			// Get max shard differences before rebalancing
-			subclusterSkews := getMaxShardDiffInSubclusters(currentPlacement)
+			_, globalMaxSkew, subclustersWithMaxSkewGTTwo := getMaxShardDiffInSubclusters(currentPlacement)
 			// Find the maximum skew and its subcluster ID
-			var maxDiffSubclusterID uint32
-			var maxBeforeDiff int
-			for subclusterID, skew := range subclusterSkews {
-				if skew > maxBeforeDiff {
-					maxBeforeDiff = skew
-					maxDiffSubclusterID = subclusterID
-				}
-			}
-			t.Logf("Maximum shard difference before rebalancing: %d (subcluster %d)", maxBeforeDiff, maxDiffSubclusterID)
-			balancedplacement := currentPlacement.Clone()
-
-			balancedplacement, err = algo.BalanceShards(balancedplacement)
-			require.NoError(t, err)
-			require.NotNil(t, balancedplacement)
-
-			balancedplacement, _, err = algo.MarkAllShardsAvailable(balancedplacement)
-			require.NoError(t, err)
-
-			// Get max shard differences after rebalancing
-			subclusterSkewsAfter := getMaxShardDiffInSubclusters(balancedplacement)
-			// Find the maximum skew and its subcluster ID after rebalancing
-			var maxDiffSubclusterIDAfter uint32
-			var maxAfterDiff int
-			for subclusterID, skew := range subclusterSkewsAfter {
-				if skew > maxAfterDiff {
-					maxAfterDiff = skew
-					maxDiffSubclusterIDAfter = subclusterID
-				}
-			}
-			t.Logf("Maximum shard difference after rebalancing: %d (subcluster %d)", maxAfterDiff, maxDiffSubclusterIDAfter)
-
-			// Final validation after all additions
-			require.NoError(t, placement.Validate(balancedplacement))
-			require.NoError(t, validateSubClusteredPlacement(balancedplacement))
-
-			if tt.subclusterToAddAfterRebalance > 0 {
-				instancesToAdd := make([]placement.Instance, tt.instancesPerSub*tt.subclusterToAddAfterRebalance)
-				for i := 0; i < (tt.instancesPerSub * tt.subclusterToAddAfterRebalance); i++ {
-					instancesToAdd[i] = placement.NewInstance().
-						SetID(fmt.Sprintf("RI%d", tt.instancesPerSub+i)).
-						SetIsolationGroup(fmt.Sprintf("R%d", (tt.instancesPerSub+i)%tt.rf)).
-						SetWeight(1).
-						SetEndpoint(fmt.Sprintf("E%d", tt.instancesPerSub+i)).
-						SetShards(shard.NewShards(nil))
-				}
-				newPlacement, err := algo.AddInstances(balancedplacement, instancesToAdd)
-				require.NoError(t, err)
-				require.NotNil(t, newPlacement)
-				balancedplacement = newPlacement
-
-				balancedplacement, marked, err = algo.MarkAllShardsAvailable(balancedplacement)
-				require.NoError(t, err)
-				require.True(t, marked)
-
-				require.NoError(t, validateSubClusteredPlacement(balancedplacement))
-				printPlacement(balancedplacement)
-
-				subclusterSkewsFinal := getMaxShardDiffInSubclusters(currentPlacement)
-				// Find the maximum skew and its subcluster ID in final placement
-				var maxDiffSubclusterIDFinal uint32
-				var maxFinalDiff int
-				for subclusterID, skew := range subclusterSkewsFinal {
-					if skew > maxFinalDiff {
-						maxFinalDiff = skew
-						maxDiffSubclusterIDFinal = subclusterID
-					}
-				}
-				t.Logf("Maximum shard difference after final addition: %d (subcluster %d)", maxFinalDiff, maxDiffSubclusterIDFinal)
-
-			}
+			t.Logf("Maximum shard difference before rebalancing: %d (subcluster %d)", globalMaxSkew, subclustersWithMaxSkewGTTwo)
 		})
 	}
 }

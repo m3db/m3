@@ -630,6 +630,22 @@ func (ph *subclusteredHelper) reclaimLeavingShards(instance placement.Instance) 
 
 func (ph *subclusteredHelper) addInstance(addingInstance placement.Instance) error {
 	ph.reclaimLeavingShards(addingInstance)
+	addingSubcluster := ph.subClusters[addingInstance.SubClusterID()]
+	for shardID, count := range addingSubcluster.shardMap {
+		if count == ph.rf {
+			continue
+		}
+		for instance := range ph.shardToInstanceMap[shardID] {
+			if instance.SubClusterID() == addingInstance.SubClusterID() {
+				continue
+			}
+			instanceSubcluster := ph.subClusters[instance.SubClusterID()]
+			instanceSubcluster.instanceShardCounts[instance.ID()] -= 1
+			if instanceSubcluster.instanceShardCounts[instance.ID()] == 0 {
+				delete(instanceSubcluster.instanceShardCounts, instance.ID())
+			}
+		}
+	}
 	return ph.assignLoadToInstanceUnsafe(addingInstance)
 }
 
@@ -746,17 +762,6 @@ func (ph *subclusteredHelper) validateInstanceWeight(instances []placement.Insta
 	return nil
 }
 
-func removeSubclusterInstancesFromPlacement(p placement.Placement, subclusterID uint32) (placement.Placement, []placement.Instance) {
-	instancesRemoved := []placement.Instance{}
-	for _, instance := range p.Instances() {
-		if instance.SubClusterID() == subclusterID {
-			instancesRemoved = append(instancesRemoved, instance)
-			p = p.SetInstances(removeInstanceFromList(p.Instances(), instance.ID()))
-		}
-	}
-	return p, instancesRemoved
-}
-
 // findMapKeyIntersection returns a map containing keys that exist in both input maps
 func findMapKeyIntersection(map1, map2 map[uint32]int) map[uint32]struct{} {
 	// Create a map to store keys from the first map
@@ -776,22 +781,6 @@ func findMapKeyIntersection(map1, map2 map[uint32]int) map[uint32]struct{} {
 	}
 
 	return intersection
-}
-
-// shuffleShards returns shards ordered to minimize skew when removing them from a subcluster.
-// Skew is the difference between maximum and minimum shard count across instances in the subcluster.
-// The function prioritizes removing shards from instances with higher shard counts first to balance distribution.
-func shuffleShards(shards []shard.Shard) []shard.Shard {
-	if len(shards) == 0 {
-		return shards
-	}
-
-	// For now, return shards in original order since we need placement context
-	// to determine optimal ordering. This maintains existing behavior while
-	// providing a foundation for future enhancement.
-	result := make([]shard.Shard, len(shards))
-	copy(result, shards)
-	return result
 }
 
 // shuffleShardsWithContext returns shards ordered to minimize skew when removing them from a subcluster.

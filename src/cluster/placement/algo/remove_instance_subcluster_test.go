@@ -24,8 +24,8 @@ func TestSubclusteredV2RemoveInstances(t *testing.T) {
 			name:                "RF=3, 6 instances per subcluster, 24 total instances, remove 1 subcluster",
 			rf:                  3,
 			instancesPerSub:     6,
-			totalInstances:      24,
-			shards:              64,
+			totalInstances:      180,
+			shards:              4096,
 			subclustersToRemove: 1,
 		},
 		// {

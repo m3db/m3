@@ -145,7 +145,7 @@ func TestSubclusteredV2InitialPlacement(t *testing.T) {
 
 				require.NoError(t, validateSubClusteredPlacement(newPlacement))
 
-				subclusterSkews := getMaxShardDiffInSubclusters(newPlacement)
+				subclusterSkews, _, _ := getMaxShardDiffInSubclusters(newPlacement)
 				// Find the maximum skew and its subcluster ID
 				var maxDiffSubclusterID uint32
 				var maxBeforeDiff int
@@ -166,7 +166,7 @@ func TestSubclusteredV2InitialPlacement(t *testing.T) {
 
 				require.NoError(t, validateSubClusteredPlacement(balancedPlacement))
 
-				subclusterSkewsAfter := getMaxShardDiffInSubclusters(balancedPlacement)
+				subclusterSkewsAfter, _, _ := getMaxShardDiffInSubclusters(balancedPlacement)
 				// Find the maximum skew and its subcluster ID after rebalancing
 				var maxDiffSubclusterIDAfter uint32
 				var maxAfterDiff int
