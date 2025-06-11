@@ -103,7 +103,7 @@ func newHostQueue(
 		Config:         opts.MiddlewareCircuitbreakerConfig(),
 		Logger:         opts.InstrumentOptions().Logger(),
 		Scope:          scope,
-		Host:           host.Address(),
+		Host:           host.ID(),
 		EnableProvider: provider,
 	}
 	middlewareFn, err := middleware.New(params)
