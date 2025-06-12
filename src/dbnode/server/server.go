@@ -269,7 +269,7 @@ func Run(runOpts RunOptions) {
 	defer fslock.releaseLockfile()
 
 	go bgValidateProcessLimits(logger)
-	debug.SetGCPercent(cfg.GCPercentageOrDefault())
+	// debug.SetGCPercent(cfg.GCPercentageOrDefault())
 
 	defaultServeMux := http.NewServeMux()
 	scope, _, _, err := cfg.MetricsOrDefault().NewRootScopeAndReporters(
