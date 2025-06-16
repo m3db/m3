@@ -24,7 +24,9 @@ import (
 	"container/heap"
 	"fmt"
 	"math"
+	"math/rand"
 	"sort"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -331,10 +333,19 @@ func (ph *subclusteredHelper) moveOneShard(from, to placement.Instance) bool {
 // nolint: unparam
 func (ph *subclusteredHelper) moveOneShardInState(from, to placement.Instance, state shard.State) bool {
 	shards := from.Shards().ShardsForState(state)
+	//shards = ph.randomShuffle(shards)
 	// Use context-aware shuffling to minimize skew when removing shards
-	shuffledShards := ph.shuffleShardsWithContext(shards, from)
-	for _, s := range shuffledShards {
+	if to.SubClusterID() == from.SubClusterID() {
+		shards = ph.randomShuffle(shards)
+	} else {
+		shards = ph.shuffleShardsWithContext(shards, from)
+	}
+	for _, s := range shards {
 		if ph.moveShard(s, from, to) {
+			if to.SubClusterID() != from.SubClusterID() && to.SubClusterID() == uint32(101) {
+				fmt.Println("Moved shard", s.ID(), "from", from.ID(), "to", to.ID())
+			}
+			//fmt.Println("Moved shard", s.ID(), "from", from.ID(), "to", to.ID())
 			return true
 		}
 	}
@@ -425,7 +436,7 @@ func (ph *subclusteredHelper) CanMoveShard(shard uint32, from placement.Instance
 }
 
 func (ph *subclusteredHelper) buildInstanceHeap(instances []placement.Instance, availableCapacityAscending bool) (heap.Interface, error) {
-	return newHeap(instances, availableCapacityAscending, ph.targetLoad, ph.groupToWeightMap)
+	return newHeap(instances, availableCapacityAscending, ph.targetLoad, ph.groupToWeightMap, true)
 }
 
 func (ph *subclusteredHelper) generatePlacement() placement.Placement {
@@ -503,6 +514,49 @@ func (ph *subclusteredHelper) placeShards(
 		triedInstances = triedInstances[:0]
 	}
 	return nil
+}
+
+// fisherYatesShuffle implements the Fisher-Yates shuffle algorithm using rf as seed for deterministic results
+func (ph *subclusteredHelper) fisherYatesShuffle(shards []shard.Shard) []shard.Shard {
+	if len(shards) <= 1 {
+		return shards
+	}
+
+	// Create a copy to avoid modifying the original slice
+	result := make([]shard.Shard, len(shards))
+	copy(result, shards)
+
+	// Use rf as seed for deterministic shuffling
+	rng := rand.New(rand.NewSource(int64(ph.rf)))
+
+	// Fisher-Yates shuffle algorithm
+	for i := len(result) - 1; i > 0; i-- {
+		j := rng.Intn(i + 1)
+		result[i], result[j] = result[j], result[i]
+	}
+
+	return result
+}
+
+func (ph *subclusteredHelper) randomShuffle(shards []shard.Shard) []shard.Shard {
+	if len(shards) <= 1 {
+		return shards
+	}
+
+	// Create a copy to avoid modifying the original slice
+	result := make([]shard.Shard, len(shards))
+	copy(result, shards)
+
+	// Use rf as seed for deterministic shuffling
+	rng := rand.New(rand.NewSource(int64(time.Now().UnixNano())))
+
+	// Fisher-Yates shuffle algorithm
+	for i := len(result) - 1; i > 0; i-- {
+		j := rng.Intn(i + 1)
+		result[i], result[j] = result[j], result[i]
+	}
+
+	return result
 }
 
 func (ph *subclusteredHelper) returnInitializingShards(instance placement.Instance) {
@@ -825,12 +879,8 @@ func (ph *subclusteredHelper) optimizeShardRemovalOrder(shards []shard.Shard, fr
 	if len(shards) == 0 {
 		return shards
 	}
-
-	// Get current shard counts for all instances in this specific subcluster
-	subclusterShardCounts := ph.subClusters[fromInstance.SubClusterID()].instanceShardCounts
-
 	// Use a more sophisticated approach: prioritize shards whose removal brings us closer to perfect balance
-	return ph.optimizeForSubclusterBalance(shards, subclusterShardCounts)
+	return ph.optimizeForSubclusterBalance(shards, fromInstance)
 }
 
 // calculateSubclusterSkew computes the skew (max - min shard count) within a subcluster
@@ -854,35 +904,9 @@ func (ph *subclusteredHelper) calculateSubclusterSkew(instanceCounts map[string]
 	return maxCount - minCount
 }
 
-// calculateSubclusterStandardDeviation computes the standard deviation of shard counts within a subcluster
-// This provides a more nuanced measure of balance than just skew (max - min)
-func (ph *subclusteredHelper) calculateSubclusterStandardDeviation(instanceCounts map[string]int) float64 {
-	if len(instanceCounts) == 0 {
-		return 0.0
-	}
-
-	// Calculate mean
-	sum := 0
-	for _, count := range instanceCounts {
-		sum += count
-	}
-	mean := float64(sum) / float64(len(instanceCounts))
-
-	// Calculate variance
-	variance := 0.0
-	for _, count := range instanceCounts {
-		diff := float64(count) - mean
-		variance += diff * diff
-	}
-	variance /= float64(len(instanceCounts))
-
-	// Return standard deviation
-	return math.Sqrt(variance)
-}
-
 // optimizeForSubclusterBalance orders shards to minimize subcluster skew during removal process
 // Calculate actual skew after removal of each shard and sort by that for optimal ordering
-func (ph *subclusteredHelper) optimizeForSubclusterBalance(shards []shard.Shard, instanceCounts map[string]int) []shard.Shard {
+func (ph *subclusteredHelper) optimizeForSubclusterBalance(shards []shard.Shard, fromInstance placement.Instance) []shard.Shard {
 	if len(shards) <= 1 {
 		// No optimization needed for single shard
 		return shards
@@ -895,9 +919,19 @@ func (ph *subclusteredHelper) optimizeForSubclusterBalance(shards []shard.Shard,
 	}
 
 	shardScores := make([]shardSkewScore, 0, len(shards))
-
+	fromSubcluster := ph.subClusters[fromInstance.SubClusterID()]
+	instanceCounts := fromSubcluster.instanceShardCounts
 	for _, s := range shards {
 		shardID := s.ID()
+
+		if count := instanceCounts[fromInstance.ID()]; count < ph.rf {
+			// Assign maximum skew score to keep these shards at the end (processed last)
+			shardScores = append(shardScores, shardSkewScore{
+				shard:            s,
+				skewAfterRemoval: math.MaxInt32,
+			})
+			continue
+		}
 
 		// Simulate removing ALL replicas of this shard from the subcluster
 		tempCounts := make(map[string]int)
@@ -925,7 +959,12 @@ func (ph *subclusteredHelper) optimizeForSubclusterBalance(shards []shard.Shard,
 	}
 
 	// Sort by skewAfterRemoval (ascending) - prioritize shards that result in lowest skew when removed
+	// For shards with the same skew, randomize their order to avoid deterministic bias
 	sort.Slice(shardScores, func(i, j int) bool {
+		if shardScores[i].skewAfterRemoval == shardScores[j].skewAfterRemoval {
+			// Randomly shuffle equal skew shards for non-deterministic ordering
+			return rand.Float64() < 0.5
+		}
 		return shardScores[i].skewAfterRemoval < shardScores[j].skewAfterRemoval
 	})
 

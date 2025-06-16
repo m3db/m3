@@ -98,7 +98,7 @@ func printPlacement(p placement.Placement) {
 	for _, instance := range instances {
 		shards := instance.Shards().AllIDs()
 		sort.Sort(UInts(shards))
-		fmt.Println(instance.ID(), instance.SubClusterID(), instance.IsolationGroup(), len(shards), " Shards: ")
+		fmt.Println(instance.ID(), instance.SubClusterID(), instance.IsolationGroup(), len(shards), " Shards: ", shards)
 	}
 	fmt.Println("============================================================================")
 }

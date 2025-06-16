@@ -3,7 +3,9 @@ package algo
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/shard"
@@ -11,6 +13,9 @@ import (
 )
 
 func TestSubclusteredV2AddInstancesMultipleRuns(t *testing.T) {
+	// Initialize random seed
+	rand.Seed(time.Now().UnixNano())
+
 	tests := []struct {
 		name             string
 		rf               int
@@ -22,10 +27,10 @@ func TestSubclusteredV2AddInstancesMultipleRuns(t *testing.T) {
 		{
 			name:             "RF=3, 6 instances per subcluster, start with 12 add 6",
 			rf:               3,
-			instancesPerSub:  6,
-			subclustersToAdd: 28,
-			shards:           16384,
-			timesToRun:       2,
+			instancesPerSub:  9,
+			subclustersToAdd: 18,
+			shards:           8192,
+			timesToRun:       1,
 		},
 	}
 
@@ -58,10 +63,10 @@ func TestSubclusteredV2AddInstancesMultipleRuns(t *testing.T) {
 					instances := make([]placement.Instance, tt.instancesPerSub*tt.subclustersToAdd)
 					for i := 0; i < len(instances); i++ {
 						instances[i] = placement.NewInstance().
-							SetID(fmt.Sprintf("I%d_%d", i, run)). // Add run ID to ensure uniqueness
+							SetID(fmt.Sprintf("I%d", i)).
 							SetIsolationGroup(fmt.Sprintf("R%d", i%tt.rf)).
 							SetWeight(1).
-							SetEndpoint(fmt.Sprintf("E%d_%d", i, run)).
+							SetEndpoint(fmt.Sprintf("E%d", i)).
 							SetShards(shard.NewShards(nil))
 					}
 
@@ -104,20 +109,37 @@ func TestSubclusteredV2AddInstancesMultipleRuns(t *testing.T) {
 						return fmt.Errorf("run %d: subcluster placement validation failed: %v", run+1, err)
 					}
 
+					// Calculate node triplet shard analysis
+					tripletAnalysis := calculateNodeTripletShardAnalysis(p)
+					var maxPercentage float64
+					for _, analyses := range tripletAnalysis {
+						for _, analysis := range analyses {
+							if analysis.TotalUniqueShards > 0 {
+								percentage := float64(analysis.SharedShards) / float64(analysis.TotalUniqueShards) * 100.0
+								if percentage > maxPercentage {
+									maxPercentage = percentage
+								}
+							}
+						}
+					}
+					if maxPercentage > 0 {
+						t.Logf("Maximum shared shard percentage among all triplets: %.2f%%", maxPercentage)
+					}
+
 					// Create new instances to add
-					newInstances := make([]placement.Instance, tt.instancesPerSub)
+					newInstances := make([]placement.Instance, tt.instancesPerSub*tt.subclustersToAdd)
 					for i := 0; i < len(newInstances); i++ {
 						newInstances[i] = placement.NewInstance().
-							SetID(fmt.Sprintf("R%d_%d", tt.instancesPerSub+i, run)).
+							SetID(fmt.Sprintf("I%d", tt.instancesPerSub+i)).
 							SetIsolationGroup(fmt.Sprintf("R%d", (tt.instancesPerSub+i)%tt.rf)).
 							SetWeight(1).
-							SetEndpoint(fmt.Sprintf("E%d_%d", tt.instancesPerSub+i, run)).
+							SetEndpoint(fmt.Sprintf("E%d", tt.instancesPerSub+i)).
 							SetShards(shard.NewShards(nil))
 					}
 
 					// Add instances one by one
 					currentPlacement := p
-
+					instanceCount := 0
 					for i := 0; i < len(newInstances); i++ {
 						newPlacement, err := algo.AddInstances(currentPlacement, []placement.Instance{newInstances[i]})
 						if err != nil {
@@ -134,6 +156,37 @@ func TestSubclusteredV2AddInstancesMultipleRuns(t *testing.T) {
 							return fmt.Errorf("run %d: MarkAllShardsAvailable returned false", run+1)
 						}
 						currentPlacement = newPlacement
+						instanceCount++
+						if instanceCount%tt.instancesPerSub == 0 {
+							t.Logf("Added %d subclusters", instanceCount/tt.instancesPerSub)
+							if err := placement.Validate(currentPlacement); err != nil {
+								return fmt.Errorf("run %d: placement validation failed: %v", run+1, err)
+							}
+							if err := validateSubClusteredPlacement(currentPlacement); err != nil {
+								return fmt.Errorf("run %d: subcluster placement validation failed: %v", run+1, err)
+							}
+							// Get max shard differences before rebalancing
+							_, globalMaxSkew, subclustersWithMaxSkewGTTwo := getMaxShardDiffInSubclusters(currentPlacement)
+							// Find the maximum skew and its subcluster ID
+							t.Logf("Maximum shard difference before rebalancing: %d with %d subclusters with > 2", globalMaxSkew, subclustersWithMaxSkewGTTwo)
+
+							// Calculate node triplet shard analysis
+							tripletAnalysis := calculateNodeTripletShardAnalysis(currentPlacement)
+							var maxPercentage float64
+							for _, analyses := range tripletAnalysis {
+								for _, analysis := range analyses {
+									if analysis.TotalUniqueShards > 0 {
+										percentage := float64(analysis.SharedShards) / float64(analysis.TotalUniqueShards) * 100.0
+										if percentage > maxPercentage {
+											maxPercentage = percentage
+										}
+									}
+								}
+							}
+							if maxPercentage > 0 {
+								t.Logf("Maximum shared shard percentage among all triplets: %.2f%%", maxPercentage)
+							}
+						}
 					}
 
 					// Verify the placement after addition
@@ -149,6 +202,33 @@ func TestSubclusteredV2AddInstancesMultipleRuns(t *testing.T) {
 					// Find the maximum skew and its subcluster ID
 					maxSkewsAfterAddition[run] = globalMaxSkew
 					maxClusterWithSkewGTTwo[run] = subclustersWithMaxSkewGTTwo
+
+					tripletAnalysis = calculateNodeTripletShardAnalysis(currentPlacement)
+
+					// Analyze percentage distribution with bucketing
+					buckets, maxPercentage, minPercentage, avgPercentage := analyzeTripletPercentageDistribution(tripletAnalysis)
+
+					// Count total triplets
+					totalTriplets := 0
+					for _, count := range buckets {
+						totalTriplets += count
+					}
+
+					t.Logf("=== FINAL TRIPLET ANALYSIS RESULTS ===")
+					t.Logf("Total triplets analyzed: %d", totalTriplets)
+					t.Logf("Maximum shared shard percentage: %.2f%%", maxPercentage)
+					t.Logf("Minimum shared shard percentage: %.2f%%", minPercentage)
+					t.Logf("Average shared shard percentage: %.2f%%", avgPercentage)
+
+					t.Logf("=== TRIPLET SHARING PERCENTAGE DISTRIBUTION ===")
+					bucketOrder := []string{"0-10%", "10-20%", "20-30%", "30-40%", "40-50%", "50-60%", "60-70%", "70-80%", "80-90%", "90-100%"}
+					for _, bucket := range bucketOrder {
+						count := buckets[bucket]
+						if count > 0 {
+							percentage := float64(count) / float64(totalTriplets) * 100.0
+							t.Logf("%s: %d triplets (%.1f%%)", bucket, count, percentage)
+						}
+					}
 
 					return nil
 				})

@@ -2,10 +2,40 @@ package algo
 
 import (
 	"fmt"
+	"math/rand"
+	"sync"
+	"time"
 
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/shard"
 )
+
+// Global variables for random instance name generation
+var (
+	usedInstanceNames = make(map[string]struct{})
+	nameRng           = rand.New(rand.NewSource(time.Now().UnixNano()))
+	nameMutex         sync.Mutex
+)
+
+// generateRandomInstanceName generates a random unique instance name
+func generateRandomInstanceName() string {
+	nameMutex.Lock()
+	defer nameMutex.Unlock()
+
+	for {
+		// Generate a random name using timestamp and random number
+		name := fmt.Sprintf("instance_%d_%d", time.Now().UnixNano(), nameRng.Int63())
+		if _, exists := usedInstanceNames[name]; !exists {
+			usedInstanceNames[name] = struct{}{}
+			return name
+		}
+	}
+}
+
+// generatePrefixedRandomInstanceName generates a random instance name with a prefix
+func generatePrefixedRandomInstanceName(prefix string) string {
+	return fmt.Sprintf("%s_%s", prefix, generateRandomInstanceName())
+}
 
 type UInts []uint32
 
