@@ -51,8 +51,13 @@ var (
 				Endpoint:       "http://host1:1234",
 				Hostname:       "host1",
 				Port:           1234,
+				SubclusterId:   0,
 			},
 		},
+		IsSharded:              false,
+		IsMirrored:             false,
+		HasSubclusters:         false,
+		InstancesPerSubcluster: 0,
 	}
 	setNewTestPlacementProto = &placementpb.Placement{
 		Instances: map[string]*placementpb.Instance{
@@ -64,6 +69,7 @@ var (
 				Endpoint:       "http://host1:1234",
 				Hostname:       "host1",
 				Port:           1234,
+				SubclusterId:   0,
 			},
 			"host2": {
 				Id:             "host2",
@@ -73,8 +79,13 @@ var (
 				Endpoint:       "http://host2:1234",
 				Hostname:       "host2",
 				Port:           1234,
+				SubclusterId:   0,
 			},
 		},
+		IsSharded:              false,
+		IsMirrored:             false,
+		HasSubclusters:         false,
+		InstancesPerSubcluster: 0,
 	}
 	setTestPlacementReqProto = &admin.PlacementSetRequest{
 		Placement: setNewTestPlacementProto,

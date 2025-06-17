@@ -45,15 +45,17 @@ var (
 )
 
 type placement struct {
-	instances        map[string]Instance
-	instancesByShard map[uint32][]Instance
-	rf               int
-	shards           []uint32
-	cutoverNanos     int64
-	version          int
-	maxShardSetID    uint32
-	isSharded        bool
-	isMirrored       bool
+	instances              map[string]Instance
+	instancesByShard       map[uint32][]Instance
+	rf                     int
+	shards                 []uint32
+	cutoverNanos           int64
+	version                int
+	maxShardSetID          uint32
+	isSharded              bool
+	isMirrored             bool
+	hasSubClusters         bool
+	instancesPerSubCluster int
 }
 
 // NewPlacement returns a ServicePlacement
@@ -87,7 +89,9 @@ func NewPlacementFromProto(p *placementpb.Placement) (Placement, error) {
 		SetIsSharded(p.IsSharded).
 		SetCutoverNanos(p.CutoverTime).
 		SetIsMirrored(p.IsMirrored).
-		SetMaxShardSetID(p.MaxShardSetId), nil
+		SetMaxShardSetID(p.MaxShardSetId).
+		SetHasSubClusters(p.HasSubclusters).
+		SetInstancesPerSubCluster(int(p.InstancesPerSubcluster)), nil
 }
 
 func (p *placement) InstancesForShard(shard uint32) []Instance {
@@ -157,6 +161,24 @@ func (p *placement) NumShards() int {
 	return len(p.shards)
 }
 
+func (p *placement) InstancesPerSubCluster() int {
+	return p.instancesPerSubCluster
+}
+
+func (p *placement) SetInstancesPerSubCluster(v int) Placement {
+	p.instancesPerSubCluster = v
+	return p
+}
+
+func (p *placement) HasSubClusters() bool {
+	return p.hasSubClusters
+}
+
+func (p *placement) SetHasSubClusters(v bool) Placement {
+	p.hasSubClusters = v
+	return p
+}
+
 func (p *placement) IsSharded() bool {
 	return p.isSharded
 }
@@ -220,13 +242,15 @@ func (p *placement) Proto() (*placementpb.Placement, error) {
 	}
 
 	return &placementpb.Placement{
-		Instances:     instances,
-		ReplicaFactor: uint32(p.ReplicaFactor()),
-		NumShards:     uint32(p.NumShards()),
-		IsSharded:     p.IsSharded(),
-		CutoverTime:   p.CutoverNanos(),
-		IsMirrored:    p.IsMirrored(),
-		MaxShardSetId: p.MaxShardSetID(),
+		Instances:              instances,
+		ReplicaFactor:          uint32(p.ReplicaFactor()),
+		NumShards:              uint32(p.NumShards()),
+		IsSharded:              p.IsSharded(),
+		CutoverTime:            p.CutoverNanos(),
+		IsMirrored:             p.IsMirrored(),
+		MaxShardSetId:          p.MaxShardSetID(),
+		HasSubclusters:         p.HasSubClusters(),
+		InstancesPerSubcluster: uint32(p.InstancesPerSubCluster()),
 	}, nil
 }
 
@@ -239,7 +263,9 @@ func (p *placement) Clone() Placement {
 		SetIsMirrored(p.IsMirrored()).
 		SetCutoverNanos(p.CutoverNanos()).
 		SetMaxShardSetID(p.MaxShardSetID()).
-		SetVersion(p.Version())
+		SetVersion(p.Version()).
+		SetHasSubClusters(p.HasSubClusters()).
+		SetInstancesPerSubCluster(p.InstancesPerSubCluster())
 }
 
 // Validate validates a placement to ensure:
@@ -450,7 +476,8 @@ func NewInstanceFromProto(instance *placementpb.Instance) (Instance, error) {
 		SetPort(instance.Port).
 		SetMetadata(InstanceMetadata{
 			DebugPort: debugPort,
-		}), nil
+		}).
+		SetSubClusterID(instance.SubclusterId), nil
 }
 
 type instance struct {
@@ -464,6 +491,7 @@ type instance struct {
 	weight         uint32
 	shardSetID     uint32
 	metadata       InstanceMetadata
+	subClusterID   uint32
 }
 
 func (i *instance) String() string {
@@ -479,6 +507,15 @@ func (i *instance) ID() string {
 
 func (i *instance) SetID(id string) Instance {
 	i.id = id
+	return i
+}
+
+func (i *instance) SubClusterID() uint32 {
+	return i.subClusterID
+}
+
+func (i *instance) SetSubClusterID(value uint32) Instance {
+	i.subClusterID = value
 	return i
 }
 
@@ -582,6 +619,7 @@ func (i *instance) Proto() (*placementpb.Instance, error) {
 		Metadata: &placementpb.InstanceMetadata{
 			DebugPort: i.Metadata().DebugPort,
 		},
+		SubclusterId: i.SubClusterID(),
 	}, nil
 }
 
@@ -617,7 +655,8 @@ func (i *instance) Clone() Instance {
 		SetPort(i.Port()).
 		SetShardSetID(i.ShardSetID()).
 		SetShards(i.Shards().Clone()).
-		SetMetadata(i.Metadata())
+		SetMetadata(i.Metadata()).
+		SetSubClusterID(i.SubClusterID())
 }
 
 // Instances is a slice of instances that can produce a debug string.
@@ -660,4 +699,21 @@ func (s ByIDAscending) Less(i, j int) bool {
 
 func (s ByIDAscending) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
+}
+
+// BySubClusterIDInstanceID is a type that implements sort.Interface for a slice of placement.Instance
+// It sorts instances first by subcluster ID, then by instance ID within each subcluster
+type BySubClusterIDInstanceID []Instance
+
+func (a BySubClusterIDInstanceID) Len() int { return len(a) }
+
+func (a BySubClusterIDInstanceID) Less(i, j int) bool {
+	if a[i].SubClusterID() == a[j].SubClusterID() {
+		return a[i].ID() < a[j].ID()
+	}
+	return a[i].SubClusterID() < a[j].SubClusterID()
+}
+
+func (a BySubClusterIDInstanceID) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
 }

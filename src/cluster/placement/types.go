@@ -43,6 +43,12 @@ type Instance interface {
 	// SetID sets the id of the instance.
 	SetID(id string) Instance
 
+	// SubClusterID returns the sub-cluster id.
+	SubClusterID() uint32
+
+	// SetSubClusterID sets the sub-cluster id.
+	SetSubClusterID(value uint32) Instance
+
 	// IsolationGroup is the isolation group of the instance,
 	// which usually but not necessarily refers to the rack of the instance.
 	IsolationGroup() string
@@ -157,6 +163,12 @@ type Placement interface {
 	// SetIsSharded sets IsSharded
 	SetIsSharded(v bool) Placement
 
+	// HasSubClusters returns whether the placement has sub-clusters.
+	HasSubClusters() bool
+
+	// SetHasClusters sets HasSubClusters.
+	SetHasSubClusters(v bool) Placement
+
 	// CutoverNanos returns the cutover time in nanoseconds.
 	CutoverNanos() int64
 
@@ -176,6 +188,12 @@ type Placement interface {
 	// SetMaxShardSetID sets the maximum shard set id used before to guarantee unique
 	// shard set id generations across placement changes.
 	SetMaxShardSetID(value uint32) Placement
+
+	// InstancesPerSubCluster returns the number of instances per sub-cluster.
+	InstancesPerSubCluster() int
+
+	// SetInstancesPerSubCluster sets the number of instances per sub-cluster.
+	SetInstancesPerSubCluster(value int) Placement
 
 	// String returns a description of the placement
 	String() string
@@ -299,6 +317,18 @@ type Options interface {
 
 	// SetInstanceSelector -- see InstanceSelector.
 	SetInstanceSelector(s InstanceSelector) Options
+
+	// InstancesPerSubCluster returns the number of instances per sub-cluster.
+	InstancesPerSubCluster() int
+
+	// SetInstancesPerSubCluster sets the number of instances per sub-cluster.
+	SetInstancesPerSubCluster(value int) Options
+
+	// HasSubClusters returns whether the placement has sub-clusters.
+	HasSubClusters() bool
+
+	// SetHasSubClusters sets HasSubClusters.
+	SetHasSubClusters(v bool) Options
 
 	// IsSharded describes whether a placement needs to be sharded,
 	// when set to false, no specific shards will be assigned to any instance.

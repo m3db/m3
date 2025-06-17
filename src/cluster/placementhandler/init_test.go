@@ -53,6 +53,7 @@ var (
 				Metadata: &placementpb.InstanceMetadata{
 					DebugPort: 0,
 				},
+				SubclusterId: 0,
 			},
 			"host2": &placementpb.Instance{
 				Id:             "host2",
@@ -65,8 +66,13 @@ var (
 				Metadata: &placementpb.InstanceMetadata{
 					DebugPort: 0,
 				},
+				SubclusterId: 0,
 			},
 		},
+		IsSharded:              false,
+		IsMirrored:             false,
+		HasSubclusters:         false,
+		InstancesPerSubcluster: 0,
 	}
 )
 
@@ -107,7 +113,16 @@ func TestPlacementInitHandler(t *testing.T) {
 		body, err := ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		assert.Equal(t, `{"placement":{"instances":{"host1":{"id":"host1","isolationGroup":"rack1","zone":"test","weight":1,"endpoint":"http://host1:1234","shards":[],"shardSetId":0,"hostname":"host1","port":1234,"metadata":{"debugPort":0}},"host2":{"id":"host2","isolationGroup":"rack1","zone":"test","weight":1,"endpoint":"http://host2:1234","shards":[],"shardSetId":0,"hostname":"host2","port":1234,"metadata":{"debugPort":0}}},"replicaFactor":0,"numShards":0,"isSharded":false,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0},"version":0}`, string(body))
+		expectedJSON :=
+			`{"placement":{"instances":{"host1":{"id":"host1","isolationGroup":"rack1","zone":"test",` +
+				`"weight":1,"endpoint":"http://host1:1234","shards":[],"shardSetId":0,"hostname":"host1","port":1234,` +
+				`"metadata":{"debugPort":0},"subclusterId":0},` +
+				`"host2":{"id":"host2","isolationGroup":"rack1","zone":"test",` +
+				`"weight":1,"endpoint":"http://host2:1234","shards":[],"shardSetId":0,"hostname":"host2","port":1234,` +
+				`"metadata":{"debugPort":0},"subclusterId":0}},"replicaFactor":0,"numShards":0,` +
+				`"isSharded":false,"cutoverTime":"0","isMirrored":false, "maxShardSetId":0,` +
+				`"hasSubclusters":false,"instancesPerSubcluster":0},"version":0}`
+		assert.Equal(t, expectedJSON, string(body))
 
 		// Test error response
 		w = httptest.NewRecorder()

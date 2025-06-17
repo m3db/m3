@@ -90,7 +90,7 @@ func TestPlacementRemoveHandler_Force(t *testing.T) {
 
 		body, _ = ioutil.ReadAll(resp.Body)
 		//nolint: lll
-		assert.Equal(t, `{"placement":{"instances":{},"replicaFactor":0,"numShards":0,"isSharded":false,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0},"version":0}`, string(body))
+		assert.Equal(t, `{"placement":{"instances":{},"replicaFactor":0,"numShards":0,"isSharded":false,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0,"hasSubclusters":false,"instancesPerSubcluster":0},"version":0}`, string(body))
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	})
 }
@@ -192,13 +192,13 @@ func TestPlacementRemoveHandler_SafeOK(t *testing.T) {
 		switch serviceName {
 		case handleroptions.M3CoordinatorServiceName:
 			//nolint: lll
-			require.Equal(t, `{"placement":{"instances":{"host1":{"id":"host1","isolationGroup":"rack1","zone":"test","weight":1,"endpoint":"http://host1:1234","shards":[],"shardSetId":0,"hostname":"host1","port":1234,"metadata":{"debugPort":0}}},"replicaFactor":1,"numShards":0,"isSharded":false,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0},"version":1}`, string(body))
+			require.Equal(t, `{"placement":{"instances":{"host1":{"id":"host1","isolationGroup":"rack1","zone":"test","weight":1,"endpoint":"http://host1:1234","shards":[],"shardSetId":0,"hostname":"host1","port":1234,"metadata":{"debugPort":0},"subclusterId":0}},"replicaFactor":1,"numShards":0,"isSharded":false,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0,"hasSubclusters":false,"instancesPerSubcluster":0},"version":1}`, string(body))
 		case handleroptions.M3AggregatorServiceName:
 			//nolint: lll
-			require.Equal(t, `{"placement":{"instances":{},"replicaFactor":1,"numShards":0,"isSharded":true,"cutoverTime":"0","isMirrored":true,"maxShardSetId":0},"version":1}`, string(body))
+			require.Equal(t, `{"placement":{"instances":{},"replicaFactor":1,"numShards":0,"isSharded":true,"cutoverTime":"0","isMirrored":true,"maxShardSetId":0,"hasSubclusters":false,"instancesPerSubcluster":0},"version":1}`, string(body))
 		default:
 			//nolint: lll
-			require.Equal(t, `{"placement":{"instances":{},"replicaFactor":0,"numShards":0,"isSharded":true,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0},"version":1}`, string(body))
+			require.Equal(t, `{"placement":{"instances":{},"replicaFactor":0,"numShards":0,"isSharded":true,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0,"hasSubclusters":false,"instancesPerSubcluster":0},"version":1}`, string(body))
 		}
 
 		require.Equal(t, http.StatusOK, resp.StatusCode)
