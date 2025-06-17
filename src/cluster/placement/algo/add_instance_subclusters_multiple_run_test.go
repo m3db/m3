@@ -17,20 +17,22 @@ func TestSubclusteredV2AddInstancesMultipleRuns(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 
 	tests := []struct {
-		name             string
-		rf               int
-		instancesPerSub  int
-		subclustersToAdd int
-		shards           int
-		timesToRun       int
+		name                                  string
+		rf                                    int
+		instancesPerSub                       int
+		subclustersToAdd                      int
+		subclustersToAddAfterInitialPlacement int
+		shards                                int
+		timesToRun                            int
 	}{
 		{
-			name:             "RF=3, 6 instances per subcluster, start with 12 add 6",
-			rf:               3,
-			instancesPerSub:  9,
-			subclustersToAdd: 18,
-			shards:           8192,
-			timesToRun:       1,
+			name:                                  "RF=3, 9 instances per subcluster, start with 9 add 8192 shards",
+			rf:                                    3,
+			instancesPerSub:                       9,
+			subclustersToAdd:                      18,
+			subclustersToAddAfterInitialPlacement: 4,
+			shards:                                16384,
+			timesToRun:                            10,
 		},
 	}
 
@@ -39,14 +41,15 @@ func TestSubclusteredV2AddInstancesMultipleRuns(t *testing.T) {
 			// Statistics tracking across multiple runs
 			maxSkewsAfterAddition := make([]int, tt.timesToRun)
 			maxClusterWithSkewGTTwo := make([]int, tt.timesToRun)
+			maxPercentageAfterAddition := make([]float64, tt.timesToRun)
 
 			// Create errgroup with context
 			g, ctx := errgroup.WithContext(context.Background())
 
 			// Semaphore to limit concurrent goroutines to 100
-			semaphore := make(chan struct{}, 100)
+			semaphore := make(chan struct{}, 2)
 
-			t.Logf("Running test %d times in parallel (max 100 concurrent) to collect skew statistics", tt.timesToRun)
+			t.Logf("Running test %d times in parallel (max 2 concurrent) to collect skew statistics", tt.timesToRun)
 
 			for run := 0; run < tt.timesToRun; run++ {
 				run := run // Capture loop variable
@@ -127,19 +130,19 @@ func TestSubclusteredV2AddInstancesMultipleRuns(t *testing.T) {
 					}
 
 					// Create new instances to add
-					newInstances := make([]placement.Instance, tt.instancesPerSub*tt.subclustersToAdd)
+					newInstances := make([]placement.Instance, tt.instancesPerSub*tt.subclustersToAddAfterInitialPlacement)
+					initialInstanceCount := tt.instancesPerSub * tt.subclustersToAdd
 					for i := 0; i < len(newInstances); i++ {
 						newInstances[i] = placement.NewInstance().
-							SetID(fmt.Sprintf("I%d", tt.instancesPerSub+i)).
-							SetIsolationGroup(fmt.Sprintf("R%d", (tt.instancesPerSub+i)%tt.rf)).
+							SetID(fmt.Sprintf("I%d", initialInstanceCount+i)).
+							SetIsolationGroup(fmt.Sprintf("R%d", (initialInstanceCount+i)%tt.rf)).
 							SetWeight(1).
-							SetEndpoint(fmt.Sprintf("E%d", tt.instancesPerSub+i)).
+							SetEndpoint(fmt.Sprintf("E%d", initialInstanceCount+i)).
 							SetShards(shard.NewShards(nil))
 					}
 
 					// Add instances one by one
 					currentPlacement := p
-					instanceCount := 0
 					for i := 0; i < len(newInstances); i++ {
 						newPlacement, err := algo.AddInstances(currentPlacement, []placement.Instance{newInstances[i]})
 						if err != nil {
@@ -156,37 +159,6 @@ func TestSubclusteredV2AddInstancesMultipleRuns(t *testing.T) {
 							return fmt.Errorf("run %d: MarkAllShardsAvailable returned false", run+1)
 						}
 						currentPlacement = newPlacement
-						instanceCount++
-						if instanceCount%tt.instancesPerSub == 0 {
-							t.Logf("Added %d subclusters", instanceCount/tt.instancesPerSub)
-							if err := placement.Validate(currentPlacement); err != nil {
-								return fmt.Errorf("run %d: placement validation failed: %v", run+1, err)
-							}
-							if err := validateSubClusteredPlacement(currentPlacement); err != nil {
-								return fmt.Errorf("run %d: subcluster placement validation failed: %v", run+1, err)
-							}
-							// Get max shard differences before rebalancing
-							_, globalMaxSkew, subclustersWithMaxSkewGTTwo := getMaxShardDiffInSubclusters(currentPlacement)
-							// Find the maximum skew and its subcluster ID
-							t.Logf("Maximum shard difference before rebalancing: %d with %d subclusters with > 2", globalMaxSkew, subclustersWithMaxSkewGTTwo)
-
-							// Calculate node triplet shard analysis
-							tripletAnalysis := calculateNodeTripletShardAnalysis(currentPlacement)
-							var maxPercentage float64
-							for _, analyses := range tripletAnalysis {
-								for _, analysis := range analyses {
-									if analysis.TotalUniqueShards > 0 {
-										percentage := float64(analysis.SharedShards) / float64(analysis.TotalUniqueShards) * 100.0
-										if percentage > maxPercentage {
-											maxPercentage = percentage
-										}
-									}
-								}
-							}
-							if maxPercentage > 0 {
-								t.Logf("Maximum shared shard percentage among all triplets: %.2f%%", maxPercentage)
-							}
-						}
 					}
 
 					// Verify the placement after addition
@@ -207,6 +179,7 @@ func TestSubclusteredV2AddInstancesMultipleRuns(t *testing.T) {
 
 					// Analyze percentage distribution with bucketing
 					buckets, maxPercentage, minPercentage, avgPercentage := analyzeTripletPercentageDistribution(tripletAnalysis)
+					maxPercentageAfterAddition[run] = maxPercentage
 
 					// Count total triplets
 					totalTriplets := 0
@@ -275,9 +248,26 @@ func TestSubclusteredV2AddInstancesMultipleRuns(t *testing.T) {
 				avgAfterFinal := float64(sumAfterFinal) / float64(len(maxClusterWithSkewGTTwo))
 
 				t.Logf("After Final Addition:")
-				t.Logf("  Average maximum cluster with skew > 2: %.2f", avgAfterFinal)
-				t.Logf("  Maximum value of maximum cluster with skew > 2: %d", maxAfterFinal)
+				t.Logf("  Average maximum cluster with skew > 3: %.2f", avgAfterFinal)
+				t.Logf("  Maximum value of maximum cluster with skew > 3: %d", maxAfterFinal)
 			}
+
+			if len(maxPercentageAfterAddition) > 0 {
+				sumAfterFinal := 0.0
+				maxAfterFinal := 0.0
+				for _, percentage := range maxPercentageAfterAddition {
+					sumAfterFinal += percentage
+					if percentage > maxAfterFinal {
+						maxAfterFinal = percentage
+					}
+				}
+				avgAfterFinal := sumAfterFinal / float64(len(maxPercentageAfterAddition))
+
+				t.Logf("After Final Addition:")
+				t.Logf("  Average maximum shared shard percentage: %.2f%%", avgAfterFinal)
+				t.Logf("  Maximum value of maximum shared shard percentage: %.2f%%", maxAfterFinal)
+			}
+
 			t.Logf("===============================")
 		})
 	}

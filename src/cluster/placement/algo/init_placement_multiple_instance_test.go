@@ -31,10 +31,10 @@ func TestSubclusteredV2InitialPlacement(t *testing.T) {
 			name:                "RF=3, 6 instances per subcluster, 168 total instances, 3 new subclusters`",
 			rf:                  3,
 			instancesPerSub:     9,
-			totalInstances:      162,
+			totalInstances:      9,
 			shards:              16384,
-			expectedSubClusters: 18,
-			subclusterToAdd:     82,
+			expectedSubClusters: 1,
+			subclusterToAdd:     99,
 		},
 		// {
 		// 	name:                "RF=3, 6 instances per subcluster, 168 total instances, 2 new subclusters",
@@ -167,6 +167,9 @@ func TestSubclusteredV2InitialPlacement(t *testing.T) {
 						_, globalMaxSkew, subclustersWithMaxSkewGTTwo := getMaxShardDiffInSubclusters(p)
 						// Find the maximum skew and its subcluster ID
 						t.Logf("Maximum shard difference before rebalancing: %d with %d subclusters with > 2", globalMaxSkew, subclustersWithMaxSkewGTTwo)
+						// for subclusterID, skew := range skews {
+						// 	t.Logf("Skew: %d (subcluster %d)", skew, subclusterID)
+						// }
 
 						// Calculate node triplet shard analysis
 						tripletAnalysis := calculateNodeTripletShardAnalysis(p)
@@ -193,9 +196,12 @@ func TestSubclusteredV2InitialPlacement(t *testing.T) {
 				//printPlacement(currentPlacement)
 
 				// Get max shard differences before rebalancing
-				_, globalMaxSkew, subclustersWithMaxSkewGTTwo := getMaxShardDiffInSubclusters(p)
+				skews, globalMaxSkew, subclustersWithMaxSkewGTTwo := getMaxShardDiffInSubclusters(p)
 				// Find the maximum skew and its subcluster ID
 				t.Logf("Maximum shard difference before rebalancing: %d (subcluster %d)", globalMaxSkew, subclustersWithMaxSkewGTTwo)
+				for subclusterID, skew := range skews {
+					t.Logf("Skew: %d (subcluster %d)", skew, subclusterID)
+				}
 
 				// Calculate node triplet shard analysis
 				tripletAnalysis = calculateNodeTripletShardAnalysis(p)
@@ -225,6 +231,52 @@ func TestSubclusteredV2InitialPlacement(t *testing.T) {
 					}
 				}
 			}
+			p, err = algo.BalanceShards(p)
+			require.NoError(t, err)
+			require.NotNil(t, p)
+			p, marked, err = algo.MarkAllShardsAvailable(p)
+			require.NoError(t, err)
+			require.True(t, marked)
+
+			require.NoError(t, placement.Validate(p))
+			require.NoError(t, validateSubClusteredPlacement(p))
+
+			// Get max shard differences before rebalancing
+			skews, globalMaxSkew, subclustersWithMaxSkewGTTwo := getMaxShardDiffInSubclusters(p)
+			// Find the maximum skew and its subcluster ID
+			t.Logf("Maximum shard difference after rebalancing: %d (subcluster %d)", globalMaxSkew, subclustersWithMaxSkewGTTwo)
+			for subclusterID, skew := range skews {
+				t.Logf("Skew: %d (subcluster %d)", skew, subclusterID)
+			}
+
+			// Calculate node triplet shard analysis
+			tripletAnalysis = calculateNodeTripletShardAnalysis(p)
+
+			// Analyze percentage distribution with bucketing
+			buckets, maxPercentage, minPercentage, avgPercentage := analyzeTripletPercentageDistribution(tripletAnalysis)
+
+			// Count total triplets
+			totalTriplets := 0
+			for _, count := range buckets {
+				totalTriplets += count
+			}
+
+			t.Logf("=== FINAL TRIPLET ANALYSIS RESULTS After rebalancing===")
+			t.Logf("Total triplets analyzed: %d", totalTriplets)
+			t.Logf("Maximum shared shard percentage: %.2f%%", maxPercentage)
+			t.Logf("Minimum shared shard percentage: %.2f%%", minPercentage)
+			t.Logf("Average shared shard percentage: %.2f%%", avgPercentage)
+
+			t.Logf("=== TRIPLET SHARING PERCENTAGE DISTRIBUTION After rebalancing===")
+			bucketOrder := []string{"0-10%", "10-20%", "20-30%", "30-40%", "40-50%", "50-60%", "60-70%", "70-80%", "80-90%", "90-100%"}
+			for _, bucket := range bucketOrder {
+				count := buckets[bucket]
+				if count > 0 {
+					percentage := float64(count) / float64(totalTriplets) * 100.0
+					t.Logf("%s: %d triplets (%.1f%%)", bucket, count, percentage)
+				}
+			}
+
 		})
 	}
 }
