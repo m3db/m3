@@ -1,0 +1,121 @@
+package algo
+
+import (
+	"errors"
+	"fmt"
+
+	"github.com/m3db/m3/src/cluster/placement"
+)
+
+var (
+	errIncompatibleWithSubclusteredAlgo = errors.New("could not apply subclustered algo on the placement")
+)
+
+type subclusteredPlacementAlgorithm struct {
+	opts placement.Options
+}
+
+func newSubclusteredAlgorithm(opts placement.Options) placement.Algorithm {
+	return subclusteredPlacementAlgorithm{opts: opts}
+}
+
+func (a subclusteredPlacementAlgorithm) IsCompatibleWith(p placement.Placement) error {
+	if !p.IsSharded() {
+		return errIncompatibleWithSubclusteredAlgo
+	}
+
+	if !p.HasSubClusters() {
+		return errIncompatibleWithSubclusteredAlgo
+	}
+	return nil
+}
+
+func (a subclusteredPlacementAlgorithm) InitialPlacement(
+	instances []placement.Instance,
+	shards []uint32,
+	rf int,
+) (placement.Placement, error) {
+	// TODO: Implement subclustered initial placement logic
+	return nil, fmt.Errorf("subclustered initial placement not yet implemented")
+}
+
+func (a subclusteredPlacementAlgorithm) AddReplica(p placement.Placement) (placement.Placement, error) {
+	if err := a.IsCompatibleWith(p); err != nil {
+		return nil, err
+	}
+
+	// TODO: Implement subclustered add replica logic
+	return nil, fmt.Errorf("subclustered add replica not yet implemented")
+}
+
+func (a subclusteredPlacementAlgorithm) RemoveInstances(
+	p placement.Placement,
+	instanceIDs []string,
+) (placement.Placement, error) {
+	if err := a.IsCompatibleWith(p); err != nil {
+		return nil, err
+	}
+
+	// TODO: Implement subclustered remove instances logic
+	return nil, fmt.Errorf("subclustered remove instances not yet implemented")
+}
+
+func (a subclusteredPlacementAlgorithm) AddInstances(
+	p placement.Placement,
+	instances []placement.Instance,
+) (placement.Placement, error) {
+	if err := a.IsCompatibleWith(p); err != nil {
+		return nil, err
+	}
+
+	// TODO: Implement subclustered add instances logic
+	return nil, fmt.Errorf("subclustered add instances not yet implemented")
+}
+
+func (a subclusteredPlacementAlgorithm) ReplaceInstances(
+	p placement.Placement,
+	leavingInstanceIDs []string,
+	addingInstances []placement.Instance,
+) (placement.Placement, error) {
+	if err := a.IsCompatibleWith(p); err != nil {
+		return nil, err
+	}
+
+	// TODO: Implement subclustered replace instances logic
+	return nil, fmt.Errorf("subclustered replace instances not yet implemented")
+}
+
+func (a subclusteredPlacementAlgorithm) MarkShardsAvailable(
+	p placement.Placement,
+	instanceID string,
+	shardIDs ...uint32,
+) (placement.Placement, error) {
+	if err := a.IsCompatibleWith(p); err != nil {
+		return nil, err
+	}
+
+	// TODO: Implement subclustered mark shards available logic
+	return nil, fmt.Errorf("subclustered mark shards available not yet implemented")
+}
+
+func (a subclusteredPlacementAlgorithm) MarkAllShardsAvailable(
+	p placement.Placement,
+) (placement.Placement, bool, error) {
+	if err := a.IsCompatibleWith(p); err != nil {
+		return nil, false, err
+	}
+
+	// TODO: Implement subclustered mark all shards available logic
+	return nil, false, fmt.Errorf("subclustered mark all shards available not yet implemented")
+}
+
+func (a subclusteredPlacementAlgorithm) BalanceShards(
+	p placement.Placement,
+) (placement.Placement, error) {
+	if err := a.IsCompatibleWith(p); err != nil {
+		return nil, err
+	}
+
+	// TODO: Implement subclustered balance shards logic
+	return nil, fmt.Errorf("subclustered balance shards not yet implemented")
+}
