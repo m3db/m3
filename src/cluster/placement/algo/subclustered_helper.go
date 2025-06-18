@@ -267,6 +267,7 @@ func (ph *subclusteredHelper) buildTargetLoad(subClusterToExclude uint32) {
 }
 
 // buildTargetSubclusterLoad builds the target load for the subclusters.
+// nolint: unused
 func (ph *subclusteredHelper) buildTargetSubclusterLoad(subClusterToExclude uint32) {
 	totalShards := len(ph.uniqueShards)
 	subClusters := ph.getSubclusterIds(subClusterToExclude)
