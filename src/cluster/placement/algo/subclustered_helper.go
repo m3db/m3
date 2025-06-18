@@ -23,6 +23,8 @@ package algo
 import (
 	"errors"
 	"fmt"
+	"math"
+	"sort"
 
 	"go.uber.org/zap"
 
@@ -83,6 +85,8 @@ func newSubclusteredHelper(p placement.Placement, targetRF int, opts placement.O
 	}
 
 	ph.scanCurrentLoad()
+	ph.buildTargetLoad()
+	ph.buildTargetSubclusterLoad(subClusterToExclude)
 
 	err = ph.validateSubclusterDistribution()
 	if err != nil {
@@ -162,6 +166,75 @@ func (ph *subclusteredHelper) scanCurrentLoad() {
 
 	}
 	ph.totalWeight = totalWeight
+}
+
+// buildTargetLoad builds the target load for the placement.
+// nolint
+func (ph *subclusteredHelper) buildTargetLoad() {
+	overWeightedGroups := 0
+	overWeight := uint32(0)
+	for _, weight := range ph.groupToWeightMap {
+		if isOverWeighted(weight, ph.totalWeight, ph.rf) {
+			overWeightedGroups++
+			overWeight += weight
+		}
+	}
+
+	targetLoad := make(map[string]int, len(ph.instances))
+	for _, instance := range ph.instances {
+		if instance.IsLeaving() {
+			continue
+		}
+		igWeight := ph.groupToWeightMap[instance.IsolationGroup()]
+		if isOverWeighted(igWeight, ph.totalWeight, ph.rf) {
+			targetLoad[instance.ID()] = int(math.Ceil(float64(ph.getShardLen()) *
+				float64(instance.Weight()) / float64(igWeight)))
+		} else {
+			targetLoad[instance.ID()] = ph.getShardLen() * (ph.rf - overWeightedGroups) *
+				int(instance.Weight()) / int(ph.totalWeight-overWeight)
+		}
+	}
+	ph.targetLoad = targetLoad
+}
+
+// buildTargetSubclusterLoad builds the target load for the subclusters.
+// nolint: unused
+func (ph *subclusteredHelper) buildTargetSubclusterLoad(subClusterToExclude uint32) {
+	totalShards := len(ph.uniqueShards)
+	subClusters := ph.getSubclusterIds(subClusterToExclude)
+	sort.Slice(subClusters, func(i, j int) bool { return subClusters[i] <= subClusters[j] })
+	totalDivided := 0
+	for _, subClusterID := range subClusters {
+		ph.subClusters[subClusterID].targetShardCount = int(math.Floor(float64(totalShards) / float64(len(subClusters))))
+		totalDivided += ph.subClusters[subClusterID].targetShardCount
+	}
+	diff := totalShards - totalDivided
+	for _, curr := range subClusters {
+		if diff == 0 {
+			break
+		}
+		ph.subClusters[curr].targetShardCount++
+		diff--
+	}
+}
+
+// getSubclusterIds gets the subcluster ids slice.
+// nolint: unused
+func (ph *subclusteredHelper) getSubclusterIds(subClusterToExclude uint32) []uint32 {
+	subClusterIds := make([]uint32, 0, len(ph.subClusters))
+	for k := range ph.subClusters {
+		if k == subClusterToExclude {
+			continue
+		}
+		subClusterIds = append(subClusterIds, k)
+	}
+	return subClusterIds // Returns zero value of K and false if map is empty
+}
+
+// getShardLen gets the shard length.
+// nolint: unused
+func (ph *subclusteredHelper) getShardLen() int {
+	return len(ph.uniqueShards)
 }
 
 // assignShardToInstance assigns a shard to an instance.
