@@ -120,7 +120,7 @@ func TestPlacementInitHandler(t *testing.T) {
 				`"host2":{"id":"host2","isolationGroup":"rack1","zone":"test",` +
 				`"weight":1,"endpoint":"http://host2:1234","shards":[],"shardSetId":0,"hostname":"host2","port":1234,` +
 				`"metadata":{"debugPort":0},"subclusterId":0}},"replicaFactor":0,"numShards":0,` +
-				`"isSharded":false,"cutoverTime":"0","isMirrored":false, "maxShardSetId":0,` +
+				`"isSharded":false,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0,` +
 				`"hasSubclusters":false,"instancesPerSubcluster":0},"version":0}`
 		assert.Equal(t, expectedJSON, string(body))
 
