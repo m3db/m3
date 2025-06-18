@@ -18,7 +18,7 @@ type EnableConfig struct {
 
 const (
 	// configPath is the path where the circuit breaker middleware configuration is stored.
-	_configPath = "circuitbreaker/middleware/config"
+	_configPath = "m3db.client.circuitbreaker-config"
 )
 
 // EnableProvider defines the interface for checking if the circuit breaker is enabled.
