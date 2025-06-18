@@ -5,5 +5,5 @@ package circuitbreaker;
 // EnableConfigProto is a protobuf message for the circuit breaker config.
 message EnableConfigProto {
   bool enabled = 1;
-  bool shadow_mode = 2;
+  bool shadowMode = 2;
 }
