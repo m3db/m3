@@ -46,6 +46,7 @@ type Params struct {
 
 // New creates a new circuit breaker middleware.
 func New(params Params) (M3DBMiddleware, error) {
+	params.Logger.Info("creating circuit breaker middleware", zap.Any("config", params.Config))
 	c, err := circuitbreaker.NewCircuit(params.Config.CircuitBreakerConfig)
 	if err != nil {
 		params.Logger.Warn("failed to create circuit breaker", zap.Error(err))
@@ -67,15 +68,21 @@ func New(params Params) (M3DBMiddleware, error) {
 // withBreaker executes the given call with a circuit breaker if enabled.
 func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.Context, T) error) error {
 	// Early return if circuit breaker is disabled or not initialized
-	if c.circuit == nil || !c.provider.IsEnabled() {
+	c.logger.Info("withBreaker called", zap.Any("req", req))
+	enabled := c.provider.IsEnabled()
+	c.logger.Info("enabled", zap.Bool("enabled", enabled))
+	if c.circuit == nil || !enabled {
+		c.logger.Info("withBreaker returning", zap.Any("req", req))
 		return call(ctx, req)
 	}
 
 	// Check if request is allowed
 	isAllowed := c.circuit.IsRequestAllowed()
+	c.logger.Info("isAllowed", zap.Bool("isAllowed", isAllowed))
 
 	// If request is not allowed, log and return error
 	if !isAllowed {
+		c.logger.Info("request is not allowed", zap.Any("req", req))
 		if c.provider.IsShadowMode() {
 			c.metrics.shadowRejects.Inc(1)
 		} else {
@@ -84,8 +91,10 @@ func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.C
 		}
 	}
 
+	c.logger.Info("request is allowed", zap.Any("req", req))
 	// Execute the request and update metrics
 	err := call(ctx, req)
+	//TODO check if error type can be checked
 	if err == nil {
 		c.metrics.successes.Inc(1)
 	} else {
@@ -96,11 +105,13 @@ func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.C
 	if isAllowed {
 		c.circuit.ReportRequestStatus(err == nil)
 	}
+	c.logger.Info("withBreaker completed", zap.Error(err))
 	return err
 }
 
 // WriteBatchRaw is a method that writes a batch of raw data.
 func (c *client) WriteBatchRaw(ctx thrift.Context, req *rpc.WriteBatchRawRequest) error {
+	c.logger.Info("WriteBatchRaw called", zap.Any("req", req))
 	return withBreaker(c, ctx, req, c.next.WriteBatchRaw)
 }
 
