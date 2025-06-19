@@ -263,21 +263,26 @@ func (c *client) Truncate(ctx thrift.Context, req *rpc.TruncateRequest) (*rpc.Tr
 }
 
 func (c *client) Write(ctx thrift.Context, req *rpc.WriteRequest) error {
+	c.logger.Info("Write called", zap.Any("req", req))
 	return c.next.Write(ctx, req)
 }
 
 func (c *client) WriteBatchRawV2(ctx thrift.Context, req *rpc.WriteBatchRawV2Request) error {
+	c.logger.Info("WriteBatchRawV2 called", zap.Any("req", req))
 	return c.next.WriteBatchRawV2(ctx, req)
 }
 
 func (c *client) WriteTagged(ctx thrift.Context, req *rpc.WriteTaggedRequest) error {
+	c.logger.Info("WriteTagged called", zap.Any("req", req))
 	return c.next.WriteTagged(ctx, req)
 }
 
 func (c *client) WriteTaggedBatchRaw(ctx thrift.Context, req *rpc.WriteTaggedBatchRawRequest) error {
+	c.logger.Info("WriteTaggedBatchRaw called", zap.Any("req", req))
 	return c.next.WriteTaggedBatchRaw(ctx, req)
 }
 
 func (c *client) WriteTaggedBatchRawV2(ctx thrift.Context, req *rpc.WriteTaggedBatchRawV2Request) error {
+	c.logger.Info("WriteTaggedBatchRawV2 called", zap.Any("req", req))
 	return c.next.WriteTaggedBatchRawV2(ctx, req)
 }
