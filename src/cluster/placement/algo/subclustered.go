@@ -51,14 +51,19 @@ func (a subclusteredPlacementAlgorithm) InitialPlacement(
 		return nil, fmt.Errorf("number of instances is not a multiple of instances per subcluster")
 	}
 
-	_, err := newSubclusteredInitHelper(instances, shards, a.opts, rf)
+	ph, err := newSubclusteredInitHelper(instances, shards, a.opts, rf)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: Add logic to place all shard replicas.
+	for i := 0; i < rf; i++ {
+		err := ph.placeShards(newShards(shards), nil, ph.Instances())
+		if err != nil {
+			return nil, err
+		}
+	}
 
-	return nil, nil
+	return ph.generatePlacement(), nil
 }
 
 func (a subclusteredPlacementAlgorithm) AddReplica(p placement.Placement) (placement.Placement, error) {
