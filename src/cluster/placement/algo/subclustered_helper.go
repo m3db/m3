@@ -21,6 +21,7 @@
 package algo
 
 import (
+	"container/heap"
 	"errors"
 	"fmt"
 	"math"
@@ -277,27 +278,113 @@ func (ph *subclusteredHelper) assignShardToInstance(s shard.Shard, to placement.
 // nolint
 // Instances returns the list of instances managed by the PlacementHelper.
 func (ph *subclusteredHelper) Instances() []placement.Instance {
-	// TODO: Implement subclustered instances logic
-	return nil
+	res := make([]placement.Instance, 0, len(ph.instances))
+	for _, instance := range ph.instances {
+		res = append(res, instance)
+	}
+	return res
+}
+
+func (ph *subclusteredHelper) moveShard(candidateShard shard.Shard, from, to placement.Instance) bool {
+	shardID := candidateShard.ID()
+	if !ph.canAssignInstance(shardID, from, to) {
+		return false
+	}
+
+	if candidateShard.State() == shard.Leaving {
+		return false
+	}
+
+	newShard := shard.NewShard(shardID)
+	curShard, ok := to.Shards().Shard(shardID)
+	if ok && curShard.State() == shard.Leaving {
+		// NB(cw): if the instance already owns the shard in Leaving state,
+		// simply mark it as Available
+		newShard = shard.NewShard(shardID).SetState(shard.Available)
+		// NB(cw): Break the link between new owner of this shard with this Leaving instance
+		instances := ph.shardToInstanceMap[shardID]
+		for instance := range instances {
+			shards := instance.Shards()
+			initShard, ok := shards.Shard(shardID)
+			if ok && initShard.SourceID() == to.ID() {
+				initShard.SetSourceID("")
+			}
+		}
+
+	}
+
+	ph.assignShardToInstance(newShard, to)
+	return true
+}
+
+func (ph *subclusteredHelper) canAssignInstance(shardID uint32, from, to placement.Instance) bool {
+	s, ok := to.Shards().Shard(shardID)
+	if ok && s.State() != shard.Leaving {
+		return false
+	}
+	tosubcluster := ph.subClusters[to.SubClusterID()]
+	// if the subcluster is full, the shard should be already assigned to the subcluster
+	// if the shard is not assigned to the subcluster, return false
+	if len(tosubcluster.shardMap) == tosubcluster.targetShardCount {
+		if _, exists := tosubcluster.shardMap[shardID]; !exists {
+			return false
+		}
+	}
+	return ph.CanMoveShard(shardID, from, to.IsolationGroup())
 }
 
 // CanMoveShard checks if the shard can be moved from the instance to the target isolation group.
 // nolint: unused
 func (ph *subclusteredHelper) CanMoveShard(shard uint32, from placement.Instance, toIsolationGroup string) bool {
-	// TODO: Implement subclustered shard movement logic
-	return false
+	for instance := range ph.shardToInstanceMap[shard] {
+		if instance.IsolationGroup() == toIsolationGroup {
+			return false
+		}
+	}
+	return true
 }
 
 // placeShards distributes shards to the instances in the helper, with aware of where are the shards coming from.
-// nolint: unused
+// nolint: dupl
 func (ph *subclusteredHelper) placeShards(
 	shards []shard.Shard,
 	from placement.Instance,
 	candidates []placement.Instance,
 ) error {
-	// TODO: Implement subclustered shard placement logic
-	return fmt.Errorf("subclustered placeShards not yet implemented: %w",
-		errSubclusteredHelperNotImplemented)
+	shardSet := getShardMap(shards)
+	if from != nil {
+		ph.returnInitializingShardsToSource(shardSet, from, candidates)
+	}
+
+	instanceHeap, err := ph.buildInstanceHeap(nonLeavingInstances(candidates), true)
+	if err != nil {
+		return err
+	}
+	// if there are shards left to be assigned, distribute them evenly
+	var triedInstances []placement.Instance
+	for _, s := range shardSet {
+		if s.State() == shard.Leaving {
+			continue
+		}
+		moved := false
+		for instanceHeap.Len() > 0 {
+			tryInstance := heap.Pop(instanceHeap).(placement.Instance)
+			triedInstances = append(triedInstances, tryInstance)
+			if ph.moveShard(s, from, tryInstance) {
+				moved = true
+				break
+			}
+		}
+		if !moved {
+			// This should only happen when RF > number of isolation groups.
+			return errNotEnoughIsolationGroups
+		}
+		for _, triedInstance := range triedInstances {
+			heap.Push(instanceHeap, triedInstance)
+		}
+		triedInstances = triedInstances[:0]
+	}
+	return nil
 }
 
 // addInstance adds an instance to the placement.
@@ -317,8 +404,33 @@ func (ph *subclusteredHelper) optimize(t optimizeType) error {
 // generatePlacement generates a placement.
 // nolint: unused
 func (ph *subclusteredHelper) generatePlacement() placement.Placement {
-	// TODO: Implement subclustered placement generation logic
-	return nil
+	var instances = make([]placement.Instance, 0, len(ph.instances))
+
+	for _, instance := range ph.instances {
+		if instance.Shards().NumShards() > 0 {
+			instances = append(instances, instance)
+		}
+	}
+
+	for _, instance := range instances {
+		shards := instance.Shards()
+		for _, s := range shards.ShardsForState(shard.Unknown) {
+			shards.Add(shard.NewShard(s.ID()).
+				SetSourceID(s.SourceID()).
+				SetState(shard.Initializing).
+				SetCutoverNanos(ph.opts.ShardCutoverNanosFn()()))
+		}
+	}
+
+	return placement.NewPlacement().
+		SetInstances(instances).
+		SetShards(ph.uniqueShards).
+		SetReplicaFactor(ph.rf).
+		SetIsSharded(true).
+		SetHasSubClusters(true).
+		SetInstancesPerSubCluster(ph.instancesPerSubcluster).
+		SetIsMirrored(ph.opts.IsMirrored()).
+		SetCutoverNanos(ph.opts.PlacementCutoverNanosFn()())
 }
 
 // reclaimLeavingShards reclaims all the leaving shards on the given instance
@@ -332,7 +444,41 @@ func (ph *subclusteredHelper) reclaimLeavingShards(instance placement.Instance) 
 // by returning them back to the original owners.
 // nolint: unused
 func (ph *subclusteredHelper) returnInitializingShards(instance placement.Instance) {
-	// TODO: Implement subclustered return initializing shards logic
+	shardSet := getShardMap(instance.Shards().All())
+	ph.returnInitializingShardsToSource(shardSet, instance, ph.Instances())
+}
+
+// nolint: dupl
+func (ph *subclusteredHelper) returnInitializingShardsToSource(
+	shardSet map[uint32]shard.Shard,
+	from placement.Instance,
+	candidates []placement.Instance,
+) {
+	candidateMap := make(map[string]placement.Instance, len(candidates))
+	for _, candidate := range candidates {
+		candidateMap[candidate.ID()] = candidate
+	}
+	for _, s := range shardSet {
+		if s.State() != shard.Initializing {
+			continue
+		}
+		sourceID := s.SourceID()
+		if sourceID == "" {
+			continue
+		}
+		sourceInstance, ok := candidateMap[sourceID]
+		if !ok {
+			// NB(cw): This is not an error because the candidates are not
+			// necessarily all the instances in the placement.
+			continue
+		}
+		if sourceInstance.IsLeaving() {
+			continue
+		}
+		if ph.moveShard(s, from, sourceInstance) {
+			delete(shardSet, s.ID())
+		}
+	}
 }
 
 // validateSubclusterDistribution validates that:
@@ -413,4 +559,10 @@ func assignSubClusterIDs(
 		maxSubclusterCount++
 	}
 	return nil
+}
+
+func (ph *subclusteredHelper) buildInstanceHeap(
+	instances []placement.Instance,
+	availableCapacityAscending bool) (heap.Interface, error) {
+	return newHeap(instances, availableCapacityAscending, ph.targetLoad, ph.groupToWeightMap, true)
 }
