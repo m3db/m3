@@ -43,7 +43,6 @@ func (a subclusteredPlacementAlgorithm) InitialPlacement(
 	if instancesPerSubcluster <= 0 {
 		return nil, fmt.Errorf("instances per subcluster is not set")
 	}
-
 	if instancesPerSubcluster%rf != 0 {
 		return nil, fmt.Errorf("instances per subcluster is not a multiple of replica factor")
 	}
