@@ -84,6 +84,11 @@ func newSubclusteredHelper(p placement.Placement, targetRF int, opts placement.O
 
 	ph.scanCurrentLoad()
 
+	err = ph.validateSubclusterDistribution()
+	if err != nil {
+		return nil, err
+	}
+
 	// TODO: Implement subclustered helper logic build target load.
 
 	return ph, nil
@@ -231,4 +236,44 @@ func (ph *subclusteredHelper) reclaimLeavingShards(instance placement.Instance) 
 // nolint: unused
 func (ph *subclusteredHelper) returnInitializingShards(instance placement.Instance) {
 	// TODO: Implement subclustered return initializing shards logic
+}
+
+// validateSubclusterDistribution validates that:
+// 1. Number of isolation groups equals replica factor (rf)
+// 2. For complete subclusters, nodes per isolation group = instancesPerSubcluster / rf
+// nolint: unused
+func (ph *subclusteredHelper) validateSubclusterDistribution() error {
+	if len(ph.instances) == 0 {
+		return nil
+	}
+
+	if ph.opts.InstancesPerSubCluster() <= 0 {
+		return fmt.Errorf("instances per subcluster is not set")
+	}
+
+	if len(ph.groupToInstancesMap) != ph.rf {
+		return fmt.Errorf("number of isolation groups (%d) does not match replica factor (%d)",
+			len(ph.groupToInstancesMap), ph.rf)
+	}
+
+	// Validate each subcluster
+	for subclusterID, currCluster := range ph.subClusters {
+		isolationGroups := make(map[string]int)
+		for _, instance := range currCluster.instances {
+			isolationGroups[instance.IsolationGroup()]++
+		}
+
+		expectedInstancesPerGroup := ph.instancesPerSubcluster / ph.rf
+		for isolationGroup, count := range isolationGroups {
+			if len(currCluster.instances) == ph.instancesPerSubcluster && count != expectedInstancesPerGroup {
+				return fmt.Errorf("subcluster %d isolation group %s has %d instances, expected %d",
+					subclusterID, isolationGroup, count, expectedInstancesPerGroup)
+			} else if len(currCluster.instances) < ph.instancesPerSubcluster && count > expectedInstancesPerGroup {
+				return fmt.Errorf("subcluster %d isolation group %s has %d instances, expected 0",
+					subclusterID, isolationGroup, count)
+			}
+		}
+	}
+
+	return nil
 }
