@@ -68,11 +68,9 @@ func New(params Params) (M3DBMiddleware, error) {
 // withBreaker executes the given call with a circuit breaker if enabled.
 func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.Context, T) error) error {
 	// Early return if circuit breaker is disabled or not initialized
-	c.logger.Info("withBreaker called", zap.Any("req", req))
-	enabled := c.provider.IsEnabled()
-	c.logger.Info("enabled", zap.Bool("enabled", enabled))
-	if c.circuit == nil || !enabled {
-		c.logger.Info("withBreaker returning", zap.Any("req", req))
+
+	if c.circuit == nil || !c.provider.IsEnabled() {
+		c.logger.Info("withBreaker returning", zap.Any("req", req), zap.Bool("enabled", c.provider.IsEnabled()), zap.Bool("circuit", c.circuit != nil))
 		return call(ctx, req)
 	}
 
@@ -82,7 +80,7 @@ func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.C
 
 	// If request is not allowed, log and return error
 	if !isAllowed {
-		c.logger.Info("request is not allowed", zap.Any("req", req))
+		c.logger.Info("request is n allowed", zap.Any("req", req))
 		if c.provider.IsShadowMode() {
 			c.metrics.shadowRejects.Inc(1)
 		} else {
@@ -91,13 +89,14 @@ func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.C
 		}
 	}
 
-	c.logger.Info("request is allowed", zap.Any("req", req))
 	// Execute the request and update metrics
 	err := call(ctx, req)
 	//TODO check if error type can be checked
 	if err == nil {
+		c.logger.Info("success", zap.Any("req", req))
 		c.metrics.successes.Inc(1)
 	} else {
+		c.logger.Info("failure", zap.Any("req", req))
 		c.metrics.failures.Inc(1)
 	}
 
