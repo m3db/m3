@@ -323,7 +323,7 @@ func TestSubclusteredAlgorithm_InitialPlacement_ErrorCases(t *testing.T) {
 			totalInstances:         1,
 			totalShards:            1,
 			expectError:            true,
-			errorMessage:           "instances per subcluster is not set",
+			errorMessage:           "instances per subcluster is not set",)
 		},
 	}
 
