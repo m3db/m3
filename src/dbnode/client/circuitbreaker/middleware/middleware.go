@@ -268,8 +268,9 @@ func (c *client) Write(ctx thrift.Context, req *rpc.WriteRequest) error {
 }
 
 func (c *client) WriteBatchRawV2(ctx thrift.Context, req *rpc.WriteBatchRawV2Request) error {
-	c.logger.Info("WriteBatchRawV2 called", zap.Any("req", req))
-	return c.next.WriteBatchRawV2(ctx, req)
+	// c.logger.Info("WriteBatchRawV2 called", zap.Any("req", req))
+	// return c.next.WriteBatchRawV2(ctx, req)
+	return withBreaker(c, ctx, req, c.next.WriteBatchRawV2)
 }
 
 func (c *client) WriteTagged(ctx thrift.Context, req *rpc.WriteTaggedRequest) error {
