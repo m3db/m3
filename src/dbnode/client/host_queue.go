@@ -770,10 +770,13 @@ func (q *queue) asyncWriteV2(
 		ctx, _ := thrift.NewContext(q.opts.WriteRequestTimeout())
 		err = client.WriteBatchRawV2(ctx, req)
 		if err == nil {
+			q.opts.InstrumentOptions().Logger().Info("WriteBatchRawV2 succeeded", zap.Any("req", req))
 			// All succeeded.
 			callAllCompletionFns(ops, q.host, nil)
 			cleanup()
 			return
+		} else {
+			q.opts.InstrumentOptions().Logger().Info("WriteBatchRawV2 failed", zap.Any("req", req), zap.Error(err))
 		}
 
 		if batchErrs, ok := err.(*rpc.WriteBatchRawErrors); ok {
