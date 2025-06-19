@@ -63,8 +63,32 @@ type subcluster struct {
 	instanceShardCounts map[string]int
 }
 
-// nolint
-func newSubclusteredHelper(p placement.Placement, targetRF int, opts placement.Options, subClusterToExclude uint32) (placementHelper, error) {
+func newSubclusteredInitHelper(
+	instances []placement.Instance,
+	ids []uint32,
+	opts placement.Options,
+) (placementHelper, error) {
+	emptyPlacement := placement.NewPlacement().
+		SetInstances(instances).
+		SetShards(ids).
+		SetReplicaFactor(0).
+		SetIsSharded(true).
+		SetHasSubClusters(true).
+		SetInstancesPerSubCluster(opts.InstancesPerSubCluster()).
+		SetCutoverNanos(opts.PlacementCutoverNanosFn()())
+	ph, err := newSubclusteredHelper(emptyPlacement, emptyPlacement.ReplicaFactor()+1, opts, 0)
+	if err != nil {
+		return nil, err
+	}
+	return ph, nil
+}
+
+func newSubclusteredHelper(
+	p placement.Placement,
+	targetRF int,
+	opts placement.Options,
+	subClusterToExclude uint32,
+) (placementHelper, error) {
 	ph := &subclusteredHelper{
 		rf:                     targetRF,
 		instances:              make(map[string]placement.Instance, p.NumInstances()),
@@ -99,7 +123,6 @@ func newSubclusteredHelper(p placement.Placement, targetRF int, opts placement.O
 }
 
 // validateInstanceWeight validates that all instances have the same weight.
-// nolint: unused
 func (ph *subclusteredHelper) validateInstanceWeight() error {
 	if len(ph.instances) == 0 {
 		return nil
@@ -126,7 +149,6 @@ func (ph *subclusteredHelper) validateInstanceWeight() error {
 	return nil
 }
 
-// nolint: unused
 func (ph *subclusteredHelper) scanCurrentLoad() {
 	ph.shardToInstanceMap = make(map[uint32]map[placement.Instance]struct{}, len(ph.uniqueShards))
 	ph.groupToInstancesMap = make(map[string]map[placement.Instance]struct{})
@@ -169,7 +191,7 @@ func (ph *subclusteredHelper) scanCurrentLoad() {
 }
 
 // buildTargetLoad builds the target load for the placement.
-// nolint
+// nolint: dupl
 func (ph *subclusteredHelper) buildTargetLoad() {
 	overWeightedGroups := 0
 	overWeight := uint32(0)
@@ -198,7 +220,6 @@ func (ph *subclusteredHelper) buildTargetLoad() {
 }
 
 // buildTargetSubclusterLoad builds the target load for the subclusters.
-// nolint: unused
 func (ph *subclusteredHelper) buildTargetSubclusterLoad(subClusterToExclude uint32) {
 	totalShards := len(ph.uniqueShards)
 	subClusters := ph.getSubclusterIds(subClusterToExclude)
@@ -219,7 +240,6 @@ func (ph *subclusteredHelper) buildTargetSubclusterLoad(subClusterToExclude uint
 }
 
 // getSubclusterIds gets the subcluster ids slice.
-// nolint: unused
 func (ph *subclusteredHelper) getSubclusterIds(subClusterToExclude uint32) []uint32 {
 	subClusterIds := make([]uint32, 0, len(ph.subClusters))
 	for k := range ph.subClusters {
@@ -232,7 +252,6 @@ func (ph *subclusteredHelper) getSubclusterIds(subClusterToExclude uint32) []uin
 }
 
 // getShardLen gets the shard length.
-// nolint: unused
 func (ph *subclusteredHelper) getShardLen() int {
 	return len(ph.uniqueShards)
 }
