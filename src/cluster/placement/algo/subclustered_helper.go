@@ -476,6 +476,7 @@ func (ph *subclusteredHelper) canAssignInstance(shardID uint32, from, to placeme
 	if tosubcluster.targetShardCount == 0 {
 		return false
 	}
+
 	// if the subcluster is full, the shard should be already assigned to the subcluster
 	// if the shard is not assigned to the subcluster, return false
 	if len(tosubcluster.shardMap) == tosubcluster.targetShardCount {
@@ -1104,4 +1105,10 @@ func assignSubClusterIDs(
 	}
 
 	return nil
+}
+
+func (ph *subclusteredHelper) buildInstanceHeap(
+	instances []placement.Instance,
+	availableCapacityAscending bool) (heap.Interface, error) {
+	return newHeap(instances, availableCapacityAscending, ph.targetLoad, ph.groupToWeightMap, true)
 }
