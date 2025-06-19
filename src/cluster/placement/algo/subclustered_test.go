@@ -21,11 +21,13 @@
 package algo
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/shard"
 )
 
 func TestSubclusteredAlgorithm_IsCompatibleWith(t *testing.T) {
@@ -160,37 +162,61 @@ func TestInitialPlacement(t *testing.T) {
 	}
 }
 
-func TestSubclusteredAlgorithm_InitialPlacement_SubclusterAssignment(t *testing.T) {
-	// Test specific subcluster assignment patterns
+func TestSubclusteredAlgorithm_InitialPlacement(t *testing.T) {
 	tests := []struct {
 		name                   string
 		instancesPerSubcluster int
-		instances              []placement.Instance
-		expectedSubclusterIDs  []uint32
 		replicaFactor          int
+		totalInstances         int
+		totalShards            int
+		expectError            bool
+		errorMessage           string
+		expectedSubclusters    int
 	}{
 		{
-			name:                   "exactly one subcluster",
-			instancesPerSubcluster: 3,
-			replicaFactor:          3,
-			instances: []placement.Instance{
-				placement.NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1),
-				placement.NewEmptyInstance("i2", "r2", "z1", "endpoint2", 1),
-				placement.NewEmptyInstance("i3", "r3", "z1", "endpoint3", 1),
-			},
-			expectedSubclusterIDs: []uint32{1, 1, 1},
+			name:                   "valid configuration - rf=2, instancesPerSubcluster=6",
+			instancesPerSubcluster: 6,
+			replicaFactor:          2,
+			totalInstances:         12,
+			totalShards:            64,
+			expectError:            false,
+			expectedSubclusters:    2,
 		},
 		{
-			name:                   "exactly two subclusters",
-			instancesPerSubcluster: 2,
-			replicaFactor:          2,
-			instances: []placement.Instance{
-				placement.NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1),
-				placement.NewEmptyInstance("i2", "r2", "z1", "endpoint2", 1),
-				placement.NewEmptyInstance("i3", "r1", "z1", "endpoint3", 1),
-				placement.NewEmptyInstance("i4", "r2", "z1", "endpoint4", 1),
-			},
-			expectedSubclusterIDs: []uint32{1, 1, 2, 2},
+			name:                   "valid configuration - rf=3, instancesPerSubcluster=9",
+			instancesPerSubcluster: 9,
+			replicaFactor:          3,
+			totalInstances:         27,
+			totalShards:            1024,
+			expectError:            false,
+			expectedSubclusters:    3,
+		},
+		{
+			name:                   "valid configuration - rf=1, instancesPerSubcluster=4",
+			instancesPerSubcluster: 4,
+			replicaFactor:          1,
+			totalInstances:         4,
+			totalShards:            16,
+			expectError:            false,
+			expectedSubclusters:    1,
+		},
+		{
+			name:                   "valid configuration - rf=4, instancesPerSubcluster=8",
+			instancesPerSubcluster: 8,
+			replicaFactor:          4,
+			totalInstances:         16,
+			totalShards:            512,
+			expectError:            false,
+			expectedSubclusters:    2,
+		},
+		{
+			name:                   "valid configuration - multiple subclusters",
+			instancesPerSubcluster: 3,
+			replicaFactor:          1,
+			totalInstances:         6,
+			totalShards:            6,
+			expectError:            false,
+			expectedSubclusters:    2,
 		},
 	}
 
@@ -199,21 +225,46 @@ func TestSubclusteredAlgorithm_InitialPlacement_SubclusterAssignment(t *testing.
 			opts := placement.NewOptions().SetInstancesPerSubCluster(tt.instancesPerSubcluster)
 			algo := newSubclusteredAlgorithm(opts)
 
-			// Clone instances to avoid modifying the original test data
-			instances := make([]placement.Instance, len(tt.instances))
-			for i, instance := range tt.instances {
-				instances[i] = instance.Clone()
+			// Generate instances dynamically
+			instances := make([]placement.Instance, tt.totalInstances)
+			for i := 0; i < tt.totalInstances; i++ {
+				instances[i] = placement.NewInstance().
+					SetID(fmt.Sprintf("I%d", i)).
+					SetIsolationGroup(fmt.Sprintf("R%d", i%tt.replicaFactor)).
+					SetWeight(1).
+					SetEndpoint(fmt.Sprintf("E%d", i)).
+					SetShards(shard.NewShards(nil))
 			}
 
-			shards := []uint32{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
-			_, err := algo.InitialPlacement(instances, shards, tt.replicaFactor)
-			assert.NoError(t, err)
+			// Generate shards dynamically
+			shards := make([]uint32, tt.totalShards)
+			for i := 0; i < tt.totalShards; i++ {
+				shards[i] = uint32(i)
+			}
 
-			// Verify subcluster assignments match expected pattern
-			for i, expectedID := range tt.expectedSubclusterIDs {
-				assert.Equal(t, expectedID, instances[i].SubClusterID(),
-					"Instance %d (ID: %s) should be in subcluster %d",
-					i, instances[i].ID(), expectedID)
+			result, err := algo.InitialPlacement(instances, shards, tt.replicaFactor)
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Equal(t, tt.errorMessage, err.Error())
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				subclusterMap := make(map[uint32]struct{})
+
+				instances := result.Instances()
+				for _, instance := range instances {
+					subclusterMap[instance.SubClusterID()] = struct{}{}
+				}
+
+				// Verify subcluster assignments
+				assert.Equal(t, tt.expectedSubclusters, len(subclusterMap))
+
+				// Verify placement properties
+				assert.Equal(t, tt.replicaFactor, result.ReplicaFactor())
+				assert.True(t, result.IsSharded())
+				assert.True(t, result.HasSubClusters())
+				assert.Equal(t, tt.instancesPerSubcluster, result.InstancesPerSubCluster())
 			}
 		})
 	}
@@ -223,45 +274,56 @@ func TestSubclusteredAlgorithm_InitialPlacement_ErrorCases(t *testing.T) {
 	tests := []struct {
 		name                   string
 		instancesPerSubcluster int
-		instances              []placement.Instance
-		shards                 []uint32
 		replicaFactor          int
+		totalInstances         int
+		totalShards            int
 		expectError            bool
 		errorMessage           string
 	}{
 		{
-			name:                   "instances per subcluster not set",
-			instancesPerSubcluster: 0,
-			instances: []placement.Instance{
-				placement.NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1),
-			},
-			shards:        []uint32{0},
-			replicaFactor: 1,
-			expectError:   true,
-			errorMessage:  "instances per subcluster is not set",
+			name:                   "instances per subcluster not multiple of replica factor - rf=2, instancesPerSubcluster=5",
+			instancesPerSubcluster: 5,
+			replicaFactor:          2,
+			totalInstances:         5,
+			totalShards:            5,
+			expectError:            true,
+			errorMessage:           "instances per subcluster is not a multiple of replica factor",
 		},
 		{
-			name:                   "negative instances per subcluster",
-			instancesPerSubcluster: -1,
-			instances: []placement.Instance{
-				placement.NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1),
-			},
-			shards:        []uint32{0},
-			replicaFactor: 1,
-			expectError:   true,
-			errorMessage:  "instances per subcluster is not set",
+			name:                   "instances per subcluster not multiple of replica factor - rf=3, instancesPerSubcluster=8",
+			instancesPerSubcluster: 8,
+			replicaFactor:          3,
+			totalInstances:         8,
+			totalShards:            8,
+			expectError:            true,
+			errorMessage:           "instances per subcluster is not a multiple of replica factor",
 		},
 		{
 			name:                   "replica factor greater than instances per subcluster",
 			instancesPerSubcluster: 2,
-			instances: []placement.Instance{
-				placement.NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1),
-				placement.NewEmptyInstance("i2", "r2", "z1", "endpoint2", 1),
-			},
-			shards:        []uint32{0, 1},
-			replicaFactor: 3,
-			expectError:   true,
-			errorMessage:  "instances per subcluster is not a multiple of replica factor",
+			replicaFactor:          3,
+			totalInstances:         2,
+			totalShards:            2,
+			expectError:            true,
+			errorMessage:           "instances per subcluster is not a multiple of replica factor",
+		},
+		{
+			name:                   "instances per subcluster not set",
+			instancesPerSubcluster: 0,
+			replicaFactor:          1,
+			totalInstances:         1,
+			totalShards:            1,
+			expectError:            true,
+			errorMessage:           "instances per subcluster is not set",
+		},
+		{
+			name:                   "negative instances per subcluster",
+			instancesPerSubcluster: -1,
+			replicaFactor:          1,
+			totalInstances:         1,
+			totalShards:            1,
+			expectError:            true,
+			errorMessage:           "instances per subcluster is not set",
 		},
 	}
 
@@ -270,15 +332,22 @@ func TestSubclusteredAlgorithm_InitialPlacement_ErrorCases(t *testing.T) {
 			opts := placement.NewOptions().SetInstancesPerSubCluster(tt.instancesPerSubcluster)
 			algo := subclusteredPlacementAlgorithm{opts: opts}
 
-			// Clone instances to avoid modifying the original test data
-			instances := make([]placement.Instance, len(tt.instances))
-			for i, instance := range tt.instances {
-				instances[i] = instance.Clone()
+			// Generate instances dynamically
+			instances := make([]placement.Instance, tt.totalInstances)
+			for i := 0; i < tt.totalInstances; i++ {
+				instances[i] = placement.NewInstance().
+					SetID(fmt.Sprintf("I%d", i)).
+					SetIsolationGroup(fmt.Sprintf("R%d", i%tt.replicaFactor)).
+					SetWeight(1).
+					SetEndpoint(fmt.Sprintf("E%d", i)).
+					SetShards(shard.NewShards(nil))
 			}
 
-			// Clone shards to avoid modifying the original test data
-			shards := make([]uint32, len(tt.shards))
-			copy(shards, tt.shards)
+			// Generate shards dynamically
+			shards := make([]uint32, tt.totalShards)
+			for i := 0; i < tt.totalShards; i++ {
+				shards[i] = uint32(i)
+			}
 
 			result, err := algo.InitialPlacement(instances, shards, tt.replicaFactor)
 
