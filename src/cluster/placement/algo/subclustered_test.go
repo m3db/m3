@@ -331,7 +331,6 @@ func TestSubclusteredAlgorithm_InitialPlacement_ErrorCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := placement.NewOptions().SetInstancesPerSubCluster(tt.instancesPerSubcluster)
 			algo := subclusteredPlacementAlgorithm{opts: opts}
-
 			// Generate instances dynamically
 			instances := make([]placement.Instance, tt.totalInstances)
 			for i := 0; i < tt.totalInstances; i++ {
