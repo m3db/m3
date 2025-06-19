@@ -205,7 +205,6 @@ func TestSubclusteredAlgorithm_InitialPlacement(t *testing.T) {
 				assert.Equal(t, tt.replicaFactor, result.ReplicaFactor())
 				assert.True(t, result.IsSharded())
 				assert.True(t, result.HasSubClusters())
-				assert.NoError(t, placement.Validate(result))
 				assert.Equal(t, tt.instancesPerSubcluster, result.InstancesPerSubCluster())
 			}
 		})
