@@ -863,7 +863,6 @@ func TestValidateSubclusteredPlacement(t *testing.T) {
 				i1 := NewEmptyInstance("i1", "IG1", "z1", "endpoint1", 1).SetSubClusterID(1)
 				i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
 				i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
-
 				i2 := NewEmptyInstance("i2", "IG1", "z1", "endpoint2", 1).SetSubClusterID(1)
 				i2.Shards().Add(shard.NewShard(1).SetState(shard.Available))
 				i2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
