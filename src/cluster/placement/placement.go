@@ -34,6 +34,8 @@ import (
 const (
 	// uninitializedShardSetID represents uninitialized shard set id.
 	uninitializedShardSetID = 0
+	// uninitializedSubClusterID represents uninitialized subcluster id.
+	uninitializedSubClusterID = uint32(0)
 )
 
 var (
@@ -42,6 +44,7 @@ var (
 	errDuplicatedShards          = errors.New("invalid placement, there are duplicated shards in one replica")
 	errUnexpectedShards          = errors.New("invalid placement, there are unexpected shard ids on instance")
 	errMirrorNotSharded          = errors.New("invalid placement, mirrored placement must be sharded")
+	errSubclusteredNotSharded    = errors.New("invalid placement, subclustered placement must be sharded")
 )
 
 type placement struct {
@@ -286,6 +289,10 @@ func validate(p Placement) error {
 		return errMirrorNotSharded
 	}
 
+	if p.HasSubClusters() && !p.IsSharded() {
+		return errSubclusteredNotSharded
+	}
+
 	shardCountMap := convertShardSliceToMap(p.Shards())
 	if len(shardCountMap) != len(p.Shards()) {
 		return errDuplicatedShards
@@ -308,6 +315,13 @@ func validate(p Placement) error {
 		}
 		if instance.Shards().NumShards() != 0 && !p.IsSharded() {
 			return fmt.Errorf("instance %s contains shards in a non-sharded placement", instance.String())
+		}
+		if instance.SubClusterID() == uninitializedSubClusterID && p.HasSubClusters() {
+			return fmt.Errorf("instance %s has uninitialized subcluster id in a subclustered placement", instance.String())
+		}
+		if instance.SubClusterID() != uninitializedSubClusterID && !p.HasSubClusters() {
+			return fmt.Errorf("instance %s has subcluster id %d in a non-subclustered placement",
+				instance.String(), instance.SubClusterID())
 		}
 		shardSetID := instance.ShardSetID()
 		if shardSetID > maxShardSetID {
@@ -420,6 +434,65 @@ func validate(p Placement) error {
 	for shard, c := range shardCountMap {
 		if p.ReplicaFactor() != c {
 			return fmt.Errorf("invalid shard count for shard %d: expected %d, actual %d", shard, p.ReplicaFactor(), c)
+		}
+	}
+
+	if p.HasSubClusters() {
+		return validateSubclusteredPlacement(p)
+	}
+	return nil
+}
+
+func validateSubclusteredPlacement(p Placement) error {
+	shardToInstanceMap := make(map[uint32]map[Instance]struct{})
+	subClusterToInstanceMap := make(map[uint32]map[Instance]struct{})
+	shardToIsolationGroupMap := make(map[uint32]map[string]struct{})
+	instancesPerSubCluster := p.InstancesPerSubCluster()
+
+	for _, instance := range p.Instances() {
+		if instance.IsLeaving() {
+			continue
+		}
+		if _, exist := subClusterToInstanceMap[instance.SubClusterID()]; !exist {
+			subClusterToInstanceMap[instance.SubClusterID()] = make(map[Instance]struct{})
+		}
+		subClusterToInstanceMap[instance.SubClusterID()][instance] = struct{}{}
+
+		for _, s := range instance.Shards().All() {
+			if s.State() == shard.Leaving {
+				continue
+			}
+			if _, exist := shardToIsolationGroupMap[s.ID()]; !exist {
+				shardToIsolationGroupMap[s.ID()] = make(map[string]struct{})
+			}
+			shardToIsolationGroupMap[s.ID()][instance.IsolationGroup()] = struct{}{}
+			if _, exist := shardToInstanceMap[s.ID()]; !exist {
+				shardToInstanceMap[s.ID()] = make(map[Instance]struct{})
+			}
+			shardToInstanceMap[s.ID()][instance] = struct{}{}
+		}
+	}
+
+	for shard, instances := range shardToInstanceMap {
+		firstReplica := true
+		shardSubclusterID := uninitializedSubClusterID
+		for instance := range instances {
+			if firstReplica {
+				shardSubclusterID = instance.SubClusterID()
+				firstReplica = false
+				continue
+			}
+			currSubclusterID := instance.SubClusterID()
+			if currSubclusterID != shardSubclusterID &&
+				len(subClusterToInstanceMap[shardSubclusterID]) == instancesPerSubCluster &&
+				len(subClusterToInstanceMap[currSubclusterID]) == instancesPerSubCluster {
+				return fmt.Errorf("invalid shard %d, expected subcluster id %d, actual %d",
+					shard, shardSubclusterID, currSubclusterID)
+			}
+		}
+		if len(shardToIsolationGroupMap[shard]) != p.ReplicaFactor() {
+			return fmt.Errorf("invalid shard %d, expected %d isolation groups, actual %d",
+				shard, p.ReplicaFactor(), len(shardToIsolationGroupMap[shard]))
 		}
 	}
 	return nil
