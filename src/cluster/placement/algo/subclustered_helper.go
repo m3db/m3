@@ -1026,9 +1026,3 @@ func assignSubClusterIDs(
 	}
 	return nil
 }
-
-func (ph *subclusteredHelper) buildInstanceHeap(
-	instances []placement.Instance,
-	availableCapacityAscending bool) (heap.Interface, error) {
-	return newHeap(instances, availableCapacityAscending, ph.targetLoad, ph.groupToWeightMap, true)
-}
