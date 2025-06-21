@@ -19,6 +19,7 @@ builds:
       # - windows
     goarch:
       - amd64
+      - arm64
   - id: m3coordinator
     main: ./src/cmd/services/m3coordinator/main/main.go
     binary: m3coordinator
@@ -38,6 +39,7 @@ builds:
       # - windows
     goarch:
       - amd64
+      - arm64
   - id: m3query
     main: ./src/cmd/services/m3query/main/main.go
     binary: m3query
@@ -57,6 +59,7 @@ builds:
       # - windows
     goarch:
       - amd64
+      - arm64
   - id: m3aggregator
     main: ./src/cmd/services/m3aggregator/main/main.go
     binary: m3aggregator
@@ -76,6 +79,7 @@ builds:
       # - windows
     goarch:
       - amd64
+      - arm64
 archives:
   - format: tar.gz
     wrap_in_directory: true
