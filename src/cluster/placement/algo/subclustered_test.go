@@ -22,6 +22,7 @@ package algo
 
 import (
 	"fmt"
+	"math/rand"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,6 +30,30 @@ import (
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/shard"
 )
+
+// getRandomSubclusterIDs randomly selects the specified number of subcluster IDs from the placement
+func getRandomSubclusterIDs(p placement.Placement, numToRemove int) []uint32 {
+	subclusterMap := make(map[uint32]struct{})
+	for _, instance := range p.Instances() {
+		subclusterMap[instance.SubClusterID()] = struct{}{}
+	}
+
+	subclusterIDs := make([]uint32, 0, len(subclusterMap))
+	for subclusterID := range subclusterMap {
+		subclusterIDs = append(subclusterIDs, subclusterID)
+	}
+
+	// Randomly shuffle and select the first numToRemove
+	rand.Shuffle(len(subclusterIDs), func(i, j int) {
+		subclusterIDs[i], subclusterIDs[j] = subclusterIDs[j], subclusterIDs[i]
+	})
+
+	if numToRemove > len(subclusterIDs) {
+		numToRemove = len(subclusterIDs)
+	}
+
+	return subclusterIDs[:numToRemove]
+}
 
 func TestSubclusteredAlgorithm_IsCompatibleWith(t *testing.T) {
 	algo := newSubclusteredAlgorithm(placement.NewOptions())
@@ -547,4 +572,262 @@ func TestAddInstancesErrorCases(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRemoveInstancesValidCases(t *testing.T) {
+	tests := []struct {
+		name                   string
+		replicaFactor          int
+		initialSubClusters     int
+		instancesPerSubcluster int
+		subClustersToRemove    int
+		totalShards            int
+	}{
+		{
+			name:                   "valid configuration - rf=3, instancesPerSubcluster=6",
+			replicaFactor:          3,
+			initialSubClusters:     4,
+			instancesPerSubcluster: 6,
+			subClustersToRemove:    1,
+			totalShards:            128,
+		},
+		{
+			name:                   "valid configuration - rf=3, instancesPerSubcluster=9",
+			replicaFactor:          3,
+			initialSubClusters:     24,
+			instancesPerSubcluster: 9,
+			subClustersToRemove:    5,
+			totalShards:            1024,
+		},
+		{
+			name:                   "valid configuration - rf=4, instancesPerSubcluster=8",
+			replicaFactor:          4,
+			initialSubClusters:     10,
+			instancesPerSubcluster: 8,
+			subClustersToRemove:    4,
+			totalShards:            1024,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := placement.NewOptions().SetInstancesPerSubCluster(tt.instancesPerSubcluster).
+				SetHasSubClusters(true)
+			algo := subclusteredPlacementAlgorithm{opts: opts}
+
+			initialInstances := make([]placement.Instance, tt.instancesPerSubcluster*tt.initialSubClusters)
+			for i := 0; i < tt.instancesPerSubcluster*tt.initialSubClusters; i++ {
+				subclusterID := uint32(i/tt.instancesPerSubcluster + 1)
+				initialInstances[i] = placement.NewInstance().
+					SetID(fmt.Sprintf("I%d", i)).
+					SetIsolationGroup(fmt.Sprintf("R%d", i%tt.replicaFactor)).
+					SetWeight(1).
+					SetEndpoint(fmt.Sprintf("E%d", i)).
+					SetSubClusterID(subclusterID).
+					SetShards(shard.NewShards(nil))
+			}
+
+			initialShards := make([]uint32, tt.totalShards)
+			for i := 0; i < tt.totalShards; i++ {
+				initialShards[i] = uint32(i)
+			}
+
+			result, err := algo.InitialPlacement(initialInstances, initialShards, tt.replicaFactor)
+			assert.NoError(t, err)
+			assert.NotNil(t, result)
+			assert.NoError(t, placement.Validate(result))
+
+			// Randomly select subclusters to remove
+			subclustersToRemove := getRandomSubclusterIDs(result, tt.subClustersToRemove)
+
+			// Get all instances from the selected subclusters
+			var instancesToRemove []string
+			for _, subclusterID := range subclustersToRemove {
+				for _, instance := range result.Instances() {
+					if instance.SubClusterID() == subclusterID {
+						instancesToRemove = append(instancesToRemove, instance.ID())
+					}
+				}
+			}
+
+			// Remove the instances
+			newPlacement, err := algo.RemoveInstances(result, instancesToRemove)
+			assert.NoError(t, err)
+			assert.NotNil(t, newPlacement)
+			assert.NoError(t, placement.Validate(newPlacement))
+
+			// Verify that the expected number of instances were removed
+			expectedRemainingInstances := tt.instancesPerSubcluster * (tt.initialSubClusters - tt.subClustersToRemove)
+			assert.Equal(t, expectedRemainingInstances, len(newPlacement.Instances()))
+		})
+	}
+}
+
+func TestPartialSubclustersRemoveOperation(t *testing.T) {
+	tests := []struct {
+		name                   string
+		replicaFactor          int
+		instancesPerSubcluster int
+		instancesToAdd         int
+		totalShards            int
+		subClustersToRemove    int
+	}{
+		{
+			name:                   "remove subcluster while addition of subcluster is going on",
+			replicaFactor:          3,
+			instancesPerSubcluster: 6,
+			instancesToAdd:         14,
+			totalShards:            128,
+			subClustersToRemove:    1,
+		},
+		{
+			name:                   "remove subcluster while removal of subcluster is going on",
+			replicaFactor:          3,
+			instancesPerSubcluster: 6,
+			instancesToAdd:         18,
+			totalShards:            128,
+			subClustersToRemove:    2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := placement.NewOptions().SetInstancesPerSubCluster(tt.instancesPerSubcluster)
+			algo := subclusteredPlacementAlgorithm{opts: opts}
+
+			initialInstances := make([]placement.Instance, tt.instancesPerSubcluster)
+			for i := 0; i < tt.instancesPerSubcluster; i++ {
+				initialInstances[i] = placement.NewInstance().
+					SetID(fmt.Sprintf("I%d", i)).
+					SetIsolationGroup(fmt.Sprintf("R%d", i%tt.replicaFactor)).
+					SetWeight(1).
+					SetEndpoint(fmt.Sprintf("E%d", i)).
+					SetShards(shard.NewShards(nil))
+			}
+
+			initialShards := make([]uint32, tt.totalShards)
+			for i := 0; i < tt.totalShards; i++ {
+				initialShards[i] = uint32(i)
+			}
+
+			result, err := algo.InitialPlacement(initialInstances, initialShards, tt.replicaFactor)
+			assert.NoError(t, err)
+			assert.NotNil(t, result)
+			assert.NoError(t, placement.Validate(result))
+
+			currentPlacement, marked, err := algo.MarkAllShardsAvailable(result)
+			assert.NoError(t, err)
+			assert.True(t, marked)
+			assert.NoError(t, placement.Validate(currentPlacement))
+
+			instancesToAdd := make([]placement.Instance, tt.instancesToAdd)
+			for i := 0; i < tt.instancesToAdd; i++ {
+				instancesToAdd[i] = placement.NewInstance().
+					SetID(fmt.Sprintf("I%d", tt.instancesPerSubcluster+i)).
+					SetIsolationGroup(fmt.Sprintf("R%d", i%tt.replicaFactor)).
+					SetWeight(1).
+					SetEndpoint(fmt.Sprintf("E%d", tt.instancesPerSubcluster+i)).
+					SetShards(shard.NewShards(nil))
+			}
+
+			for i := 0; i < tt.instancesToAdd; i++ {
+				instance := instancesToAdd[i]
+				newPlacement, err := algo.AddInstances(currentPlacement, []placement.Instance{instance})
+				assert.NoError(t, err)
+				assert.NotNil(t, newPlacement)
+				assert.NoError(t, placement.Validate(newPlacement))
+
+				newPlacement, marked, err = algo.MarkAllShardsAvailable(newPlacement)
+				assert.NoError(t, err)
+				assert.True(t, marked)
+				assert.NoError(t, placement.Validate(newPlacement))
+
+				currentPlacement = newPlacement
+			}
+			// Randomly select subclusters to remove
+			subclustersToRemove := getRandomSubclusterIDs(currentPlacement, tt.subClustersToRemove)
+
+			// Get all instances from the selected subclusters
+			var instancesToRemove []string
+			for _, subclusterID := range subclustersToRemove {
+				for _, instance := range currentPlacement.Instances() {
+					if instance.SubClusterID() == subclusterID {
+						instancesToRemove = append(instancesToRemove, instance.ID())
+					}
+				}
+			}
+
+			if tt.subClustersToRemove > 1 {
+				rand.Shuffle(len(instancesToRemove), func(i, j int) {
+					instancesToRemove[i], instancesToRemove[j] = instancesToRemove[j], instancesToRemove[i]
+				})
+			}
+
+			// Remove the instances
+			newPlacement, err := algo.RemoveInstances(currentPlacement, instancesToRemove)
+			assert.Error(t, err)
+			assert.Nil(t, newPlacement)
+		})
+	}
+}
+
+func TestPartialSubclustersAddOperation(t *testing.T) {
+	shards := make([]uint32, 1024)
+	for i := 0; i < 1024; i++ {
+		shards[i] = uint32(i)
+	}
+
+	instancesPerSubCluster := 9
+	replicaFactor := 3
+	subclustersToAdd := 5
+	subclusterIDToRemove := uint32(3)
+
+	initialInstances := make([]placement.Instance, instancesPerSubCluster*subclustersToAdd)
+	for i := 0; i < len(initialInstances); i++ {
+		subclusterID := uint32(i/instancesPerSubCluster + 1)
+		initialInstances[i] = placement.NewInstance().
+			SetID(fmt.Sprintf("I%d", i)).
+			SetIsolationGroup(fmt.Sprintf("R%d", i%replicaFactor)).
+			SetWeight(1).
+			SetEndpoint(fmt.Sprintf("E%d", i)).
+			SetSubClusterID(subclusterID).
+			SetShards(shard.NewShards(nil))
+	}
+	opts := placement.NewOptions().SetInstancesPerSubCluster(instancesPerSubCluster).
+		SetHasSubClusters(true)
+	algo := subclusteredPlacementAlgorithm{opts: opts}
+
+	result, err := algo.InitialPlacement(initialInstances, shards, replicaFactor)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.NoError(t, placement.Validate(result))
+
+	currentPlacement, marked, err := algo.MarkAllShardsAvailable(result)
+	assert.NoError(t, err)
+	assert.True(t, marked)
+	assert.NoError(t, placement.Validate(currentPlacement))
+
+	instanceToRemove := ""
+	for _, instance := range currentPlacement.Instances() {
+		if instance.SubClusterID() == subclusterIDToRemove {
+			instanceToRemove = instance.ID()
+			break
+		}
+	}
+
+	newPlacement, err := algo.RemoveInstances(currentPlacement, []string{instanceToRemove})
+	assert.NoError(t, err)
+	assert.NotNil(t, newPlacement)
+	assert.NoError(t, placement.Validate(newPlacement))
+
+	instanceToAdd := placement.NewInstance().
+		SetID("RI0").
+		SetIsolationGroup("R0").
+		SetWeight(1).
+		SetEndpoint("E0").
+		SetShards(shard.NewShards(nil))
+
+	newPlacement, err = algo.AddInstances(newPlacement, []placement.Instance{instanceToAdd})
+	assert.Error(t, err)
+	assert.Nil(t, newPlacement)
 }
