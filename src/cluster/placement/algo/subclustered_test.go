@@ -109,7 +109,7 @@ func TestInitialPlacement(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := placement.NewOptions().SetInstancesPerSubCluster(tt.instancesPerSubcluster)
-			algo := subclusteredPlacementAlgorithm{opts: opts}
+			algo := newSubclusteredAlgorithm(opts)
 
 			// Clone instances to avoid modifying the original test data
 			instances := make([]placement.Instance, len(tt.instances))
@@ -124,7 +124,6 @@ func TestInitialPlacement(t *testing.T) {
 			}
 
 			result, err := algo.InitialPlacement(instances, shards, tt.replicaFactor)
-
 			if tt.expectError {
 				assert.Error(t, err)
 				assert.Equal(t, tt.errorMessage, err.Error())
