@@ -117,6 +117,7 @@ func newubclusteredAddInstanceHelper(
 		if err != nil {
 			return nil, nil, err
 		}
+
 		return ph, instance, nil
 	}
 
