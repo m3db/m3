@@ -337,6 +337,20 @@ func (ph *subclusteredHelper) moveShard(candidateShard shard.Shard, from, to pla
 	}
 
 	newShard := shard.NewShard(shardID)
+	if from != nil {
+		// nolint: exhaustive
+		switch candidateShard.State() {
+		case shard.Unknown, shard.Initializing:
+			from.Shards().Remove(shardID)
+			newShard.SetSourceID(candidateShard.SourceID())
+		case shard.Available:
+			candidateShard.
+				SetState(shard.Leaving).
+				SetCutoffNanos(ph.opts.ShardCutoffNanosFn()())
+			newShard.SetSourceID(from.ID())
+		}
+		ph.removeShardFromInstance(shardID, from)
+	}
 	curShard, ok := to.Shards().Shard(shardID)
 	if ok && curShard.State() == shard.Leaving {
 		newShard = shard.NewShard(shardID).SetState(shard.Available)
@@ -355,6 +369,20 @@ func (ph *subclusteredHelper) moveShard(candidateShard shard.Shard, from, to pla
 	return true
 }
 
+func (ph *subclusteredHelper) removeShardFromInstance(shardID uint32, from placement.Instance) {
+	delete(ph.shardToInstanceMap[shardID], from)
+	if fromsubcluster, exist := ph.subClusters[from.SubClusterID()]; exist {
+		fromsubcluster.shardMap[shardID]--
+		if fromsubcluster.shardMap[shardID] == 0 {
+			delete(fromsubcluster.shardMap, shardID)
+		}
+		fromsubcluster.instanceShardCounts[from.ID()]--
+		if fromsubcluster.instanceShardCounts[from.ID()] == 0 {
+			delete(fromsubcluster.instanceShardCounts, from.ID())
+		}
+	}
+}
+
 func (ph *subclusteredHelper) canAssignInstance(shardID uint32, from, to placement.Instance) bool {
 	s, ok := to.Shards().Shard(shardID)
 	if ok && s.State() != shard.Leaving {
@@ -368,12 +396,70 @@ func (ph *subclusteredHelper) canAssignInstance(shardID uint32, from, to placeme
 			return false
 		}
 	}
+
+	if from != nil {
+		// Case 1: If we are moving the shard within the same subcluster, we just need to check
+		// if the if the shard cnn be moved to the to IsolationGroup.
+		if from.SubClusterID() == to.SubClusterID() {
+			return ph.CanMoveShard(shardID, from, to.IsolationGroup())
+		}
+		// Case 2: If we are moving the shard across subclusters.
+		// Case 2.1: Check if the from instance's subcluster can give the shards, i.e.
+		// if the number of shards in the from instance's subcluster has reached to its targetShatdCount
+		// in that case we cannot take any shard from this instance's subcluster.
+		fromSubcluster, exists := ph.subClusters[from.SubClusterID()]
+		if exists && len(fromSubcluster.shardMap) == fromSubcluster.targetShardCount {
+			return false
+		}
+		// Case 2.2: If we can take shards from the from instance's subcluster, we need to check
+		// if the from subcluster has given all the shards only the replicas of the shards is left
+		// in the from subcluster. IF that is the case then we need to make sure the replica is only going
+		// to the subcluster which already has one or more replica of the shard. To find this we will
+		// take intersection of the shards in froma d to subcluster and if the shard doesn'y exist in
+		// intersection and len(intersection) == (len(fromsubcluster.shardMap)-fromsubcluster.targetShardCount)
+		// we will return false. (This case will be viable when the targetShardCount of to subcluster hasn't reached but
+		// the from subcluster has given all the shards.)
+		if exists && len(fromSubcluster.shardMap) > fromSubcluster.targetShardCount {
+			intersection := ph.findMapKeyIntersection(tosubcluster.shardMap, fromSubcluster.shardMap)
+			if _, exist := intersection[shardID]; !exist &&
+				len(intersection) == (len(fromSubcluster.shardMap)-fromSubcluster.targetShardCount) {
+				return false
+			}
+		}
+		// Case 2.3: If the from subcluster hasn't given all the shards, we just need to check for isolation group movement
+	}
 	return ph.CanMoveShard(shardID, from, to.IsolationGroup())
+}
+
+// findMapKeyIntersection returns a map containing keys that exist in both input maps
+func (ph *subclusteredHelper) findMapKeyIntersection(map1, map2 map[uint32]int) map[uint32]struct{} {
+	// Create a map to store keys from the first map
+	keys := make(map[uint32]struct{})
+	for k := range map1 {
+		keys[k] = struct{}{}
+	}
+
+	// Create result map for intersection
+	intersection := make(map[uint32]struct{})
+
+	// Find intersection by checking which keys from map1 exist in map2
+	for k := range map2 {
+		if _, exists := keys[k]; exists {
+			intersection[k] = struct{}{}
+		}
+	}
+
+	return intersection
 }
 
 // CanMoveShard checks if the shard can be moved from the instance to the target isolation group.
 // nolint: unused
 func (ph *subclusteredHelper) CanMoveShard(shard uint32, from placement.Instance, toIsolationGroup string) bool {
+	if from != nil {
+		if from.IsolationGroup() == toIsolationGroup {
+			return true
+		}
+	}
 	for instance := range ph.shardToInstanceMap[shard] {
 		if instance.IsolationGroup() == toIsolationGroup {
 			return false
