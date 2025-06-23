@@ -77,8 +77,25 @@ func (a subclusteredPlacementAlgorithm) RemoveInstances(
 		return nil, err
 	}
 
-	// TODO: Implement subclustered remove instances logic
-	return nil, fmt.Errorf("subclustered remove instances not yet implemented")
+	p = p.Clone()
+	for _, instanceID := range instanceIDs {
+		ph, leavingInstance, err := newubclusteredRemoveInstanceHelper(p, instanceID, a.opts)
+		if err != nil {
+			return nil, err
+		}
+		if err := ph.placeShards(leavingInstance.Shards().All(), leavingInstance, ph.Instances()); err != nil {
+			return nil, err
+		}
+
+		// if err := ph.optimize(safe); err != nil {
+		// 	return nil, err
+		// }
+
+		if p, _, err = addInstanceToPlacement(ph.generatePlacement(), leavingInstance, withShards); err != nil {
+			return nil, err
+		}
+	}
+	return tryCleanupShardState(p, a.opts)
 }
 
 // nolint:dupl
@@ -151,41 +168,4 @@ func (a subclusteredPlacementAlgorithm) BalanceShards(
 
 	// TODO: Implement subclustered balance shards logic
 	return nil, fmt.Errorf("subclustered balance shards not yet implemented")
-}
-
-func (a subclusteredPlacementAlgorithm) assignSubClusterIDs(
-	instances []placement.Instance,
-	currPlacement placement.Placement,
-) error {
-	instancesPerSubcluster := a.opts.InstancesPerSubCluster()
-	if instancesPerSubcluster <= 0 {
-		return fmt.Errorf("instances per subcluster is not set")
-	}
-
-	// If current placement is nil, start assigning from subcluster 1
-	maxSubclusterID := uint32(1)
-	maxSubclusterCount := 0
-	if currPlacement != nil {
-		currInstances := currPlacement.Instances()
-
-		for _, instance := range currInstances {
-			if instance.SubClusterID() > maxSubclusterID {
-				maxSubclusterID = instance.SubClusterID()
-				maxSubclusterCount = 1
-			} else if instance.SubClusterID() == maxSubclusterID {
-				maxSubclusterCount++
-			}
-		}
-	}
-
-	// Assign subcluster IDs to new instances
-	for _, instance := range instances {
-		if maxSubclusterCount == instancesPerSubcluster {
-			maxSubclusterID++
-			maxSubclusterCount = 0
-		}
-		instance.SetSubClusterID(maxSubclusterID)
-		maxSubclusterCount++
-	}
-	return nil
 }
