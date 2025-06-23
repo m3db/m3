@@ -1376,5 +1376,4 @@ func TestReclaimLeavingInstance(t *testing.T) {
 	instance, exists := finalPlacement.Instance(instanceToRemove)
 	assert.True(t, exists)
 	assert.False(t, instance.IsLeaving())
-
 }
