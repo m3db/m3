@@ -77,8 +77,25 @@ func (a subclusteredPlacementAlgorithm) RemoveInstances(
 		return nil, err
 	}
 
-	// TODO: Implement subclustered remove instances logic
-	return nil, fmt.Errorf("subclustered remove instances not yet implemented")
+	p = p.Clone()
+	for _, instanceID := range instanceIDs {
+		ph, leavingInstance, err := newubclusteredRemoveInstanceHelper(p, instanceID, a.opts)
+		if err != nil {
+			return nil, err
+		}
+		if err := ph.placeShards(leavingInstance.Shards().All(), leavingInstance, ph.Instances()); err != nil {
+			return nil, err
+		}
+
+		// if err := ph.optimize(safe); err != nil {
+		// 	return nil, err
+		// }
+
+		if p, _, err = addInstanceToPlacement(ph.generatePlacement(), leavingInstance, withShards); err != nil {
+			return nil, err
+		}
+	}
+	return tryCleanupShardState(p, a.opts)
 }
 
 // nolint:dupl
@@ -151,4 +168,12 @@ func (a subclusteredPlacementAlgorithm) BalanceShards(
 
 	// TODO: Implement subclustered balance shards logic
 	return nil, fmt.Errorf("subclustered balance shards not yet implemented")
+}
+
+func (a subclusteredPlacementAlgorithm) validateRemoveInstances(p placement.Placement, instanceIDs []string) error {
+	if err := a.IsCompatibleWith(p); err != nil {
+		return err
+	}
+
+	return nil
 }
