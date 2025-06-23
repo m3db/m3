@@ -25,7 +25,9 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/rand"
 	"sort"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -471,8 +473,193 @@ func (ph *subclusteredHelper) targetLoadForInstance(id string) int {
 }
 
 func (ph *subclusteredHelper) moveOneShard(from, to placement.Instance) bool {
-	// TODO: Implement subclustered move one shard logic
+	return ph.moveOneShardInState(from, to, shard.Unknown) ||
+		ph.moveOneShardInState(from, to, shard.Initializing) ||
+		ph.moveOneShardInState(from, to, shard.Available)
+}
+
+func (ph *subclusteredHelper) moveOneShardInState(from, to placement.Instance, state shard.State) bool {
+	shards := from.Shards().ShardsForState(state)
+	toSubcluster := ph.subClusters[to.SubClusterID()]
+	// we are randomly shuffling the shards to minimize the shard sharing percentage between
+	// the replica sets within a subcluster
+	if to.SubClusterID() == from.SubClusterID() || len(toSubcluster.shardMap) == toSubcluster.targetShardCount {
+		shards = ph.randomShuffle(shards)
+	} else {
+		// we are greedy shuffling the shards to minimize the skew in the existing subclusters
+		// when moving the shards to new subcluster. We sort the shards by the amount of skew it
+		// will cause in the subcluster if all the shard replicas will be removed. We then take the
+		// shard which will cause the least skew and move it to the new subcluster.
+		shards = ph.greedyShuffle(shards, from)
+	}
+	for _, s := range shards {
+		if ph.moveShard(s, from, to) {
+			return true
+		}
+	}
 	return false
+}
+
+func (ph *subclusteredHelper) randomShuffle(shards []shard.Shard) []shard.Shard {
+	if len(shards) <= 1 {
+		return shards
+	}
+
+	result := make([]shard.Shard, len(shards))
+	copy(result, shards)
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	for i := len(result) - 1; i > 0; i-- {
+		j := rng.Intn(i + 1)
+		result[i], result[j] = result[j], result[i]
+	}
+
+	return result
+}
+
+func (ph *subclusteredHelper) greedyShuffle(shards []shard.Shard, fromInstance placement.Instance) []shard.Shard {
+	if len(shards) == 0 {
+		return shards
+	}
+
+	// Get all instances in the same subcluster as fromInstance using the helper's subcluster map
+	subclusterID := fromInstance.SubClusterID()
+	subcluster, exists := ph.subClusters[subclusterID]
+	if !exists {
+		return shards
+	}
+
+	// Convert subcluster instances map to slice
+	subclusterInstances := make([]placement.Instance, 0, len(subcluster.instances))
+	for _, instance := range subcluster.instances {
+		if instance.IsLeaving() {
+			continue
+		}
+		subclusterInstances = append(subclusterInstances, instance)
+	}
+
+	if len(subclusterInstances) <= 1 {
+		// If there's only one instance in the subcluster, skew optimization is not applicable
+		// This should never happen.
+		return shards
+	}
+
+	// Focus optimization specifically on minimizing skew within this subcluster
+	return ph.optimizeForSubclusterBalance(shards, fromInstance)
+}
+
+// calculateSubclusterSkew computes the skew (max - min shard count) within a subcluster
+func (ph *subclusteredHelper) calculateSubclusterSkew(instanceCounts map[string]int) int {
+	if len(instanceCounts) == 0 {
+		return 0
+	}
+	minCount := math.MaxInt32
+	maxCount := 0
+	for _, count := range instanceCounts {
+		if count < minCount {
+			minCount = count
+		}
+		if count > maxCount {
+			maxCount = count
+		}
+	}
+
+	return maxCount - minCount
+}
+
+// optimizeForSubclusterBalance orders shards to minimize subcluster skew during removal process
+// Calculate actual skew after removal of each shard and sort by that for optimal ordering
+func (ph *subclusteredHelper) optimizeForSubclusterBalance(
+	shards []shard.Shard,
+	fromInstance placement.Instance,
+) []shard.Shard {
+	if len(shards) <= 1 {
+		// No optimization needed for single shard
+		return shards
+	}
+
+	type shardSkewScore struct {
+		shard            shard.Shard
+		skewAfterRemoval int
+	}
+
+	shardScores := make([]shardSkewScore, 0, len(shards))
+	fromSubcluster := ph.subClusters[fromInstance.SubClusterID()]
+	instanceCounts := fromSubcluster.instanceShardCounts
+	countAfterReplicaRemoval := make(map[string]int)
+	for id, count := range instanceCounts {
+		countAfterReplicaRemoval[id] = count
+	}
+
+	// Remove the count for the shards in the from instance whose one or more replicas have
+	// already been moved to the new subcluster. These shard counts should not be counted in
+	// skew calculation as they will be moved to the new subcluster.
+	for s, count := range fromSubcluster.shardMap {
+		if count == ph.rf {
+			continue
+		}
+		for instance := range ph.shardToInstanceMap[s] {
+			if instance.SubClusterID() == fromInstance.SubClusterID() {
+				countAfterReplicaRemoval[instance.ID()]--
+				if countAfterReplicaRemoval[instance.ID()] == 0 {
+					delete(countAfterReplicaRemoval, instance.ID())
+				}
+			}
+		}
+	}
+	for _, s := range shards {
+		shardID := s.ID()
+		tempCounts := make(map[string]int)
+		for id, count := range countAfterReplicaRemoval {
+			tempCounts[id] = count
+		}
+
+		if count, exists := fromSubcluster.shardMap[shardID]; exists && count < ph.rf {
+			// if some of the replicas of the shards have been moved then that shard should be moved at last
+			// we priopitize moving new shards  to the subcluster first until the target subcluster count
+			// hasn't been reached.
+			shardScores = append(shardScores, shardSkewScore{
+				shard:            s,
+				skewAfterRemoval: math.MaxInt32,
+			})
+			continue
+		}
+
+		// Find all instances in the subcluster that currently hold this shard and remove it
+		if instancesWithShard, exists := ph.shardToInstanceMap[shardID]; exists {
+			for instance := range instancesWithShard {
+				// Only consider instances in the same subcluster to remove shard replicas count from.
+				if instance.SubClusterID() == fromInstance.SubClusterID() && tempCounts[instance.ID()] > 0 {
+					tempCounts[instance.ID()]-- // Remove one replica from this instance
+				}
+			}
+		}
+
+		// Calculate resulting skew within the subcluster after removing all replicas of this shard
+		skewAfterRemoval := ph.calculateSubclusterSkew(tempCounts)
+		shardScores = append(shardScores, shardSkewScore{
+			shard:            s,
+			skewAfterRemoval: skewAfterRemoval,
+		})
+	}
+
+	// Sort by skewAfterRemoval (ascending) - prioritize shards that result in lowest skew when removed
+	// For shards with the same skew, randomize their order to avoid deterministic bias
+	sort.Slice(shardScores, func(i, j int) bool {
+		if shardScores[i].skewAfterRemoval == shardScores[j].skewAfterRemoval {
+			// Randomly shuffle equal skew shards for non-deterministic ordering
+			return rand.Float64() < 0.5
+		}
+		return shardScores[i].skewAfterRemoval < shardScores[j].skewAfterRemoval
+	})
+
+	// Extract sorted shards
+	result := make([]shard.Shard, len(shards))
+	for i, score := range shardScores {
+		result[i] = score.shard
+	}
+
+	return result
 }
 
 // optimize rebalances the load distribution in the cluster.
