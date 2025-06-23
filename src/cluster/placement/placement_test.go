@@ -951,7 +951,7 @@ func TestValidateSubclusteredPlacement(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:                   "shards are shared among multiple completebsubclusters",
+			name:                   "shards are shared among multiple complete subclusters",
 			instancesPerSubcluster: 3,
 			replicaFactor:          3,
 			instances: func() []Instance {
