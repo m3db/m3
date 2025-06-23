@@ -77,6 +77,7 @@ func TestSubclusteredAlgorithm_IsCompatibleWith(t *testing.T) {
 		})
 	}
 }
+
 func TestSubclusteredAlgorithm_InitialPlacement(t *testing.T) {
 	tests := []struct {
 		name                   string
