@@ -89,6 +89,45 @@ func newSubclusteredInitHelper(
 	return ph, nil
 }
 
+func newubclusteredAddInstanceHelper(
+	p placement.Placement,
+	instance placement.Instance,
+	opts placement.Options,
+	t instanceType,
+) (placementHelper, placement.Instance, error) {
+	instanceInPlacement, exist := p.Instance(instance.ID())
+	if !exist {
+		if err := assignSubClusterIDs([]placement.Instance{instance}, p, opts.InstancesPerSubCluster()); err != nil {
+			return nil, nil, err
+		}
+		ph, err := newSubclusteredHelper(p.SetInstances(append(p.Instances(), instance)), opts, 0)
+		if err != nil {
+			return nil, nil, err
+		}
+		return ph, instance, nil
+	}
+
+	switch t {
+	case withLeavingShardsOnly:
+		if !instanceInPlacement.IsLeaving() {
+			return nil, nil, errInstanceContainsNonLeavingShards
+		}
+	case withAvailableOrLeavingShardsOnly:
+		shards := instanceInPlacement.Shards()
+		if shards.NumShards() != shards.NumShardsForState(shard.Available)+shards.NumShardsForState(shard.Leaving) {
+			return nil, nil, errInstanceContainsInitializingShards
+		}
+	default:
+		return nil, nil, fmt.Errorf("unexpected type %v", t)
+	}
+
+	ph, err := newSubclusteredHelper(p, opts, 0)
+	if err != nil {
+		return nil, nil, err
+	}
+	return ph, instanceInPlacement, nil
+}
+
 func newSubclusteredHelper(
 	p placement.Placement,
 	opts placement.Options,
@@ -416,8 +455,54 @@ func (ph *subclusteredHelper) placeShards(
 // addInstance adds an instance to the placement.
 // nolint: unused
 func (ph *subclusteredHelper) addInstance(addingInstance placement.Instance) error {
-	// TODO: Implement subclustered add instance logic
-	return fmt.Errorf("subclustered addInstance not yet implemented: %w", errSubclusteredHelperNotImplemented)
+	ph.reclaimLeavingShards(addingInstance)
+	return ph.assignLoadToInstanceUnsafe(addingInstance)
+}
+
+func (ph *subclusteredHelper) assignLoadToInstanceUnsafe(addingInstance placement.Instance) error {
+	return ph.assignTargetLoad(addingInstance, func(from, to placement.Instance) bool {
+		return ph.moveOneShard(from, to)
+	})
+}
+
+func (ph *subclusteredHelper) assignTargetLoad(
+	targetInstance placement.Instance,
+	moveOneShardFn func(from, to placement.Instance) bool,
+) error {
+
+	targetLoad := ph.targetLoadForInstance(targetInstance.ID())
+	// First try to move shards from other subclusters
+	instanceHeap, err := ph.buildInstanceHeap(ph.removeSubClusterInstances(targetInstance.SubClusterID()), false)
+	if err != nil {
+		return err
+	}
+	for targetInstance.Shards().NumShards() < targetLoad && instanceHeap.Len() > 0 {
+		fromInstance := heap.Pop(instanceHeap).(placement.Instance)
+		if moved := moveOneShardFn(fromInstance, targetInstance); moved {
+			heap.Push(instanceHeap, fromInstance)
+		}
+	}
+	// Then try to move shards from the same subcluster
+	instanceHeap, err = ph.buildInstanceHeap(ph.getSubClusterInstances(targetInstance.SubClusterID()), false)
+	if err != nil {
+		return err
+	}
+	for targetInstance.Shards().NumShards() < targetLoad && instanceHeap.Len() > 0 {
+		fromInstance := heap.Pop(instanceHeap).(placement.Instance)
+		if moved := moveOneShardFn(fromInstance, targetInstance); moved {
+			heap.Push(instanceHeap, fromInstance)
+		}
+	}
+	return nil
+}
+
+func (ph *subclusteredHelper) targetLoadForInstance(id string) int {
+	return ph.targetLoad[id]
+}
+
+func (ph *subclusteredHelper) moveOneShard(from, to placement.Instance) bool {
+	// TODO: Implement subclustered move one shard logic
+	return false
 }
 
 // optimize rebalances the load distribution in the cluster.
@@ -631,6 +716,32 @@ func assignSubClusterIDs(
 
 func (ph *subclusteredHelper) buildInstanceHeap(
 	instances []placement.Instance,
-	availableCapacityAscending bool) (heap.Interface, error) {
+	availableCapacityAscending bool,
+) (heap.Interface, error) {
 	return newHeap(instances, availableCapacityAscending, ph.targetLoad, ph.groupToWeightMap, true)
+}
+
+// removeSubClusterInstances returns instances that are not in the specified subcluster
+func (ph *subclusteredHelper) removeSubClusterInstances(subclusterID uint32) []placement.Instance {
+	var instances = nonLeavingInstances(ph.Instances())
+	var result = make([]placement.Instance, 0, len(instances))
+	for _, instance := range instances {
+		if instance.SubClusterID() != subclusterID {
+			result = append(result, instance)
+		}
+	}
+	return result
+}
+
+// getSubClusterInstances returns instances that are in the specified subcluster
+func (ph *subclusteredHelper) getSubClusterInstances(subclusterID uint32) []placement.Instance {
+	currSubcluster := ph.subClusters[subclusterID]
+	var instances = make([]placement.Instance, 0, len(currSubcluster.instances))
+	for _, instance := range currSubcluster.instances {
+		if instance.IsLeaving() {
+			continue
+		}
+		instances = append(instances, instance)
+	}
+	return instances
 }
