@@ -133,8 +133,32 @@ func (a subclusteredPlacementAlgorithm) ReplaceInstances(
 		return nil, err
 	}
 
-	// TODO: Implement subclustered replace instances logic
-	return nil, fmt.Errorf("subclustered replace instances not yet implemented")
+	p = p.Clone()
+	ph, leavingInstances, addingInstances, err := newubclusteredReplaceInstanceHelper(p,
+		leavingInstanceIDs, addingInstances, a.opts)
+	if err != nil {
+		return nil, err
+	}
+
+	for i, leavingInstance := range leavingInstances {
+		err = ph.placeShards(leavingInstance.Shards().All(), leavingInstance, []placement.Instance{addingInstances[i]})
+		if err != nil {
+			return nil, err
+		}
+		load := loadOnInstance(leavingInstance)
+		if load != 0 {
+			return nil, fmt.Errorf("could not fully replace all shards from %s, %d shards left unassigned",
+				leavingInstance.ID(), load)
+		}
+	}
+
+	p = ph.generatePlacement()
+	for _, leavingInstance := range leavingInstances {
+		if p, _, err = addInstanceToPlacement(p, leavingInstance, withShards); err != nil {
+			return nil, err
+		}
+	}
+	return tryCleanupShardState(p, a.opts)
 }
 
 func (a subclusteredPlacementAlgorithm) MarkShardsAvailable(
@@ -168,12 +192,4 @@ func (a subclusteredPlacementAlgorithm) BalanceShards(
 
 	// TODO: Implement subclustered balance shards logic
 	return nil, fmt.Errorf("subclustered balance shards not yet implemented")
-}
-
-func (a subclusteredPlacementAlgorithm) validateRemoveInstances(p placement.Placement, instanceIDs []string) error {
-	if err := a.IsCompatibleWith(p); err != nil {
-		return err
-	}
-
-	return nil
 }
