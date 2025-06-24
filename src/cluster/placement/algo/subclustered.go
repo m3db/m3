@@ -182,9 +182,15 @@ func (a subclusteredPlacementAlgorithm) BalanceShards(
 	if err := a.IsCompatibleWith(p); err != nil {
 		return nil, err
 	}
+	ph, err := newSubclusteredHelper(p, p.ReplicaFactor(), a.opts, 0)
+	if err != nil {
+		return nil, err
+	}
+	if err := ph.optimize(unsafe); err != nil {
+		return nil, fmt.Errorf("shard balance optimization failed: %w", err)
+	}
 
-	// TODO: Implement subclustered balance shards logic
-	return nil, fmt.Errorf("subclustered balance shards not yet implemented")
+	return tryCleanupShardState(ph.generatePlacement(), a.opts)
 }
 
 func (a subclusteredPlacementAlgorithm) validateRemoveInstances(p placement.Placement, instanceIDs []string) error {
