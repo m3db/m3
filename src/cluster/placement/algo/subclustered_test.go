@@ -1377,3 +1377,547 @@ func TestReclaimLeavingInstance(t *testing.T) {
 	assert.True(t, exists)
 	assert.False(t, instance.IsLeaving())
 }
+
+func TestReplaceInstancesValidCases(t *testing.T) {
+	tests := []struct {
+		name                        string
+		rf                          int
+		instancesPerSub             int
+		totalInstances              int
+		shards                      int
+		instancesToAddBeforeReplace int
+	}{
+		{
+			name:                        "RF=3, 6 instance/subcluster, add 5 instances (not multiple of instancesPerSubcluster)",
+			rf:                          3,
+			instancesPerSub:             6,
+			totalInstances:              12,
+			shards:                      256,
+			instancesToAddBeforeReplace: 5,
+		},
+		{
+			name:                        "RF=3, 6 instance/subcluster, add 12 instances (multiple of instancesPerSubcluster)",
+			rf:                          3,
+			instancesPerSub:             6,
+			totalInstances:              6,
+			shards:                      256,
+			instancesToAddBeforeReplace: 12,
+		},
+		{
+			name:                        "RF=3, 9 instance/subcluster, add 7 instances (not multiple of instancesPerSubcluster)",
+			rf:                          3,
+			instancesPerSub:             9,
+			totalInstances:              9,
+			shards:                      256,
+			instancesToAddBeforeReplace: 7,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create initial test instances
+			instances := make([]placement.Instance, tt.totalInstances)
+			for i := 0; i < tt.totalInstances; i++ {
+				instances[i] = placement.NewInstance().
+					SetID(fmt.Sprintf("I%d", i)).
+					SetIsolationGroup(fmt.Sprintf("R%d", i%tt.rf)).
+					SetWeight(1).
+					SetEndpoint(fmt.Sprintf("E%d", i)).
+					SetShards(shard.NewShards(nil))
+			}
+
+			// Generate shard IDs from 0 to shards-1
+			shardIDs := make([]uint32, tt.shards)
+			for i := 0; i < tt.shards; i++ {
+				shardIDs[i] = uint32(i)
+			}
+
+			// Create algorithm
+			opts := placement.NewOptions().
+				SetValidZone("zone1").
+				SetIsSharded(true).
+				SetInstancesPerSubCluster(tt.instancesPerSub).
+				SetHasSubClusters(true)
+			algo := newSubclusteredAlgorithm(opts)
+
+			// Perform initial placement
+			p, err := algo.InitialPlacement(instances, shardIDs, tt.rf)
+			assert.NoError(t, err)
+			assert.NotNil(t, p)
+			assert.NoError(t, placement.Validate(p))
+
+			// Verify initial placement
+			currentPlacement, marked, err := algo.MarkAllShardsAvailable(p)
+			assert.NoError(t, err)
+			assert.True(t, marked)
+			assert.NoError(t, placement.Validate(currentPlacement))
+
+			// Create new instances to add
+			totalInstances := tt.instancesToAddBeforeReplace + tt.instancesPerSub -
+				(tt.instancesToAddBeforeReplace % tt.instancesPerSub)
+			newInstances := make([]placement.Instance, totalInstances)
+			for i := range totalInstances {
+				newInstances[i] = placement.NewInstance().
+					SetID(fmt.Sprintf("I%d", tt.totalInstances+i)).
+					SetIsolationGroup(fmt.Sprintf("R%d", i%tt.rf)).
+					SetWeight(1).
+					SetEndpoint(fmt.Sprintf("E%d", tt.totalInstances+i)).
+					SetShards(shard.NewShards(nil))
+			}
+
+			// Add new instances
+			j := 0
+			for _, instance := range newInstances {
+				if j == tt.instancesToAddBeforeReplace {
+					break
+				}
+				newPlacement, err := algo.AddInstances(currentPlacement, []placement.Instance{instance})
+				assert.NoError(t, err)
+				assert.NotNil(t, newPlacement)
+				newPlacement, marked2, err := algo.MarkAllShardsAvailable(newPlacement)
+				assert.NoError(t, err)
+				assert.True(t, marked2)
+				assert.NoError(t, placement.Validate(newPlacement))
+				currentPlacement = newPlacement
+				j++
+			}
+
+			// Get instances to replace (one from each subcluster)
+			instancesToReplace := make([]string, 0)
+			subClusterMap := make(map[uint32][]string)
+			for _, instance := range currentPlacement.Instances() {
+				subClusterMap[instance.SubClusterID()] = append(subClusterMap[instance.SubClusterID()], instance.ID())
+			}
+
+			// Select one instance from each subcluster for replacement
+			for _, instances := range subClusterMap {
+				if len(instances) > 0 {
+					instancesToReplace = append(instancesToReplace, instances[0])
+				}
+			}
+
+			// Create replacement instances with same isolation groups
+			replacementInstances := make([]placement.Instance, len(instancesToReplace))
+			for i, instanceID := range instancesToReplace {
+				instance, _ := currentPlacement.Instance(instanceID)
+				replacementInstances[i] = placement.NewInstance().
+					SetID(fmt.Sprintf("R%d", i)).
+					SetIsolationGroup(instance.IsolationGroup()).
+					SetWeight(1).
+					SetEndpoint(fmt.Sprintf("RE%d", i)).
+					SetShards(shard.NewShards(nil))
+			}
+
+			// Perform replacement
+			newPlacement, err := algo.ReplaceInstances(currentPlacement, instancesToReplace, replacementInstances)
+			assert.NoError(t, err)
+			assert.NotNil(t, newPlacement)
+			newPlacement, marked3, err := algo.MarkAllShardsAvailable(newPlacement)
+			assert.NoError(t, err)
+			assert.True(t, marked3)
+
+			// Verify final placement
+			assert.NoError(t, placement.Validate(newPlacement))
+			if j < totalInstances {
+				// Add remaining instances
+				finalPlacement, err := algo.AddInstances(newPlacement, newInstances[j:])
+				assert.NoError(t, err)
+				assert.NotNil(t, finalPlacement)
+				assert.NoError(t, placement.Validate(finalPlacement))
+				finalPlacement, marked4, err := algo.MarkAllShardsAvailable(finalPlacement)
+				assert.NoError(t, err)
+				assert.True(t, marked4)
+				assert.NoError(t, placement.Validate(finalPlacement))
+				newPlacement = finalPlacement
+			}
+
+			// Verify that replaced instances are gone and new ones are present
+			for _, instanceID := range instancesToReplace {
+				_, exists := newPlacement.Instance(instanceID)
+				assert.False(t, exists, "Replaced instance should not exist in final placement")
+			}
+
+			for _, instance := range replacementInstances {
+				_, exists := newPlacement.Instance(instance.ID())
+				assert.True(t, exists, "Replacement instance should exist in final placement")
+			}
+		})
+	}
+}
+
+func TestRemoveInstancesErrorCases(t *testing.T) {
+	tests := []struct {
+		name                   string
+		replicaFactor          int
+		instancesPerSubcluster int
+		initialSubClusters     int
+		instanceIDsToRemove    []string
+		expectError            bool
+		errorContains          string
+		setupPlacement         func() placement.Placement
+	}{
+		{
+			name:                   "nil placement",
+			replicaFactor:          3,
+			instancesPerSubcluster: 6,
+			initialSubClusters:     2,
+			instanceIDsToRemove:    []string{"I0"},
+			expectError:            true,
+			errorContains:          "placement is nil",
+			setupPlacement:         func() placement.Placement { return nil },
+		},
+		{
+			name:                   "non-sharded placement",
+			replicaFactor:          3,
+			instancesPerSubcluster: 6,
+			initialSubClusters:     2,
+			instanceIDsToRemove:    []string{"I0"},
+			expectError:            true,
+			errorContains:          "could not apply subclustered algo on the placement",
+			setupPlacement: func() placement.Placement {
+				opts := placement.NewOptions().SetInstancesPerSubCluster(6).SetHasSubClusters(true)
+				algo := subclusteredPlacementAlgorithm{opts: opts}
+
+				instances := make([]placement.Instance, 6)
+				for i := 0; i < 6; i++ {
+					instances[i] = placement.NewInstance().
+						SetID(fmt.Sprintf("I%d", i)).
+						SetIsolationGroup(fmt.Sprintf("R%d", i%3)).
+						SetWeight(1).
+						SetEndpoint(fmt.Sprintf("E%d", i)).
+						SetSubClusterID(1).
+						SetShards(shard.NewShards(nil))
+				}
+
+				shards := make([]uint32, 128)
+				for i := 0; i < 128; i++ {
+					shards[i] = uint32(i)
+				}
+
+				p, err := algo.InitialPlacement(instances, shards, 3)
+				if err != nil {
+					t.Fatalf("Failed to create placement: %v", err)
+				}
+
+				// Create a non-sharded placement by cloning and modifying
+				nonShardedInstances := make([]placement.Instance, len(p.Instances()))
+				for i, instance := range p.Instances() {
+					nonShardedInstances[i] = placement.NewInstance().
+						SetID(instance.ID()).
+						SetIsolationGroup(instance.IsolationGroup()).
+						SetWeight(instance.Weight()).
+						SetEndpoint(instance.Endpoint()).
+						SetShards(instance.Shards())
+				}
+
+				return placement.NewPlacement().
+					SetInstances(nonShardedInstances).
+					SetShards(p.Shards()).
+					SetReplicaFactor(p.ReplicaFactor()).
+					SetIsSharded(false).
+					SetHasSubClusters(true).
+					SetInstancesPerSubCluster(p.InstancesPerSubCluster())
+			},
+		},
+		{
+			name:                   "placement without subclusters",
+			replicaFactor:          3,
+			instancesPerSubcluster: 6,
+			initialSubClusters:     2,
+			instanceIDsToRemove:    []string{"I0"},
+			expectError:            true,
+			errorContains:          "could not apply subclustered algo on the placement",
+			setupPlacement: func() placement.Placement {
+				opts := placement.NewOptions().SetInstancesPerSubCluster(6).SetHasSubClusters(true)
+				algo := newSubclusteredAlgorithm(opts)
+
+				instances := make([]placement.Instance, 6)
+				for i := 0; i < 6; i++ {
+					instances[i] = placement.NewInstance().
+						SetID(fmt.Sprintf("I%d", i)).
+						SetIsolationGroup(fmt.Sprintf("R%d", i%3)).
+						SetWeight(1).
+						SetEndpoint(fmt.Sprintf("E%d", i)).
+						SetShards(shard.NewShards(nil))
+				}
+
+				shards := make([]uint32, 128)
+				for i := 0; i < 128; i++ {
+					shards[i] = uint32(i)
+				}
+
+				p, err := algo.InitialPlacement(instances, shards, 3)
+				if err != nil {
+					t.Fatalf("Failed to create placement: %v", err)
+				}
+
+				// Create a placement without subclusters
+				return placement.NewPlacement().
+					SetInstances(p.Instances()).
+					SetShards(p.Shards()).
+					SetReplicaFactor(p.ReplicaFactor()).
+					SetIsSharded(true).
+					SetHasSubClusters(false).
+					SetInstancesPerSubCluster(p.InstancesPerSubCluster())
+			},
+		},
+		{
+			name:                   "instance does not exist",
+			replicaFactor:          3,
+			instancesPerSubcluster: 6,
+			initialSubClusters:     2,
+			instanceIDsToRemove:    []string{"non-existent-instance"},
+			expectError:            true,
+			errorContains:          "instance non-existent-instance does not exist in placement",
+			// nolint: dupl
+			setupPlacement: func() placement.Placement {
+				opts := placement.NewOptions().SetInstancesPerSubCluster(6).SetHasSubClusters(true)
+				algo := newSubclusteredAlgorithm(opts)
+
+				instances := make([]placement.Instance, 12)
+				for i := 0; i < 12; i++ {
+					subclusterID := uint32(i/6 + 1)
+					instances[i] = placement.NewInstance().
+						SetID(fmt.Sprintf("I%d", i)).
+						SetIsolationGroup(fmt.Sprintf("R%d", i%3)).
+						SetWeight(1).
+						SetEndpoint(fmt.Sprintf("E%d", i)).
+						SetSubClusterID(subclusterID).
+						SetShards(shard.NewShards(nil))
+				}
+
+				shards := make([]uint32, 128)
+				for i := 0; i < 128; i++ {
+					shards[i] = uint32(i)
+				}
+
+				p, err := algo.InitialPlacement(instances, shards, 3)
+				if err != nil {
+					t.Fatalf("Failed to create placement: %v", err)
+				}
+				return p
+			},
+		},
+		{
+			name:                   "removing instance from partial subcluster",
+			replicaFactor:          3,
+			instancesPerSubcluster: 6,
+			initialSubClusters:     2,
+			instanceIDsToRemove:    []string{"I0"},
+			expectError:            true,
+			errorContains:          "partial subcluster",
+			setupPlacement: func() placement.Placement {
+				opts := placement.NewOptions().SetInstancesPerSubCluster(6).SetHasSubClusters(true)
+				algo := subclusteredPlacementAlgorithm{opts: opts}
+
+				// Create instances with one subcluster having fewer instances than instancesPerSubcluster
+				instances := make([]placement.Instance, 9) // 6 + 3 instead of 6 + 6
+				for i := 0; i < 9; i++ {
+					subclusterID := uint32(1)
+					if i >= 6 {
+						subclusterID = 2
+					}
+					instances[i] = placement.NewInstance().
+						SetID(fmt.Sprintf("I%d", i)).
+						SetIsolationGroup(fmt.Sprintf("R%d", i%3)).
+						SetWeight(1).
+						SetEndpoint(fmt.Sprintf("E%d", i)).
+						SetSubClusterID(subclusterID).
+						SetShards(shard.NewShards(nil))
+				}
+
+				shards := make([]uint32, 128)
+				for i := 0; i < 128; i++ {
+					shards[i] = uint32(i)
+				}
+
+				p, err := algo.InitialPlacement(instances, shards, 3)
+				if err != nil {
+					t.Fatalf("Failed to create placement: %v", err)
+				}
+				return p
+			},
+		},
+		{
+			name:                   "inconsistent instance weights",
+			replicaFactor:          3,
+			instancesPerSubcluster: 6,
+			initialSubClusters:     2,
+			instanceIDsToRemove:    []string{"I0"},
+			expectError:            true,
+			errorContains:          "inconsistent instance weights",
+			setupPlacement: func() placement.Placement {
+				opts := placement.NewOptions().SetInstancesPerSubCluster(6).SetHasSubClusters(true)
+				algo := subclusteredPlacementAlgorithm{opts: opts}
+
+				// Create instances with consistent weights first
+				instances := make([]placement.Instance, 12)
+				for i := 0; i < 12; i++ {
+					subclusterID := uint32(i/6 + 1)
+					instances[i] = placement.NewInstance().
+						SetID(fmt.Sprintf("I%d", i)).
+						SetIsolationGroup(fmt.Sprintf("R%d", i%3)).
+						SetWeight(1).
+						SetEndpoint(fmt.Sprintf("E%d", i)).
+						SetSubClusterID(subclusterID).
+						SetShards(shard.NewShards(nil))
+				}
+
+				shards := make([]uint32, 128)
+				for i := 0; i < 128; i++ {
+					shards[i] = uint32(i)
+				}
+
+				p, err := algo.InitialPlacement(instances, shards, 3)
+				if err != nil {
+					t.Fatalf("Failed to create placement: %v", err)
+				}
+
+				// Now modify one instance to have a different weight
+				modifiedInstances := make([]placement.Instance, len(p.Instances()))
+				for i, instance := range p.Instances() {
+					if instance.ID() == "I1" {
+						modifiedInstances[i] = placement.NewInstance().
+							SetID(instance.ID()).
+							SetIsolationGroup(instance.IsolationGroup()).
+							SetWeight(2). // Different weight
+							SetEndpoint(instance.Endpoint()).
+							SetSubClusterID(instance.SubClusterID()).
+							SetShards(instance.Shards())
+					} else {
+						modifiedInstances[i] = instance
+					}
+				}
+
+				return placement.NewPlacement().
+					SetInstances(modifiedInstances).
+					SetShards(p.Shards()).
+					SetReplicaFactor(p.ReplicaFactor()).
+					SetIsSharded(true).
+					SetHasSubClusters(true).
+					SetInstancesPerSubCluster(p.InstancesPerSubCluster()).
+					SetIsMirrored(p.IsMirrored())
+			},
+		},
+		{
+			name:                   "valid removal - should not error",
+			replicaFactor:          3,
+			instancesPerSubcluster: 6,
+			initialSubClusters:     2,
+			instanceIDsToRemove:    []string{"I0"},
+			expectError:            false,
+			// nolint: dupl
+			setupPlacement: func() placement.Placement {
+				opts := placement.NewOptions().SetInstancesPerSubCluster(6).SetHasSubClusters(true)
+				algo := subclusteredPlacementAlgorithm{opts: opts}
+
+				instances := make([]placement.Instance, 12)
+				for i := 0; i < 12; i++ {
+					subclusterID := uint32(i/6 + 1)
+					instances[i] = placement.NewInstance().
+						SetID(fmt.Sprintf("I%d", i)).
+						SetIsolationGroup(fmt.Sprintf("R%d", i%3)).
+						SetWeight(1).
+						SetEndpoint(fmt.Sprintf("E%d", i)).
+						SetSubClusterID(subclusterID).
+						SetShards(shard.NewShards(nil))
+				}
+
+				shards := make([]uint32, 128)
+				for i := 0; i < 128; i++ {
+					shards[i] = uint32(i)
+				}
+
+				p, err := algo.InitialPlacement(instances, shards, 3)
+				if err != nil {
+					t.Fatalf("Failed to create placement: %v", err)
+				}
+				return p
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := placement.NewOptions().SetInstancesPerSubCluster(tt.instancesPerSubcluster).SetHasSubClusters(true)
+			algo := subclusteredPlacementAlgorithm{opts: opts}
+
+			p := tt.setupPlacement()
+			if p == nil && !tt.expectError {
+				t.Fatal("Setup placement returned nil but test doesn't expect error")
+			}
+
+			// Skip the test if placement is nil and we expect an error
+			if p == nil && tt.expectError {
+				return
+			}
+
+			newPlacement, err := algo.RemoveInstances(p, tt.instanceIDsToRemove)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Nil(t, newPlacement)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, newPlacement)
+				assert.NoError(t, placement.Validate(newPlacement))
+
+				// Verify that the expected number of instances were removed
+				expectedRemainingInstances := len(p.Instances()) - len(tt.instanceIDsToRemove)
+				assert.Equal(t, expectedRemainingInstances, len(newPlacement.Instances()))
+			}
+		})
+	}
+}
+
+func TestReclaimLeavingInstance(t *testing.T) {
+	opts := placement.NewOptions().SetInstancesPerSubCluster(6).SetHasSubClusters(true)
+	algo := newSubclusteredAlgorithm(opts)
+
+	instances := make([]placement.Instance, 12)
+	for i := 0; i < 12; i++ {
+		instances[i] = placement.NewInstance().
+			SetID(fmt.Sprintf("I%d", i)).
+			SetIsolationGroup(fmt.Sprintf("R%d", i%3)).
+			SetWeight(1).
+			SetEndpoint(fmt.Sprintf("E%d", i)).
+			SetShards(shard.NewShards(nil))
+	}
+
+	shards := make([]uint32, 32)
+	for i := 0; i < 32; i++ {
+		shards[i] = uint32(i)
+	}
+
+	p, err := algo.InitialPlacement(instances, shards, 3)
+	assert.NoError(t, err)
+
+	currentPlacement, marked, err := algo.MarkAllShardsAvailable(p)
+	assert.NoError(t, err)
+	assert.True(t, marked)
+	assert.NoError(t, placement.Validate(currentPlacement))
+
+	instanceToRemove := "I0"
+	newPlacement, err := algo.RemoveInstances(currentPlacement, []string{instanceToRemove})
+	assert.NoError(t, err)
+	assert.NotNil(t, newPlacement)
+	assert.NoError(t, placement.Validate(newPlacement))
+
+	// Add the removed instance again to the placement
+	addingInstance, exists := newPlacement.Instance(instanceToRemove)
+	assert.True(t, exists)
+
+	finalPlacement, err := algo.AddInstances(newPlacement, []placement.Instance{addingInstance})
+	assert.NoError(t, err)
+	assert.NotNil(t, finalPlacement)
+	assert.NoError(t, placement.Validate(finalPlacement))
+
+	// check if the removed instance is still present and has all shards in AVAILABLE state in the same subcluster
+	instance, exists := finalPlacement.Instance(instanceToRemove)
+	assert.True(t, exists)
+	assert.False(t, instance.IsLeaving())
+
+}
