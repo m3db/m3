@@ -22,7 +22,6 @@ package algo
 
 import (
 	"container/heap"
-	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -33,11 +32,6 @@ import (
 
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/shard"
-)
-
-var (
-	// nolint: unused
-	errSubclusteredHelperNotImplemented = errors.New("subclustered helper methods not yet implemented")
 )
 
 type validationOperation int
@@ -632,6 +626,12 @@ func (ph *subclusteredHelper) addInstance(addingInstance placement.Instance) err
 	return ph.assignLoadToInstanceUnsafe(addingInstance)
 }
 
+func (ph *subclusteredHelper) assignLoadToInstanceSafe(addingInstance placement.Instance) error {
+	return ph.assignTargetLoad(addingInstance, func(from, to placement.Instance) bool {
+		return ph.moveOneShardInState(from, to, shard.Unknown)
+	})
+}
+
 func (ph *subclusteredHelper) assignLoadToInstanceUnsafe(addingInstance placement.Instance) error {
 	return ph.assignTargetLoad(addingInstance, func(from, to placement.Instance) bool {
 		return ph.moveOneShard(from, to)
@@ -840,11 +840,57 @@ func (ph *subclusteredHelper) optimizeForSubclusterBalance(
 	return result
 }
 
+// nolint: dupl
+func (ph *subclusteredHelper) mostUnderLoadedInstance() (placement.Instance, bool) {
+	var (
+		res              placement.Instance
+		maxLoadGap       int
+		totalLoadSurplus int
+	)
+	// nolint: dupl
+	for id, instance := range ph.instances {
+		loadGap := ph.targetLoad[id] - loadOnInstance(instance)
+		if loadGap > maxLoadGap {
+			maxLoadGap = loadGap
+			res = instance
+		}
+		if loadGap == maxLoadGap && res != nil && res.ID() > id {
+			res = instance
+		}
+		if loadGap < 0 {
+			totalLoadSurplus -= loadGap
+		}
+	}
+	if maxLoadGap > 0 && totalLoadSurplus != 0 {
+		return res, true
+	}
+	return nil, false
+}
+
 // optimize rebalances the load distribution in the cluster.
-// nolint: unused
 func (ph *subclusteredHelper) optimize(t optimizeType) error {
-	// TODO: Implement subclustered optimization logic
-	return fmt.Errorf("subclustered optimize not yet implemented: %w", errSubclusteredHelperNotImplemented)
+	var fn assignLoadFn
+	switch t {
+	case safe:
+		fn = ph.assignLoadToInstanceSafe
+	case unsafe:
+		fn = ph.assignLoadToInstanceUnsafe
+	}
+	uniq := make(map[string]struct{}, len(ph.instances))
+	for {
+		ins, ok := ph.mostUnderLoadedInstance()
+		if !ok {
+			return nil
+		}
+		if _, exist := uniq[ins.ID()]; exist {
+			return nil
+		}
+
+		uniq[ins.ID()] = struct{}{}
+		if err := fn(ins); err != nil {
+			return err
+		}
+	}
 }
 
 // generatePlacement generates a placement.
