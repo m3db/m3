@@ -69,6 +69,7 @@ func (a subclusteredPlacementAlgorithm) AddReplica(p placement.Placement) (place
 	return nil, fmt.Errorf("AddReplica is not supported for subclustered placement")
 }
 
+// nolint:dupl
 func (a subclusteredPlacementAlgorithm) RemoveInstances(
 	p placement.Placement,
 	instanceIDs []string,
@@ -87,9 +88,9 @@ func (a subclusteredPlacementAlgorithm) RemoveInstances(
 			return nil, err
 		}
 
-		// if err := ph.optimize(safe); err != nil {
-		// 	return nil, err
-		// }
+		if err := ph.optimize(safe); err != nil {
+			return nil, err
+		}
 
 		if p, _, err = addInstanceToPlacement(ph.generatePlacement(), leavingInstance, withShards); err != nil {
 			return nil, err
@@ -189,7 +190,7 @@ func (a subclusteredPlacementAlgorithm) BalanceShards(
 	if err := a.IsCompatibleWith(p); err != nil {
 		return nil, err
 	}
-	ph, err := newSubclusteredHelper(p, p.ReplicaFactor(), a.opts, 0)
+	ph, err := newSubclusteredHelper(p, a.opts, 0)
 	if err != nil {
 		return nil, err
 	}

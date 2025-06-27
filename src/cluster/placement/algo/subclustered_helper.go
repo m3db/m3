@@ -41,7 +41,6 @@ const (
 	validationOpAddition
 )
 
-// nolint
 type subclusteredHelper struct {
 	targetLoad             map[string]int
 	shardToInstanceMap     map[uint32]map[placement.Instance]struct{}
@@ -58,7 +57,6 @@ type subclusteredHelper struct {
 }
 
 // subcluster is a subcluster in the placement.
-// nolint
 type subcluster struct {
 	id                  uint32
 	targetShardCount    int
@@ -417,7 +415,6 @@ func (ph *subclusteredHelper) getShardLen() int {
 }
 
 // assignShardToInstance assigns a shard to an instance.
-// nolint: unused
 func (ph *subclusteredHelper) assignShardToInstance(s shard.Shard, to placement.Instance) {
 	to.Shards().Add(s)
 
@@ -429,7 +426,6 @@ func (ph *subclusteredHelper) assignShardToInstance(s shard.Shard, to placement.
 	ph.subClusters[to.SubClusterID()].instanceShardCounts[to.ID()]++
 }
 
-// nolint
 // Instances returns the list of instances managed by the PlacementHelper.
 func (ph *subclusteredHelper) Instances() []placement.Instance {
 	res := make([]placement.Instance, 0, len(ph.instances))
@@ -590,7 +586,6 @@ func (ph *subclusteredHelper) findMapKeyIntersection(map1, map2 map[uint32]int) 
 }
 
 // CanMoveShard checks if the shard can be moved from the instance to the target isolation group.
-// nolint: unused
 func (ph *subclusteredHelper) CanMoveShard(shard uint32, from placement.Instance, toIsolationGroup string) bool {
 	if from != nil {
 		if from.IsolationGroup() == toIsolationGroup {
@@ -648,7 +643,6 @@ func (ph *subclusteredHelper) placeShards(
 }
 
 // addInstance adds an instance to the placement.
-// nolint: unused
 func (ph *subclusteredHelper) addInstance(addingInstance placement.Instance) error {
 	ph.reclaimLeavingShards(addingInstance)
 	return ph.assignLoadToInstanceUnsafe(addingInstance)
@@ -673,6 +667,7 @@ func (ph *subclusteredHelper) assignTargetLoad(
 
 	targetLoad := ph.targetLoadForInstance(targetInstance.ID())
 	// First try to move shards from other subclusters
+
 	instanceHeap, err := ph.buildInstanceHeap(ph.removeSubClusterInstances(targetInstance.SubClusterID()), false)
 	if err != nil {
 		return err
@@ -813,6 +808,7 @@ func (ph *subclusteredHelper) optimizeForSubclusterBalance(
 			}
 		}
 	}
+
 	for _, s := range shards {
 		shardID := s.ID()
 
@@ -822,7 +818,7 @@ func (ph *subclusteredHelper) optimizeForSubclusterBalance(
 			// hasn't been reached.
 			shardScores = append(shardScores, shardSkewScore{
 				shard:            s,
-				skewAfterRemoval: math.MaxInt32,
+				skewAfterRemoval: math.MaxInt32 - count,
 			})
 			continue
 		}
@@ -928,7 +924,6 @@ func (ph *subclusteredHelper) optimize(t optimizeType) error {
 }
 
 // generatePlacement generates a placement.
-// nolint: unused
 func (ph *subclusteredHelper) generatePlacement() placement.Placement {
 	var instances = make([]placement.Instance, 0, len(ph.instances))
 
@@ -961,7 +956,6 @@ func (ph *subclusteredHelper) generatePlacement() placement.Placement {
 
 // reclaimLeavingShards reclaims all the leaving shards on the given instance
 // by pulling them back from the rest of the cluster.
-// nolint: unused
 func (ph *subclusteredHelper) reclaimLeavingShards(instance placement.Instance) {
 	if instance.Shards().NumShardsForState(shard.Leaving) == 0 {
 		// Shortcut if there is nothing to be reclaimed.
@@ -979,7 +973,6 @@ func (ph *subclusteredHelper) reclaimLeavingShards(instance placement.Instance) 
 
 // returnInitializingShards returns all the initializing shards on the given instance
 // by returning them back to the original owners.
-// nolint: unused
 func (ph *subclusteredHelper) returnInitializingShards(instance placement.Instance) {
 	shardSet := getShardMap(instance.Shards().All())
 	ph.returnInitializingShardsToSource(shardSet, instance, ph.Instances())
@@ -1019,7 +1012,6 @@ func (ph *subclusteredHelper) returnInitializingShardsToSource(
 // validateSubclusterDistribution validates that:
 // 1. Number of isolation groups equals replica factor (rf)
 // 2. For complete subclusters, nodes per isolation group = instancesPerSubcluster / rf
-// nolint: unused
 func (ph *subclusteredHelper) validateSubclusterDistribution() error {
 	if len(ph.instances) == 0 {
 		return nil
