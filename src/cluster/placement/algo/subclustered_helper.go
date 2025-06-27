@@ -37,17 +37,18 @@ var (
 
 // nolint
 type subclusteredHelper struct {
-	targetLoad          map[string]int
-	shardToInstanceMap  map[uint32]map[placement.Instance]struct{}
-	groupToInstancesMap map[string]map[placement.Instance]struct{}
-	groupToWeightMap    map[string]uint32
-	subClusters         map[uint32]*subcluster
-	rf                  int
-	uniqueShards        []uint32
-	instances           map[string]placement.Instance
-	log                 *zap.Logger
-	opts                placement.Options
-	totalWeight         uint32
+	targetLoad             map[string]int
+	shardToInstanceMap     map[uint32]map[placement.Instance]struct{}
+	groupToInstancesMap    map[string]map[placement.Instance]struct{}
+	groupToWeightMap       map[string]uint32
+	subClusters            map[uint32]*subcluster
+	rf                     int
+	uniqueShards           []uint32
+	instances              map[string]placement.Instance
+	log                    *zap.Logger
+	opts                   placement.Options
+	totalWeight            uint32
+	instancesPerSubcluster int
 }
 
 // subcluster is a subcluster in the placement.
@@ -63,11 +64,12 @@ type subcluster struct {
 // nolint
 func newSubclusteredHelper(p placement.Placement, targetRF int, opts placement.Options, subClusterToExclude uint32) (placementHelper, error) {
 	ph := &subclusteredHelper{
-		rf:           targetRF,
-		instances:    make(map[string]placement.Instance, p.NumInstances()),
-		uniqueShards: p.Shards(),
-		log:          opts.InstrumentOptions().Logger(),
-		opts:         opts,
+		rf:                     targetRF,
+		instances:              make(map[string]placement.Instance, p.NumInstances()),
+		uniqueShards:           p.Shards(),
+		log:                    opts.InstrumentOptions().Logger(),
+		opts:                   opts,
+		instancesPerSubcluster: p.InstancesPerSubCluster(),
 	}
 
 	for _, instance := range p.Instances() {
