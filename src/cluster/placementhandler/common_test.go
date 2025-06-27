@@ -160,6 +160,7 @@ func TestConvertInstancesProto(t *testing.T) {
 				Metadata: &placementpb.InstanceMetadata{
 					DebugPort: 4231,
 				},
+				SubclusterId: 0,
 			},
 		})
 		require.NoError(t, err)
@@ -190,6 +191,7 @@ func TestConvertInstancesProto(t *testing.T) {
 				Metadata: &placementpb.InstanceMetadata{
 					DebugPort: 1,
 				},
+				SubclusterId: 0,
 			},
 			&placementpb.Instance{
 				Id:             "i2",
@@ -214,6 +216,7 @@ func TestConvertInstancesProto(t *testing.T) {
 				Metadata: &placementpb.InstanceMetadata{
 					DebugPort: 2,
 				},
+				SubclusterId: 0,
 			},
 			&placementpb.Instance{
 				Id:             "i3",
@@ -235,6 +238,7 @@ func TestConvertInstancesProto(t *testing.T) {
 				Metadata: &placementpb.InstanceMetadata{
 					DebugPort: 3,
 				},
+				SubclusterId: 0,
 			},
 		})
 		require.NoError(t, err)
