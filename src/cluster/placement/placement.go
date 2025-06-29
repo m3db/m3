@@ -444,7 +444,7 @@ func validate(p Placement) error {
 }
 
 func validateSubclusteredPlacement(p Placement) error {
-	shardToInstanceMap := make(map[uint32]map[Instance]struct{})
+	shardToSubclusterMap := make(map[uint32]map[uint32]struct{})
 	subClusterToInstanceMap := make(map[uint32]map[Instance]struct{})
 	shardToIsolationGroupMap := make(map[uint32]map[string]struct{})
 	instancesPerSubCluster := p.InstancesPerSubCluster()
@@ -466,30 +466,42 @@ func validateSubclusteredPlacement(p Placement) error {
 				shardToIsolationGroupMap[s.ID()] = make(map[string]struct{})
 			}
 			shardToIsolationGroupMap[s.ID()][instance.IsolationGroup()] = struct{}{}
-			if _, exist := shardToInstanceMap[s.ID()]; !exist {
-				shardToInstanceMap[s.ID()] = make(map[Instance]struct{})
+			if _, exist := shardToSubclusterMap[s.ID()]; !exist {
+				shardToSubclusterMap[s.ID()] = make(map[uint32]struct{})
 			}
-			shardToInstanceMap[s.ID()][instance] = struct{}{}
+			shardToSubclusterMap[s.ID()][instance.SubClusterID()] = struct{}{}
 		}
 	}
 
-	for shard, instances := range shardToInstanceMap {
+	for shard, subclusters := range shardToSubclusterMap {
 		firstReplica := true
 		shardSubclusterID := uninitializedSubClusterID
-		for instance := range instances {
-			if firstReplica {
-				shardSubclusterID = instance.SubClusterID()
-				firstReplica = false
-				continue
-			}
-			currSubclusterID := instance.SubClusterID()
-			if currSubclusterID != shardSubclusterID &&
-				len(subClusterToInstanceMap[shardSubclusterID]) == instancesPerSubCluster &&
-				len(subClusterToInstanceMap[currSubclusterID]) == instancesPerSubCluster {
-				return fmt.Errorf("invalid shard %d, expected subcluster id %d, actual %d",
-					shard, shardSubclusterID, currSubclusterID)
+
+		// If the movement is happening than the shard can be shared by at most two subclusters.
+		// One which is giving the shard and one which is receiving the shard.
+		if len(subclusters) > 2 {
+			return fmt.Errorf("invalid shard %d, expected at most 2 subclusters (only during shard movement),"+
+				"actual %d", shard, len(subclusters))
+		}
+		if len(subclusters) == 2 {
+			// Check if the shard is shared among subclusters while moving from one subcluster to another.
+			// If the movement is happening than the shard can be shared by at most two subclusters.
+			// One which is giving the shard and one which is receiving the shard.
+			for subcluster := range subclusters {
+				if firstReplica {
+					shardSubclusterID = subcluster
+					firstReplica = false
+					continue
+				}
+				currSubclusterID := subcluster
+				if len(subClusterToInstanceMap[shardSubclusterID]) == instancesPerSubCluster &&
+					len(subClusterToInstanceMap[currSubclusterID]) == instancesPerSubCluster {
+					return fmt.Errorf("invalid shard %d, expected subcluster id %d, actual %d",
+						shard, shardSubclusterID, currSubclusterID)
+				}
 			}
 		}
+
 		if len(shardToIsolationGroupMap[shard]) != p.ReplicaFactor() {
 			return fmt.Errorf("invalid shard %d, expected %d isolation groups, actual %d",
 				shard, p.ReplicaFactor(), len(shardToIsolationGroupMap[shard]))
