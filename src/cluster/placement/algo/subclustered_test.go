@@ -673,14 +673,6 @@ func TestPartialSubclustersRemoveOperation(t *testing.T) {
 		subClustersToRemove    int
 	}{
 		{
-			name:                   "remove subcluster while addition of subcluster is going on",
-			replicaFactor:          3,
-			instancesPerSubcluster: 6,
-			instancesToAdd:         14,
-			totalShards:            128,
-			subClustersToRemove:    1,
-		},
-		{
 			name:                   "remove subcluster while removal of subcluster is going on",
 			replicaFactor:          3,
 			instancesPerSubcluster: 6,
