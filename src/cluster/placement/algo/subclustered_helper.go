@@ -67,16 +67,21 @@ func newSubclusteredInitHelper(
 	instances []placement.Instance,
 	ids []uint32,
 	opts placement.Options,
+	rf int,
 ) (placementHelper, error) {
+	err := assignSubClusterIDs(instances, nil, opts.InstancesPerSubCluster())
+	if err != nil {
+		return nil, err
+	}
 	emptyPlacement := placement.NewPlacement().
 		SetInstances(instances).
 		SetShards(ids).
-		SetReplicaFactor(0).
+		SetReplicaFactor(rf).
 		SetIsSharded(true).
 		SetHasSubClusters(true).
 		SetInstancesPerSubCluster(opts.InstancesPerSubCluster()).
 		SetCutoverNanos(opts.PlacementCutoverNanosFn()())
-	ph, err := newSubclusteredHelper(emptyPlacement, emptyPlacement.ReplicaFactor()+1, opts, 0)
+	ph, err := newSubclusteredHelper(emptyPlacement, opts, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -85,12 +90,11 @@ func newSubclusteredInitHelper(
 
 func newSubclusteredHelper(
 	p placement.Placement,
-	targetRF int,
 	opts placement.Options,
 	subClusterToExclude uint32,
 ) (placementHelper, error) {
 	ph := &subclusteredHelper{
-		rf:                     targetRF,
+		rf:                     p.ReplicaFactor(),
 		instances:              make(map[string]placement.Instance, p.NumInstances()),
 		uniqueShards:           p.Shards(),
 		log:                    opts.InstrumentOptions().Logger(),
@@ -117,7 +121,8 @@ func newSubclusteredHelper(
 		return nil, err
 	}
 
-	// TODO: Implement subclustered helper logic build target load.
+	ph.buildTargetLoad()
+	ph.buildTargetSubclusterLoad(subClusterToExclude)
 
 	return ph, nil
 }
@@ -369,5 +374,42 @@ func (ph *subclusteredHelper) validateSubclusterDistribution() error {
 		}
 	}
 
+	return nil
+}
+
+func assignSubClusterIDs(
+	instances []placement.Instance,
+	currPlacement placement.Placement,
+	instancesPerSubcluster int,
+) error {
+	if instancesPerSubcluster <= 0 {
+		return fmt.Errorf("instances per subcluster is not set")
+	}
+
+	// If current placement is nil, start assigning from subcluster 1
+	maxSubclusterID := uint32(1)
+	maxSubclusterCount := 0
+	if currPlacement != nil {
+		currInstances := currPlacement.Instances()
+
+		for _, instance := range currInstances {
+			if instance.SubClusterID() > maxSubclusterID {
+				maxSubclusterID = instance.SubClusterID()
+				maxSubclusterCount = 1
+			} else if instance.SubClusterID() == maxSubclusterID {
+				maxSubclusterCount++
+			}
+		}
+	}
+
+	// Assign subcluster IDs to new instances
+	for _, instance := range instances {
+		if maxSubclusterCount == instancesPerSubcluster {
+			maxSubclusterID++
+			maxSubclusterCount = 0
+		}
+		instance.SetSubClusterID(maxSubclusterID)
+		maxSubclusterCount++
+	}
 	return nil
 }
