@@ -210,7 +210,7 @@ func newubclusteredReplaceInstanceHelper(
 	for i, addingInstance := range newAddingInstances {
 		addingInstance.SetSubClusterID(leavingInstances[i].SubClusterID())
 	}
-	ph, err := newSubclusteredHelper(p, p.ReplicaFactor(), opts, 0)
+	ph, err := newSubclusteredHelper(p, opts, 0)
 	if err != nil {
 		return nil, nil, nil, err
 	}
