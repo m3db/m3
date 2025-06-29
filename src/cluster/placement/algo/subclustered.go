@@ -39,17 +39,16 @@ func (a subclusteredPlacementAlgorithm) InitialPlacement(
 	shards []uint32,
 	rf int,
 ) (placement.Placement, error) {
-	if err := a.assignSubClusterIDs(instances, nil); err != nil {
-		return nil, err
-	}
 	if a.opts.InstancesPerSubCluster()%rf != 0 {
 		return nil, fmt.Errorf("instances per subcluster is not a multiple of replica factor")
 	}
 
-	_, err := newSubclusteredInitHelper(instances, shards, a.opts)
+	_, err := newSubclusteredInitHelper(instances, shards, a.opts, rf)
 	if err != nil {
 		return nil, err
 	}
+
+	// TODO: Add logic to place all shard replicas.
 
 	return nil, nil
 }
@@ -133,41 +132,4 @@ func (a subclusteredPlacementAlgorithm) BalanceShards(
 
 	// TODO: Implement subclustered balance shards logic
 	return nil, fmt.Errorf("subclustered balance shards not yet implemented")
-}
-
-func (a subclusteredPlacementAlgorithm) assignSubClusterIDs(
-	instances []placement.Instance,
-	currPlacement placement.Placement,
-) error {
-	instancesPerSubcluster := a.opts.InstancesPerSubCluster()
-	if instancesPerSubcluster <= 0 {
-		return fmt.Errorf("instances per subcluster is not set")
-	}
-
-	// If current placement is nil, start assigning from subcluster 1
-	maxSubclusterID := uint32(1)
-	maxSubclusterCount := 0
-	if currPlacement != nil {
-		currInstances := currPlacement.Instances()
-
-		for _, instance := range currInstances {
-			if instance.SubClusterID() > maxSubclusterID {
-				maxSubclusterID = instance.SubClusterID()
-				maxSubclusterCount = 1
-			} else if instance.SubClusterID() == maxSubclusterID {
-				maxSubclusterCount++
-			}
-		}
-	}
-
-	// Assign subcluster IDs to new instances
-	for _, instance := range instances {
-		if maxSubclusterCount == instancesPerSubcluster {
-			maxSubclusterID++
-			maxSubclusterCount = 0
-		}
-		instance.SetSubClusterID(maxSubclusterID)
-		maxSubclusterCount++
-	}
-	return nil
 }
