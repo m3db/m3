@@ -951,7 +951,7 @@ func TestValidateSubclusteredPlacement(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:                   "shards are shared among multiple completeßsubclusters",
+			name:                   "shards are shared among multiple completebsubclusters",
 			instancesPerSubcluster: 3,
 			replicaFactor:          3,
 			instances: func() []Instance {
@@ -1017,6 +1017,42 @@ func TestValidateSubclusteredPlacement(t *testing.T) {
 			}(),
 			shards:      []uint32{1, 2, 3},
 			expectError: false,
+		},
+		{
+			name:                   "shards in transitionary state - belongs to > 2 subclusters",
+			instancesPerSubcluster: 3,
+			replicaFactor:          3,
+			instances: func() []Instance {
+				i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1)
+				i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+
+				i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint2", 1).SetSubClusterID(1)
+				i2.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+
+				i3 := NewEmptyInstance("i3", "r3", "z1", "endpoint3", 1).SetSubClusterID(1)
+				i3.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+				i3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+				i4 := NewEmptyInstance("i4", "r1", "z1", "endpoint4", 1).SetSubClusterID(2)
+				i4.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+
+				i5 := NewEmptyInstance("i5", "r2", "z1", "endpoint5", 1).SetSubClusterID(2)
+				i5.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+				i5.Shards().Add(shard.NewShard(3).SetState(shard.Initializing).SetSourceID("i8"))
+
+				i6 := NewEmptyInstance("i6", "r3", "z1", "endpoint6", 1).SetSubClusterID(2)
+				i6.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+
+				i7 := NewEmptyInstance("i7", "r1", "z1", "endpoint7", 1).SetSubClusterID(3)
+				i7.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+				i8 := NewEmptyInstance("i8", "r2", "z1", "endpoint8", 1).SetSubClusterID(3)
+				i8.Shards().Add(shard.NewShard(3).SetState(shard.Leaving))
+
+				return []Instance{i1, i2, i3, i4, i5, i6, i7, i8}
+			}(),
+			shards:      []uint32{1, 2, 3},
+			expectError: true,
 		},
 	}
 
