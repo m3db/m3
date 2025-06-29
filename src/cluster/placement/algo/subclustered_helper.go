@@ -296,10 +296,7 @@ func (ph *subclusteredHelper) moveShard(candidateShard shard.Shard, from, to pla
 	newShard := shard.NewShard(shardID)
 	curShard, ok := to.Shards().Shard(shardID)
 	if ok && curShard.State() == shard.Leaving {
-		// NB(cw): if the instance already owns the shard in Leaving state,
-		// simply mark it as Available
 		newShard = shard.NewShard(shardID).SetState(shard.Available)
-		// NB(cw): Break the link between new owner of this shard with this Leaving instance
 		instances := ph.shardToInstanceMap[shardID]
 		for instance := range instances {
 			shards := instance.Shards()
