@@ -407,7 +407,12 @@ func TestValidateSubclusterDistribution(t *testing.T) {
 }
 
 // Helper function to create a test placement with instances
-func createTestPlacement(instances []placement.Instance, shards []uint32, rf int, instancesPerSubcluster int) placement.Placement {
+func createTestPlacement(
+	instances []placement.Instance,
+	shards []uint32,
+	rf int,
+	instancesPerSubcluster int,
+) placement.Placement {
 	return placement.NewPlacement().
 		SetInstances(instances).
 		SetShards(shards).
