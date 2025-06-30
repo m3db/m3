@@ -926,12 +926,6 @@ func (ph *subclusteredHelper) reclaimLeavingShards(instance placement.Instance) 
 	for _, i := range ph.instances {
 		for _, s := range i.Shards().ShardsForState(shard.Initializing) {
 			if s.SourceID() == id {
-				// NB(cw) in very rare case, the leaving shards could not be taken back.
-				// For example: in a RF=2 case, instance a and b on ig1, instance c on ig2,
-				// c took shard1 from instance a, before we tried to assign shard1 back to instance a,
-				// b got assigned shard1, now if we try to add instance a back to the topology, a can
-				// no longer take shard1 back.
-				// But it's fine, the algo will fil up those load with other shards from the cluster
 				ph.moveShard(s, i, instance)
 			}
 		}
