@@ -492,7 +492,8 @@ func (ph *subclusteredHelper) canAssignInstance(shardID uint32, from, to placeme
 				return false
 			}
 		}
-		// Case 2.3(add-instance): If the from subcluster hasn't given all the shards, we just need to check for isolation group movement
+		// Case 2.3(add-instance): If the from subcluster hasn't given all the shards,
+		// we just need to check for isolation group movement
 	}
 	return ph.CanMoveShard(shardID, from, to.IsolationGroup())
 }
@@ -961,7 +962,8 @@ func (ph *subclusteredHelper) validatePartialSubclusters(excludeSubclusterID uin
 			case validationOpAddition:
 				operation = "added"
 			}
-			return fmt.Errorf("partial subcluster %d is present with %d instances, while a subcluster %d is being %s", subclusterID, len(subcluster.instances), excludeSubclusterID, operation)
+			return fmt.Errorf("partial subcluster %d is present with %d instances, while a subcluster %d is being %s",
+				subclusterID, len(subcluster.instances), excludeSubclusterID, operation)
 		}
 	}
 	return nil
