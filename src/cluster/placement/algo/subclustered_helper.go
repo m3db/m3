@@ -371,7 +371,6 @@ func (ph *subclusteredHelper) placeShards(
 			}
 		}
 		if !moved {
-			// This should only happen when RF > number of isolation groups.
 			return errNotEnoughIsolationGroups
 		}
 		for _, triedInstance := range triedInstances {
@@ -463,8 +462,6 @@ func (ph *subclusteredHelper) returnInitializingShardsToSource(
 		}
 		sourceInstance, ok := candidateMap[sourceID]
 		if !ok {
-			// NB(cw): This is not an error because the candidates are not
-			// necessarily all the instances in the placement.
 			continue
 		}
 		if sourceInstance.IsLeaving() {
