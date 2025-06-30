@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/rand"
 
 	"go.uber.org/zap"
 
@@ -372,7 +373,7 @@ func (ph *helper) CanMoveShard(shard uint32, from placement.Instance, toIsolatio
 }
 
 func (ph *helper) buildInstanceHeap(instances []placement.Instance, availableCapacityAscending bool) (heap.Interface, error) {
-	return newHeap(instances, availableCapacityAscending, ph.targetLoad, ph.groupToWeightMap)
+	return newHeap(instances, availableCapacityAscending, ph.targetLoad, ph.groupToWeightMap, false)
 }
 
 func (ph *helper) generatePlacement() placement.Placement {
@@ -622,10 +623,11 @@ func (ph *helper) assignShardToInstance(s shard.Shard, to placement.Instance) {
 
 // instanceHeap provides an easy way to get best candidate instance to assign/steal a shard
 type instanceHeap struct {
-	instances         []placement.Instance
-	igToWeightMap     map[string]uint32
-	targetLoad        map[string]int
-	capacityAscending bool
+	instances             []placement.Instance
+	igToWeightMap         map[string]uint32
+	targetLoad            map[string]int
+	capacityAscending     bool
+	randomizeSameCapacity bool
 }
 
 func newHeap(
@@ -633,12 +635,14 @@ func newHeap(
 	capacityAscending bool,
 	targetLoad map[string]int,
 	igToWeightMap map[string]uint32,
+	randomizeSameCapacity bool,
 ) (*instanceHeap, error) {
 	h := &instanceHeap{
-		capacityAscending: capacityAscending,
-		instances:         instances,
-		targetLoad:        targetLoad,
-		igToWeightMap:     igToWeightMap,
+		capacityAscending:     capacityAscending,
+		instances:             instances,
+		targetLoad:            targetLoad,
+		igToWeightMap:         igToWeightMap,
+		randomizeSameCapacity: randomizeSameCapacity,
 	}
 	heap.Init(h)
 	return h, nil
@@ -670,6 +674,9 @@ func (h *instanceHeap) Less(i, j int) bool {
 	}
 	// compare left capacity on both instances
 	if leftLoadOnI == leftLoadOnJ {
+		if h.randomizeSameCapacity {
+			return rand.Float64() < 0.5
+		}
 		return instanceI.ID() < instanceJ.ID()
 	}
 	if h.capacityAscending {
