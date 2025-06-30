@@ -162,11 +162,3 @@ func (a subclusteredPlacementAlgorithm) BalanceShards(
 	// TODO: Implement subclustered balance shards logic
 	return nil, fmt.Errorf("subclustered balance shards not yet implemented")
 }
-
-func (a subclusteredPlacementAlgorithm) validateRemoveInstances(p placement.Placement, instanceIDs []string) error {
-	if err := a.IsCompatibleWith(p); err != nil {
-		return err
-	}
-
-	return nil
-}
