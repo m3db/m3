@@ -59,12 +59,7 @@ func (a subclusteredPlacementAlgorithm) InitialPlacement(
 }
 
 func (a subclusteredPlacementAlgorithm) AddReplica(p placement.Placement) (placement.Placement, error) {
-	if err := a.IsCompatibleWith(p); err != nil {
-		return nil, err
-	}
-
-	// TODO: Implement subclustered add replica logic
-	return nil, fmt.Errorf("subclustered add replica not yet implemented")
+	return nil, fmt.Errorf("AddReplica is not supported for subclustered placement")
 }
 
 func (a subclusteredPlacementAlgorithm) RemoveInstances(
@@ -79,6 +74,7 @@ func (a subclusteredPlacementAlgorithm) RemoveInstances(
 	return nil, fmt.Errorf("subclustered remove instances not yet implemented")
 }
 
+// nolint:dupl
 func (a subclusteredPlacementAlgorithm) AddInstances(
 	p placement.Placement,
 	instances []placement.Instance,
@@ -87,8 +83,21 @@ func (a subclusteredPlacementAlgorithm) AddInstances(
 		return nil, err
 	}
 
-	// TODO: Implement subclustered add instances logic
-	return nil, fmt.Errorf("subclustered add instances not yet implemented")
+	p = p.Clone()
+	for _, instance := range instances {
+		ph, addingInstance, err := newubclusteredAddInstanceHelper(p, instance, a.opts, withLeavingShardsOnly)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := ph.addInstance(addingInstance); err != nil {
+			return nil, err
+		}
+
+		p = ph.generatePlacement()
+	}
+
+	return tryCleanupShardState(p, a.opts)
 }
 
 func (a subclusteredPlacementAlgorithm) ReplaceInstances(
@@ -113,8 +122,7 @@ func (a subclusteredPlacementAlgorithm) MarkShardsAvailable(
 		return nil, err
 	}
 
-	// TODO: Implement subclustered mark shards available logic
-	return nil, fmt.Errorf("subclustered mark shards available not yet implemented")
+	return markShardsAvailable(p.Clone(), instanceID, shardIDs, a.opts)
 }
 
 func (a subclusteredPlacementAlgorithm) MarkAllShardsAvailable(
@@ -124,8 +132,7 @@ func (a subclusteredPlacementAlgorithm) MarkAllShardsAvailable(
 		return nil, false, err
 	}
 
-	// TODO: Implement subclustered mark all shards available logic
-	return nil, false, fmt.Errorf("subclustered mark all shards available not yet implemented")
+	return markAllShardsAvailable(p, a.opts)
 }
 
 func (a subclusteredPlacementAlgorithm) BalanceShards(
