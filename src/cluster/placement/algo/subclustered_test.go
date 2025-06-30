@@ -357,3 +357,195 @@ func TestSubclusteredAlgorithm_InitialPlacement_ErrorCases(t *testing.T) {
 		})
 	}
 }
+
+func TestAddInstancesValidCases(t *testing.T) {
+	tests := []struct {
+		name                   string
+		instancesPerSubcluster int
+		replicaFactor          int
+		instancesToAdd         int
+		totalShards            int
+	}{
+		{
+			name:                   "valid configuration - rf=3, instancesPerSubcluster=6",
+			instancesPerSubcluster: 6,
+			replicaFactor:          3,
+			instancesToAdd:         12,
+			totalShards:            128,
+		},
+		{
+			name:                   "valid configuration - rf=3, instancesPerSubcluster=9",
+			instancesPerSubcluster: 9,
+			replicaFactor:          3,
+			instancesToAdd:         27,
+			totalShards:            128,
+		},
+		{
+			name:                   "valid configuration - rf=4, instancesPerSubcluster=8",
+			instancesPerSubcluster: 8,
+			replicaFactor:          4,
+			instancesToAdd:         16,
+			totalShards:            128,
+		},
+		{
+			name:                   "valid configuration - rf=2, instancesPerSubcluster=6`",
+			instancesPerSubcluster: 8,
+			replicaFactor:          2,
+			instancesToAdd:         16,
+			totalShards:            128,
+		},
+		{
+			name:                   "partial subcluster configuration - rf=3, instancesPerSubcluster=6",
+			instancesPerSubcluster: 6,
+			replicaFactor:          3,
+			instancesToAdd:         10,
+			totalShards:            128,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := placement.NewOptions().SetInstancesPerSubCluster(tt.instancesPerSubcluster)
+			algo := subclusteredPlacementAlgorithm{opts: opts}
+
+			initialInstances := make([]placement.Instance, tt.instancesPerSubcluster)
+			for i := 0; i < tt.instancesPerSubcluster; i++ {
+				initialInstances[i] = placement.NewInstance().
+					SetID(fmt.Sprintf("I%d", i)).
+					SetIsolationGroup(fmt.Sprintf("R%d", i%tt.replicaFactor)).
+					SetWeight(1).
+					SetEndpoint(fmt.Sprintf("E%d", i)).
+					SetShards(shard.NewShards(nil))
+			}
+
+			initialShards := make([]uint32, tt.totalShards)
+			for i := 0; i < tt.totalShards; i++ {
+				initialShards[i] = uint32(i)
+			}
+
+			result, err := algo.InitialPlacement(initialInstances, initialShards, tt.replicaFactor)
+			assert.NoError(t, err)
+			assert.NotNil(t, result)
+			assert.NoError(t, placement.Validate(result))
+
+			instancesToAdd := make([]placement.Instance, tt.instancesToAdd)
+			for i := 0; i < tt.instancesToAdd; i++ {
+				instancesToAdd[i] = placement.NewInstance().
+					SetID(fmt.Sprintf("I%d", tt.instancesPerSubcluster+i)).
+					SetIsolationGroup(fmt.Sprintf("R%d", i%tt.replicaFactor)).
+					SetWeight(1).
+					SetEndpoint(fmt.Sprintf("E%d", tt.instancesPerSubcluster+i)).
+					SetShards(shard.NewShards(nil))
+			}
+			currentPlacement := result.Clone()
+			for i := 0; i < tt.instancesToAdd; i++ {
+				instance := instancesToAdd[i]
+				newPlacement, err := algo.AddInstances(currentPlacement, []placement.Instance{instance})
+				assert.NoError(t, err)
+				assert.NotNil(t, newPlacement)
+				assert.Equal(t, tt.instancesPerSubcluster+i+1, len(newPlacement.Instances()))
+				assert.NoError(t, placement.Validate(newPlacement))
+
+				newPlacement, marked, err := algo.MarkAllShardsAvailable(newPlacement)
+				assert.NoError(t, err)
+				assert.True(t, marked)
+				assert.NoError(t, placement.Validate(newPlacement))
+
+				currentPlacement = newPlacement
+			}
+			assert.NoError(t, placement.Validate(currentPlacement))
+		})
+	}
+}
+
+func TestAddInstancesErrorCases(t *testing.T) {
+	tests := []struct {
+		name                   string
+		replicaFactor          int
+		instancesPerSubcluster int
+		instancesToAdd         []placement.Instance
+		expectError            bool
+	}{
+		{
+			name:                   "number of isolation groups is not equal to replica factor",
+			replicaFactor:          3,
+			instancesPerSubcluster: 6,
+			instancesToAdd: []placement.Instance{
+				placement.NewEmptyInstance("I7", "R8", "R8", "E0", 1),
+			},
+			expectError: true,
+		},
+		{
+			name:                   "instances per isolation group != instancesPerSubcluster/replicaFactor",
+			replicaFactor:          3,
+			instancesPerSubcluster: 6,
+			instancesToAdd: []placement.Instance{
+				placement.NewEmptyInstance("I9", "R0", "R0", "E0", 1),
+				placement.NewEmptyInstance("I10", "R0", "R0", "E1", 1),
+				placement.NewEmptyInstance("I11", "R0", "R0", "E2", 1),
+			},
+			expectError: true,
+		},
+		{
+			name:                   "instances per isolation group != instancesPerSubcluster/replicaFacto (full subcluster)",
+			replicaFactor:          3,
+			instancesPerSubcluster: 6,
+			instancesToAdd: []placement.Instance{
+				placement.NewEmptyInstance("I9", "R0", "R0", "E0", 1),
+				placement.NewEmptyInstance("I10", "R1", "R1", "E1", 1),
+				placement.NewEmptyInstance("I11", "R2", "R2", "E2", 1),
+				placement.NewEmptyInstance("I12", "R0", "R0", "E0", 1),
+				placement.NewEmptyInstance("I13", "R1", "R1", "E1", 1),
+				placement.NewEmptyInstance("I14", "R0", "R0", "E2", 1),
+			},
+			expectError: true,
+		},
+		{
+			name:                   "instances do not have same weight",
+			replicaFactor:          3,
+			instancesPerSubcluster: 6,
+			instancesToAdd: []placement.Instance{
+				placement.NewEmptyInstance("I15", "R0", "R0", "E0", 10),
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := placement.NewOptions().SetInstancesPerSubCluster(tt.instancesPerSubcluster)
+			algo := subclusteredPlacementAlgorithm{opts: opts}
+
+			initialInstances := make([]placement.Instance, tt.instancesPerSubcluster)
+			for i := 0; i < tt.instancesPerSubcluster; i++ {
+				initialInstances[i] = placement.NewInstance().
+					SetID(fmt.Sprintf("I%d", i)).
+					SetIsolationGroup(fmt.Sprintf("R%d", i%tt.replicaFactor)).
+					SetWeight(1).
+					SetEndpoint(fmt.Sprintf("E%d", i)).
+					SetShards(shard.NewShards(nil))
+			}
+
+			totalShards := 128
+			shards := make([]uint32, totalShards)
+			for i := 0; i < totalShards; i++ {
+				shards[i] = uint32(i)
+			}
+
+			result, err := algo.InitialPlacement(initialInstances, shards, tt.replicaFactor)
+			assert.NoError(t, err)
+			assert.NotNil(t, result)
+			assert.NoError(t, placement.Validate(result))
+
+			newPlacement, err := algo.AddInstances(result, tt.instancesToAdd)
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Nil(t, newPlacement)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, newPlacement)
+				assert.NoError(t, placement.Validate(newPlacement))
+			}
+		})
+	}
+}
