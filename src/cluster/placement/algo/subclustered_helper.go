@@ -519,29 +519,6 @@ func (ph *subclusteredHelper) greedyShuffle(shards []shard.Shard, fromInstance p
 	if len(shards) == 0 {
 		return shards
 	}
-
-	// Get all instances in the same subcluster as fromInstance using the helper's subcluster map
-	subclusterID := fromInstance.SubClusterID()
-	subcluster, exists := ph.subClusters[subclusterID]
-	if !exists {
-		return shards
-	}
-
-	// Convert subcluster instances map to slice
-	subclusterInstances := make([]placement.Instance, 0, len(subcluster.instances))
-	for _, instance := range subcluster.instances {
-		if instance.IsLeaving() {
-			continue
-		}
-		subclusterInstances = append(subclusterInstances, instance)
-	}
-
-	if len(subclusterInstances) <= 1 {
-		// If there's only one instance in the subcluster, skew optimization is not applicable
-		// This should never happen.
-		return shards
-	}
-
 	// Focus optimization specifically on minimizing skew within this subcluster
 	return ph.optimizeForSubclusterBalance(shards, fromInstance)
 }
