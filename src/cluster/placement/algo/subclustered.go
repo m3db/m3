@@ -200,11 +200,3 @@ func (a subclusteredPlacementAlgorithm) BalanceShards(
 
 	return tryCleanupShardState(ph.generatePlacement(), a.opts)
 }
-
-func (a subclusteredPlacementAlgorithm) validateRemoveInstances(p placement.Placement, instanceIDs []string) error {
-	if err := a.IsCompatibleWith(p); err != nil {
-		return err
-	}
-
-	return nil
-}
