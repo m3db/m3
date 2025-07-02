@@ -13,7 +13,7 @@ import (
 // EnableConfig represents the configuration stored in etcd.
 type EnableConfig struct {
 	Enabled    bool `yaml:"enabled"`
-	ShadowMode bool `yaml:"shadowMode"`
+	ShadowMode bool `yaml:"shadow_mode"`
 }
 
 const (

@@ -776,7 +776,7 @@ func (q *queue) asyncWriteV2(
 			cleanup()
 			return
 		} else {
-			q.opts.InstrumentOptions().Logger().Info("WriteBatchRawV2 failed", zap.Any("req", req), zap.Error(err))
+			q.opts.InstrumentOptions().Logger().Error("WriteBatchRawV2 failed", zap.Any("req", req), zap.Error(err))
 		}
 
 		if batchErrs, ok := err.(*rpc.WriteBatchRawErrors); ok {
