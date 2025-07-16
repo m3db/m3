@@ -45,5 +45,8 @@
 //go:generate sh -c "mockgen -package=index -destination=../../storage/index/index_mock.go -source=../../storage/index/types.go"
 //go:generate sh -c "mockgen -package=permits -destination=../../storage/limits/permits/permits_mock.go -source=../../storage/limits/permits/types.go"
 //go:generate sh -c "mockgen -package=xpool -destination=../../x/xpool/xpool_mock.go -source=../../x/xpool/types.go"
+//go:generate sh -c "mockgen -package=m3db -destination=../../x/m3em/node/node_mock.go -source=../../x/m3em/node/types.go"
+//go:generate sh -c "mockgen -package=sharding -destination=../../sharding/shardset_mock.go -source=../../sharding/types.go"
+//go:generate sh -c "mockgen -package=limits -destination=../../storage/limits/limits_mock.go -source=../../storage/limits/types.go"
 
 package mocks
