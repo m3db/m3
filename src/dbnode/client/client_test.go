@@ -33,6 +33,7 @@ import (
 func testClient(t *testing.T, ctrl *gomock.Controller) Client {
 	opts := NewMockOptions(ctrl)
 	opts.EXPECT().Validate().Return(nil)
+	opts.EXPECT().MiddlewareEnableProvider().Return(nil).AnyTimes()
 
 	client, err := NewClient(opts)
 	assert.NoError(t, err)
@@ -50,6 +51,7 @@ func TestClientNewClientValidatesOptions(t *testing.T) {
 	anError := fmt.Errorf("an error")
 	opts := NewMockOptions(ctrl)
 	opts.EXPECT().Validate().Return(anError)
+	opts.EXPECT().MiddlewareEnableProvider().Return(nil).AnyTimes()
 
 	_, err := NewClient(opts)
 	assert.Error(t, err)

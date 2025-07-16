@@ -12,13 +12,12 @@ import (
 
 // client is a client that wraps a TChannel client with a circuit breaker.
 type client struct {
-	enabled    bool
-	shadowMode bool
-	logger     *zap.Logger
-	circuit    *circuitbreaker.Circuit
-	metrics    *circuitBreakerMetrics
-	host       string
-	next       rpc.TChanNode
+	logger   *zap.Logger
+	circuit  *circuitbreaker.Circuit
+	metrics  *circuitBreakerMetrics
+	host     string
+	next     rpc.TChanNode
+	provider EnableProvider
 }
 
 // M3DBMiddleware is a function that takes a TChannel client and returns a circuit breaker client interface.
@@ -38,10 +37,11 @@ func NewNop() M3DBMiddleware {
 
 // Params contains all parameters needed to create a new middleware
 type Params struct {
-	Config Config
-	Logger *zap.Logger
-	Scope  tally.Scope
-	Host   string
+	Config         Config
+	Logger         *zap.Logger
+	Scope          tally.Scope
+	Host           string
+	EnableProvider EnableProvider
 }
 
 // New creates a new circuit breaker middleware.
@@ -54,13 +54,12 @@ func New(params Params) (M3DBMiddleware, error) {
 
 	return func(next rpc.TChanNode) Client {
 		return &client{
-			enabled:    params.Config.Enabled,
-			shadowMode: params.Config.ShadowMode,
-			next:       next,
-			logger:     params.Logger,
-			host:       params.Host,
-			metrics:    newMetrics(params.Scope, params.Host),
-			circuit:    c,
+			next:     next,
+			logger:   params.Logger,
+			host:     params.Host,
+			metrics:  newMetrics(params.Scope, params.Host),
+			circuit:  c,
+			provider: params.EnableProvider,
 		}
 	}, nil
 }
@@ -68,7 +67,7 @@ func New(params Params) (M3DBMiddleware, error) {
 // withBreaker executes the given call with a circuit breaker if enabled.
 func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.Context, T) error) error {
 	// Early return if circuit breaker is disabled or not initialized
-	if !c.enabled || c.circuit == nil {
+	if c.circuit == nil || !c.provider.IsEnabled() {
 		return call(ctx, req)
 	}
 
@@ -77,7 +76,7 @@ func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.C
 
 	// If request is not allowed, log and return error
 	if !isAllowed {
-		if c.shadowMode {
+		if c.provider.IsShadowMode() {
 			c.metrics.shadowRejects.Inc(1)
 		} else {
 			c.metrics.rejects.Inc(1)

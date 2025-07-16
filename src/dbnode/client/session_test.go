@@ -35,6 +35,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3/src/cluster/shard"
+	"github.com/m3db/m3/src/dbnode/client/circuitbreaker/middleware"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -76,7 +77,8 @@ var _testSessionOpts = NewOptions().
 	// Set 100% sample rate to test the code path that logs errors.
 	SetLogErrorSampleRate(sampler.Rate(1)).
 	SetLogHostFetchErrorSampleRate(sampler.Rate(1)).
-	SetLogHostWriteErrorSampleRate(sampler.Rate(1))
+	SetLogHostWriteErrorSampleRate(sampler.Rate(1)).
+	SetMiddlewareEnableProvider(middleware.NewNopEnableProvider())
 
 func testContext() context.Context {
 	// nolint: govet

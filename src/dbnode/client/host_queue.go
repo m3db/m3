@@ -96,22 +96,20 @@ func newHostQueue(
 	opts = opts.SetInstrumentOptions(iOpts.SetMetricsScope(scope))
 
 	// Create circuit breaker middleware
-	var middlewareFn middleware.M3DBMiddleware
-	if opts.MiddlewareCircuitbreakerConfig().Enabled {
-		var err error
-		params := middleware.Params{
-			Config: opts.MiddlewareCircuitbreakerConfig(),
-			Logger: opts.InstrumentOptions().Logger(),
-			Scope:  scope,
-			Host:   host.Address(),
-		}
-		middlewareFn, err = middleware.New(params)
-		if err != nil {
-			opts.InstrumentOptions().Logger().Warn("failed to create circuit breaker middleware", zap.Error(err))
-			return nil, err
-		}
-	} else {
-		middlewareFn = middleware.NewNop()
+	provider := opts.MiddlewareEnableProvider()
+
+	var err error
+	params := middleware.Params{
+		Config:         opts.MiddlewareCircuitbreakerConfig(),
+		Logger:         opts.InstrumentOptions().Logger(),
+		Scope:          scope,
+		Host:           host.ID(),
+		EnableProvider: provider,
+	}
+	middlewareFn, err := middleware.New(params)
+	if err != nil {
+		opts.InstrumentOptions().Logger().Warn("failed to create circuit breaker middleware", zap.Error(err))
+		return nil, err
 	}
 
 	// Create a wrapped connection function that applies the circuit breaker
