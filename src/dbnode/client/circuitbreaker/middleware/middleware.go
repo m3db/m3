@@ -29,6 +29,13 @@ type Client interface {
 	rpc.TChanNode
 }
 
+// NewNop returns a no-op middleware that simply forwards all calls to the underlying client
+func NewNop() M3DBMiddleware {
+	return func(next rpc.TChanNode) Client {
+		return next
+	}
+}
+
 // Params contains all parameters needed to create a new middleware
 type Params struct {
 	Config Config
