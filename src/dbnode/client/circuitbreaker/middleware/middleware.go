@@ -46,6 +46,7 @@ type Params struct {
 
 // New creates a new circuit breaker middleware.
 func New(params Params) (M3DBMiddleware, error) {
+	params.Logger.Info("creating circuit breaker middleware", zap.Any("config", params.Config))
 	c, err := circuitbreaker.NewCircuit(params.Config.CircuitBreakerConfig)
 	if err != nil {
 		params.Logger.Warn("failed to create circuit breaker", zap.Error(err))
@@ -66,6 +67,7 @@ func New(params Params) (M3DBMiddleware, error) {
 
 // withBreaker executes the given call with a circuit breaker if enabled.
 func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.Context, T) error) error {
+	c.logger.Info("withBreaker called", zap.Any("req", req), zap.Bool("enabled", c.provider.IsEnabled()))
 	// Early return if circuit breaker is disabled or not initialized
 	if c.circuit == nil || !c.provider.IsEnabled() {
 		return call(ctx, req)
@@ -101,6 +103,7 @@ func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.C
 
 // WriteBatchRaw is a method that writes a batch of raw data.
 func (c *client) WriteBatchRaw(ctx thrift.Context, req *rpc.WriteBatchRawRequest) error {
+	c.logger.Info("WriteBatchRaw called", zap.Any("req", req))
 	return withBreaker(c, ctx, req, c.next.WriteBatchRaw)
 }
 
@@ -252,21 +255,26 @@ func (c *client) Truncate(ctx thrift.Context, req *rpc.TruncateRequest) (*rpc.Tr
 }
 
 func (c *client) Write(ctx thrift.Context, req *rpc.WriteRequest) error {
-	return c.next.Write(ctx, req)
+	c.logger.Info("Write called", zap.Any("req", req))
+	return withBreaker(c, ctx, req, c.next.Write)
 }
 
 func (c *client) WriteBatchRawV2(ctx thrift.Context, req *rpc.WriteBatchRawV2Request) error {
-	return c.next.WriteBatchRawV2(ctx, req)
+	c.logger.Info("WriteBatchRawV2 called", zap.Any("req", req))
+	return withBreaker(c, ctx, req, c.next.WriteBatchRawV2)
 }
 
 func (c *client) WriteTagged(ctx thrift.Context, req *rpc.WriteTaggedRequest) error {
-	return c.next.WriteTagged(ctx, req)
+	c.logger.Info("WriteTagged called", zap.Any("req", req))
+	return withBreaker(c, ctx, req, c.next.WriteTagged)
 }
 
 func (c *client) WriteTaggedBatchRaw(ctx thrift.Context, req *rpc.WriteTaggedBatchRawRequest) error {
-	return c.next.WriteTaggedBatchRaw(ctx, req)
+	c.logger.Info("WriteTaggedBatchRaw called", zap.Any("req", req))
+	return withBreaker(c, ctx, req, c.next.WriteTaggedBatchRaw)
 }
 
 func (c *client) WriteTaggedBatchRawV2(ctx thrift.Context, req *rpc.WriteTaggedBatchRawV2Request) error {
-	return c.next.WriteTaggedBatchRawV2(ctx, req)
+	c.logger.Info("WriteTaggedBatchRawV2 called", zap.Any("req", req))
+	return withBreaker(c, ctx, req, c.next.WriteTaggedBatchRawV2)
 }
