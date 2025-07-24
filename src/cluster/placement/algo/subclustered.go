@@ -39,6 +39,9 @@ func (a subclusteredPlacementAlgorithm) InitialPlacement(
 	shards []uint32,
 	rf int,
 ) (placement.Placement, error) {
+	fmt.Printf("building initial placement")
+	fmt.Printf("Printing instances: %+v\n", instances)
+	fmt.Printf("Printing options: %+v\n", a.opts)
 	if a.opts.InstancesPerSubCluster()%rf != 0 {
 		return nil, fmt.Errorf("instances per subcluster is not a multiple of replica factor")
 	}
@@ -101,6 +104,8 @@ func (a subclusteredPlacementAlgorithm) AddInstances(
 		return nil, err
 	}
 
+	fmt.Printf("adding instances in current placement")
+
 	p = p.Clone()
 	for _, instance := range instances {
 		ph, addingInstance, err := newubclusteredAddInstanceHelper(p, instance, a.opts, withLeavingShardsOnly)
@@ -115,6 +120,7 @@ func (a subclusteredPlacementAlgorithm) AddInstances(
 		p = ph.generatePlacement()
 	}
 
+	fmt.Printf("Printing final placement state2: %+v\n", p)
 	return tryCleanupShardState(p, a.opts)
 }
 
@@ -163,6 +169,7 @@ func (a subclusteredPlacementAlgorithm) MarkShardsAvailable(
 	if err := a.IsCompatibleWith(p); err != nil {
 		return nil, err
 	}
+	fmt.Printf("node came to mark shards available\n")
 
 	return markShardsAvailable(p.Clone(), instanceID, shardIDs, a.opts)
 }
@@ -173,6 +180,7 @@ func (a subclusteredPlacementAlgorithm) MarkAllShardsAvailable(
 	if err := a.IsCompatibleWith(p); err != nil {
 		return nil, false, err
 	}
+	fmt.Printf("node came to mark all shards available\n")
 
 	return markAllShardsAvailable(p, a.opts)
 }
@@ -190,6 +198,8 @@ func (a subclusteredPlacementAlgorithm) BalanceShards(
 	if err := ph.optimize(unsafe); err != nil {
 		return nil, fmt.Errorf("shard balance optimization failed: %w", err)
 	}
+
+	fmt.Printf("node came to mark balance shards available\n")
 
 	return tryCleanupShardState(ph.generatePlacement(), a.opts)
 }

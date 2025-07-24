@@ -884,23 +884,37 @@ func (ph *subclusteredHelper) optimize(t optimizeType) error {
 func (ph *subclusteredHelper) generatePlacement() placement.Placement {
 	var instances = make([]placement.Instance, 0, len(ph.instances))
 
+	fmt.Printf("Starting placement generation with %d total instances\n", len(ph.instances))
+
 	for _, instance := range ph.instances {
 		if instance.Shards().NumShards() > 0 {
+			fmt.Printf("Including instance %s with %d shards\n", instance.ID(), instance.Shards().NumShards())
 			instances = append(instances, instance)
+		} else {
+			fmt.Printf("Skipping instance %s with 0 shards\n", instance.ID())
 		}
 	}
 
 	for _, instance := range instances {
 		shards := instance.Shards()
-		for _, s := range shards.ShardsForState(shard.Unknown) {
-			shards.Add(shard.NewShard(s.ID()).
+		unknownShards := shards.ShardsForState(shard.Unknown)
+
+		if len(unknownShards) > 0 {
+			fmt.Printf("Instance %s has %d unknown shards, converting to initializing...\n", instance.ID(), len(unknownShards))
+		}
+
+		for _, s := range unknownShards {
+			newShard := shard.NewShard(s.ID()).
 				SetSourceID(s.SourceID()).
 				SetState(shard.Initializing).
-				SetCutoverNanos(ph.opts.ShardCutoverNanosFn()()))
+				SetCutoverNanos(ph.opts.ShardCutoverNanosFn()())
+
+			fmt.Printf("Initializing shard %d for instance %s\n", s.ID(), instance.ID())
+			shards.Add(newShard)
 		}
 	}
 
-	return placement.NewPlacement().
+	placement := placement.NewPlacement().
 		SetInstances(instances).
 		SetShards(ph.uniqueShards).
 		SetReplicaFactor(ph.rf).
@@ -909,6 +923,13 @@ func (ph *subclusteredHelper) generatePlacement() placement.Placement {
 		SetInstancesPerSubCluster(ph.instancesPerSubcluster).
 		SetIsMirrored(ph.opts.IsMirrored()).
 		SetCutoverNanos(ph.opts.PlacementCutoverNanosFn()())
+
+	fmt.Printf("Generated placement with %d instances, %d unique shards, replica factor %d\n",
+		len(instances), len(ph.uniqueShards), ph.rf)
+
+	fmt.Printf("Placement object: %+v\n", placement)
+
+	return placement
 }
 
 // reclaimLeavingShards reclaims all the leaving shards on the given instance
