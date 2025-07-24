@@ -229,8 +229,8 @@ func (p *placement) SetVersion(v int) Placement {
 
 func (p *placement) String() string {
 	return fmt.Sprintf(
-		"Placement[Instances=%s, NumShards=%d, ReplicaFactor=%d, IsSharded=%v, IsMirrored=%v]",
-		p.Instances(), p.NumShards(), p.ReplicaFactor(), p.IsSharded(), p.IsMirrored(),
+		"Placement[Instances=%s, NumShards=%d, ReplicaFactor=%d, IsSharded=%v, IsMirrored=%v, hasSubClusters=%v]",
+		p.Instances(), p.NumShards(), p.ReplicaFactor(), p.IsSharded(), p.IsMirrored(), p.HasSubClusters(),
 	)
 }
 

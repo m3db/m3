@@ -279,6 +279,7 @@ linters:
     - nilerr
     - whitespace
     - bodyclose
+    - forbidigo
   disable-all: false
   presets:
     # bodyclose, errcheck, gosec, govet, scopelint, staticcheck, typecheck
