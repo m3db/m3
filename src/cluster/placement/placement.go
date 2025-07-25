@@ -581,8 +581,8 @@ type instance struct {
 
 func (i *instance) String() string {
 	return fmt.Sprintf(
-		"Instance[ID=%s, IsolationGroup=%s, Zone=%s, Weight=%d, Endpoint=%s, Hostname=%s, Port=%d, ShardSetID=%d, Shards=%s, Metadata=%+v]",
-		i.id, i.isolationGroup, i.zone, i.weight, i.endpoint, i.hostname, i.port, i.shardSetID, i.shards.String(), i.metadata,
+		"Instance[ID=%s, IsolationGroup=%s, Zone=%s, Weight=%d, Endpoint=%s, Hostname=%s, Port=%d, ShardSetID=%d, Shards=%s, Metadata=%+v, SubClusterID=%d]",
+		i.id, i.isolationGroup, i.zone, i.weight, i.endpoint, i.hostname, i.port, i.shardSetID, i.shards.String(), i.metadata, i.subClusterID,
 	)
 }
 
