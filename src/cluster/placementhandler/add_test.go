@@ -101,7 +101,7 @@ func TestPlacementAddHandler_Force(t *testing.T) {
 		body, _ = ioutil.ReadAll(resp.Body)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		expectedJSON := `{"placement":{"instances":{},"replicaFactor":0,"numShards":0,"isSharded":false,"cutoverTime":"0",` +
-			`"isMirrored":false,"maxShardSetId":0,"hasSubclusters":false,"instancesPerSubcluster":0},"version":0}`
+			`"isMirrored":false,"maxShardSetId":0,"isSubclustered":false,"instancesPerSubcluster":0},"version":0}`
 		assert.Equal(t, expectedJSON, string(body))
 	})
 }
@@ -291,15 +291,15 @@ func TestPlacementAddHandler_SafeOK(t *testing.T) {
 					`"weight":1,"endpoint":"http://host1:1234","shards":[],"shardSetId":0,"hostname":"host1","port":1234,` +
 					`"metadata":{"debugPort":0},"subclusterId":0}},` +
 					`"replicaFactor":1,"numShards":0,"isSharded":false,"cutoverTime":"0","isMirrored":false,` +
-					`"maxShardSetId":0,"hasSubclusters":false,"instancesPerSubcluster":0},"version":1}`
+					`"maxShardSetId":0,"isSubclustered":false,"instancesPerSubcluster":0},"version":1}`
 			require.Equal(t, expectedJSON, string(body))
 		case handleroptions.M3AggregatorServiceName:
 			expectedJSON := `{"placement":{"instances":{},"replicaFactor":1,"numShards":0,"isSharded":true,"cutoverTime":"0",` +
-				`"isMirrored":true,"maxShardSetId":0,"hasSubclusters":false,"instancesPerSubcluster":0},"version":1}`
+				`"isMirrored":true,"maxShardSetId":0,"isSubclustered":false,"instancesPerSubcluster":0},"version":1}`
 			require.Equal(t, expectedJSON, string(body))
 		default:
 			expectedJSON := `{"placement":{"instances":{},"replicaFactor":0,"numShards":0,"isSharded":true,"cutoverTime":"0",` +
-				`"isMirrored":false,"maxShardSetId":0,"hasSubclusters":false,"instancesPerSubcluster":0},"version":1}`
+				`"isMirrored":false,"maxShardSetId":0,"isSubclustered":false,"instancesPerSubcluster":0},"version":1}`
 			require.Equal(t, expectedJSON, string(body))
 		}
 

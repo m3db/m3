@@ -54,7 +54,7 @@ type placement struct {
 	maxShardSetID          uint32
 	isSharded              bool
 	isMirrored             bool
-	hasSubClusters         bool
+	isSubclustered         bool
 	instancesPerSubCluster int
 }
 
@@ -90,7 +90,7 @@ func NewPlacementFromProto(p *placementpb.Placement) (Placement, error) {
 		SetCutoverNanos(p.CutoverTime).
 		SetIsMirrored(p.IsMirrored).
 		SetMaxShardSetID(p.MaxShardSetId).
-		SetHasSubClusters(p.HasSubclusters).
+		SetIsSubclustered(p.IsSubclustered).
 		SetInstancesPerSubCluster(int(p.InstancesPerSubcluster)), nil
 }
 
@@ -170,12 +170,12 @@ func (p *placement) SetInstancesPerSubCluster(v int) Placement {
 	return p
 }
 
-func (p *placement) HasSubClusters() bool {
-	return p.hasSubClusters
+func (p *placement) IsSubclustered() bool {
+	return p.isSubclustered
 }
 
-func (p *placement) SetHasSubClusters(v bool) Placement {
-	p.hasSubClusters = v
+func (p *placement) SetIsSubclustered(v bool) Placement {
+	p.isSubclustered = v
 	return p
 }
 
@@ -249,7 +249,7 @@ func (p *placement) Proto() (*placementpb.Placement, error) {
 		CutoverTime:            p.CutoverNanos(),
 		IsMirrored:             p.IsMirrored(),
 		MaxShardSetId:          p.MaxShardSetID(),
-		HasSubclusters:         p.HasSubClusters(),
+		IsSubclustered:         p.IsSubclustered(),
 		InstancesPerSubcluster: uint32(p.InstancesPerSubCluster()),
 	}, nil
 }
@@ -264,7 +264,7 @@ func (p *placement) Clone() Placement {
 		SetCutoverNanos(p.CutoverNanos()).
 		SetMaxShardSetID(p.MaxShardSetID()).
 		SetVersion(p.Version()).
-		SetHasSubClusters(p.HasSubClusters()).
+		SetIsSubclustered(p.IsSubclustered()).
 		SetInstancesPerSubCluster(p.InstancesPerSubCluster())
 }
 
@@ -703,17 +703,17 @@ func (s ByIDAscending) Swap(i, j int) {
 
 // BySubClusterIDInstanceID is a type that implements sort.Interface for a slice of placement.Instance
 // It sorts instances first by subcluster ID, then by instance ID within each subcluster
-type BySubClusterIDInstanceID []Instance
+type BySubClusterIDThenInstanceID []Instance
 
-func (a BySubClusterIDInstanceID) Len() int { return len(a) }
+func (a BySubClusterIDThenInstanceID) Len() int { return len(a) }
 
-func (a BySubClusterIDInstanceID) Less(i, j int) bool {
+func (a BySubClusterIDThenInstanceID) Less(i, j int) bool {
 	if a[i].SubClusterID() == a[j].SubClusterID() {
 		return a[i].ID() < a[j].ID()
 	}
 	return a[i].SubClusterID() < a[j].SubClusterID()
 }
 
-func (a BySubClusterIDInstanceID) Swap(i, j int) {
+func (a BySubClusterIDThenInstanceID) Swap(i, j int) {
 	a[i], a[j] = a[j], a[i]
 }

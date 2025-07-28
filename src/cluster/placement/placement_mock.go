@@ -505,20 +505,6 @@ func (mr *MockPlacementMockRecorder) CutoverNanos() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CutoverNanos", reflect.TypeOf((*MockPlacement)(nil).CutoverNanos))
 }
 
-// HasSubClusters mocks base method.
-func (m *MockPlacement) HasSubClusters() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HasSubClusters")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// HasSubClusters indicates an expected call of HasSubClusters.
-func (mr *MockPlacementMockRecorder) HasSubClusters() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasSubClusters", reflect.TypeOf((*MockPlacement)(nil).HasSubClusters))
-}
-
 // Instance mocks base method.
 func (m *MockPlacement) Instance(id string) (Instance, bool) {
 	m.ctrl.T.Helper()
@@ -602,6 +588,20 @@ func (m *MockPlacement) IsSharded() bool {
 func (mr *MockPlacementMockRecorder) IsSharded() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSharded", reflect.TypeOf((*MockPlacement)(nil).IsSharded))
+}
+
+// IsSubclustered mocks base method.
+func (m *MockPlacement) IsSubclustered() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsSubclustered")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsSubclustered indicates an expected call of IsSubclustered.
+func (mr *MockPlacementMockRecorder) IsSubclustered() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSubclustered", reflect.TypeOf((*MockPlacement)(nil).IsSubclustered))
 }
 
 // MaxShardSetID mocks base method.
@@ -689,20 +689,6 @@ func (mr *MockPlacementMockRecorder) SetCutoverNanos(cutoverNanos interface{}) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCutoverNanos", reflect.TypeOf((*MockPlacement)(nil).SetCutoverNanos), cutoverNanos)
 }
 
-// SetHasSubClusters mocks base method.
-func (m *MockPlacement) SetHasSubClusters(v bool) Placement {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetHasSubClusters", v)
-	ret0, _ := ret[0].(Placement)
-	return ret0
-}
-
-// SetHasSubClusters indicates an expected call of SetHasSubClusters.
-func (mr *MockPlacementMockRecorder) SetHasSubClusters(v interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHasSubClusters", reflect.TypeOf((*MockPlacement)(nil).SetHasSubClusters), v)
-}
-
 // SetInstances mocks base method.
 func (m *MockPlacement) SetInstances(instances []Instance) Placement {
 	m.ctrl.T.Helper()
@@ -757,6 +743,20 @@ func (m *MockPlacement) SetIsSharded(v bool) Placement {
 func (mr *MockPlacementMockRecorder) SetIsSharded(v interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIsSharded", reflect.TypeOf((*MockPlacement)(nil).SetIsSharded), v)
+}
+
+// SetIsSubclustered mocks base method.
+func (m *MockPlacement) SetIsSubclustered(v bool) Placement {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetIsSubclustered", v)
+	ret0, _ := ret[0].(Placement)
+	return ret0
+}
+
+// SetIsSubclustered indicates an expected call of SetIsSubclustered.
+func (mr *MockPlacementMockRecorder) SetIsSubclustered(v interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIsSubclustered", reflect.TypeOf((*MockPlacement)(nil).SetIsSubclustered), v)
 }
 
 // SetMaxShardSetID mocks base method.
@@ -1243,20 +1243,6 @@ func (mr *MockOptionsMockRecorder) Dryrun() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Dryrun", reflect.TypeOf((*MockOptions)(nil).Dryrun))
 }
 
-// HasSubClusters mocks base method.
-func (m *MockOptions) HasSubClusters() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HasSubClusters")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// HasSubClusters indicates an expected call of HasSubClusters.
-func (mr *MockOptionsMockRecorder) HasSubClusters() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasSubClusters", reflect.TypeOf((*MockOptions)(nil).HasSubClusters))
-}
-
 // InstanceSelector mocks base method.
 func (m *MockOptions) InstanceSelector() InstanceSelector {
 	m.ctrl.T.Helper()
@@ -1369,6 +1355,20 @@ func (mr *MockOptionsMockRecorder) IsStaged() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsStaged", reflect.TypeOf((*MockOptions)(nil).IsStaged))
 }
 
+// IsSubclustered mocks base method.
+func (m *MockOptions) IsSubclustered() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsSubclustered")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsSubclustered indicates an expected call of IsSubclustered.
+func (mr *MockOptionsMockRecorder) IsSubclustered() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSubclustered", reflect.TypeOf((*MockOptions)(nil).IsSubclustered))
+}
+
 // NowFn mocks base method.
 func (m *MockOptions) NowFn() clock.NowFn {
 	m.ctrl.T.Helper()
@@ -1465,20 +1465,6 @@ func (m *MockOptions) SetDryrun(d bool) Options {
 func (mr *MockOptionsMockRecorder) SetDryrun(d interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetDryrun", reflect.TypeOf((*MockOptions)(nil).SetDryrun), d)
-}
-
-// SetHasSubClusters mocks base method.
-func (m *MockOptions) SetHasSubClusters(v bool) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetHasSubClusters", v)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetHasSubClusters indicates an expected call of SetHasSubClusters.
-func (mr *MockOptionsMockRecorder) SetHasSubClusters(v interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHasSubClusters", reflect.TypeOf((*MockOptions)(nil).SetHasSubClusters), v)
 }
 
 // SetInstanceSelector mocks base method.
@@ -1591,6 +1577,20 @@ func (m *MockOptions) SetIsStaged(v bool) Options {
 func (mr *MockOptionsMockRecorder) SetIsStaged(v interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIsStaged", reflect.TypeOf((*MockOptions)(nil).SetIsStaged), v)
+}
+
+// SetIsSubclustered mocks base method.
+func (m *MockOptions) SetIsSubclustered(v bool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetIsSubclustered", v)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetIsSubclustered indicates an expected call of SetIsSubclustered.
+func (mr *MockOptionsMockRecorder) SetIsSubclustered(v interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIsSubclustered", reflect.TypeOf((*MockOptions)(nil).SetIsSubclustered), v)
 }
 
 // SetNowFn mocks base method.

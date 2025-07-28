@@ -135,7 +135,7 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 		},
 		IsSharded:              false,
 		IsMirrored:             false,
-		HasSubclusters:         false,
+		IsSubclustered:         false,
 		InstancesPerSubcluster: 0,
 	}
 	newPlacement, err := placement.NewPlacementFromProto(placementProto)
