@@ -498,7 +498,7 @@ func TestAssignSubClusterIDs(t *testing.T) {
 					placement.NewEmptyInstance("existing5", "r5", "z1", "endpoint5", 1).SetSubClusterID(2),
 				}).
 				SetIsSharded(true).
-				SetHasSubClusters(true),
+				SetIsSubclustered(true),
 			newInstances: []placement.Instance{
 				placement.NewEmptyInstance("new1", "r6", "z1", "endpoint6", 1),
 				placement.NewEmptyInstance("new2", "r7", "z1", "endpoint7", 1),
@@ -520,7 +520,7 @@ func TestAssignSubClusterIDs(t *testing.T) {
 					placement.NewEmptyInstance("existing4", "r4", "z1", "endpoint4", 1).SetSubClusterID(2), // subcluster 2 full
 				}).
 				SetIsSharded(true).
-				SetHasSubClusters(true),
+				SetIsSubclustered(true),
 			newInstances: []placement.Instance{
 				placement.NewEmptyInstance("new1", "r5", "z1", "endpoint5", 1),
 				placement.NewEmptyInstance("new2", "r6", "z1", "endpoint6", 1),
@@ -599,7 +599,7 @@ func TestAssignSubClusterIDs(t *testing.T) {
 					placement.NewEmptyInstance("existing6", "r6", "z1", "endpoint6", 1).SetSubClusterID(3), // subcluster 3 full
 				}).
 				SetIsSharded(true).
-				SetHasSubClusters(true),
+				SetIsSubclustered(true),
 			newInstances: []placement.Instance{
 				placement.NewEmptyInstance("new1", "r7", "z1", "endpoint7", 1),
 				placement.NewEmptyInstance("new2", "r8", "z1", "endpoint8", 1),

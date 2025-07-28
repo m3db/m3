@@ -78,7 +78,7 @@ func newSubclusteredInitHelper(
 		SetShards(ids).
 		SetReplicaFactor(rf).
 		SetIsSharded(true).
-		SetHasSubClusters(true).
+		SetIsSubclustered(true).
 		SetInstancesPerSubCluster(opts.InstancesPerSubCluster()).
 		SetCutoverNanos(opts.PlacementCutoverNanosFn()())
 	ph, err := newSubclusteredHelper(emptyPlacement, opts, 0)
@@ -113,15 +113,13 @@ func newSubclusteredHelper(
 	}
 
 	ph.scanCurrentLoad(subClusterToExclude)
-	ph.buildTargetLoad(subClusterToExclude)
-	ph.buildTargetSubclusterLoad(subClusterToExclude)
 
 	err = ph.validateSubclusterDistribution()
 	if err != nil {
 		return nil, err
 	}
 
-	ph.buildTargetLoad()
+	ph.buildTargetLoad(subClusterToExclude)
 	ph.buildTargetSubclusterLoad(subClusterToExclude)
 
 	return ph, nil
@@ -393,6 +391,9 @@ func assignSubClusterIDs(
 		currInstances := currPlacement.Instances()
 
 		for _, instance := range currInstances {
+			if instance.IsLeaving() {
+				continue
+			}
 			if instance.SubClusterID() > maxSubclusterID {
 				maxSubclusterID = instance.SubClusterID()
 				maxSubclusterCount = 1
