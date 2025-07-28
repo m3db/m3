@@ -20,6 +20,10 @@ func newSubclusteredAlgorithm(opts placement.Options) placement.Algorithm {
 }
 
 func (a subclusteredPlacementAlgorithm) IsCompatibleWith(p placement.Placement) error {
+	if p == nil {
+		return fmt.Errorf("placement is nil")
+	}
+
 	if !p.IsSharded() {
 		return errIncompatibleWithSubclusteredAlgo
 	}
@@ -35,8 +39,26 @@ func (a subclusteredPlacementAlgorithm) InitialPlacement(
 	shards []uint32,
 	rf int,
 ) (placement.Placement, error) {
-	// TODO: Implement subclustered initial placement logic
-	return nil, fmt.Errorf("subclustered initial placement not yet implemented")
+	instancesPerSubcluster := a.opts.InstancesPerSubCluster()
+	if instancesPerSubcluster <= 0 {
+		return nil, fmt.Errorf("instances per subcluster is not set")
+	}
+
+	if instancesPerSubcluster%rf != 0 {
+		return nil, fmt.Errorf("instances per subcluster is not a multiple of replica factor")
+	}
+	if len(instances)%instancesPerSubcluster != 0 {
+		return nil, fmt.Errorf("number of instances is not a multiple of instances per subcluster")
+	}
+
+	_, err := newSubclusteredInitHelper(instances, shards, a.opts, rf)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: Add logic to place all shard replicas.
+
+	return nil, nil
 }
 
 func (a subclusteredPlacementAlgorithm) AddReplica(p placement.Placement) (placement.Placement, error) {
