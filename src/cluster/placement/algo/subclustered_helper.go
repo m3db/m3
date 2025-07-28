@@ -76,9 +76,106 @@ func newSubclusteredHelper(p placement.Placement, targetRF int, opts placement.O
 		ph.instances[instance.ID()] = instance
 	}
 
-	// TODO: Implement subclustered helper logic to scan current load and build target load. Also add the validations.
+	// We are adding a constraint of all instances have the same weight when we are using subclustered placement.
+	err := ph.validateInstanceWeight()
+	if err != nil {
+		return nil, err
+	}
+
+	ph.scanCurrentLoad(subClusterToExclude)
+
+	err = ph.validateSubclusterDistribution()
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: Implement subclustered helper logic build target load.
 
 	return ph, nil
+}
+
+// validateInstanceWeight validates that all instances have the same weight.
+// nolint: unused
+func (ph *subclusteredHelper) validateInstanceWeight() error {
+	if len(ph.instances) == 0 {
+		return nil
+	}
+
+	// Get the expected weight from the first instance
+	firstInstance := true
+	expectedWeight := uint32(0)
+
+	// Check that each and every instance has the same weight
+	for _, instance := range ph.instances {
+		if firstInstance {
+			expectedWeight = instance.Weight()
+			firstInstance = false
+			continue
+		}
+
+		if instance.Weight() != expectedWeight {
+			return fmt.Errorf("inconsistent instance weights: instance %s has weight %d, expected %d",
+				instance.ID(), instance.Weight(), expectedWeight)
+		}
+	}
+
+	return nil
+}
+
+// nolint
+func (ph *subclusteredHelper) scanCurrentLoad(subClusterToExclude uint32) {
+	ph.shardToInstanceMap = make(map[uint32]map[placement.Instance]struct{}, len(ph.uniqueShards))
+	ph.groupToInstancesMap = make(map[string]map[placement.Instance]struct{})
+	ph.groupToWeightMap = make(map[string]uint32)
+	ph.subClusters = make(map[uint32]*subcluster)
+	totalWeight := uint32(0)
+	for _, instance := range ph.instances {
+		if _, exist := ph.groupToInstancesMap[instance.IsolationGroup()]; !exist {
+			ph.groupToInstancesMap[instance.IsolationGroup()] = make(map[placement.Instance]struct{})
+		}
+		ph.groupToInstancesMap[instance.IsolationGroup()][instance] = struct{}{}
+
+		if instance.IsLeaving() {
+			continue
+		}
+
+		subClusterID := instance.SubClusterID()
+		if _, exist := ph.subClusters[subClusterID]; !exist {
+			ph.subClusters[subClusterID] = &subcluster{
+				id:                  subClusterID,
+				instances:           make(map[string]placement.Instance),
+				shardMap:            make(map[uint32]int),
+				instanceShardCounts: make(map[string]int),
+			}
+		}
+
+		// if we are checking that all instance weight is same than we can simply the calculation by assuming it as 1
+		ph.groupToWeightMap[instance.IsolationGroup()]++
+		totalWeight++
+		ph.subClusters[subClusterID].instances[instance.ID()] = instance
+
+		for _, s := range instance.Shards().All() {
+			if s.State() == shard.Leaving {
+				continue
+			}
+			ph.assignShardToInstance(s, instance)
+		}
+
+	}
+	ph.totalWeight = totalWeight
+}
+
+// assignShardToInstance assigns a shard to an instance.
+// nolint: unused
+func (ph *subclusteredHelper) assignShardToInstance(s shard.Shard, to placement.Instance) {
+	to.Shards().Add(s)
+
+	if _, exist := ph.shardToInstanceMap[s.ID()]; !exist {
+		ph.shardToInstanceMap[s.ID()] = make(map[placement.Instance]struct{})
+	}
+	ph.shardToInstanceMap[s.ID()][to] = struct{}{}
+	ph.subClusters[to.SubClusterID()].shardMap[s.ID()]++
+	ph.subClusters[to.SubClusterID()].instanceShardCounts[to.ID()]++
 }
 
 // nolint
@@ -140,4 +237,44 @@ func (ph *subclusteredHelper) reclaimLeavingShards(instance placement.Instance) 
 // nolint: unused
 func (ph *subclusteredHelper) returnInitializingShards(instance placement.Instance) {
 	// TODO: Implement subclustered return initializing shards logic
+}
+
+// validateSubclusterDistribution validates that:
+// 1. Number of isolation groups equals replica factor (rf)
+// 2. For complete subclusters, nodes per isolation group = instancesPerSubcluster / rf
+// nolint: unused
+func (ph *subclusteredHelper) validateSubclusterDistribution() error {
+	if len(ph.instances) == 0 {
+		return nil
+	}
+
+	if ph.opts.InstancesPerSubCluster() <= 0 {
+		return fmt.Errorf("instances per subcluster is not set")
+	}
+
+	if len(ph.groupToInstancesMap) != ph.rf {
+		return fmt.Errorf("number of isolation groups (%d) does not match replica factor (%d)",
+			len(ph.groupToInstancesMap), ph.rf)
+	}
+
+	// Validate each subcluster
+	for subclusterID, currCluster := range ph.subClusters {
+		isolationGroups := make(map[string]int)
+		for _, instance := range currCluster.instances {
+			isolationGroups[instance.IsolationGroup()]++
+		}
+
+		expectedInstancesPerGroup := ph.instancesPerSubcluster / ph.rf
+		for isolationGroup, count := range isolationGroups {
+			if len(currCluster.instances) == ph.instancesPerSubcluster && count != expectedInstancesPerGroup {
+				return fmt.Errorf("subcluster %d isolation group %s has %d instances, expected %d",
+					subclusterID, isolationGroup, count, expectedInstancesPerGroup)
+			} else if len(currCluster.instances) < ph.instancesPerSubcluster && count > expectedInstancesPerGroup {
+				return fmt.Errorf("subcluster %d isolation group %s has %d instances, expected 0",
+					subclusterID, isolationGroup, count)
+			}
+		}
+	}
+
+	return nil
 }
