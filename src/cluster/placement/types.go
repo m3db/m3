@@ -163,11 +163,11 @@ type Placement interface {
 	// SetIsSharded sets IsSharded
 	SetIsSharded(v bool) Placement
 
-	// HasSubClusters returns whether the placement has sub-clusters.
-	HasSubClusters() bool
+	// IsSubclustered returns whether the placement has sub-clusters.
+	IsSubclustered() bool
 
-	// SetHasClusters sets HasSubClusters.
-	SetHasSubClusters(v bool) Placement
+	// SetIsSubclustered sets IsSubclustered.
+	SetIsSubclustered(v bool) Placement
 
 	// CutoverNanos returns the cutover time in nanoseconds.
 	CutoverNanos() int64
@@ -324,11 +324,11 @@ type Options interface {
 	// SetInstancesPerSubCluster sets the number of instances per sub-cluster.
 	SetInstancesPerSubCluster(value int) Options
 
-	// HasSubClusters returns whether the placement has sub-clusters.
-	HasSubClusters() bool
+	// IsSubclustered returns whether the placement has sub-clusters.
+	IsSubclustered() bool
 
-	// SetHasSubClusters sets HasSubClusters.
-	SetHasSubClusters(v bool) Options
+	// SetIsSubclustered sets IsSubclustered.
+	SetIsSubclustered(v bool) Options
 
 	// IsSharded describes whether a placement needs to be sharded,
 	// when set to false, no specific shards will be assigned to any instance.

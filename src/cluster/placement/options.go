@@ -37,7 +37,7 @@ const (
 	// that the placement was created with.
 	defaultAllowAllZones = false
 	// By default the placement does not have sub-clusters.
-	defaultHasSubClusters = false
+	defaultIsSubclustered = false
 	// By default the number of instances per sub-cluster is 0.
 	defaultInstancesPerSubCluster = 0
 )
@@ -84,7 +84,7 @@ type options struct {
 	isStaged               bool
 	compress               bool
 	instanceSelector       InstanceSelector
-	hasSubClusters         bool
+	isSubclustered         bool
 	instancesPerSubCluster int
 }
 
@@ -97,12 +97,12 @@ func (o options) SetInstancesPerSubCluster(value int) Options {
 	return o
 }
 
-func (o options) HasSubClusters() bool {
-	return o.hasSubClusters
+func (o options) IsSubclustered() bool {
+	return o.isSubclustered
 }
 
-func (o options) SetHasSubClusters(v bool) Options {
-	o.hasSubClusters = v
+func (o options) SetIsSubclustered(v bool) Options {
+	o.isSubclustered = v
 	return o
 }
 
@@ -121,7 +121,7 @@ func NewOptions() Options {
 		validateFn:             Validate,
 		nowFn:                  time.Now,
 		allowAllZones:          defaultAllowAllZones,
-		hasSubClusters:         defaultHasSubClusters,
+		isSubclustered:         defaultIsSubclustered,
 		instancesPerSubCluster: defaultInstancesPerSubCluster,
 	}
 }
