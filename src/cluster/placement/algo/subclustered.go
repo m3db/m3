@@ -24,7 +24,7 @@ func (a subclusteredPlacementAlgorithm) IsCompatibleWith(p placement.Placement) 
 		return errIncompatibleWithSubclusteredAlgo
 	}
 
-	if !p.HasSubClusters() {
+	if !p.IsSubclustered() {
 		return errIncompatibleWithSubclusteredAlgo
 	}
 	return nil
