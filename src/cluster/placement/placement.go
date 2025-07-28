@@ -701,7 +701,7 @@ func (s ByIDAscending) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
-// BySubClusterIDInstanceID is a type that implements sort.Interface for a slice of placement.Instance
+// BySubClusterIDThenInstanceID is a type that implements sort.Interface for a slice of placement.Instance
 // It sorts instances first by subcluster ID, then by instance ID within each subcluster
 type BySubClusterIDThenInstanceID []Instance
 

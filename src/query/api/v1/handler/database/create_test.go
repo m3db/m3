@@ -225,7 +225,7 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 				"cutoverTime": "0",
 				"isMirrored": false,
 				"maxShardSetId": 0,
-				"hasSubclusters": false,
+				"isSubclustered": false,
 				"instancesPerSubcluster": 0
 			},
 			"version": 0
@@ -404,7 +404,7 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 				"cutoverTime": "0",
 				"isMirrored": false,
 				"maxShardSetId": 0,
-				"hasSubclusters": false,
+				"isSubclustered": false,
 				"instancesPerSubcluster": 0
 			},
 			"version": 0
@@ -536,7 +536,7 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 				"cutoverTime": "0",
 				"isMirrored": false,
 				"maxShardSetId": 0,
-				"hasSubclusters": false,
+				"isSubclustered": false,
 				"instancesPerSubcluster": 0
 			},
 			"version": 0
@@ -673,7 +673,7 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 				"cutoverTime": "0",
 				"isMirrored": false,
 				"maxShardSetId": 0,
-				"hasSubclusters": false,
+				"isSubclustered": false,
 				"instancesPerSubcluster": 0
 			},
 			"version": 0
@@ -955,7 +955,7 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 				"cutoverTime": "0",
 				"isMirrored": false,
 				"maxShardSetId": 0,
-				"hasSubclusters": false,
+				"isSubclustered": false,
 				"instancesPerSubcluster": 0
 			},
 			"version": 0
@@ -1116,7 +1116,7 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 				"cutoverTime": "0",
 				"isMirrored": false,
 				"maxShardSetId": 0,
-				"hasSubclusters": false,
+				"isSubclustered": false,
 				"instancesPerSubcluster": 0
 			},
 			"version": 0
@@ -1367,7 +1367,7 @@ func TestLocalTypeWithAggregatedNamespace(t *testing.T) {
 				"cutoverTime": "0",
 				"isMirrored": false,
 				"maxShardSetId": 0,
-				"hasSubclusters": false,
+				"isSubclustered": false,
 				"instancesPerSubcluster": 0
 			},
 			"version": 0
