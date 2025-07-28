@@ -45,21 +45,21 @@ func TestSubclusteredAlgorithm_IsCompatibleWith(t *testing.T) {
 			name: "not sharded placement",
 			placement: placement.NewPlacement().
 				SetIsSharded(false).
-				SetHasSubClusters(true),
+				SetIsSubclustered(true),
 			expectError: true,
 		},
 		{
 			name: "no subclusters placement",
 			placement: placement.NewPlacement().
 				SetIsSharded(true).
-				SetHasSubClusters(false),
+				SetIsSubclustered(false),
 			expectError: true,
 		},
 		{
 			name: "compatible placement",
 			placement: placement.NewPlacement().
 				SetIsSharded(true).
-				SetHasSubClusters(true),
+				SetIsSubclustered(true),
 			expectError: false,
 		},
 	}
