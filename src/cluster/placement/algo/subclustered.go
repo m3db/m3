@@ -42,6 +42,9 @@ func (a subclusteredPlacementAlgorithm) InitialPlacement(
 	if a.opts.InstancesPerSubCluster()%rf != 0 {
 		return nil, fmt.Errorf("instances per subcluster is not a multiple of replica factor")
 	}
+	if len(instances)%a.opts.InstancesPerSubCluster() != 0 {
+		return nil, fmt.Errorf("number of instances is not a multiple of instances per subcluster")
+	}
 
 	_, err := newSubclusteredInitHelper(instances, shards, a.opts, rf)
 	if err != nil {
