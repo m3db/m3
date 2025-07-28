@@ -82,7 +82,7 @@ func newSubclusteredHelper(p placement.Placement, targetRF int, opts placement.O
 		return nil, err
 	}
 
-	ph.scanCurrentLoad()
+	ph.scanCurrentLoad(subClusterToExclude)
 
 	err = ph.validateSubclusterDistribution()
 	if err != nil {
@@ -122,8 +122,8 @@ func (ph *subclusteredHelper) validateInstanceWeight() error {
 	return nil
 }
 
-// nolint: unused
-func (ph *subclusteredHelper) scanCurrentLoad() {
+// nolint
+func (ph *subclusteredHelper) scanCurrentLoad(subClusterToExclude uint32) {
 	ph.shardToInstanceMap = make(map[uint32]map[placement.Instance]struct{}, len(ph.uniqueShards))
 	ph.groupToInstancesMap = make(map[string]map[placement.Instance]struct{})
 	ph.groupToWeightMap = make(map[string]uint32)
@@ -148,6 +148,7 @@ func (ph *subclusteredHelper) scanCurrentLoad() {
 				instanceShardCounts: make(map[string]int),
 			}
 		}
+
 		// if we are checking that all instance weight is same than we can simply the calculation by assuming it as 1
 		ph.groupToWeightMap[instance.IsolationGroup()]++
 		totalWeight++

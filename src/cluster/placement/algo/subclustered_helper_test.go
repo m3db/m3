@@ -93,9 +93,9 @@ func TestNewSubclusteredHelper(t *testing.T) {
 				SetShards([]uint32{1, 2, 3}).
 				SetReplicaFactor(3).
 				SetInstancesPerSubCluster(3).
-				SetHasSubClusters(true),
+				SetIsSubclustered(true),
 			targetRF:            3,
-			opts:                placement.NewOptions().SetInstancesPerSubCluster(3).SetHasSubClusters(true),
+			opts:                placement.NewOptions().SetInstancesPerSubCluster(3).SetIsSubclustered(true),
 			subClusterToExclude: 0,
 			expectError:         false,
 		},
@@ -109,9 +109,9 @@ func TestNewSubclusteredHelper(t *testing.T) {
 				SetShards([]uint32{1, 2}).
 				SetReplicaFactor(2).
 				SetInstancesPerSubCluster(2).
-				SetHasSubClusters(true),
+				SetIsSubclustered(true),
 			targetRF:            2,
-			opts:                placement.NewOptions().SetInstancesPerSubCluster(2).SetHasSubClusters(true),
+			opts:                placement.NewOptions().SetInstancesPerSubCluster(2).SetIsSubclustered(true),
 			subClusterToExclude: 0,
 			expectError:         true,
 			errorMsg:            "inconsistent instance weights",
@@ -132,9 +132,9 @@ func TestNewSubclusteredHelper(t *testing.T) {
 				SetShards([]uint32{1, 2, 3, 4, 5, 6}).
 				SetReplicaFactor(3).
 				SetInstancesPerSubCluster(3).
-				SetHasSubClusters(true),
+				SetIsSubclustered(true),
 			targetRF:            3,
-			opts:                placement.NewOptions().SetInstancesPerSubCluster(3).SetHasSubClusters(true),
+			opts:                placement.NewOptions().SetInstancesPerSubCluster(3).SetIsSubclustered(true),
 			subClusterToExclude: 0,
 			expectError:         false,
 		},
@@ -409,14 +409,14 @@ func createTestPlacement(
 		SetShards(shards).
 		SetReplicaFactor(rf).
 		SetInstancesPerSubCluster(instancesPerSubcluster).
-		SetHasSubClusters(true)
+		SetIsSubclustered(true)
 }
 
 // Helper function to create test options
 func createTestOptions(instancesPerSubcluster int) placement.Options {
 	return placement.NewOptions().
 		SetInstancesPerSubCluster(instancesPerSubcluster).
-		SetHasSubClusters(true).
+		SetIsSubclustered(true).
 		SetInstrumentOptions(instrument.NewOptions().SetLogger(zap.NewNop()))
 }
 
