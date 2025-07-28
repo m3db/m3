@@ -85,7 +85,7 @@ func newSubclusteredHelper(p placement.Placement, targetRF int, opts placement.O
 	}
 
 	ph.scanCurrentLoad(subClusterToExclude)
-	ph.buildTargetLoad()
+	ph.buildTargetLoad(subClusterToExclude)
 	ph.buildTargetSubclusterLoad(subClusterToExclude)
 
 	err = ph.validateSubclusterDistribution()
@@ -171,7 +171,7 @@ func (ph *subclusteredHelper) scanCurrentLoad(subClusterToExclude uint32) {
 
 // buildTargetLoad builds the target load for the placement.
 // nolint
-func (ph *subclusteredHelper) buildTargetLoad() {
+func (ph *subclusteredHelper) buildTargetLoad(subClusterToExclude uint32) {
 	overWeightedGroups := 0
 	overWeight := uint32(0)
 	for _, weight := range ph.groupToWeightMap {
