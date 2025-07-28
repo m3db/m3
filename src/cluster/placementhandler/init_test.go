@@ -71,7 +71,7 @@ var (
 		},
 		IsSharded:              false,
 		IsMirrored:             false,
-		HasSubclusters:         false,
+		IsSubclustered:         false,
 		InstancesPerSubcluster: 0,
 	}
 )
@@ -121,7 +121,7 @@ func TestPlacementInitHandler(t *testing.T) {
 				`"weight":1,"endpoint":"http://host2:1234","shards":[],"shardSetId":0,"hostname":"host2","port":1234,` +
 				`"metadata":{"debugPort":0},"subclusterId":0}},"replicaFactor":0,"numShards":0,` +
 				`"isSharded":false,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0,` +
-				`"hasSubclusters":false,"instancesPerSubcluster":0},"version":0}`
+				`"isSubclustered":false,"instancesPerSubcluster":0},"version":0}`
 		assert.Equal(t, expectedJSON, string(body))
 
 		// Test error response

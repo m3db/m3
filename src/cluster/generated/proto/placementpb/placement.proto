@@ -40,7 +40,7 @@ message Placement {
   // shard set id generations across placement changes.
   uint32 max_shard_set_id = 7;
 
-  bool has_subclusters = 8;
+  bool is_subclustered = 8;
   uint32 instances_per_subcluster = 9;
 }
 

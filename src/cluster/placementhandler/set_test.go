@@ -56,7 +56,7 @@ var (
 		},
 		IsSharded:              false,
 		IsMirrored:             false,
-		HasSubclusters:         false,
+		IsSubclustered:         false,
 		InstancesPerSubcluster: 0,
 	}
 	setNewTestPlacementProto = &placementpb.Placement{
@@ -84,7 +84,7 @@ var (
 		},
 		IsSharded:              false,
 		IsMirrored:             false,
-		HasSubclusters:         false,
+		IsSubclustered:         false,
 		InstancesPerSubcluster: 0,
 	}
 	setTestPlacementReqProto = &admin.PlacementSetRequest{
