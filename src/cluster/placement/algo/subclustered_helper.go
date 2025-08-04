@@ -423,7 +423,7 @@ func (ph *subclusteredHelper) generatePlacement() placement.Placement {
 		SetShards(ph.uniqueShards).
 		SetReplicaFactor(ph.rf).
 		SetIsSharded(true).
-		SetHasSubClusters(true).
+		SetIsSubclustered(true).
 		SetInstancesPerSubCluster(ph.instancesPerSubcluster).
 		SetIsMirrored(ph.opts.IsMirrored()).
 		SetCutoverNanos(ph.opts.PlacementCutoverNanosFn()())
