@@ -263,7 +263,7 @@ func TestSubclusteredAlgorithm_InitialPlacement(t *testing.T) {
 				// Verify placement properties
 				assert.Equal(t, tt.replicaFactor, result.ReplicaFactor())
 				assert.True(t, result.IsSharded())
-				assert.True(t, result.HasSubClusters())
+				assert.True(t, result.IsSubclustered())
 				assert.Equal(t, tt.instancesPerSubcluster, result.InstancesPerSubCluster())
 			}
 		})
