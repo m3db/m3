@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -116,6 +117,7 @@ func (s *handler) Handle(conn net.Conn) {
 	remoteAddress := unknownRemoteHostAddress
 	if remoteAddr := conn.RemoteAddr(); remoteAddr != nil {
 		remoteAddress = remoteAddr.String()
+		strings.Index(remoteAddress, ":") // Ensure we have a port in the address.
 	}
 
 	nowFn := s.opts.ClockOptions().NowFn()
@@ -257,6 +259,18 @@ func (s *handler) Handle(conn net.Conn) {
 		)
 		s.metrics.decodeErrors.Inc(1)
 	}
+}
+
+func (s *handler) extractRemoteIP(addr net.Addr) string {
+
+	// If the address is a TCP address, we can extract the remote IP.
+	if tcpAddr, ok := addr.(*net.TCPAddr); ok {
+		if ip := tcpAddr.IP; ip != nil && !ip.IsUnspecified() {
+			return ip.String()
+		}
+	}
+
+	return addr.String() // Fallback to the string representation of the address.
 }
 
 func (s *handler) Close() {

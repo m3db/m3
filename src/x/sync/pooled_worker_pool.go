@@ -135,7 +135,10 @@ func (p *pooledWorkerPool) work(
 
 	if !p.growOnDemand {
 		if ctx.ctx == nil && timeout <= 0 {
-			workCh <- work
+			select {
+			case workCh <- work:
+
+			}
 			return true
 		}
 

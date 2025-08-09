@@ -21,8 +21,11 @@
 package client
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
+	"log"
+	"slices"
 	"sync"
 	"time"
 
@@ -44,7 +47,8 @@ const (
 	_queueMetricBucketStart    = 64
 )
 
-// instanceWriterManager manages instance writers.
+// instanceWriterManager manages instance writers. This manages an instanceWriter for *all* instances in the placement.
+
 type instanceWriterManager interface {
 	// AddInstances adds instances.
 	AddInstances(instances []placement.Instance) error
@@ -52,7 +56,8 @@ type instanceWriterManager interface {
 	// RemoveInstances removes instancess.
 	RemoveInstances(instances []placement.Instance) error
 
-	// Write writes a metric payload.
+	// Write writes a metric payload to a specific instance and shard. Replication is assumed to be handle one level
+	// up (see tcp_client.go)
 	Write(
 		instance placement.Instance,
 		shardID uint32,
@@ -118,7 +123,9 @@ func newInstanceWriterManager(opts Options) (instanceWriterManager, error) {
 
 	pool, err := xsync.NewPooledWorkerPool(
 		opts.FlushWorkerCount(),
-		xsync.NewPooledWorkerPoolOptions().SetKillWorkerProbability(0.05),
+		xsync.NewPooledWorkerPoolOptions().
+			SetKillWorkerProbability(0.05),
+		//SetGrowOnDemand(true),
 	)
 	if err != nil {
 		return nil, err
@@ -222,16 +229,36 @@ func (mgr *writerManager) Flush() error {
 		wg     sync.WaitGroup
 	)
 
+	// amainsd: nix
+	type kvp struct {
+		key    string
+		writer *refCountedWriter
+	}
+
+	writers := make([]kvp, 0, len(mgr.writers))
+	for key, writer := range mgr.writers {
+		writers = append(writers, kvp{key: key, writer: writer})
+	}
+
+	slices.SortFunc(writers, func(a, b kvp) int {
+		return cmp.Compare(a.key, b.key)
+	})
+
 	numDirty := 0
-	for _, w := range mgr.writers {
+	for _, kvp := range writers {
+		w := kvp.writer
 		if !w.dirty.Load() {
 			continue
 		}
 		numDirty++
-		w := w
 		wg.Add(1)
+		log.Println("Launching flush for writer:", kvp.key) // Debugging line to see which writer is being flushed
 		mgr.pool.Go(func() {
 			defer wg.Done()
+
+			kvp := kvp
+			if kvp.key == "testInstanceID10" {
+			} // capture range variable
 
 			w.dirty.CAS(true, false)
 			if err := w.Flush(); err != nil {

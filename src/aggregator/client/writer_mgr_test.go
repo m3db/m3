@@ -22,18 +22,19 @@ package client
 
 import (
 	"errors"
+	"fmt"
+	"log"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"go.uber.org/goleak"
-
-	"github.com/m3db/m3/src/cluster/placement"
-	"github.com/m3db/m3/src/x/clock"
 )
 
 var (
@@ -277,6 +278,71 @@ func TestWriterManagerFlushPartialError(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), errTestFlush.Error()))
 	require.Equal(t, int64(1), numFlushes.Load())
+}
+
+func TestWriterManagerFlushSlow(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		numFlushes atomic.Int64
+		instances  = []placement.Instance{}
+	)
+
+	numWriters := 20
+	flushWorkerCounter := 11 // repros
+	//flushWorkerCounter := 20
+
+	mgr := mustMakeInstanceWriterManager(testOptions().SetFlushWorkerCount(flushWorkerCounter))
+
+	//slowWriterIdx := rand.Intn(numWriters)
+	slowWriterIdx := 10
+	for i := 0; i < numWriters; i++ {
+		instances = append(instances, placement.NewInstance().SetEndpoint(
+			fmt.Sprintf("testInstanceAddress%d", i)).SetID(
+			fmt.Sprintf("testInstanceID%d", i),
+		))
+
+		writer := NewMockinstanceWriter(ctrl)
+		writer.EXPECT().QueueSize().AnyTimes()
+		writer.EXPECT().Write(gomock.Any(), gomock.Any())
+		writer.EXPECT().Flush().DoAndReturn(func() error {
+			//log.Printf("writer %d", i)
+
+			defer func() {
+				fmt.Printf("%d flushes completed\n", numFlushes.Load())
+			}()
+
+			numFlushes.Inc()
+			if i == slowWriterIdx {
+				log.Println("Simulating slow flush operation for writer", i)
+				// Simulate a slow flush operation.
+				time.Sleep(5 * time.Second)
+				return assert.AnError
+			} else {
+				log.Println("Fast flush operation for writer", i)
+
+			}
+
+			return nil
+		})
+
+		mgr.Lock()
+		mgr.writers[instances[i].ID()] = &refCountedWriter{
+			refCount:       refCount{n: 1},
+			instanceWriter: writer,
+		}
+		mgr.Unlock()
+	}
+
+	for i := 0; i < numWriters; i++ {
+		mgr.Write(instances[i], 0, payloadUnion{}) //nolint:errcheck
+	}
+
+	err := mgr.Flush()
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), assert.AnError.Error()))
+	require.Equal(t, int64(numWriters), numFlushes.Load())
 }
 
 func TestWriterManagerCloseAlreadyClosed(t *testing.T) {
