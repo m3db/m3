@@ -24,6 +24,9 @@ import (
 	"bufio"
 	"io"
 	"os"
+	"sync"
+
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 // FdWithDigestWriter provides a buffered writer for writing to the underlying file.
@@ -64,7 +67,7 @@ func (w *fdWithDigestWriter) Write(b []byte) (int, error) {
 	return written, nil
 }
 
-// Close flushes what's remaining in the buffered writer and closes
+// Close flushes what's remaining in the buffered writer and syncs and closes
 // the underlying file.
 func (w *fdWithDigestWriter) Close() error {
 	if err := w.writer.Flush(); err != nil {
@@ -108,4 +111,43 @@ func (w *fdWithDigestContentsWriter) WriteDigests(digests ...uint32) error {
 		}
 	}
 	return nil
+}
+
+// CloseAll closes all the provided writers sequentially and returns
+// a MultiError with any errors encountered.
+func CloseAll(writers ...FdWithDigestWriter) error {
+	var multiErr xerrors.MultiError
+	for _, writer := range writers {
+		if err := writer.Close(); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+
+	return multiErr.FinalError()
+}
+
+// SyncAll fsyncs (commits to durable media) all the provided writers
+// in parallel and returns a MultiError with any errors encountered.
+func SyncAll(writers ...FdWithDigestWriter) error {
+	var (
+		multiErr xerrors.MultiError
+		mu       sync.Mutex
+		wg       sync.WaitGroup
+	)
+
+	for _, writer := range writers {
+		wg.Add(1)
+		fd := writer.Fd()
+		go func() {
+			if err := fd.Sync(); err != nil {
+				mu.Lock()
+				multiErr = multiErr.Add(err)
+				mu.Unlock()
+			}
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+
+	return multiErr.FinalError()
 }
