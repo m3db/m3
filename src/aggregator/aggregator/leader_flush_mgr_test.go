@@ -432,7 +432,7 @@ func TestLeaderFlushTaskRunShardsError(t *testing.T) {
 	defer ctrl.Finish()
 
 	var flushRequest *flushRequest
-	flushers := []flushingMetricList{NewMockflushingMetricList(ctrl)}
+	flushers := []flusherWithTime{{flusher: NewMockflushingMetricList(ctrl)}}
 	doneCh := make(chan struct{})
 	errShards := errors.New("error getting shards")
 	placementManager := NewMockPlacementManager(ctrl)
@@ -463,7 +463,7 @@ func TestLeaderFlushTaskRunShardNotFound(t *testing.T) {
 			request = &req
 		})
 
-	flushers := []flushingMetricList{flusher}
+	flushers := []flusherWithTime{{flusher: flusher}}
 	doneCh := make(chan struct{})
 	placementManager := NewMockPlacementManager(ctrl)
 	placementManager.EXPECT().Shards().Return(shard.NewShards(nil), nil)
@@ -509,7 +509,10 @@ func TestLeaderFlushTaskRunWithFlushes(t *testing.T) {
 			requests[1] = req
 		})
 
-	flushers := []flushingMetricList{flusher1, flusher2}
+	flushers := []flusherWithTime{
+		{flusher: flusher1},
+		{flusher: flusher2},
+	}
 	doneCh := make(chan struct{})
 	shards := []shard.Shard{
 		shard.NewShard(0).SetState(shard.Initializing).SetCutoverNanos(5000).SetCutoffNanos(20000),
