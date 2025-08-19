@@ -39,6 +39,7 @@ type validationOperation int
 const (
 	validationOpRemoval validationOperation = iota
 	validationOpAddition
+	validationOpBalance
 )
 
 type subclusteredHelper struct {
@@ -83,7 +84,7 @@ func newSubclusteredInitHelper(
 		SetIsSubclustered(true).
 		SetInstancesPerSubCluster(opts.InstancesPerSubCluster()).
 		SetCutoverNanos(opts.PlacementCutoverNanosFn()())
-	ph, err := newSubclusteredHelper(emptyPlacement, opts, 0)
+	ph, err := newSubclusteredHelper(emptyPlacement, opts, uninitializedSubClusterID)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +102,7 @@ func newubclusteredAddInstanceHelper(
 		if err := assignSubClusterIDs([]placement.Instance{instance}, p, opts.InstancesPerSubCluster()); err != nil {
 			return nil, nil, err
 		}
-		ph, err := newSubclusteredHelper(p.SetInstances(append(p.Instances(), instance)), opts, 0)
+		ph, err := newSubclusteredHelper(p.SetInstances(append(p.Instances(), instance)), opts, uninitializedSubClusterID)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -126,7 +127,7 @@ func newubclusteredAddInstanceHelper(
 		return nil, nil, fmt.Errorf("unexpected type %v", t)
 	}
 
-	ph, err := newSubclusteredHelper(p, opts, 0)
+	ph, err := newSubclusteredHelper(p, opts, uninitializedSubClusterID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -148,7 +149,7 @@ func newubclusteredRemoveInstanceHelper(
 	// in the cluster. In that case we don't need to exclude the subcluster from the calculation of
 	// targetShardCount.
 	if len(subclusterInstances) >= opts.InstancesPerSubCluster() {
-		ph, err := newSubclusteredHelper(p, opts, 0)
+		ph, err := newSubclusteredHelper(p, opts, uninitializedSubClusterID)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -202,7 +203,7 @@ func newubclusteredReplaceInstanceHelper(
 	for i, addingInstance := range newAddingInstances {
 		addingInstance.SetSubClusterID(leavingInstances[i].SubClusterID())
 	}
-	ph, err := newSubclusteredHelper(p, opts, 0)
+	ph, err := newSubclusteredHelper(p, opts, uninitializedSubClusterID)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -879,6 +880,10 @@ func (ph *subclusteredHelper) mostUnderLoadedInstance() (placement.Instance, boo
 	)
 	// nolint: dupl
 	for id, instance := range ph.instances {
+		if ph.targetLoad[id] == 0 {
+			// only the instances with target load > 0 are considered for load balancing
+			continue
+		}
 		loadGap := ph.targetLoad[id] - loadOnInstance(instance)
 		if loadGap > maxLoadGap {
 			maxLoadGap = loadGap
@@ -898,6 +903,7 @@ func (ph *subclusteredHelper) mostUnderLoadedInstance() (placement.Instance, boo
 }
 
 // optimize rebalances the load distribution in the cluster.
+// nolint: dupl
 func (ph *subclusteredHelper) optimize(t optimizeType) error {
 	var fn assignLoadFn
 	switch t {
@@ -1096,6 +1102,8 @@ func (ph *subclusteredHelper) validatePartialSubclusters(excludeSubclusterID uin
 				operation = "removed"
 			case validationOpAddition:
 				operation = "added"
+			case validationOpBalance:
+				operation = "balanced"
 			}
 			return fmt.Errorf("partial subcluster %d is present with %d instances, while a subcluster %d is being %s",
 				subclusterID, len(subcluster.instances), excludeSubclusterID, operation)
@@ -1193,10 +1201,4 @@ func assignSubClusterIDs(
 	}
 
 	return nil
-}
-
-func (ph *subclusteredHelper) buildInstanceHeap(
-	instances []placement.Instance,
-	availableCapacityAscending bool) (heap.Interface, error) {
-	return newHeap(instances, availableCapacityAscending, ph.targetLoad, ph.groupToWeightMap, true)
 }

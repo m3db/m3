@@ -11,6 +11,10 @@ var (
 	errIncompatibleWithSubclusteredAlgo = errors.New("could not apply subclustered algo on the placement")
 )
 
+const (
+	uninitializedSubClusterID = 0
+)
+
 type subclusteredPlacementAlgorithm struct {
 	opts placement.Options
 }
@@ -190,7 +194,11 @@ func (a subclusteredPlacementAlgorithm) BalanceShards(
 	if err := a.IsCompatibleWith(p); err != nil {
 		return nil, err
 	}
-	ph, err := newSubclusteredHelper(p, a.opts, 0)
+	ph, err := newSubclusteredHelper(p, a.opts, uninitializedSubClusterID)
+	if err != nil {
+		return nil, err
+	}
+	err = ph.validatePartialSubclusters(uninitializedSubClusterID, validationOpBalance)
 	if err != nil {
 		return nil, err
 	}
