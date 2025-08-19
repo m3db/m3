@@ -885,7 +885,7 @@ func TestReplaceInstancesValidCases(t *testing.T) {
 				SetValidZone("zone1").
 				SetIsSharded(true).
 				SetInstancesPerSubCluster(tt.instancesPerSub).
-				SetHasSubClusters(true)
+				SetIsSubclustered(true)
 			algo := newSubclusteredAlgorithm(opts)
 
 			// Perform initial placement
@@ -1023,7 +1023,7 @@ func TestRemoveInstancesErrorCases(t *testing.T) {
 			expectError:            true,
 			errorContains:          "could not apply subclustered algo on the placement",
 			setupPlacement: func() placement.Placement {
-				opts := placement.NewOptions().SetInstancesPerSubCluster(6).SetHasSubClusters(true)
+				opts := placement.NewOptions().SetInstancesPerSubCluster(6).SetIsSubclustered(true)
 				algo := subclusteredPlacementAlgorithm{opts: opts}
 
 				instances := make([]placement.Instance, 6)
@@ -1063,7 +1063,7 @@ func TestRemoveInstancesErrorCases(t *testing.T) {
 					SetShards(p.Shards()).
 					SetReplicaFactor(p.ReplicaFactor()).
 					SetIsSharded(false).
-					SetHasSubClusters(true).
+					SetIsSubclustered(true).
 					SetInstancesPerSubCluster(p.InstancesPerSubCluster())
 			},
 		},
@@ -1076,7 +1076,7 @@ func TestRemoveInstancesErrorCases(t *testing.T) {
 			expectError:            true,
 			errorContains:          "could not apply subclustered algo on the placement",
 			setupPlacement: func() placement.Placement {
-				opts := placement.NewOptions().SetInstancesPerSubCluster(6).SetHasSubClusters(true)
+				opts := placement.NewOptions().SetInstancesPerSubCluster(6).SetIsSubclustered(true)
 				algo := newSubclusteredAlgorithm(opts)
 
 				instances := make([]placement.Instance, 6)
@@ -1105,7 +1105,7 @@ func TestRemoveInstancesErrorCases(t *testing.T) {
 					SetShards(p.Shards()).
 					SetReplicaFactor(p.ReplicaFactor()).
 					SetIsSharded(true).
-					SetHasSubClusters(false).
+					SetIsSubclustered(false).
 					SetInstancesPerSubCluster(p.InstancesPerSubCluster())
 			},
 		},
@@ -1119,7 +1119,7 @@ func TestRemoveInstancesErrorCases(t *testing.T) {
 			errorContains:          "instance non-existent-instance does not exist in placement",
 			// nolint: dupl
 			setupPlacement: func() placement.Placement {
-				opts := placement.NewOptions().SetInstancesPerSubCluster(6).SetHasSubClusters(true)
+				opts := placement.NewOptions().SetInstancesPerSubCluster(6).SetIsSubclustered(true)
 				algo := newSubclusteredAlgorithm(opts)
 
 				instances := make([]placement.Instance, 12)
@@ -1155,22 +1155,17 @@ func TestRemoveInstancesErrorCases(t *testing.T) {
 			expectError:            true,
 			errorContains:          "partial subcluster",
 			setupPlacement: func() placement.Placement {
-				opts := placement.NewOptions().SetInstancesPerSubCluster(6).SetHasSubClusters(true)
+				opts := placement.NewOptions().SetInstancesPerSubCluster(6).SetIsSubclustered(true)
 				algo := subclusteredPlacementAlgorithm{opts: opts}
 
 				// Create instances with one subcluster having fewer instances than instancesPerSubcluster
-				instances := make([]placement.Instance, 9) // 6 + 3 instead of 6 + 6
-				for i := 0; i < 9; i++ {
-					subclusterID := uint32(1)
-					if i >= 6 {
-						subclusterID = 2
-					}
+				instances := make([]placement.Instance, 6)
+				for i := 0; i < 6; i++ {
 					instances[i] = placement.NewInstance().
 						SetID(fmt.Sprintf("I%d", i)).
 						SetIsolationGroup(fmt.Sprintf("R%d", i%3)).
 						SetWeight(1).
 						SetEndpoint(fmt.Sprintf("E%d", i)).
-						SetSubClusterID(subclusterID).
 						SetShards(shard.NewShards(nil))
 				}
 
@@ -1182,6 +1177,20 @@ func TestRemoveInstancesErrorCases(t *testing.T) {
 				p, err := algo.InitialPlacement(instances, shards, 3)
 				if err != nil {
 					t.Fatalf("Failed to create placement: %v", err)
+				}
+
+				instances = make([]placement.Instance, 3)
+				for i := 0; i < 3; i++ {
+					instances[i] = placement.NewInstance().
+						SetID(fmt.Sprintf("I%d", i+6)).
+						SetIsolationGroup(fmt.Sprintf("R%d", (i+6)%3)).
+						SetWeight(1).
+						SetEndpoint(fmt.Sprintf("E%d", i+6)).
+						SetShards(shard.NewShards(nil))
+				}
+				p, err = algo.AddInstances(p, instances)
+				if err != nil {
+					t.Fatalf("Failed to add instances: %v", err)
 				}
 				return p
 			},
@@ -1195,7 +1204,7 @@ func TestRemoveInstancesErrorCases(t *testing.T) {
 			expectError:            true,
 			errorContains:          "inconsistent instance weights",
 			setupPlacement: func() placement.Placement {
-				opts := placement.NewOptions().SetInstancesPerSubCluster(6).SetHasSubClusters(true)
+				opts := placement.NewOptions().SetInstancesPerSubCluster(6).SetIsSubclustered(true)
 				algo := subclusteredPlacementAlgorithm{opts: opts}
 
 				// Create instances with consistent weights first
@@ -1242,7 +1251,7 @@ func TestRemoveInstancesErrorCases(t *testing.T) {
 					SetShards(p.Shards()).
 					SetReplicaFactor(p.ReplicaFactor()).
 					SetIsSharded(true).
-					SetHasSubClusters(true).
+					SetIsSubclustered(true).
 					SetInstancesPerSubCluster(p.InstancesPerSubCluster()).
 					SetIsMirrored(p.IsMirrored())
 			},
@@ -1256,7 +1265,7 @@ func TestRemoveInstancesErrorCases(t *testing.T) {
 			expectError:            false,
 			// nolint: dupl
 			setupPlacement: func() placement.Placement {
-				opts := placement.NewOptions().SetInstancesPerSubCluster(6).SetHasSubClusters(true)
+				opts := placement.NewOptions().SetInstancesPerSubCluster(6).SetIsSubclustered(true)
 				algo := subclusteredPlacementAlgorithm{opts: opts}
 
 				instances := make([]placement.Instance, 12)
@@ -1287,7 +1296,7 @@ func TestRemoveInstancesErrorCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			opts := placement.NewOptions().SetInstancesPerSubCluster(tt.instancesPerSubcluster).SetHasSubClusters(true)
+			opts := placement.NewOptions().SetInstancesPerSubCluster(tt.instancesPerSubcluster).SetIsSubclustered(true)
 			algo := subclusteredPlacementAlgorithm{opts: opts}
 
 			p := tt.setupPlacement()
@@ -1322,7 +1331,7 @@ func TestRemoveInstancesErrorCases(t *testing.T) {
 }
 
 func TestReclaimLeavingInstance(t *testing.T) {
-	opts := placement.NewOptions().SetInstancesPerSubCluster(6).SetHasSubClusters(true)
+	opts := placement.NewOptions().SetInstancesPerSubCluster(6).SetIsSubclustered(true)
 	algo := newSubclusteredAlgorithm(opts)
 
 	instances := make([]placement.Instance, 12)
