@@ -612,7 +612,7 @@ func TestRemoveInstancesValidCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := placement.NewOptions().SetInstancesPerSubCluster(tt.instancesPerSubcluster).
-				SetHasSubClusters(true)
+				SetIsSubclustered(true)
 			algo := subclusteredPlacementAlgorithm{opts: opts}
 
 			initialInstances := make([]placement.Instance, tt.instancesPerSubcluster*tt.initialSubClusters)
@@ -794,7 +794,7 @@ func TestPartialSubclustersAddOperation(t *testing.T) {
 			SetShards(shard.NewShards(nil))
 	}
 	opts := placement.NewOptions().SetInstancesPerSubCluster(instancesPerSubCluster).
-		SetHasSubClusters(true)
+		SetIsSubclustered(true)
 	algo := subclusteredPlacementAlgorithm{opts: opts}
 
 	result, err := algo.InitialPlacement(initialInstances, shards, replicaFactor)
