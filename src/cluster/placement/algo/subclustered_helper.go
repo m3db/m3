@@ -151,17 +151,18 @@ func newubclusteredRemoveInstanceHelper(
 		return nil, nil, err
 	}
 	subclusterInstances := getSubClusterInstances(p.Instances(), leavingInstance.SubClusterID())
-	// if the number of instances after removing the leaving instance is still equal to instancesPerSubcluster,
-	// we can safely assume that there was a replace operation going on in the cluster.
-	// In that case we don't need to exclude the subcluster from the calculation of targetShardCount.
-	if len(subclusterInstances) == opts.InstancesPerSubCluster() {
+	// if the number of instances after removing the leaving instance is still greater than or equal to
+	// instancesPerSubcluster, we can safely assume that there were multiple replace operations going on
+	// in the cluster. In that case we don't need to exclude the subcluster from the calculation of
+	// targetShardCount.
+	if len(subclusterInstances) >= opts.InstancesPerSubCluster() {
 		ph, err := newSubclusteredHelper(p, opts, 0)
 		if err != nil {
 			return nil, nil, err
 		}
 		return ph, leavingInstance, nil
 	}
-	// if the number of instances after removing the leaving instance is not equal to instancesPerSubcluster,
+	// if the number of instances after removing the leaving instance is less than instancesPerSubcluster,
 	// we need to exclude the subcluster from the calculation of targetShardCount.
 	// Basically we are considering this operation equivalent to removeSubcluster.
 	ph, err := newSubclusteredHelper(p, opts, leavingInstance.SubClusterID())
@@ -239,7 +240,6 @@ func (ph *subclusteredHelper) validateInstanceWeight() error {
 	return nil
 }
 
-// nolint
 func (ph *subclusteredHelper) scanCurrentLoad(subClusterToExclude uint32) {
 	ph.shardToInstanceMap = make(map[uint32]map[placement.Instance]struct{}, len(ph.uniqueShards))
 	ph.groupToInstancesMap = make(map[string]map[placement.Instance]struct{})
@@ -266,9 +266,14 @@ func (ph *subclusteredHelper) scanCurrentLoad(subClusterToExclude uint32) {
 			}
 		}
 
-		// if we are checking that all instance weight is same than we can simply the calculation by assuming it as 1
-		ph.groupToWeightMap[instance.IsolationGroup()]++
-		totalWeight++
+		// if we are excluding the subcluster, we don't need to consider the weight of the instances for
+		// targetload calculation.
+		if subClusterID != subClusterToExclude {
+			// if we are checking that all instance weight is same than we can simplify the calculation by assuming it as 1.
+			ph.groupToWeightMap[instance.IsolationGroup()]++
+			totalWeight++
+		}
+
 		ph.subClusters[subClusterID].instances[instance.ID()] = instance
 
 		for _, s := range instance.Shards().All() {
@@ -283,7 +288,6 @@ func (ph *subclusteredHelper) scanCurrentLoad(subClusterToExclude uint32) {
 }
 
 // buildTargetLoad builds the target load for the placement.
-// nolint
 func (ph *subclusteredHelper) buildTargetLoad(subClusterToExclude uint32) {
 	overWeightedGroups := 0
 	overWeight := uint32(0)
@@ -297,6 +301,9 @@ func (ph *subclusteredHelper) buildTargetLoad(subClusterToExclude uint32) {
 	targetLoad := make(map[string]int, len(ph.instances))
 	for _, instance := range ph.instances {
 		if instance.IsLeaving() {
+			continue
+		}
+		if instance.SubClusterID() == subClusterToExclude {
 			continue
 		}
 		igWeight := ph.groupToWeightMap[instance.IsolationGroup()]
