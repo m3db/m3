@@ -337,7 +337,6 @@ func (ph *subclusteredHelper) scanCurrentLoad(subClusterToExclude uint32) {
 // This method implements a weighted load balancing algorithm that handles both normal and
 // over-weighted isolation groups. Over-weighted groups are those that have more instances
 // than the replica factor allows, which requires special handling to ensure proper distribution.
-// nolint
 func (ph *subclusteredHelper) buildTargetLoad(subClusterToExclude uint32) {
 	// Step 1: Identify over-weighted isolation groups
 	// Over-weighted groups are those where the number of instances exceeds the replica factor.
