@@ -243,6 +243,8 @@ func TestWriterRegisterFilter(t *testing.T) {
 	csw1.EXPECT().RegisterFilter(gomock.Any())
 	w.RegisterFilter(sid1, filter)
 
+	csw1.EXPECT().UnregisterFilters()
+	csw1.EXPECT().RegisterFilter(gomock.Any())
 	csw1.EXPECT().SetMessageTTLNanos(int64(0))
 	testTopic := topic.NewTopic().
 		SetName(opts.TopicName()).
@@ -1042,6 +1044,35 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 			topicUpdate2: &testTopicUpdate{
 				dynamicFilterConfig: nil,
 				expectedDataFilters: []producer.FilterFuncMetadata{
+					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+				},
+				expectedCswCount: 1,
+			},
+		},
+
+		{
+			// nolint:lll
+			name: "Existing_Static_Config_First_Update_Registers_Dynamic_Filters_Second_Update_Removes_Dynamic_Filters",
+			staticFilters: []producer.FilterFuncType{
+				producer.PercentageFilter,
+				producer.ShardSetFilter,
+				producer.StoragePolicyFilter},
+			topicUpdate1: testTopicUpdate{
+				dynamicFilterConfig: testDynamicFilterConfig,
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					{FilterType: producer.PercentageFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.ShardSetFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.StoragePolicyFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+				},
+				expectedCswCount: 1,
+			},
+			topicUpdate2: &testTopicUpdate{
+				dynamicFilterConfig: nil,
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					{FilterType: producer.PercentageFilter, SourceType: producer.StaticConfig},
+					{FilterType: producer.ShardSetFilter, SourceType: producer.StaticConfig},
+					{FilterType: producer.StoragePolicyFilter, SourceType: producer.StaticConfig},
 					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
 				},
 				expectedCswCount: 1,

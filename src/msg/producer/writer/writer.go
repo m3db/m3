@@ -205,15 +205,16 @@ func (w *writer) process(update interface{}) error {
 					w.Unlock()
 				}
 			} else {
-				// sending no dynamic filters means we should remove all filters, unless there are static filters
-				// if there are no static filters, remove all filters
-				_, ok := w.filterRegistry[key]
+				// sending no dynamic filters means we should remove all filters, if there are any static filters, we need to re-add them
 
-				if !ok {
-					w.Lock()
-					csw.UnregisterFilters()
-					w.Unlock()
+				w.Lock()
+				csw.UnregisterFilters()
+				if staticFilters, ok := w.filterRegistry[key]; ok {
+					for _, staticFilter := range staticFilters {
+						csw.RegisterFilter(staticFilter)
+					}
 				}
+				w.Unlock()
 			}
 
 			newConsumerServiceWriters[key] = csw
