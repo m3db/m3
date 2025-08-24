@@ -925,8 +925,7 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 			topicUpdate2: nil,
 		},
 
-		{
-			// nolint:dupl
+		{ // nolint:dupl
 			name: "Has_Static_Filters_Two_Topic_Updates_With_No_Dynamic_Filters",
 			staticFilters: []producer.FilterFuncType{
 				producer.PercentageFilter,
@@ -1050,9 +1049,7 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 			},
 		},
 
-		{
-			// nolint:lll
-			// nolint:dupl
+		{ // nolint:lll,dupl
 			name: "Existing_Static_Config_First_Update_Registers_Dynamic_Filters_Second_Update_Removes_Dynamic_Filters",
 			staticFilters: []producer.FilterFuncType{
 				producer.PercentageFilter,
