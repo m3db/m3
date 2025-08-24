@@ -1052,8 +1052,6 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 		{ // nolint:lll,dupl
 			name: "Existing_Static_Config_First_Update_Registers_Dynamic_Filters_Second_Update_Removes_Dynamic_Filters",
 			staticFilters: []producer.FilterFuncType{
-				producer.PercentageFilter,
-				producer.ShardSetFilter,
 				producer.StoragePolicyFilter},
 			topicUpdate1: testTopicUpdate{
 				dynamicFilterConfig: testDynamicFilterConfig,
@@ -1068,8 +1066,6 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 			topicUpdate2: &testTopicUpdate{
 				dynamicFilterConfig: nil,
 				expectedDataFilters: []producer.FilterFuncMetadata{
-					{FilterType: producer.PercentageFilter, SourceType: producer.StaticConfig},
-					{FilterType: producer.ShardSetFilter, SourceType: producer.StaticConfig},
 					{FilterType: producer.StoragePolicyFilter, SourceType: producer.StaticConfig},
 					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
 				},
