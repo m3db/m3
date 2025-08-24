@@ -203,7 +203,7 @@ func (w *writer) process(update interface{}) error {
 				// if there are any static filters, we need to re-add them
 
 				w.RLock()
-				staticFilters, _ := w.filterRegistry[key]
+				staticFilters := w.filterRegistry[key]
 				w.RUnlock()
 
 				csw.SetFilters(staticFilters)
@@ -248,7 +248,7 @@ func (w *writer) process(update interface{}) error {
 
 		} else {
 			w.RLock()
-			staticFilters, _ := w.filterRegistry[key]
+			staticFilters := w.filterRegistry[key]
 			w.RUnlock()
 
 			// if there are no dynamicly configured filters, static filters are the source of truth
