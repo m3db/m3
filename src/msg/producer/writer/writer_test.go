@@ -211,8 +211,15 @@ func TestWriterRegisterFilter(t *testing.T) {
 	csw1 := NewMockconsumerServiceWriter(ctrl)
 
 	sid2 := services.NewServiceID().SetName("s2")
-	filter := func(producer.Message) bool { return false }
-	filter2 := func(producer.Message) bool { return true }
+	filter := producer.NewFilterFunc(
+		func(producer.Message) bool { return false },
+		producer.UnspecifiedFilter,
+		producer.StaticConfig)
+
+	filter2 := producer.NewFilterFunc(
+		func(producer.Message) bool { return true },
+		producer.UnspecifiedFilter,
+		producer.StaticConfig)
 
 	w := NewWriter(opts).(*writer)
 	w.consumerServiceWriters[cs1.ServiceID().String()] = csw1
@@ -236,7 +243,7 @@ func TestWriterRegisterFilter(t *testing.T) {
 	csw1.EXPECT().RegisterFilter(gomock.Any())
 	w.RegisterFilter(sid1, filter)
 
-	csw1.EXPECT().RegisterFilter(gomock.Any())
+	csw1.EXPECT().SetFilters(gomock.Any())
 	csw1.EXPECT().SetMessageTTLNanos(int64(0))
 	testTopic := topic.NewTopic().
 		SetName(opts.TopicName()).
@@ -453,6 +460,9 @@ func TestTopicUpdateWithSameConsumerServicesButDifferentOrder(t *testing.T) {
 	cswMock2 := NewMockconsumerServiceWriter(ctrl)
 	w.consumerServiceWriters[cs2.ServiceID().String()] = cswMock2
 	defer csw.Close()
+
+	cswMock1.EXPECT().SetFilters(gomock.Any())
+	cswMock2.EXPECT().SetFilters(gomock.Any())
 
 	cswMock1.EXPECT().SetMessageTTLNanos(int64(0))
 	cswMock2.EXPECT().SetMessageTTLNanos(int64(500))
@@ -849,4 +859,407 @@ func TestWriterNumShards(t *testing.T) {
 
 	require.NoError(t, w.Init())
 	require.Equal(t, 2, int(w.NumShards()))
+}
+
+func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
+	testDynamicFilterConfig := topic.NewFilterConfig().
+		SetPercentageFilter(
+			topic.NewPercentageFilter(50),
+		).
+		SetShardSetFilter(
+			topic.NewShardSetFilter("1..5"),
+		).
+		SetStoragePolicyFilter(
+			topic.NewStoragePolicyFilter([]string{"1m:40d"}),
+		)
+
+	type testTopicUpdate struct {
+		dynamicFilterConfig        topic.FilterConfig
+		expectedDataFilters        []producer.FilterFuncMetadata
+		expectTopicUpdateError     bool
+		expectTopicValidationError bool
+		expectedCswCount           int
+	}
+
+	type testCase struct {
+		name          string
+		staticFilters []producer.FilterFuncType
+		topicUpdate1  testTopicUpdate
+		topicUpdate2  *testTopicUpdate
+	}
+
+	tests := []testCase{
+		{
+			name:          "No_Static_Filters_One_Topic_Update_With_Dynamic_Filters",
+			staticFilters: []producer.FilterFuncType{},
+			topicUpdate1: testTopicUpdate{
+				dynamicFilterConfig: testDynamicFilterConfig,
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					{FilterType: producer.PercentageFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.ShardSetFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.StoragePolicyFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+				},
+				expectedCswCount: 1,
+			},
+			topicUpdate2: nil,
+		},
+
+		{
+			name: "Has_Static_Filters_One_Topic_Update_With_Dynamic_Filters",
+			staticFilters: []producer.FilterFuncType{
+				producer.PercentageFilter,
+				producer.ShardSetFilter,
+				producer.StoragePolicyFilter},
+
+			topicUpdate1: testTopicUpdate{
+				dynamicFilterConfig: testDynamicFilterConfig,
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					{FilterType: producer.PercentageFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.ShardSetFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.StoragePolicyFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+				},
+				expectedCswCount: 1,
+			},
+			topicUpdate2: nil,
+		},
+
+		{ // nolint:dupl
+			name: "Has_Static_Filters_Two_Topic_Updates_With_No_Dynamic_Filters",
+			staticFilters: []producer.FilterFuncType{
+				producer.PercentageFilter,
+				producer.ShardSetFilter,
+				producer.StoragePolicyFilter},
+			topicUpdate1: testTopicUpdate{
+				dynamicFilterConfig: nil,
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					{FilterType: producer.PercentageFilter, SourceType: producer.StaticConfig},
+					{FilterType: producer.ShardSetFilter, SourceType: producer.StaticConfig},
+					{FilterType: producer.StoragePolicyFilter, SourceType: producer.StaticConfig},
+					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+				},
+				expectedCswCount: 1,
+			},
+			topicUpdate2: &testTopicUpdate{
+				dynamicFilterConfig: nil,
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					{FilterType: producer.PercentageFilter, SourceType: producer.StaticConfig},
+					{FilterType: producer.ShardSetFilter, SourceType: producer.StaticConfig},
+					{FilterType: producer.StoragePolicyFilter, SourceType: producer.StaticConfig},
+					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+				},
+				expectedCswCount: 1,
+			},
+		},
+
+		{
+			name:          "No_Static_Config_Two_Topic_Updates_With_Different_Dynamic_Filters",
+			staticFilters: []producer.FilterFuncType{},
+			topicUpdate1: testTopicUpdate{
+				dynamicFilterConfig: testDynamicFilterConfig,
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					{FilterType: producer.PercentageFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.ShardSetFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.StoragePolicyFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+				},
+				expectedCswCount: 1,
+			},
+			topicUpdate2: &testTopicUpdate{
+				dynamicFilterConfig: topic.NewFilterConfig().SetPercentageFilter(topic.NewPercentageFilter(75)),
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					{FilterType: producer.PercentageFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+				},
+				expectedCswCount: 1,
+			},
+		},
+
+		{
+			name:          "No_Static_Config_One_Topic_Update_With_Invalid_Dynamic_Shard_Set_Filter",
+			staticFilters: []producer.FilterFuncType{},
+			topicUpdate1: testTopicUpdate{
+				dynamicFilterConfig: topic.NewFilterConfig().
+					SetShardSetFilter(topic.NewShardSetFilter("randomstringstrinxyz123abc")),
+				expectedDataFilters:    []producer.FilterFuncMetadata{},
+				expectTopicUpdateError: true,
+				expectedCswCount:       0,
+			},
+			topicUpdate2: nil,
+		},
+
+		{
+			name:          "No_Static_Config_One_Topic_Update_With_Invalid_Dynamic_Percentage_Filter",
+			staticFilters: []producer.FilterFuncType{},
+			topicUpdate1: testTopicUpdate{
+				dynamicFilterConfig:        topic.NewFilterConfig().SetPercentageFilter(topic.NewPercentageFilter(99999)),
+				expectedDataFilters:        []producer.FilterFuncMetadata{},
+				expectTopicValidationError: true,
+				expectedCswCount:           0,
+			},
+			topicUpdate2: nil,
+		},
+
+		{
+			// nolint:lll
+			name:          "No_Static_Config_First_Topic_Update_With_Dynamic_Storage_Policy_Filter_Second_Topic_Update_With_Invalid_Dynamic_Shard_Set_Filter",
+			staticFilters: []producer.FilterFuncType{},
+			topicUpdate1: testTopicUpdate{
+				dynamicFilterConfig: topic.NewFilterConfig().
+					SetStoragePolicyFilter(topic.NewStoragePolicyFilter([]string{"1m:40d"})),
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					{FilterType: producer.StoragePolicyFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+				},
+				expectedCswCount: 1,
+			},
+			topicUpdate2: &testTopicUpdate{
+				dynamicFilterConfig: topic.NewFilterConfig().
+					SetShardSetFilter(topic.NewShardSetFilter("randomstringstrinxyz123abc")),
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+					// second update should not be applied
+					{FilterType: producer.StoragePolicyFilter, SourceType: producer.DynamicConfig},
+				},
+				expectedCswCount: 1,
+			},
+		},
+
+		{
+			// nolint:lll
+			name:          "No_Static_Config_Two_Topic_Updates_First_Update_Adds_Dynamic_Filters_Second_Update_Removes_Dynamic_Filters",
+			staticFilters: []producer.FilterFuncType{},
+			topicUpdate1: testTopicUpdate{
+				dynamicFilterConfig: testDynamicFilterConfig,
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					{FilterType: producer.PercentageFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.ShardSetFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.StoragePolicyFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+				},
+				expectedCswCount: 1,
+			},
+			topicUpdate2: &testTopicUpdate{
+				dynamicFilterConfig: nil,
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+				},
+				expectedCswCount: 1,
+			},
+		},
+
+		{ // nolint:lll,dupl
+			name: "Existing_Static_Config_First_Update_Registers_Dynamic_Filters_Second_Update_Removes_Dynamic_Filters",
+			staticFilters: []producer.FilterFuncType{
+				producer.StoragePolicyFilter},
+			topicUpdate1: testTopicUpdate{
+				dynamicFilterConfig: testDynamicFilterConfig,
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					{FilterType: producer.PercentageFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.ShardSetFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.StoragePolicyFilter, SourceType: producer.DynamicConfig},
+					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+				},
+				expectedCswCount: 1,
+			},
+			topicUpdate2: &testTopicUpdate{
+				dynamicFilterConfig: nil,
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					{FilterType: producer.StoragePolicyFilter, SourceType: producer.StaticConfig},
+					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+				},
+				expectedCswCount: 1,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			defer leaktest.Check(t)()
+
+			ctrl := xtest.NewController(t)
+			defer ctrl.Finish()
+
+			store := mem.NewStore()
+			cs := client.NewMockClient(ctrl)
+			cs.EXPECT().Store(gomock.Any()).Return(store, nil)
+
+			ts, err := topic.NewService(topic.NewServiceOptions().SetConfigService(cs))
+			require.NoError(t, err, "expect no error after reading topic service")
+
+			opts := testOptions().SetTopicService(ts)
+
+			sid1 := services.NewServiceID().SetName("s1")
+
+			cs1 := topic.NewConsumerService().SetConsumptionType(topic.Replicated).SetServiceID(sid1)
+
+			if test.topicUpdate1.dynamicFilterConfig != nil {
+				cs1 = cs1.SetDynamicFilterConfigs(test.topicUpdate1.dynamicFilterConfig)
+			}
+
+			testTopic := topic.NewTopic().
+				SetName(opts.TopicName()).
+				SetNumberOfShards(1).
+				SetConsumerServices([]topic.ConsumerService{cs1})
+			_, err = ts.CheckAndSet(testTopic, kv.UninitializedVersion)
+
+			if test.topicUpdate1.expectTopicValidationError {
+				require.Error(t, err, "expect error after setting topic")
+				return
+			}
+			require.NoError(t, err, "expect no error after setting topic")
+
+			sd := services.NewMockServices(ctrl)
+			opts = opts.SetServiceDiscovery(sd)
+			ps1 := testPlacementService(store, sid1)
+			sd.EXPECT().PlacementService(sid1, gomock.Any()).Return(ps1, nil)
+
+			p1 := placement.NewPlacement().
+				SetInstances([]placement.Instance{
+					placement.NewInstance().
+						SetID("i1").
+						SetEndpoint("i1").
+						SetShards(shard.NewShards([]shard.Shard{
+							shard.NewShard(0).SetState(shard.Available),
+						})),
+				}).
+				SetShards([]uint32{0}).
+				SetReplicaFactor(1).
+				SetIsSharded(true)
+			_, err = ps1.Set(p1)
+			require.NoError(t, err, "expect no error after setting placement")
+
+			w := NewWriter(opts).(*writer)
+
+			for _, filterType := range test.staticFilters {
+				w.RegisterFilter(
+					sid1,
+					producer.NewFilterFunc(func(producer.Message) bool { return true }, filterType, producer.StaticConfig))
+			}
+
+			called := atomic.NewInt32(0)
+			w.processFn = func(update interface{}) error {
+				called.Inc()
+				return w.process(update)
+			}
+
+			err = w.Init()
+
+			if test.topicUpdate1.expectTopicUpdateError {
+				require.Error(t, err, "expect error after writer init")
+			} else {
+				require.NoError(t, err, "expect no error after writer init")
+			}
+
+			require.Equal(t, 1, int(called.Load()), "expect processFn to be called once")
+			require.Equal(
+				t,
+				test.topicUpdate1.expectedCswCount,
+				len(w.consumerServiceWriters),
+				"expect csw count to match after 1st topic update")
+
+			if test.topicUpdate1.expectedCswCount > 0 {
+				csw, ok := w.consumerServiceWriters[cs1.ServiceID().String()]
+				require.True(t, ok, "expect csw to exist after 1st topic update")
+
+				actualDataFilterFuncs := csw.GetDataFilters()
+				actualDataFilterMetadatas := []producer.FilterFuncMetadata{}
+				for _, filter := range actualDataFilterFuncs {
+					actualDataFilterMetadatas = append(actualDataFilterMetadatas, filter.Metadata)
+				}
+
+				require.True(t,
+					testAreFilterFuncMetadataSlicesEqual(
+						actualDataFilterMetadatas,
+						test.topicUpdate1.expectedDataFilters),
+					"expect data filters to match after 1st topic update",
+					actualDataFilterMetadatas,
+					test.topicUpdate1.expectedDataFilters)
+
+				if test.topicUpdate2 == nil {
+					csw.Close()
+				}
+			}
+
+			if test.topicUpdate2 != nil {
+				cs1 = cs1.SetDynamicFilterConfigs(nil)
+
+				if test.topicUpdate2.dynamicFilterConfig != nil {
+					cs1 = cs1.SetDynamicFilterConfigs(test.topicUpdate2.dynamicFilterConfig)
+				}
+
+				testTopic = testTopic.
+					SetConsumerServices([]topic.ConsumerService{cs1}).
+					SetVersion(1)
+				_, err = ts.CheckAndSet(testTopic, 1)
+				require.NoError(t, err, "expect no error after 2nd topic update")
+
+				for called.Load() != 2 {
+					time.Sleep(100 * time.Millisecond)
+				}
+
+				w.RLock()
+
+				require.Equal(
+					t,
+					test.topicUpdate1.expectedCswCount,
+					len(w.consumerServiceWriters),
+					"expect csw count to match after 2nd topic update")
+
+				w.RUnlock()
+
+				if test.topicUpdate2.expectedCswCount == 0 {
+					return
+				}
+
+				csw, ok := w.consumerServiceWriters[cs1.ServiceID().String()]
+				require.True(t, ok, "expect csw to exist after 2nd topic update")
+
+				actualDataFilterFuncs := csw.GetDataFilters()
+				actualDataFilterMetadatas := []producer.FilterFuncMetadata{}
+				for _, filter := range actualDataFilterFuncs {
+					actualDataFilterMetadatas = append(actualDataFilterMetadatas, filter.Metadata)
+				}
+
+				require.True(t,
+					testAreFilterFuncMetadataSlicesEqual(
+						actualDataFilterMetadatas,
+						test.topicUpdate2.expectedDataFilters),
+					"expect data filters to match after 2nd topic update",
+					actualDataFilterMetadatas,
+					test.topicUpdate2.expectedDataFilters)
+
+				csw.Close()
+			}
+
+			w.Close()
+		})
+	}
+}
+
+func testAreFilterFuncMetadataSlicesEqual(slice1, slice2 []producer.FilterFuncMetadata) bool {
+	if len(slice1) != len(slice2) {
+		return false
+	}
+
+	countMap := make(map[producer.FilterFuncMetadata]int)
+	for _, item := range slice1 {
+		countMap[item]++
+	}
+
+	for _, item := range slice2 {
+		if countMap[item] == 0 {
+			return false
+		}
+		countMap[item]--
+	}
+
+	for _, count := range countMap {
+		if count != 0 {
+			return false
+		}
+	}
+
+	return true
 }
