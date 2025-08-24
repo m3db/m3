@@ -132,6 +132,18 @@ func (mr *MockconsumerServiceWriterMockRecorder) UnregisterFilters() *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnregisterFilters", reflect.TypeOf((*MockconsumerServiceWriter)(nil).UnregisterFilters))
 }
 
+// SetFilters mocks base method.
+func (m *MockconsumerServiceWriter) SetFilters(filters []producer.FilterFunc) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetFilters", filters)
+}
+
+// SetFilters indicates an expected call of SetFilters.
+func (mr *MockconsumerServiceWriterMockRecorder) SetFilters(filters interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFilters", reflect.TypeOf((*MockconsumerServiceWriter)(nil).SetFilters), filters)
+}
+
 // Write mocks base method.
 func (m *MockconsumerServiceWriter) Write(rm *producer.RefCountedMessage) {
 	m.ctrl.T.Helper()

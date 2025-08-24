@@ -84,6 +84,9 @@ type consumerServiceWriter interface {
 	// UnregisterFilters unregisters the filters for the consumer service.
 	UnregisterFilters()
 
+	// SetFilters atomically replaces all filters with the provided list.
+	SetFilters(filters []producer.FilterFunc)
+
 	// GetDataFilter returns the data filters on the consumer service writer.
 	GetDataFilters() []producer.FilterFunc
 }
@@ -174,6 +177,7 @@ type consumerServiceWriterImpl struct {
 	logger       *zap.Logger
 
 	value           watch.Value
+	filterMutex     sync.RWMutex
 	dataFilters     []producer.FilterFunc
 	router          ackRouter
 	consumerWriters map[string]consumerWriter
@@ -246,11 +250,17 @@ func initShardWriters(
 }
 
 func (w *consumerServiceWriterImpl) GetDataFilters() []producer.FilterFunc {
-	return w.dataFilters
+	// topic updates can change filters, so we need to lock here.
+	w.filterMutex.RLock()
+	filters := w.dataFilters
+	w.filterMutex.RUnlock()
+	return filters
 }
 
 func (w *consumerServiceWriterImpl) Write(rm *producer.RefCountedMessage) {
-	if rm.Accept(w.dataFilters, w.m.getFilterAcceptedGranularCounter, w.m.getFilterNotAcceptedGranularCounter) {
+	filters := w.GetDataFilters()
+
+	if rm.Accept(filters, w.m.getFilterAcceptedGranularCounter, w.m.getFilterNotAcceptedGranularCounter) {
 		w.shardWriters[rm.Shard()].Write(rm)
 		w.m.filterAccepted.Inc(1)
 		return
@@ -398,16 +408,28 @@ func (w *consumerServiceWriterImpl) SetMessageTTLNanos(value int64) {
 }
 
 func (w *consumerServiceWriterImpl) RegisterFilter(filter producer.FilterFunc) {
-	w.Lock()
+	w.filterMutex.Lock()
 	w.dataFilters = append(w.dataFilters, filter)
-	w.Unlock()
+	w.filterMutex.Unlock()
 }
 
 func (w *consumerServiceWriterImpl) UnregisterFilters() {
-	w.Lock()
+	w.filterMutex.Lock()
 	w.dataFilters[0] = acceptAllFilter
 	w.dataFilters = w.dataFilters[:1]
-	w.Unlock()
+	w.filterMutex.Unlock()
+}
+
+func (w *consumerServiceWriterImpl) SetFilters(filters []producer.FilterFunc) {
+	w.filterMutex.Lock()
+	defer w.filterMutex.Unlock()
+
+	// Always start with acceptAllFilter and provided filters
+	w.dataFilters = make([]producer.FilterFunc, 1, len(filters)+1)
+	w.dataFilters[0] = acceptAllFilter
+
+	// Add all provided filters
+	w.dataFilters = append(w.dataFilters, filters...)
 }
 
 func (w *consumerServiceWriterImpl) reportMetrics() {

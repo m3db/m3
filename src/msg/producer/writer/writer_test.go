@@ -243,8 +243,7 @@ func TestWriterRegisterFilter(t *testing.T) {
 	csw1.EXPECT().RegisterFilter(gomock.Any())
 	w.RegisterFilter(sid1, filter)
 
-	csw1.EXPECT().UnregisterFilters()
-	csw1.EXPECT().RegisterFilter(gomock.Any())
+	csw1.EXPECT().SetFilters(gomock.Any())
 	csw1.EXPECT().SetMessageTTLNanos(int64(0))
 	testTopic := topic.NewTopic().
 		SetName(opts.TopicName()).
@@ -462,8 +461,8 @@ func TestTopicUpdateWithSameConsumerServicesButDifferentOrder(t *testing.T) {
 	w.consumerServiceWriters[cs2.ServiceID().String()] = cswMock2
 	defer csw.Close()
 
-	cswMock1.EXPECT().UnregisterFilters()
-	cswMock2.EXPECT().UnregisterFilters()
+	cswMock1.EXPECT().SetFilters(gomock.Any())
+	cswMock2.EXPECT().SetFilters(gomock.Any())
 
 	cswMock1.EXPECT().SetMessageTTLNanos(int64(0))
 	cswMock2.EXPECT().SetMessageTTLNanos(int64(500))
@@ -927,6 +926,7 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 		},
 
 		{
+			// nolint:dupl
 			name: "Has_Static_Filters_Two_Topic_Updates_With_No_Dynamic_Filters",
 			staticFilters: []producer.FilterFuncType{
 				producer.PercentageFilter,

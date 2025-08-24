@@ -194,27 +194,19 @@ func (w *writer) process(update interface{}) error {
 
 					multiErr = multiErr.Add(err)
 				} else {
-					// unregister all filters and register the new ones
-					w.Lock()
-
-					csw.UnregisterFilters()
-					for _, dynamicFilter := range dynamicFilters {
-						csw.RegisterFilter(dynamicFilter)
-					}
-
-					w.Unlock()
+					// atomically set the new dynamic filters
+					// and remove the old filters
+					csw.SetFilters(dynamicFilters)
 				}
 			} else {
-				// sending no dynamic filters means we should remove all filters, if there are any static filters, we need to re-add them
+				// sending no dynamic filters means we should remove all filters,
+				// if there are any static filters, we need to re-add them
 
-				w.Lock()
-				csw.UnregisterFilters()
-				if staticFilters, ok := w.filterRegistry[key]; ok {
-					for _, staticFilter := range staticFilters {
-						csw.RegisterFilter(staticFilter)
-					}
-				}
-				w.Unlock()
+				w.RLock()
+				staticFilters, _ := w.filterRegistry[key]
+				w.RUnlock()
+
+				csw.SetFilters(staticFilters)
 			}
 
 			newConsumerServiceWriters[key] = csw
@@ -251,26 +243,17 @@ func (w *writer) process(update interface{}) error {
 				multiErr = multiErr.Add(err)
 				continue
 			} else {
-				w.Lock()
-
-				for _, dynamicFilter := range dynamicFilters {
-					csw.RegisterFilter(dynamicFilter)
-				}
-
-				w.Unlock()
+				csw.SetFilters(dynamicFilters)
 			}
 
 		} else {
-			w.Lock()
+			w.RLock()
+			staticFilters, _ := w.filterRegistry[key]
+			w.RUnlock()
 
 			// if there are no dynamicly configured filters, static filters are the source of truth
-			if staticFilters, ok := w.filterRegistry[key]; ok {
-				for _, staticFilter := range staticFilters {
-					csw.RegisterFilter(staticFilter)
-				}
-			}
 
-			w.Unlock()
+			csw.SetFilters(staticFilters)
 		}
 
 		if err = csw.Init(w.initType); err != nil {
