@@ -411,6 +411,20 @@ func (mr *MockNodeMockRecorder) SetShards(s interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetShards", reflect.TypeOf((*MockNode)(nil).SetShards), s)
 }
 
+// SetSubClusterID mocks base method.
+func (m *MockNode) SetSubClusterID(value uint32) placement.Instance {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetSubClusterID", value)
+	ret0, _ := ret[0].(placement.Instance)
+	return ret0
+}
+
+// SetSubClusterID indicates an expected call of SetSubClusterID.
+func (mr *MockNodeMockRecorder) SetSubClusterID(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSubClusterID", reflect.TypeOf((*MockNode)(nil).SetSubClusterID), value)
+}
+
 // SetWeight mocks base method.
 func (m *MockNode) SetWeight(w uint32) placement.Instance {
 	m.ctrl.T.Helper()
@@ -535,6 +549,20 @@ func (m *MockNode) String() string {
 func (mr *MockNodeMockRecorder) String() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "String", reflect.TypeOf((*MockNode)(nil).String))
+}
+
+// SubClusterID mocks base method.
+func (m *MockNode) SubClusterID() uint32 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SubClusterID")
+	ret0, _ := ret[0].(uint32)
+	return ret0
+}
+
+// SubClusterID indicates an expected call of SubClusterID.
+func (mr *MockNodeMockRecorder) SubClusterID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SubClusterID", reflect.TypeOf((*MockNode)(nil).SubClusterID))
 }
 
 // Teardown mocks base method.
