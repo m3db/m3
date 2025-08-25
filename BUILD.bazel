@@ -1,0 +1,9 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+filegroup(
+    name = "all_proto_files",
+    srcs = glob([
+        "src/**/*.proto",
+    ]),
+    visibility = ["//visibility:public"],
+)
