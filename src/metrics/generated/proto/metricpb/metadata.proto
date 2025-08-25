@@ -65,6 +65,8 @@ message ForwardMetadata {
   uint32 source_id = 4;
   int32 num_forwarded_times = 5;
   bool resend_enabled = 6;
+  policypb.RoutePolicy route_policy = 7;
+
 }
 
 message TimedMetadata {
