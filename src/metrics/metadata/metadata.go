@@ -90,6 +90,8 @@ type PipelineMetadata struct {
 	DropPolicy policy.DropPolicy `json:"dropPolicy,omitempty"`
 	// ResendEnabled is true if the Pipeline supports resending aggregate values after the initial flush.
 	ResendEnabled bool `json:"resendEnabled,omitempty"`
+	// RoutePolicy is the route policy to apply to the metric.
+	RoutePolicy policy.RoutePolicy `json:"routePolicy,omitempty"`
 }
 
 func (m PipelineMetadata) String() string {
@@ -171,6 +173,9 @@ func (m PipelineMetadata) ToProto(pb *metricpb.PipelineMetadata) error {
 	}
 	pb.DropPolicy = policypb.DropPolicy(m.DropPolicy)
 	pb.ResendEnabled = m.ResendEnabled
+	pb.RoutePolicy = &policypb.RoutePolicy{
+		TrafficTypes: m.RoutePolicy.TrafficTypes,
+	}
 	return nil
 }
 
@@ -193,6 +198,9 @@ func (m *PipelineMetadata) FromProto(pb metricpb.PipelineMetadata) error {
 	}
 	m.DropPolicy = policy.DropPolicy(pb.DropPolicy)
 	m.ResendEnabled = pb.ResendEnabled
+	m.RoutePolicy = policy.RoutePolicy{
+		TrafficTypes: pb.RoutePolicy.TrafficTypes,
+	}
 	return nil
 }
 
@@ -418,6 +426,8 @@ type ForwardMetadata struct {
 	SourceID uint32
 	// ResendEnabled is true if the Pipeline supports resending aggregate values after the initial flush.
 	ResendEnabled bool
+	// RoutePolicy is the route policy to apply to the metric.
+	RoutePolicy policy.RoutePolicy
 }
 
 // ToProto converts the forward metadata to a protobuf message in place.
@@ -432,6 +442,9 @@ func (m ForwardMetadata) ToProto(pb *metricpb.ForwardMetadata) error {
 	pb.SourceId = m.SourceID
 	pb.NumForwardedTimes = int32(m.NumForwardedTimes)
 	pb.ResendEnabled = m.ResendEnabled
+	pb.RoutePolicy = &policypb.RoutePolicy{
+		TrafficTypes: m.RoutePolicy.TrafficTypes,
+	}
 	return nil
 }
 
@@ -447,6 +460,9 @@ func (m *ForwardMetadata) FromProto(pb metricpb.ForwardMetadata) error {
 	m.SourceID = pb.SourceId
 	m.NumForwardedTimes = int(pb.NumForwardedTimes)
 	m.ResendEnabled = pb.ResendEnabled
+	m.RoutePolicy = policy.RoutePolicy{
+		TrafficTypes: pb.RoutePolicy.TrafficTypes,
+	}
 	return nil
 }
 
