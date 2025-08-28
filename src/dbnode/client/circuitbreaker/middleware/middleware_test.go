@@ -312,11 +312,15 @@ func TestClient_ShadowMode(t *testing.T) {
 			mockNode := rpc.NewMockTChanNode(ctrl)
 			tt.mockBehavior(mockNode)
 
-			client := middlewareFn(mockNode)
-			ctx, cancel := thrift.NewContext(time.Second)
-			defer cancel()
+				clientInterface := middlewareFn(mockNode)
+	ctx, cancel := thrift.NewContext(time.Second)
+	defer cancel()
 
-			err = client.WriteBatchRaw(ctx, &rpc.WriteBatchRawRequest{})
+	// This should not panic and should pass through to the underlying client
+	node, ok := clientInterface.(rpc.TChanNode)
+	require.True(t, ok, "Client must implement rpc.TChanNode")
+	
+	err = node.WriteBatchRaw(ctx, &rpc.WriteBatchRawRequest{})
 			if tt.expectedError {
 				assert.Error(t, err)
 			} else {
@@ -324,4 +328,36 @@ func TestClient_ShadowMode(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestClient_NilProvider tests that the middleware handles nil provider correctly
+func TestClient_NilProvider(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Create middleware with nil provider
+	params := Params{
+		Config:         newTestConfig(),
+		Logger:         zap.NewNop(),
+		Scope:          tally.NoopScope,
+		Host:           "test-host",
+		EnableProvider: nil, // This is the key test - nil provider
+	}
+	
+	middlewareFn, err := New(params)
+	require.NoError(t, err)
+
+	mockNode := rpc.NewMockTChanNode(ctrl)
+	mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(nil)
+
+	clientInterface := middlewareFn(mockNode)
+	ctx, cancel := thrift.NewContext(time.Second)
+	defer cancel()
+
+	// This should not panic and should pass through to the underlying client
+	node, ok := clientInterface.(rpc.TChanNode)
+	require.True(t, ok, "Client must implement rpc.TChanNode")
+	
+	err = node.WriteBatchRaw(ctx, &rpc.WriteBatchRawRequest{})
+	assert.NoError(t, err, "Should not panic with nil provider")
 }

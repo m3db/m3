@@ -369,7 +369,15 @@ func (c Configuration) NewAdminClient(
 
 			// Set the provider in the options
 			v = v.SetMiddlewareEnableProvider(provider)
+		} else {
+			// If no KV store is available, use a nop provider to prevent nil pointer dereference
+			provider := cb.NewNopEnableProvider()
+			v = v.SetMiddlewareEnableProvider(provider)
 		}
+	} else {
+		// If no environment configs are available, use a nop provider to prevent nil pointer dereference
+		provider := cb.NewNopEnableProvider()
+		v = v.SetMiddlewareEnableProvider(provider)
 	}
 
 	if params.ClockOptions != nil {
