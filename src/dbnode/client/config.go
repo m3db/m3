@@ -371,11 +371,13 @@ func (c Configuration) NewAdminClient(
 			v = v.SetMiddlewareEnableProvider(provider)
 		} else {
 			// If no KV store is available, use a nop provider to prevent nil pointer dereference
+			iopts.Logger().Info("no KV store is available, using nop provider")
 			provider := cb.NewNopEnableProvider()
 			v = v.SetMiddlewareEnableProvider(provider)
 		}
 	} else {
 		// If no environment configs are available, use a nop provider to prevent nil pointer dereference
+		iopts.Logger().Info("no environment configs are available, using nop provider")
 		provider := cb.NewNopEnableProvider()
 		v = v.SetMiddlewareEnableProvider(provider)
 	}
