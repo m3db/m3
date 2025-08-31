@@ -64,13 +64,18 @@ func newClient(opts Options, asyncOpts ...Options) (*client, error) {
 // by extracting ConfigServiceClient from the topology initializer
 func setupCircuitBreakerFromTopology(opts Options) Options {
 	topologyInit := opts.TopologyInitializer()
+	logger := opts.InstrumentOptions().Logger()
+	logger.Info("setting up circuit breaker from topology")
 	if topologyInit != nil {
+		logger.Info("topology initializer is not nil")
 		// Check if it's a dynamic initializer that has ConfigServiceClient
 		if dynamicInit, ok := topologyInit.(interface {
 			ConfigServiceClient() csclient.Client
 		}); ok {
+			logger.Info("dynamic initializer is not nil")
 			configServiceClient := dynamicInit.ConfigServiceClient()
 			if configServiceClient != nil {
+				logger.Info("config service client is not nil")
 				// Get KV store from the config service client
 				kvStore, err := configServiceClient.KV()
 				if err != nil {
@@ -78,7 +83,7 @@ func setupCircuitBreakerFromTopology(opts Options) Options {
 					opts.InstrumentOptions().Logger().Warn("failed to get KV store from config service client", zap.Error(err))
 					return opts
 				}
-
+				logger.Info("kv store is not nil")
 				provider, err := SetupCircuitBreakerProvider(kvStore, opts.InstrumentOptions())
 				if err != nil {
 					// Log error but don't fail - circuit breaker is optional
@@ -88,6 +93,8 @@ func setupCircuitBreakerFromTopology(opts Options) Options {
 				return opts.SetMiddlewareEnableProvider(provider)
 			}
 		}
+	} else {
+		logger.Info("topology initializer is nil")
 	}
 	return opts
 }
