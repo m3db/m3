@@ -16,6 +16,7 @@ func SetupCircuitBreakerProvider(
 	iopts instrument.Options,
 ) (cb.EnableProvider, error) {
 	if kvStore != nil {
+		iopts.Logger().Info("kv store is not nil")
 		// Create a single provider instance
 		provider := cb.NewEnableProvider()
 

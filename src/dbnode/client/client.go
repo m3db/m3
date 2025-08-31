@@ -46,14 +46,16 @@ func NewClient(opts Options, asyncOpts ...Options) (Client, error) {
 
 // NewAdminClient creates a new administrative client
 func NewAdminClient(opts AdminOptions, asyncOpts ...Options) (AdminClient, error) {
+	opts.InstrumentOptions().Logger().Info("creating admin client3")
 	return newClient(opts, asyncOpts...)
 }
 
 func newClient(opts Options, asyncOpts ...Options) (*client, error) {
+	opts.InstrumentOptions().Logger().Info("creating admin client4")
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
-
+	opts.InstrumentOptions().Logger().Info("validated admin client")
 	// Set up circuit breaker if possible
 	opts = setupCircuitBreakerFromTopology(opts)
 

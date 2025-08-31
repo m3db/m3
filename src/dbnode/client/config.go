@@ -281,6 +281,8 @@ func (c Configuration) NewClient(
 			return opt(Options(v)).(AdminOptions)
 		})
 	}
+	logger := params.InstrumentOptions.Logger()
+	logger.Info("creating admin client")
 
 	v, err := c.NewAdminClient(params, customAdmin...)
 	if err != nil {
@@ -315,7 +317,7 @@ func (c Configuration) NewAdminClient(
 	if c.HashingConfiguration != nil {
 		cfgParams.HashingSeed = c.HashingConfiguration.Seed
 	}
-
+	params.InstrumentOptions.Logger().Info("configuring environment")
 	var (
 		syncTopoInit         = params.TopologyInitializer
 		syncClientOverrides  environment.ClientOverrides
@@ -346,6 +348,7 @@ func (c Configuration) NewAdminClient(
 			}
 		}
 	}
+	params.InstrumentOptions.Logger().Info("configuring admin client")
 
 	v := NewAdminOptions().
 		SetTopologyInitializer(syncTopoInit).
@@ -499,5 +502,6 @@ func (c Configuration) NewAdminClient(
 	}
 
 	asyncClusterOpts := NewOptionsForAsyncClusters(opts, asyncTopoInits, asyncClientOverrides)
+	params.InstrumentOptions.Logger().Info("creating admin client2")
 	return NewAdminClient(opts, asyncClusterOpts...)
 }
