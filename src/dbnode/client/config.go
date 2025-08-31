@@ -356,32 +356,6 @@ func (c Configuration) NewAdminClient(
 		SetLogHostWriteErrorSampleRate(c.LogHostWriteErrorSampleRate).
 		SetLogHostFetchErrorSampleRate(c.LogHostFetchErrorSampleRate)
 
-	if len(envCfgs) > 0 {
-		kv := envCfgs[0].KVStore
-		if kv != nil {
-			// Create a single provider instance
-			provider := cb.NewEnableProvider()
-
-			// Set up circuit breaker middleware config watch
-			if err := provider.WatchConfig(kv, iopts.Logger()); err != nil {
-				return nil, fmt.Errorf("failed to set up circuit breaker middleware config watch: %w", err)
-			}
-
-			// Set the provider in the options
-			v = v.SetMiddlewareEnableProvider(provider)
-		} else {
-			// If no KV store is available, use a nop provider to prevent nil pointer dereference
-			iopts.Logger().Info("no KV store is available, using nop provider")
-			provider := cb.NewNopEnableProvider()
-			v = v.SetMiddlewareEnableProvider(provider)
-		}
-	} else {
-		// If no environment configs are available, use a nop provider to prevent nil pointer dereference
-		iopts.Logger().Info("no environment configs are available, using nop provider")
-		provider := cb.NewNopEnableProvider()
-		v = v.SetMiddlewareEnableProvider(provider)
-	}
-
 	if params.ClockOptions != nil {
 		v = v.SetClockOptions(params.ClockOptions)
 	}

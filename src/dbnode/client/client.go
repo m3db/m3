@@ -21,7 +21,10 @@
 package client
 
 import (
+	"fmt"
 	"sync"
+
+	csclient "github.com/m3db/m3/src/cluster/client"
 )
 
 type client struct {
@@ -50,6 +53,30 @@ func newClient(opts Options, asyncOpts ...Options) (*client, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
+
+	topologyInit := opts.TopologyInitializer()
+	if topologyInit != nil {
+		// Check if it's a dynamic initializer that has ConfigServiceClient
+		if dynamicInit, ok := topologyInit.(interface {
+			ConfigServiceClient() csclient.Client
+		}); ok {
+			configServiceClient := dynamicInit.ConfigServiceClient()
+			if configServiceClient != nil {
+				// Get KV store from the config service client
+				kvStore, err := configServiceClient.KV()
+				if err != nil {
+					return nil, fmt.Errorf("failed to get KV store from config service client: %w", err)
+				}
+
+				provider, err := SetupCircuitBreakerProvider(kvStore, opts.InstrumentOptions())
+				if err != nil {
+					return nil, err
+				}
+				opts = opts.SetMiddlewareEnableProvider(provider)
+			}
+		}
+	}
+
 	return &client{opts: opts, asyncOpts: asyncOpts, newSessionFn: newReplicatedSession}, nil
 }
 
