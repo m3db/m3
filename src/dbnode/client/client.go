@@ -25,6 +25,7 @@ import (
 	"sync"
 
 	csclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/dbnode/environment"
 	"go.uber.org/zap"
 )
 
@@ -58,14 +59,14 @@ func newClient(opts Options, asyncOpts ...Options) (*client, error) {
 	}
 	opts.InstrumentOptions().Logger().Info("validated admin client")
 	// Set up circuit breaker if possible
-	opts = setupCircuitBreakerFromTopology(opts)
+	opts = setupCircuitBreakerFromTopology(opts, nil)
 
 	return &client{opts: opts, asyncOpts: asyncOpts, newSessionFn: newReplicatedSession}, nil
 }
 
 // setupCircuitBreakerFromTopology attempts to set up circuit breaker middleware
-// by extracting ConfigServiceClient from the topology initializer
-func setupCircuitBreakerFromTopology(opts Options) Options {
+// by extracting ConfigServiceClient from the topology initializer or environment config
+func setupCircuitBreakerFromTopology(opts Options, envCfgs environment.ConfigureResults) Options {
 	topologyInit := opts.TopologyInitializer()
 	logger := opts.InstrumentOptions().Logger()
 	logger.Info("setting up circuit breaker from topology")
@@ -103,10 +104,32 @@ func setupCircuitBreakerFromTopology(opts Options) Options {
 			}
 		} else {
 			logger.Info("type assertion failed - topology initializer does not have ConfigServiceClient method")
+			logger.Info("topology initializer type", zap.String("type", fmt.Sprintf("%T", topologyInit)))
 		}
 	} else {
 		logger.Info("topology initializer is nil")
 	}
+
+	// Try to get KV store from environment config as fallback
+	if envCfgs != nil && len(envCfgs) > 0 {
+		logger.Info("attempting to get KV store from environment config")
+		kvStore := envCfgs[0].KVStore
+		if kvStore != nil {
+			logger.Info("found KV store in environment config")
+			provider, err := SetupCircuitBreakerProvider(kvStore, opts.InstrumentOptions())
+			if err != nil {
+				logger.Warn("failed to set up circuit breaker provider from environment config", zap.Error(err))
+				return opts
+			}
+			logger.Info("successfully set up circuit breaker provider from environment config")
+			return opts.SetMiddlewareEnableProvider(provider)
+		} else {
+			logger.Info("KV store is nil in environment config")
+		}
+	} else {
+		logger.Info("no environment configs available")
+	}
+
 	return opts
 }
 
