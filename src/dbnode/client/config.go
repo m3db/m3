@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/sampler"
 	xsync "github.com/m3db/m3/src/x/sync"
+	"go.uber.org/zap"
 )
 
 const (
@@ -359,6 +360,24 @@ func (c Configuration) NewAdminClient(
 		SetLogHostWriteErrorSampleRate(c.LogHostWriteErrorSampleRate).
 		SetLogHostFetchErrorSampleRate(c.LogHostFetchErrorSampleRate)
 
+	// Set up circuit breaker provider using environment configuration
+	if len(envCfgs) > 0 {
+		kvStore := envCfgs[0].KVStore
+		if kvStore != nil {
+			provider, err := SetupCircuitBreakerProvider(kvStore, iopts)
+			if err != nil {
+				// Log error but don't fail - circuit breaker is optional
+				iopts.Logger().Warn("failed to set up circuit breaker provider from environment config", zap.Error(err))
+			} else {
+				iopts.Logger().Info("successfully set up circuit breaker provider from environment config")
+				v = v.SetMiddlewareEnableProvider(provider)
+			}
+		} else {
+			iopts.Logger().Info("KV store is nil in environment config")
+		}
+	} else {
+		iopts.Logger().Info("no environment configs available for circuit breaker setup")
+	}
 	if params.ClockOptions != nil {
 		v = v.SetClockOptions(params.ClockOptions)
 	}
