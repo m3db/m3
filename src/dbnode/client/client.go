@@ -21,10 +21,10 @@
 package client
 
 import (
-	"fmt"
 	"sync"
 
 	csclient "github.com/m3db/m3/src/cluster/client"
+	"go.uber.org/zap"
 )
 
 type client struct {
@@ -54,6 +54,15 @@ func newClient(opts Options, asyncOpts ...Options) (*client, error) {
 		return nil, err
 	}
 
+	// Set up circuit breaker if possible
+	opts = setupCircuitBreakerFromTopology(opts)
+
+	return &client{opts: opts, asyncOpts: asyncOpts, newSessionFn: newReplicatedSession}, nil
+}
+
+// setupCircuitBreakerFromTopology attempts to set up circuit breaker middleware
+// by extracting ConfigServiceClient from the topology initializer
+func setupCircuitBreakerFromTopology(opts Options) Options {
 	topologyInit := opts.TopologyInitializer()
 	if topologyInit != nil {
 		// Check if it's a dynamic initializer that has ConfigServiceClient
@@ -65,19 +74,22 @@ func newClient(opts Options, asyncOpts ...Options) (*client, error) {
 				// Get KV store from the config service client
 				kvStore, err := configServiceClient.KV()
 				if err != nil {
-					return nil, fmt.Errorf("failed to get KV store from config service client: %w", err)
+					// Log error but don't fail - circuit breaker is optional
+					opts.InstrumentOptions().Logger().Warn("failed to get KV store from config service client", zap.Error(err))
+					return opts
 				}
 
 				provider, err := SetupCircuitBreakerProvider(kvStore, opts.InstrumentOptions())
 				if err != nil {
-					return nil, err
+					// Log error but don't fail - circuit breaker is optional
+					opts.InstrumentOptions().Logger().Warn("failed to set up circuit breaker provider", zap.Error(err))
+					return opts
 				}
-				opts = opts.SetMiddlewareEnableProvider(provider)
+				return opts.SetMiddlewareEnableProvider(provider)
 			}
 		}
 	}
-
-	return &client{opts: opts, asyncOpts: asyncOpts, newSessionFn: newReplicatedSession}, nil
+	return opts
 }
 
 func (c *client) newSession(opts Options) (AdminSession, error) {
