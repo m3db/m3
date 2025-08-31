@@ -21,6 +21,7 @@
 package client
 
 import (
+	"fmt"
 	"sync"
 
 	csclient "github.com/m3db/m3/src/cluster/client"
@@ -70,12 +71,16 @@ func setupCircuitBreakerFromTopology(opts Options) Options {
 	logger.Info("setting up circuit breaker from topology")
 	if topologyInit != nil {
 		logger.Info("topology initializer is not nil")
+		logger.Info("topology initializer type", zap.String("type", fmt.Sprintf("%T", topologyInit)))
+
 		// Check if it's a dynamic initializer that has ConfigServiceClient
+		logger.Info("attempting type assertion for ConfigServiceClient")
 		if dynamicInit, ok := topologyInit.(interface {
 			ConfigServiceClient() csclient.Client
 		}); ok {
 			logger.Info("dynamic initializer is not nil")
 			configServiceClient := dynamicInit.ConfigServiceClient()
+			logger.Info("config service client result", zap.Any("configServiceClient", configServiceClient))
 			if configServiceClient != nil {
 				logger.Info("config service client is not nil")
 				// Get KV store from the config service client
@@ -93,7 +98,11 @@ func setupCircuitBreakerFromTopology(opts Options) Options {
 					return opts
 				}
 				return opts.SetMiddlewareEnableProvider(provider)
+			} else {
+				logger.Info("config service client is nil")
 			}
+		} else {
+			logger.Info("type assertion failed - topology initializer does not have ConfigServiceClient method")
 		}
 	} else {
 		logger.Info("topology initializer is nil")
