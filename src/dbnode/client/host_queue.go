@@ -106,7 +106,7 @@ func newHostQueue(
 		Host:           host.ID(),
 		EnableProvider: provider,
 	}
-	opts.InstrumentOptions().Logger().Info("creating circuit breaker middleware", zap.Any("params", params))
+
 	middlewareFn, err := middleware.New(params)
 	if err != nil {
 		opts.InstrumentOptions().Logger().Warn("failed to create circuit breaker middleware", zap.Error(err))

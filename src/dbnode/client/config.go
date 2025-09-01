@@ -282,8 +282,6 @@ func (c Configuration) NewClient(
 			return opt(Options(v)).(AdminOptions)
 		})
 	}
-	logger := params.InstrumentOptions.Logger()
-	logger.Info("creating admin client")
 
 	v, err := c.NewAdminClient(params, customAdmin...)
 	if err != nil {
@@ -318,7 +316,7 @@ func (c Configuration) NewAdminClient(
 	if c.HashingConfiguration != nil {
 		cfgParams.HashingSeed = c.HashingConfiguration.Seed
 	}
-	params.InstrumentOptions.Logger().Info("configuring environment")
+
 	var (
 		syncTopoInit         = params.TopologyInitializer
 		syncClientOverrides  environment.ClientOverrides
@@ -349,7 +347,6 @@ func (c Configuration) NewAdminClient(
 			}
 		}
 	}
-	params.InstrumentOptions.Logger().Info("configuring admin client")
 
 	v := NewAdminOptions().
 		SetTopologyInitializer(syncTopoInit).
@@ -512,32 +509,24 @@ func (c Configuration) NewAdminClient(
 	}
 
 	asyncClusterOpts := NewOptionsForAsyncClusters(opts, asyncTopoInits, asyncClientOverrides)
-	params.InstrumentOptions.Logger().Info("creating admin client2")
 	return NewAdminClient(opts, asyncClusterOpts...)
 }
 
 // setupCircuitBreakerProvider sets up the circuit breaker middleware provider
 // using environment configuration. Returns nil if no provider can be set up.
 func (c Configuration) setupCircuitBreakerProvider(envCfgs environment.ConfigureResults, iopts instrument.Options) (cb.EnableProvider, error) {
-	var provider cb.EnableProvider
-
 	// Check if we have environment configs and KV store
 	if len(envCfgs) == 0 || envCfgs[0].KVStore == nil {
-		if len(envCfgs) == 0 {
-			c.CircuitBreakerConfig.Logger.Info("no environment configs available for circuit breaker setup")
-		} else {
-			c.CircuitBreakerConfig.Logger.Info("KV store is nil in environment config")
-		}
-		provider = cb.NewNopEnableProvider()
-	} else {
-		// Create a single provider instance
-		provider = cb.NewEnableProvider()
+		return cb.NewNopEnableProvider(), nil
+	}
 
-		// Set up circuit breaker middleware config watch
-		if err := provider.WatchConfig(envCfgs[0].KVStore, iopts.Logger()); err != nil {
-			c.CircuitBreakerConfig.Logger.Warn("failed to set up circuit breaker middleware config watch", zap.Error(err))
-			return nil, fmt.Errorf("failed to set up circuit breaker middleware config watch: %w", err)
-		}
+	// Create a single provider instance
+	provider := cb.NewEnableProvider()
+
+	// Set up circuit breaker middleware config watch
+	if err := provider.WatchConfig(envCfgs[0].KVStore, iopts.Logger()); err != nil {
+		iopts.Logger().Warn("failed to set up circuit breaker middleware config watch", zap.Error(err))
+		return nil, fmt.Errorf("failed to set up circuit breaker middleware config watch: %w", err)
 	}
 
 	return provider, nil
