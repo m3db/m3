@@ -78,8 +78,6 @@ func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.C
 		return call(ctx, req)
 	}
 
-	c.logger.Info("circuit breaker is enabled", zap.Bool("enabled", c.provider.IsEnabled()))
-
 	// Check if request is allowed
 	isAllowed := c.circuit.IsRequestAllowed()
 
