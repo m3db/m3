@@ -168,8 +168,13 @@ type storagePolicyFilter struct {
 }
 
 // NewStoragePolicyFilter creates a new storage policy based filter.
-func NewStoragePolicyFilter(acceptedStoragePolicies []policy.StoragePolicy) producer.FilterFunc {
-	return storagePolicyFilter{acceptedStoragePolicies}.Filter
+func NewStoragePolicyFilter(
+	acceptedStoragePolicies []policy.StoragePolicy,
+	configSource producer.FilterFuncConfigSourceType) producer.FilterFunc {
+	return producer.NewFilterFunc(
+		storagePolicyFilter{acceptedStoragePolicies}.Filter,
+		producer.StoragePolicyFilter,
+		configSource)
 }
 
 func (f storagePolicyFilter) Filter(m producer.Message) bool {

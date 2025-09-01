@@ -2,8 +2,13 @@ syntax = "proto3";
 
 package circuitbreaker;
 
-// EnableConfigProto is a protobuf message for the circuit breaker config.
+option go_package = "github.com/m3db/m3/src/dbnode/generated/proto/circuitbreaker";
+
+// EnableConfigProto represents the configuration stored in etcd for circuit breaker middleware.
 message EnableConfigProto {
+  // enabled indicates whether the circuit breaker is enabled.
   bool enabled = 1;
-  bool shadowMode = 2;
+
+  // shadow_mode indicates whether the circuit breaker is in shadow mode.
+  bool shadow_mode = 2;
 }
