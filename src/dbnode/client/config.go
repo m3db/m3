@@ -327,12 +327,10 @@ func (c Configuration) NewAdminClient(
 	)
 
 	var buildAsyncPool bool
-	var envCfgs environment.ConfigureResults
 	if syncTopoInit == nil {
-		var err error
 		envCfgs, err := c.EnvironmentConfig.Configure(cfgParams)
 		if err != nil {
-			err = fmt.Errorf("unable to create topology initializer, err: %w", err)
+			err = fmt.Errorf("unable to create topology initializer, err: %v", err)
 			return nil, err
 		}
 
@@ -361,7 +359,7 @@ func (c Configuration) NewAdminClient(
 	// Set up circuit breaker provider using environment configuration
 	provider, err := c.setupCircuitBreakerProvider(envCfgs, iopts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to set up circuit breaker provider: %w", err)
+		return nil, fmt.Errorf("failed to set up circuit breaker provider: %v", err)
 	}
 	if provider != nil {
 		v = v.SetMiddlewareEnableProvider(provider)
