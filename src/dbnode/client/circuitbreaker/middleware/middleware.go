@@ -69,15 +69,16 @@ func New(params Params) (M3DBMiddleware, error) {
 func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.Context, T) error) error {
 	// Early return if provider is nil, circuit breaker is disabled or not initialized
 	if c.provider == nil {
-		c.logger.Info("withBreaker called with nil provider, bypassing circuit breaker")
+		c.logger.Warn("withBreaker called with nil provider, bypassing circuit breaker")
 		return call(ctx, req)
 	}
 
-	c.logger.Info("withBreaker called", zap.Bool("enabled", c.provider.IsEnabled()))
 	// Early return if circuit breaker is disabled or not initialized
 	if c.circuit == nil || !c.provider.IsEnabled() {
 		return call(ctx, req)
 	}
+
+	c.logger.Info("circuit breaker is enabled", zap.Bool("enabled", c.provider.IsEnabled()))
 
 	// Check if request is allowed
 	isAllowed := c.circuit.IsRequestAllowed()
