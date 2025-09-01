@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"time"
 
+	"go.uber.org/zap"
+
 	cb "github.com/m3db/m3/src/dbnode/client/circuitbreaker/middleware"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
@@ -38,7 +40,6 @@ import (
 	"github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/sampler"
 	xsync "github.com/m3db/m3/src/x/sync"
-	"go.uber.org/zap"
 )
 
 const (
@@ -514,7 +515,8 @@ func (c Configuration) NewAdminClient(
 
 // setupCircuitBreakerProvider sets up the circuit breaker middleware provider
 // using environment configuration. Returns nil if no provider can be set up.
-func (c Configuration) setupCircuitBreakerProvider(envCfgs environment.ConfigureResults, iopts instrument.Options) (cb.EnableProvider, error) {
+func (c Configuration) setupCircuitBreakerProvider(envCfgs environment.ConfigureResults,
+	iopts instrument.Options) (cb.EnableProvider, error) {
 	// Check if we have environment configs and KV store
 	if len(envCfgs) == 0 || envCfgs[0].KVStore == nil {
 		return cb.NewNopEnableProvider(), nil
