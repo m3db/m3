@@ -327,6 +327,7 @@ func (c Configuration) NewAdminClient(
 	)
 
 	var buildAsyncPool bool
+	var envCfgs environment.ConfigureResults
 	if syncTopoInit == nil {
 		envCfgs, err := c.EnvironmentConfig.Configure(cfgParams)
 		if err != nil {
