@@ -360,7 +360,7 @@ func (c Configuration) NewAdminClient(
 	// Set up circuit breaker provider using environment configuration
 	provider, err := c.setupCircuitBreakerProvider(envCfgs, iopts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to set up circuit breaker provider: %v", err)
+		return nil, fmt.Errorf("failed to set up circuit breaker provider: %w", err)
 	}
 	if provider != nil {
 		v = v.SetMiddlewareEnableProvider(provider)
@@ -527,7 +527,7 @@ func (c Configuration) setupCircuitBreakerProvider(envCfgs environment.Configure
 	// Set up circuit breaker middleware config watch
 	if err := provider.WatchConfig(envCfgs[0].KVStore, iopts.Logger()); err != nil {
 		iopts.Logger().Error("failed to set up circuit breaker middleware config watch", zap.Error(err))
-		return nil, fmt.Errorf("failed to set up circuit breaker middleware config watch: %v", err)
+		return nil, fmt.Errorf("failed to set up circuit breaker middleware config watch: %w", err)
 	}
 
 	return provider, nil
