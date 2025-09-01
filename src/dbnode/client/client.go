@@ -50,7 +50,6 @@ func newClient(opts Options, asyncOpts ...Options) (*client, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
-
 	return &client{opts: opts, asyncOpts: asyncOpts, newSessionFn: newReplicatedSession}, nil
 }
 
