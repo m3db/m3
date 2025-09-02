@@ -520,7 +520,11 @@ func (c Configuration) setupCircuitBreakerProvider(envCfgs environment.Configure
 	iopts instrument.Options) (cb.EnableProvider, error) {
 	// Check if we have environment configs and KV store
 	if len(envCfgs) == 0 || envCfgs[0].KVStore == nil {
-		iopts.Logger().Info("no environment configs available for circuit breaker setup")
+		if len(envCfgs) == 0 {
+			iopts.Logger().Info("no environment configs available for circuit breaker setup")
+		} else {
+			iopts.Logger().Info("KV store is nil in environment config")
+		}
 		return cb.NewNopEnableProvider(), nil
 	}
 
