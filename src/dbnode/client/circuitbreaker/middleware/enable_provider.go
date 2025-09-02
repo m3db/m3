@@ -67,8 +67,41 @@ func (p *enableProvider) IsShadowMode() bool {
 	return false
 }
 
+// checkConfigKeyExists checks if the circuit breaker configuration key exists and contains valid data.
+// Returns true if the key exists and is valid, false otherwise.
+func (p *enableProvider) checkConfigKeyExists(store kv.Store, logger *zap.Logger) bool {
+	value, err := store.Get(_configPath)
+	if err != nil {
+		logger.Error("failed to get circuit breaker middleware configuration", zap.Error(err))
+		return false
+	}
+
+	// Check if value is empty (version 0 indicates uninitialized/non-existent key)
+	if value.Version() == kv.UninitializedVersion {
+		logger.Info("circuit breaker middleware configuration key is empty")
+		return false
+	}
+
+	// Try to unmarshal the value to see if it actually contains valid data
+	var configProto circuitbreaker.EnableConfigProto
+	if err := value.Unmarshal(&configProto); err != nil {
+		logger.Error("failed to unmarshal circuit breaker middleware configuration", zap.Error(err))
+		return false
+	}
+
+	return true
+}
+
 // WatchConfig watches for changes to the circuit breaker middleware configuration in etcd.
 func (p *enableProvider) WatchConfig(store kv.Store, logger *zap.Logger) error {
+	logger.Info("checking if circuit breaker middleware configuration key exists")
+
+	// Check if the key exists before creating a watch
+	if !p.checkConfigKeyExists(store, logger) {
+		logger.Info("circuit breaker middleware configuration key does not exist or is invalid, skipping watch")
+		return nil
+	}
+
 	logger.Info("watching circuit breaker middleware configuration")
 
 	watch, err := store.Watch(_configPath)
@@ -80,19 +113,26 @@ func (p *enableProvider) WatchConfig(store kv.Store, logger *zap.Logger) error {
 
 	go func() {
 		for range watch.C() {
-			// Get the current value
+			// Check if the key still exists and is valid
+			if !p.checkConfigKeyExists(store, logger) {
+				logger.Info("circuit breaker middleware configuration key no longer exists or is invalid, stopping watch")
+				return // Exit the goroutine
+			}
+
+			// Get the current value for processing
 			value, err := store.Get(_configPath)
 			if err != nil {
 				logger.Error("failed to get circuit breaker middleware configuration", zap.Error(err))
-				continue
+				return // Exit the goroutine on error
 			}
+
 			logger.Info("circuit breaker middleware configuration changed", zap.Any("value", value))
 
 			// Unmarshal into EnableConfigProto
 			var configProto circuitbreaker.EnableConfigProto
 			if err := value.Unmarshal(&configProto); err != nil {
 				logger.Error("failed to unmarshal circuit breaker middleware configuration", zap.Error(err))
-				continue
+				return // Exit the goroutine on unmarshal error
 			}
 
 			// Create a new config with the boolean flags from etcd
