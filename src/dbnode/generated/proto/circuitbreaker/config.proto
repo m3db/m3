@@ -10,5 +10,5 @@ message EnableConfigProto {
   bool enabled = 1;
 
   // shadow_mode indicates whether the circuit breaker is in shadow mode.
-  bool shadow_mode = 2;
+  bool shadowMode = 2;
 }
