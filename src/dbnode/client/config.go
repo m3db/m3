@@ -25,8 +25,6 @@ import (
 	"fmt"
 	"time"
 
-	"go.uber.org/zap"
-
 	cb "github.com/m3db/m3/src/dbnode/client/circuitbreaker/middleware"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
@@ -357,14 +355,29 @@ func (c Configuration) NewAdminClient(
 		SetLogHostWriteErrorSampleRate(c.LogHostWriteErrorSampleRate).
 		SetLogHostFetchErrorSampleRate(c.LogHostFetchErrorSampleRate)
 
-	// Set up circuit breaker provider using environment configuration
-	provider, err := c.setupCircuitBreakerProvider(envCfgs, iopts)
-	if err != nil {
-		iopts.Logger().Error("failed to set up circuit breaker provider", zap.Error(err))
-		return nil, fmt.Errorf("failed to set up circuit breaker provider: %w", err)
-	}
-	if provider != nil {
-		iopts.Logger().Info("successfully set up circuit breaker provider from environment config")
+	if len(envCfgs) > 0 {
+		kv := envCfgs[0].KVStore
+		if kv != nil {
+			// Create a single provider instance
+			provider := cb.NewEnableProvider()
+
+			// Set up circuit breaker middleware config watch
+			if err := provider.WatchConfig(kv, iopts.Logger()); err != nil {
+				return nil, fmt.Errorf("failed to set up circuit breaker middleware config watch: %w", err)
+			}
+
+			// Set the provider in the options
+			v = v.SetMiddlewareEnableProvider(provider)
+		} else {
+			iopts.Logger().Info("no KV store is available for circuit breaker middleware config watch")
+			// If no KV store is available, use a nop provider to prevent nil pointer dereference
+			provider := cb.NewNopEnableProvider()
+			v = v.SetMiddlewareEnableProvider(provider)
+		}
+	} else {
+		iopts.Logger().Info("no environment configs are available for circuit breaker middleware config watch")
+		// If no environment configs are available, use a nop provider to prevent nil pointer dereference
+		provider := cb.NewNopEnableProvider()
 		v = v.SetMiddlewareEnableProvider(provider)
 	}
 
@@ -512,30 +525,4 @@ func (c Configuration) NewAdminClient(
 
 	asyncClusterOpts := NewOptionsForAsyncClusters(opts, asyncTopoInits, asyncClientOverrides)
 	return NewAdminClient(opts, asyncClusterOpts...)
-}
-
-// setupCircuitBreakerProvider sets up the circuit breaker middleware provider
-// using environment configuration. Returns nil if no provider can be set up.
-func (c Configuration) setupCircuitBreakerProvider(envCfgs environment.ConfigureResults,
-	iopts instrument.Options) (cb.EnableProvider, error) {
-	// Check if we have environment configs and KV store
-	if len(envCfgs) == 0 || envCfgs[0].KVStore == nil {
-		if len(envCfgs) == 0 {
-			iopts.Logger().Info("no environment configs available for circuit breaker setup")
-		} else {
-			iopts.Logger().Info("KV store is nil in environment config")
-		}
-		return cb.NewNopEnableProvider(), nil
-	}
-
-	// Create a single provider instance
-	provider := cb.NewEnableProvider()
-
-	// Set up circuit breaker middleware config watch
-	if err := provider.WatchConfig(envCfgs[0].KVStore, iopts.Logger()); err != nil {
-		iopts.Logger().Error("failed to set up circuit breaker middleware config watch", zap.Error(err))
-		return nil, fmt.Errorf("failed to set up circuit breaker middleware config watch: %w", err)
-	}
-	iopts.Logger().Info("successfully set up circuit breaker provider from environment config1")
-	return provider, nil
 }
