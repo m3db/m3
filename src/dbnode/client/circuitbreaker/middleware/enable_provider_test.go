@@ -68,6 +68,7 @@ func TestEnableProvider_WatchConfig(t *testing.T) {
 	// Set up mocks to always return the current expected config
 	mockStore.EXPECT().Watch(_configPath).Return(mockWatch, nil).AnyTimes()
 	mockStore.EXPECT().Get(_configPath).Return(mockValue, nil).AnyTimes()
+	mockValue.EXPECT().Version().Return(kv.UninitializedVersion + 1).AnyTimes()
 	mockValue.EXPECT().Unmarshal(gomock.Any()).DoAndReturn(func(v interface{}) error {
 		proto := v.(*circuitbreaker.EnableConfigProto)
 		proto.Enabled = expectedEnabled.Load()
