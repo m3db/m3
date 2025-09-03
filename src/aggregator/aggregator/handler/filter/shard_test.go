@@ -35,15 +35,15 @@ func TestShardSetFilter(t *testing.T) {
 	defer ctrl.Finish()
 
 	ss := sharding.MustParseShardSet("0..511")
-	f := NewShardSetFilter(ss)
+	f := NewShardSetFilter(ss, producer.StaticConfig)
 
 	mm := producer.NewMockMessage(ctrl)
 	mm.EXPECT().Shard().Return(uint32(0))
-	require.True(t, f(mm))
+	require.True(t, f.Function(mm))
 	mm.EXPECT().Shard().Return(uint32(10))
-	require.True(t, f(mm))
+	require.True(t, f.Function(mm))
 	mm.EXPECT().Shard().Return(uint32(511))
-	require.True(t, f(mm))
+	require.True(t, f.Function(mm))
 	mm.EXPECT().Shard().Return(uint32(512))
-	require.False(t, f(mm))
+	require.False(t, f.Function(mm))
 }

@@ -34,11 +34,11 @@ func TestPercentageFilter(t *testing.T) {
 	defer ctrl.Finish()
 	mm := producer.NewMockMessage(ctrl)
 
-	f0 := NewPercentageFilter(0)
-	require.False(t, f0(mm))
+	f0 := NewPercentageFilter(0, producer.StaticConfig)
+	require.False(t, f0.Function((mm)))
 
-	f1 := NewPercentageFilter(1)
-	require.True(t, f1(mm))
+	f1 := NewPercentageFilter(1, producer.DynamicConfig)
+	require.True(t, f1.Function(mm))
 }
 
 var filterResult bool
@@ -55,10 +55,10 @@ BenchmarkPercentageFilter-12    	280085259	         4.232 ns/op
 PASS
 */
 func BenchmarkPercentageFilter(b *testing.B) {
-	f := NewPercentageFilter(0.5)
+	f := NewPercentageFilter(0.5, producer.StaticConfig)
 	var r bool
 	for i := 0; i < b.N; i++ {
-		r = f(nil)
+		r = f.Function(nil)
 	}
 	filterResult = r
 }

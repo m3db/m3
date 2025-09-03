@@ -30,6 +30,7 @@ import (
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/mem"
@@ -521,7 +522,10 @@ func TestConsumerServiceWriterFilter(t *testing.T) {
 	sw1.EXPECT().Write(gomock.Any())
 	csw.Write(producer.NewRefCountedMessage(mm1, nil))
 
-	csw.RegisterFilter(func(m producer.Message) bool { return m.Shard() == uint32(0) })
+	csw.RegisterFilter(producer.NewFilterFunc(
+		func(m producer.Message) bool { return m.Shard() == uint32(0) },
+		producer.UnspecifiedFilter,
+		producer.StaticConfig))
 	// Write is not expected due to mm1 shard != 0
 	csw.Write(producer.NewRefCountedMessage(mm1, nil))
 
@@ -529,7 +533,10 @@ func TestConsumerServiceWriterFilter(t *testing.T) {
 	// Write is expected due to mm0 shard == 0
 	csw.Write(producer.NewRefCountedMessage(mm0, nil))
 
-	csw.RegisterFilter(func(m producer.Message) bool { return m.Size() == 3 })
+	csw.RegisterFilter(producer.NewFilterFunc(
+		func(m producer.Message) bool { return m.Size() == 3 },
+		producer.UnspecifiedFilter,
+		producer.StaticConfig))
 	sw0.EXPECT().Write(gomock.Any())
 	// Write is expected because to mm0 shard == 0 and mm0 size == 3
 	csw.Write(producer.NewRefCountedMessage(mm0, nil))
@@ -684,6 +691,54 @@ func TestConsumerServiceCloseShardWritersConcurrently(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		require.FailNow(t, "taking too long to close consumer service writer")
 	}
+}
+
+func TestConsumerServiceWriterMetrics(t *testing.T) {
+	testScope := tally.NewTestScope("test", nil)
+
+	acceptedMetadata := producer.FilterFuncMetadata{
+		FilterType: producer.ShardSetFilter,
+		SourceType: producer.DynamicConfig}
+
+	notAcceptedMetadata := producer.FilterFuncMetadata{
+		FilterType: producer.PercentageFilter,
+		SourceType: producer.DynamicConfig}
+
+	m := newConsumerServiceWriterMetrics(testScope)
+	m.getFilterAcceptedGranularCounter(acceptedMetadata).Inc(1)
+	m.getFilterNotAcceptedGranularCounter(notAcceptedMetadata).Inc(1)
+
+	accepetKey := m.getGranularFilterCounterMapKey(acceptedMetadata)
+	notAcceptKey := m.getGranularFilterCounterMapKey(notAcceptedMetadata)
+
+	_, ok := m.filterAcceptedGranular[accepetKey]
+	require.True(t, ok)
+
+	_, ok = m.filterNotAcceptedGranular[notAcceptKey]
+	require.True(t, ok)
+
+	gotAcceptedValue := false
+	gotNotAcceptedValue := false
+
+	snap := testScope.Snapshot()
+	for _, c := range snap.Counters() {
+		if c.Name() == "test.filter-accepted-granular" {
+			require.Equal(t, "DynamicConfig", c.Tags()["config-source"])
+			require.Equal(t, "ShardSetFilter", c.Tags()["filter-type"])
+			require.Equal(t, int64(1), c.Value())
+			gotAcceptedValue = true
+		}
+
+		if c.Name() == "test.filter-not-accepted-granular" {
+			require.Equal(t, "DynamicConfig", c.Tags()["config-source"])
+			require.Equal(t, "PercentageFilter", c.Tags()["filter-type"])
+			require.Equal(t, int64(1), c.Value())
+			gotNotAcceptedValue = true
+		}
+	}
+
+	require.True(t, gotAcceptedValue)
+	require.True(t, gotNotAcceptedValue)
 }
 
 func testPlacementService(store kv.Store, sid services.ServiceID) placement.Service {
