@@ -32,15 +32,14 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/dbnode/client/circuitbreaker"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 )
 
 // newTestConfig creates a common test configuration for middleware tests
-func newTestConfig(enabled, shadowMode bool) Config {
+func newTestConfig() Config {
 	return Config{
-		Enabled:    enabled,
-		ShadowMode: shadowMode,
 		CircuitBreakerConfig: circuitbreaker.Config{
 			MinimumRequests:      1,
 			FailureRatio:         0.1,
@@ -51,13 +50,39 @@ func newTestConfig(enabled, shadowMode bool) Config {
 	}
 }
 
+// newTestEnableProvider creates a test enable provider
+func newTestEnableProvider(enabled, shadowMode bool) EnableProvider {
+	return &testEnableProvider{
+		enabled:    enabled,
+		shadowMode: shadowMode,
+	}
+}
+
+type testEnableProvider struct {
+	enabled    bool
+	shadowMode bool
+}
+
+func (p *testEnableProvider) IsEnabled() bool {
+	return p.enabled
+}
+
+func (p *testEnableProvider) IsShadowMode() bool {
+	return p.shadowMode
+}
+
+func (p *testEnableProvider) WatchConfig(store kv.Store, logger *zap.Logger) error {
+	return nil
+}
+
 // newTestParams creates common test parameters
 func newTestParams(enabled bool) Params {
 	return Params{
-		Config: newTestConfig(enabled, false), // shadowMode is false
-		Logger: zap.NewNop(),
-		Scope:  tally.NoopScope,
-		Host:   "test-host",
+		Config:         newTestConfig(),
+		Logger:         zap.NewNop(),
+		Scope:          tally.NoopScope,
+		Host:           "test-host",
+		EnableProvider: newTestEnableProvider(enabled, false),
 	}
 }
 
@@ -81,14 +106,14 @@ func newSuccessfulWriteMockBehavior() func(*rpc.MockTChanNode) {
 
 // verifyUnhealthyState verifies circuit breaker is in unhealthy state
 func verifyUnhealthyState(t *testing.T, c *client) {
-	assert.True(t, c.enabled)
+	assert.True(t, c.provider.IsEnabled())
 	assert.NotNil(t, c.circuit)
 	assert.Equal(t, circuitbreaker.Unhealthy, c.circuit.Status().State())
 }
 
 // verifyHealthyState verifies circuit breaker is in healthy state
 func verifyHealthyState(t *testing.T, c *client, enabled bool) {
-	assert.Equal(t, enabled, c.enabled)
+	assert.Equal(t, enabled, c.provider.IsEnabled())
 	assert.NotNil(t, c.circuit)
 	assert.Equal(t, circuitbreaker.Healthy, c.circuit.Status().State())
 }
@@ -103,29 +128,14 @@ func TestNew(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name: "valid params",
-			params: Params{
-				Config: Config{
-					Enabled: true,
-					CircuitBreakerConfig: circuitbreaker.Config{
-						MinimumRequests:      1,
-						FailureRatio:         0.1,
-						MinimumProbeRequests: 0,
-						WindowSize:           1,
-						BucketDuration:       time.Millisecond,
-					},
-				},
-				Logger: zap.NewNop(),
-				Scope:  tally.NoopScope,
-				Host:   "test-host",
-			},
+			name:        "valid params",
+			params:      newTestParams(true),
 			expectError: false,
 		},
 		{
 			name: "invalid circuit breaker config",
 			params: Params{
 				Config: Config{
-					Enabled: true,
 					CircuitBreakerConfig: circuitbreaker.Config{
 						MinimumRequests:      -1, // Invalid config
 						FailureRatio:         0.1,
@@ -134,9 +144,10 @@ func TestNew(t *testing.T) {
 						BucketDuration:       time.Millisecond,
 					},
 				},
-				Logger: zap.NewNop(),
-				Scope:  tally.NoopScope,
-				Host:   "test-host",
+				Logger:         zap.NewNop(),
+				Scope:          tally.NoopScope,
+				Host:           "test-host",
+				EnableProvider: newTestEnableProvider(true, false),
 			},
 			expectError: true,
 		},
@@ -266,10 +277,11 @@ func TestClient_ShadowMode(t *testing.T) {
 		{
 			name: "shadow mode enabled - request goes through",
 			params: Params{
-				Config: newTestConfig(true, true),
-				Logger: zap.NewNop(),
-				Scope:  tally.NoopScope,
-				Host:   "test-host",
+				Config:         newTestConfig(),
+				Logger:         zap.NewNop(),
+				Scope:          tally.NoopScope,
+				Host:           "test-host",
+				EnableProvider: newTestEnableProvider(true, true),
 			},
 			mockBehavior: func(mockNode *rpc.MockTChanNode) {
 				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(nil)
@@ -279,10 +291,11 @@ func TestClient_ShadowMode(t *testing.T) {
 		{
 			name: "shadow mode enabled - request fails",
 			params: Params{
-				Config: newTestConfig(true, true),
-				Logger: zap.NewNop(),
-				Scope:  tally.NoopScope,
-				Host:   "test-host",
+				Config:         newTestConfig(),
+				Logger:         zap.NewNop(),
+				Scope:          tally.NoopScope,
+				Host:           "test-host",
+				EnableProvider: newTestEnableProvider(true, true),
 			},
 			mockBehavior: func(mockNode *rpc.MockTChanNode) {
 				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(errors.New("write error"))
@@ -299,11 +312,15 @@ func TestClient_ShadowMode(t *testing.T) {
 			mockNode := rpc.NewMockTChanNode(ctrl)
 			tt.mockBehavior(mockNode)
 
-			client := middlewareFn(mockNode)
+			clientInterface := middlewareFn(mockNode)
 			ctx, cancel := thrift.NewContext(time.Second)
 			defer cancel()
 
-			err = client.WriteBatchRaw(ctx, &rpc.WriteBatchRawRequest{})
+			// This should not panic and should pass through to the underlying client
+			node, ok := clientInterface.(rpc.TChanNode)
+			require.True(t, ok, "Client must implement rpc.TChanNode")
+
+			err = node.WriteBatchRaw(ctx, &rpc.WriteBatchRawRequest{})
 			if tt.expectedError {
 				assert.Error(t, err)
 			} else {
@@ -311,4 +328,36 @@ func TestClient_ShadowMode(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestClient_NilProvider tests that the middleware handles nil provider correctly
+func TestClient_NilProvider(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Create middleware with nil provider
+	params := Params{
+		Config:         newTestConfig(),
+		Logger:         zap.NewNop(),
+		Scope:          tally.NoopScope,
+		Host:           "test-host",
+		EnableProvider: nil, // This is the key test - nil provider
+	}
+
+	middlewareFn, err := New(params)
+	require.NoError(t, err)
+
+	mockNode := rpc.NewMockTChanNode(ctrl)
+	mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(nil)
+
+	clientInterface := middlewareFn(mockNode)
+	ctx, cancel := thrift.NewContext(time.Second)
+	defer cancel()
+
+	// This should not panic and should pass through to the underlying client
+	node, ok := clientInterface.(rpc.TChanNode)
+	require.True(t, ok, "Client must implement rpc.TChanNode")
+
+	err = node.WriteBatchRaw(ctx, &rpc.WriteBatchRawRequest{})
+	assert.NoError(t, err, "Should not panic with nil provider")
 }

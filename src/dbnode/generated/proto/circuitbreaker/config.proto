@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package circuitbreaker;
+
+// EnableConfigProto is a protobuf message for the circuit breaker config.
+message EnableConfigProto {
+  bool enabled = 1;
+  bool shadowMode = 2;
+}

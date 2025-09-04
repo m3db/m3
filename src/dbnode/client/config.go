@@ -25,6 +25,9 @@ import (
 	"fmt"
 	"time"
 
+	"go.uber.org/zap"
+
+	cb "github.com/m3db/m3/src/dbnode/client/circuitbreaker/middleware"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/environment"
@@ -130,6 +133,9 @@ type Configuration struct {
 
 	// IterateEqualTimestampStrategy specifies the iterate equal timestamp strategy.
 	IterateEqualTimestampStrategy *encoding.IterateEqualTimestampStrategy `yaml:"iterateEqualTimestampStrategy"`
+
+	// CircuitBreakerConfig is the configuration for the circuit breaker middleware.
+	CircuitBreakerConfig *cb.Config `yaml:"circuitBreakerConfig"`
 }
 
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
@@ -190,7 +196,7 @@ func (c *Configuration) Validate() error {
 	}
 
 	if err := c.LogErrorSampleRate.Validate(); err != nil {
-		return fmt.Errorf("m3db client error validating log error sample rate: %v", err)
+		return fmt.Errorf("m3db client error validating log error sample rate: %w", err)
 	}
 
 	if c.BackgroundHealthCheckFailLimit != nil &&
@@ -224,7 +230,7 @@ func (c *Configuration) Validate() error {
 	}
 
 	if err := c.Proto.Validate(); err != nil {
-		return fmt.Errorf("error validating M3DB client proto configuration: %v", err)
+		return fmt.Errorf("error validating M3DB client proto configuration: %w", err)
 	}
 
 	return nil
@@ -321,10 +327,12 @@ func (c Configuration) NewAdminClient(
 	)
 
 	var buildAsyncPool bool
+	var envCfgs environment.ConfigureResults
 	if syncTopoInit == nil {
-		envCfgs, err := c.EnvironmentConfig.Configure(cfgParams)
+		var err error
+		envCfgs, err = c.EnvironmentConfig.Configure(cfgParams)
 		if err != nil {
-			err = fmt.Errorf("unable to create topology initializer, err: %v", err)
+			err = fmt.Errorf("unable to create topology initializer, err: %w", err)
 			return nil, err
 		}
 
@@ -350,6 +358,15 @@ func (c Configuration) NewAdminClient(
 		SetLogHostWriteErrorSampleRate(c.LogHostWriteErrorSampleRate).
 		SetLogHostFetchErrorSampleRate(c.LogHostFetchErrorSampleRate)
 
+	// Set up circuit breaker provider using environment configuration
+	provider, err := c.setupCircuitBreakerProvider(envCfgs, iopts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to set up circuit breaker provider: %w", err)
+	}
+	if provider != nil {
+		v = v.SetMiddlewareEnableProvider(provider)
+	}
+
 	if params.ClockOptions != nil {
 		v = v.SetClockOptions(params.ClockOptions)
 	}
@@ -372,7 +389,7 @@ func (c Configuration) NewAdminClient(
 			SetInstrumentOptions(workerPoolInstrumentOpts)
 		workerPool, err := xsync.NewPooledWorkerPool(size, workerPoolOpts)
 		if err != nil {
-			return nil, fmt.Errorf("unable to create async worker pool: %v", err)
+			return nil, fmt.Errorf("unable to create async worker pool: %w", err)
 		}
 		workerPool.Init()
 		v = v.SetAsyncWriteWorkerPool(workerPool)
@@ -469,6 +486,10 @@ func (c Configuration) NewAdminClient(
 		v = v.SetShardsLeavingCountTowardsConsistency(*c.ShardsLeavingCountTowardsConsistency)
 	}
 
+	if c.CircuitBreakerConfig != nil {
+		v = v.SetMiddlewareCircuitbreakerConfig(*c.CircuitBreakerConfig)
+	}
+
 	// Cast to admin options to apply admin config options.
 	opts := v.(AdminOptions)
 
@@ -490,4 +511,25 @@ func (c Configuration) NewAdminClient(
 
 	asyncClusterOpts := NewOptionsForAsyncClusters(opts, asyncTopoInits, asyncClientOverrides)
 	return NewAdminClient(opts, asyncClusterOpts...)
+}
+
+// setupCircuitBreakerProvider sets up the circuit breaker middleware provider
+// using environment configuration. Returns nil if no provider can be set up.
+func (c Configuration) setupCircuitBreakerProvider(envCfgs environment.ConfigureResults,
+	iopts instrument.Options) (cb.EnableProvider, error) {
+	// Check if we have environment configs and KV store
+	if len(envCfgs) == 0 || envCfgs[0].KVStore == nil {
+		return cb.NewNopEnableProvider(), nil
+	}
+
+	// Create a single provider instance
+	provider := cb.NewEnableProvider()
+
+	// Set up circuit breaker middleware config watch
+	if err := provider.WatchConfig(envCfgs[0].KVStore, iopts.Logger()); err != nil {
+		iopts.Logger().Warn("failed to set up circuit breaker middleware config watch", zap.Error(err))
+		return nil, fmt.Errorf("failed to set up circuit breaker middleware config watch: %w", err)
+	}
+
+	return provider, nil
 }
