@@ -12,12 +12,13 @@ import (
 
 // client is a client that wraps a TChannel client with a circuit breaker.
 type client struct {
-	logger   *zap.Logger
-	circuit  *circuitbreaker.Circuit
-	metrics  *circuitBreakerMetrics
-	host     string
-	next     rpc.TChanNode
-	provider EnableProvider
+	logger    *zap.Logger
+	circuit   *circuitbreaker.Circuit
+	metrics   *circuitBreakerMetrics
+	host      string
+	next      rpc.TChanNode
+	provider  EnableProvider
+	lastError error
 }
 
 // M3DBMiddleware is a function that takes a TChannel client and returns a circuit breaker client interface.
@@ -81,7 +82,7 @@ func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.C
 			c.metrics.shadowRejects.Inc(1)
 		} else {
 			c.metrics.rejects.Inc(1)
-			return circuitbreakererror.New(c.host)
+			return circuitbreakererror.NewWithLastError(c.host, c.lastError)
 		}
 	}
 
@@ -91,6 +92,8 @@ func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.C
 		c.metrics.successes.Inc(1)
 	} else {
 		c.metrics.failures.Inc(1)
+		// Store the last error for potential use when circuit breaker is open
+		c.lastError = err
 	}
 
 	// Report request status to circuit breaker

@@ -72,13 +72,13 @@ func (p *enableProvider) IsShadowMode() bool {
 func (p *enableProvider) checkConfigKeyExists(store kv.Store, logger *zap.Logger) bool {
 	value, err := store.Get(_configPath)
 	if err != nil {
-		logger.Error("failed to get circuit breaker middleware configuration", zap.Error(err))
+		logger.Debug("failed to get circuit breaker middleware configuration", zap.Error(err))
 		return false
 	}
 
 	// Check if value is empty (version 0 indicates uninitialized/non-existent key)
 	if value.Version() == kv.UninitializedVersion {
-		logger.Info("circuit breaker middleware configuration key is empty")
+		logger.Debug("circuit breaker middleware configuration key is empty")
 		return false
 	}
 
