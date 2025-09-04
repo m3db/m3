@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"sync"
+
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
@@ -19,6 +21,7 @@ type client struct {
 	next      rpc.TChanNode
 	provider  EnableProvider
 	lastError error
+	mu        sync.RWMutex // protects lastError field
 }
 
 // M3DBMiddleware is a function that takes a TChannel client and returns a circuit breaker client interface.
@@ -82,7 +85,10 @@ func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.C
 			c.metrics.shadowRejects.Inc(1)
 		} else {
 			c.metrics.rejects.Inc(1)
-			return circuitbreakererror.NewWithLastError(c.host, c.lastError)
+			c.mu.RLock()
+			lastError := c.lastError
+			c.mu.RUnlock()
+			return circuitbreakererror.NewWithLastError(c.host, lastError)
 		}
 	}
 
@@ -93,7 +99,9 @@ func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.C
 	} else {
 		c.metrics.failures.Inc(1)
 		// Store the last error for potential use when circuit breaker is open
+		c.mu.Lock()
 		c.lastError = err
+		c.mu.Unlock()
 	}
 
 	// Report request status to circuit breaker
