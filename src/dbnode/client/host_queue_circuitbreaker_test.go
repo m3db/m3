@@ -39,7 +39,7 @@ import (
 )
 
 const (
-	circuitBreakerRejectMessage = "request rejected by circuit breaker of outbound-service"
+	circuitBreakerRejectMessage = "request rejected by circuit breaker"
 )
 
 type testEnableProvider struct {

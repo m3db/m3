@@ -12,6 +12,10 @@ type circuitBreakerError struct {
 	lastError error
 }
 
+const (
+	circuitBreakerRejectMessage = "request rejected by circuit breaker"
+)
+
 var _ error = (*circuitBreakerError)(nil)
 
 // New creates a new circuit breaker error with the given host.
@@ -29,7 +33,7 @@ func NewWithLastError(host string, lastError error) error {
 // Error returns the error message for the circuit breaker error.
 func (e circuitBreakerError) Error() string {
 	var b strings.Builder
-	b.WriteString("request rejected by circuit breaker of outbound-service: ")
+	b.WriteString(circuitBreakerRejectMessage)
 	b.WriteString(e.host)
 	if e.lastError != nil {
 		b.WriteString(" (last error: ")
