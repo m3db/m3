@@ -97,10 +97,11 @@ func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.C
 	if err == nil {
 		c.metrics.successes.Inc(1)
 	} else {
-		c.logger.Error("request failed with error", zap.Error(err))
+		c.logger.Error("last error", zap.Error(c.lastError))
 		c.metrics.failures.Inc(1)
 		// Store the last error for potential use when circuit breaker is open
 		c.mu.Lock()
+		c.logger.Error("request failed with error", zap.Error(err))
 		c.lastError = err
 		c.mu.Unlock()
 	}
