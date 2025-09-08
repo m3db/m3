@@ -178,12 +178,25 @@ func TestValidateSubclusterDistribution(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name: "replica factor not set",
+			ph: &subclusteredHelper{
+				instances: map[string]placement.Instance{
+					"i1": placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1),
+				},
+				opts: placement.NewOptions().SetInstancesPerSubCluster(3),
+				rf:   0,
+			},
+			expectError: true,
+			errorMsg:    "replica factor should be greater than 0",
+		},
+		{
 			name: "instances per subcluster not set",
 			ph: &subclusteredHelper{
 				instances: map[string]placement.Instance{
 					"i1": placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1),
 				},
 				opts: placement.NewOptions().SetInstancesPerSubCluster(0),
+				rf:   3,
 			},
 			expectError: true,
 			errorMsg:    "instances per subcluster is not set",
