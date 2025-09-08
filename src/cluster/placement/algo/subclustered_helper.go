@@ -114,7 +114,8 @@ func (ph *subclusteredHelper) validateInstanceWeight() error {
 		}
 
 		if instance.Weight() != expectedWeight {
-			return fmt.Errorf("inconsistent instance weights: instance %s has weight %d, expected %d",
+			return fmt.Errorf("sub-clustered algo currently only supports all instances having equal weights. "+
+				"inconsistent instance weights: instance %s has weight %d, expected %d, ",
 				instance.ID(), instance.Weight(), expectedWeight)
 		}
 	}
@@ -130,14 +131,14 @@ func (ph *subclusteredHelper) scanCurrentLoad(subClusterToExclude uint32) {
 	ph.subClusters = make(map[uint32]*subcluster)
 	totalWeight := uint32(0)
 	for _, instance := range ph.instances {
+		if instance.IsLeaving() {
+			continue
+		}
+
 		if _, exist := ph.groupToInstancesMap[instance.IsolationGroup()]; !exist {
 			ph.groupToInstancesMap[instance.IsolationGroup()] = make(map[placement.Instance]struct{})
 		}
 		ph.groupToInstancesMap[instance.IsolationGroup()][instance] = struct{}{}
-
-		if instance.IsLeaving() {
-			continue
-		}
 
 		subClusterID := instance.SubClusterID()
 		if _, exist := ph.subClusters[subClusterID]; !exist {
@@ -246,6 +247,10 @@ func (ph *subclusteredHelper) returnInitializingShards(instance placement.Instan
 func (ph *subclusteredHelper) validateSubclusterDistribution() error {
 	if len(ph.instances) == 0 {
 		return nil
+	}
+
+	if ph.rf <= 0 {
+		return fmt.Errorf("replica factor should be greater than 0")
 	}
 
 	if ph.opts.InstancesPerSubCluster() <= 0 {
