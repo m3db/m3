@@ -106,8 +106,8 @@ EOF
       - "${http_port}"
       - "${tcp_port}"
     ports:
-      - "127.0.0.1:${http_port}:${http_port}"
-      - "127.0.0.1:${tcp_port}:${tcp_port}"
+      - "0.0.0.0:${http_port}:${http_port}"
+      - "0.0.0.0:${tcp_port}:${tcp_port}"
     networks:
       - backend
     environment:
@@ -145,8 +145,36 @@ generate_aggregator_configs() {
     done
 }
 
+# Get host IP address that works for both external tools and internal containers
+get_host_ip() {
+    # Try to get the IP address that Docker containers use to reach the host
+    # This works for most Docker setups and platforms
+    local host_ip
+    if command -v ip >/dev/null 2>&1; then
+        # Linux: Get the IP of the default route interface
+        host_ip=$(ip route get 8.8.8.8 | grep -oP 'src \K\S+' 2>/dev/null | head -1)
+    fi
+
+    # Fallback: Try to get IP from hostname resolution
+    if [ -z "$host_ip" ]; then
+        host_ip=$(hostname -I | awk '{print $1}' 2>/dev/null || true)
+    fi
+
+    # Last resort: Use localhost (will work for external but not internal)
+    if [ -z "$host_ip" ]; then
+        echo "Warning: Could not detect host IP, falling back to localhost" >&2
+        host_ip="localhost"
+    fi
+
+    echo "$host_ip"
+}
+
 # Generate placement instances JSON
 generate_placement_instances() {
+    # Use host IP address as endpoints - this works for both external tools and internal containers
+    local host_ip=$(get_host_ip)
+    echo "Using host IP address for placement endpoints: $host_ip" >&2
+
     local instances="["
     for i in $(seq 1 $M3_AGGREGATOR_NODE_COUNT); do
         local node_id=$(printf "%02d" $i)
@@ -165,7 +193,7 @@ generate_placement_instances() {
             "isolation_group": "rack-'${isolation_group_id}'",
             "zone": "embedded",
             "weight": 1024,
-            "endpoint": "localhost:'${tcp_port}'",
+            "endpoint": "'${host_ip}':'${tcp_port}'",
             "hostname": "m3aggregator'${node_id}'",
             "port": 6000
         }'
@@ -240,18 +268,21 @@ echo "======================================="
 echo "Node Count: $M3_AGGREGATOR_NODE_COUNT"
 echo "Replica Factor: $M3_AGGREGATOR_REPLICA_FACTOR"
 echo ""
+HOST_IP=$(get_host_ip)
 echo "Services:"
 echo "- M3 Coordinator Admin API: http://localhost:7201"
 echo "- ETCD: localhost:2379"
 echo ""
 echo "M3 Aggregator Nodes (TCP ingest endpoints):"
+echo "  Host IP: $HOST_IP (works for both external tools and internal communication)"
 for i in $(seq 1 $M3_AGGREGATOR_NODE_COUNT); do
     node_id=$(printf "%02d" $i)
     tcp_port=$((M3_AGGREGATOR_BASE_PORT + 3 + (i - 1) * 10))
-    echo "- m3aggregator${node_id}: localhost:${tcp_port}"
+    echo "- m3aggregator${node_id}: ${HOST_IP}:${tcp_port}"
 done
 echo ""
 echo "Use 'curl localhost:7201/api/v1/services/m3aggregator/placement' to view placement"
+echo "Run './test_connectivity.sh' to verify networking setup"
 echo "Run './stop_m3.sh' to shutdown nodes when done"
 
 # Trap to cleanup generated files on exit

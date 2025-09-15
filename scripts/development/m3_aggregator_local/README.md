@@ -59,8 +59,9 @@ Each aggregator node uses consecutive port ranges based on `M3_AGGREGATOR_BASE_P
 
 4. **Send metrics via TCP** to any aggregator node:
    ```bash
-   # Example: send to node 1 (port 6003)
-   echo "metric.test 123.45 $(date +%s)" | nc localhost 6003
+   # The setup will show you the host IP to use
+   # Example: send to node 1 (port 6003) - replace <host_ip> with actual IP shown
+   echo "metric.test 123.45 $(date +%s)" | nc <host_ip> 6003
    ```
 
 5. **Stop the cluster**:
@@ -72,8 +73,10 @@ Each aggregator node uses consecutive port ranges based on `M3_AGGREGATOR_BASE_P
 
 - **M3 Coordinator Admin API**: `http://localhost:7201`
 - **ETCD**: `localhost:2379`
-- **M3 Aggregator TCP Ingest Endpoints**: `localhost:6003, 6013, 6023, 6033, ...`
-- **M3 Aggregator HTTP APIs**: `localhost:6001, 6011, 6021, 6031, ...`
+- **M3 Aggregator TCP Ingest Endpoints**: `<host_ip>:6003, 6013, 6023, 6033, ...`
+- **M3 Aggregator HTTP APIs**: `<host_ip>:6001, 6011, 6021, 6031, ...`
+
+Note: `<host_ip>` will be automatically detected and displayed when you run `./start_m3.sh`.
 
 ## Configuration Details
 
@@ -138,6 +141,30 @@ The script validates that:
 - Replica factor ≤ Node count
 - All required ports are available
 - etcd and coordinator are healthy before starting aggregators
+
+## Docker Networking
+
+This setup uses a **host IP networking approach** to support both external tools and inter-container communication:
+
+- **External Access**: Load testing tools connect via `<host_ip>:6003`, `<host_ip>:6013`, etc.
+- **Internal Communication**: Aggregator nodes communicate via the same host IP addresses
+- **Single Configuration**: Both external tools and internal containers use the same placement endpoints
+
+The setup automatically detects the host's IP address and uses it in the placement configuration. Port forwarding (0.0.0.0:port) ensures the host IP is accessible from both external tools and Docker containers.
+
+### Connectivity Testing
+
+To verify both external and internal connectivity work:
+
+```bash
+./test_connectivity.sh
+```
+
+This script tests:
+1. External access from the host to aggregator nodes
+2. Internal connectivity between Docker containers
+3. Placement configuration using Docker service names
+4. Metric ingestion via TCP
 
 ## Troubleshooting
 
