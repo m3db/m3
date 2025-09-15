@@ -195,7 +195,7 @@ generate_placement_instances() {
             "weight": 1024,
             "endpoint": "'${host_ip}':'${tcp_port}'",
             "hostname": "m3aggregator'${node_id}'",
-            "port": 6000
+            "port": '${M3_AGGREGATOR_BASE_PORT}'
         }'
     done
     instances+="]"
