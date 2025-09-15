@@ -88,6 +88,7 @@ func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.C
 			if v := c.lastError.Load(); v != nil {
 				lastError = v.(error)
 			}
+			c.logger.Error("last error=", zap.Error(lastError))
 			return circuitbreakererror.NewWithLastError(c.host, lastError)
 		}
 	}
@@ -97,10 +98,10 @@ func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.C
 	if err == nil {
 		c.metrics.successes.Inc(1)
 	} else {
-		c.logger.Error("last error", zap.Error(c.lastError.Load().(error)))
 		c.metrics.failures.Inc(1)
 		// Store the last error for potential use when circuit breaker is open
 		c.lastError.Store(err)
+		c.logger.Error("error received=", zap.Error(err))
 	}
 
 	// Report request status to circuit breaker
