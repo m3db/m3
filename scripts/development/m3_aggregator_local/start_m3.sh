@@ -285,5 +285,5 @@ echo "Use 'curl localhost:7201/api/v1/services/m3aggregator/placement' to view p
 echo "Run './test_connectivity.sh' to verify networking setup"
 echo "Run './stop_m3.sh' to shutdown nodes when done"
 
-# Trap to cleanup generated files on exit
-trap cleanup EXIT
+# Trap to cleanup generated files only on error or interruption, not on successful exit
+trap cleanup INT TERM ERR
