@@ -20,7 +20,7 @@ type client struct {
 	host      string
 	next      rpc.TChanNode
 	provider  EnableProvider
-	lastError atomic.Value // stores error atomically
+	lastError atomic.Value // stores *error atomically
 }
 
 // M3DBMiddleware is a function that takes a TChannel client and returns a circuit breaker client interface.
@@ -86,7 +86,9 @@ func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.C
 			c.metrics.rejects.Inc(1)
 			var lastError error
 			if v := c.lastError.Load(); v != nil {
-				lastError = v.(error)
+				if errPtr := v.(*error); errPtr != nil {
+					lastError = *errPtr
+				}
 			}
 			return circuitbreakererror.NewWithLastError(c.host, lastError)
 		}
@@ -99,7 +101,7 @@ func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.C
 	} else {
 		c.metrics.failures.Inc(1)
 		// Store the last error for potential use when circuit breaker is open
-		c.lastError.Store(err)
+		c.lastError.Store(&err)
 	}
 
 	// Report request status to circuit breaker
