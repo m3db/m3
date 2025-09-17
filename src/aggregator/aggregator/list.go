@@ -435,6 +435,7 @@ func (l *baseMetricList) consumeLocalMetric(
 	value float64,
 	annotation []byte,
 	sp policy.StoragePolicy,
+	routePolicy policy.RoutePolicy,
 ) {
 	chunkedID := metricid.ChunkedID{
 		Prefix: idPrefix,
@@ -466,6 +467,7 @@ func (l *baseMetricList) discardLocalMetric(
 	value float64,
 	annotation []byte,
 	sp policy.StoragePolicy,
+	routePolicy policy.RoutePolicy,
 ) {
 	l.metrics.flushLocal.metricDiscarded.Inc(1)
 }
@@ -478,6 +480,7 @@ func (l *baseMetricList) consumeForwardedMetric(
 	prevValue float64,
 	annotation []byte,
 	resendEnabled bool,
+	routePolicy policy.RoutePolicy,
 ) {
 	writeFn(aggregationKey, timeNanos, value, prevValue, annotation, resendEnabled)
 	l.metrics.flushForwarded.metricConsumed.Inc(1)
@@ -492,6 +495,7 @@ func (l *baseMetricList) discardForwardedMetric(
 	prevValue float64,
 	annotation []byte,
 	resendEnabled bool,
+	routePolicy policy.RoutePolicy,
 ) {
 	l.metrics.flushForwarded.metricDiscarded.Inc(1)
 }

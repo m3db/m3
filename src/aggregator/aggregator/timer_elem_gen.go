@@ -860,16 +860,16 @@ func (e *TimerElem) processValue(
 				switch e.idPrefixSuffixType {
 				case NoPrefixNoSuffix:
 					flushLocalFn(nil, e.id, nil, point.TimeNanos, point.Value, cState.annotation,
-						e.sp)
+						e.sp, e.routePolicy)
 				case WithPrefixWithSuffix:
 					flushLocalFn(e.FullPrefix(e.opts), e.id, e.TypeStringFor(e.aggTypesOpts, aggType),
-						point.TimeNanos, point.Value, cState.annotation, e.sp)
+						point.TimeNanos, point.Value, cState.annotation, e.sp, e.routePolicy)
 				}
 			}
 		} else {
 			forwardedAggregationKey, _ := e.ForwardedAggregationKey()
 			flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey,
-				int64(timestamp), value, prevValue, cState.annotation, cState.resendEnabled)
+				int64(timestamp), value, prevValue, cState.annotation, cState.resendEnabled, e.routePolicy)
 		}
 		// add latenessAllowed and jitter to the timestamp of the aggregation, since those should not be
 		// counted towards the processing lag.
