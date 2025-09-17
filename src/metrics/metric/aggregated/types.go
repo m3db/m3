@@ -115,6 +115,7 @@ type RawMetric interface {
 type MetricWithStoragePolicy struct {
 	Metric
 	policy.StoragePolicy
+	policy.RoutePolicy
 }
 
 // ToProto converts the chunked metric with storage policy to a protobuf message in place.
@@ -122,8 +123,15 @@ func (m MetricWithStoragePolicy) ToProto(pb *metricpb.TimedMetricWithStoragePoli
 	if err := m.Metric.ToProto(&pb.TimedMetric); err != nil {
 		return err
 	}
-
-	return m.StoragePolicy.ToProto(&pb.StoragePolicy)
+	err := m.StoragePolicy.ToProto(&pb.StoragePolicy)
+	if err != nil {
+		return err
+	}
+	err = m.RoutePolicy.ToProto(&pb.RoutePolicy)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // FromProto converts the protobuf message to a chunked metric with storage policy in place.
@@ -131,18 +139,32 @@ func (m *MetricWithStoragePolicy) FromProto(pb metricpb.TimedMetricWithStoragePo
 	if err := m.Metric.FromProto(pb.TimedMetric); err != nil {
 		return err
 	}
-	return m.StoragePolicy.FromProto(pb.StoragePolicy)
+	err := m.StoragePolicy.FromProto(pb.StoragePolicy)
+	if err != nil {
+		return err
+	}
+	err = m.RoutePolicy.FromProto(pb.RoutePolicy)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // String is the string representation of a metric with storage policy.
 func (m MetricWithStoragePolicy) String() string {
-	return fmt.Sprintf("{metric:%s,policy:%s}", m.Metric.String(), m.StoragePolicy.String())
+	return fmt.Sprintf(
+		"{metric:%s,policy:%s,route_policy:%s}",
+		m.Metric.String(),
+		m.StoragePolicy.String(),
+		m.RoutePolicy.String(),
+	)
 }
 
 // ChunkedMetricWithStoragePolicy is a chunked metric with applicable storage policy.
 type ChunkedMetricWithStoragePolicy struct {
 	ChunkedMetric
 	policy.StoragePolicy
+	policy.RoutePolicy
 }
 
 // ForwardedMetric is a forwarded metric.
@@ -274,6 +296,7 @@ func (tm *TimedMetricWithMetadatas) FromProto(pb *metricpb.TimedMetricWithMetada
 type PassthroughMetricWithMetadata struct {
 	Metric
 	policy.StoragePolicy
+	policy.RoutePolicy
 }
 
 // ToProto converts the passthrough metric with metadata to a protobuf message in place.
@@ -281,7 +304,16 @@ func (pm PassthroughMetricWithMetadata) ToProto(pb *metricpb.TimedMetricWithStor
 	if err := pm.Metric.ToProto(&pb.TimedMetric); err != nil {
 		return err
 	}
-	return pm.StoragePolicy.ToProto(&pb.StoragePolicy)
+	err := pm.StoragePolicy.ToProto(&pb.StoragePolicy)
+	if err != nil {
+		return err
+	}
+	err = pm.RoutePolicy.ToProto(&pb.RoutePolicy)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // FromProto converts the protobuf message to a timed metric with metadata in place.
@@ -292,5 +324,13 @@ func (pm *PassthroughMetricWithMetadata) FromProto(pb *metricpb.TimedMetricWithS
 	if err := pm.Metric.FromProto(pb.TimedMetric); err != nil {
 		return err
 	}
-	return pm.StoragePolicy.FromProto(pb.StoragePolicy)
+	err := pm.StoragePolicy.FromProto(pb.StoragePolicy)
+	if err != nil {
+		return err
+	}
+	err = pm.RoutePolicy.FromProto(pb.RoutePolicy)
+	if err != nil {
+		return err
+	}
+	return nil
 }
