@@ -37,7 +37,7 @@ message PipelineMetadata {
   pipelinepb.AppliedPipeline pipeline = 3 [(gogoproto.nullable) = false];
   policypb.DropPolicy drop_policy = 4;
   bool resend_enabled = 5;
-  policypb.RoutePolicy route_policy = 6;
+  policypb.RoutePolicy route_policy = 6 [(gogoproto.nullable) = false];
 }
 
 message Metadata {
@@ -65,12 +65,12 @@ message ForwardMetadata {
   uint32 source_id = 4;
   int32 num_forwarded_times = 5;
   bool resend_enabled = 6;
-  policypb.RoutePolicy route_policy = 7;
+  policypb.RoutePolicy route_policy = 7 [(gogoproto.nullable) = false];
 
 }
 
 message TimedMetadata {
   aggregationpb.AggregationID aggregation_id = 1 [(gogoproto.nullable) = false];
   policypb.StoragePolicy storage_policy = 2 [(gogoproto.nullable) = false];
-  policypb.RoutePolicy route_policy = 3;
+  policypb.RoutePolicy route_policy = 3 [(gogoproto.nullable) = false];
 }

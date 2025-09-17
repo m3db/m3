@@ -166,6 +166,7 @@ type ElemData struct {
 	NumForwardedTimes  int
 	IDPrefixSuffixType IDPrefixSuffixType
 	ListType           metricListType
+	RoutePolicy        policy.RoutePolicy
 }
 
 // nolint: maligned
@@ -177,6 +178,7 @@ type elemBase struct {
 	aggTypesOpts                    maggregation.TypesOptions
 	id                              id.RawID
 	sp                              policy.StoragePolicy
+	routePolicy                     policy.RoutePolicy
 	aggTypes                        maggregation.Types
 	aggOpts                         raggregation.Options
 	parsedPipeline                  parsedPipeline
@@ -457,6 +459,7 @@ func (e *elemBase) resetSetData(data ElemData, useDefaultAggregation bool) error
 	}
 	e.id = data.ID
 	e.sp = data.StoragePolicy
+	e.routePolicy = data.RoutePolicy
 	e.aggTypes = data.AggTypes
 	e.useDefaultAggregation = useDefaultAggregation
 	e.aggOpts.ResetSetData(data.AggTypes)
