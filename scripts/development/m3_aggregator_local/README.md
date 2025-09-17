@@ -19,6 +19,8 @@ Set these environment variables to configure the setup:
 export M3_AGGREGATOR_NODE_COUNT=4          # Number of aggregator nodes (default: 4, must be even)
 export M3_AGGREGATOR_REPLICA_FACTOR=2      # Replica factor (default: 2)
 export M3_AGGREGATOR_BASE_PORT=6000        # Base port for services (default: 6000)
+export M3_AGGREGATOR_DEBUG_MODE=false      # Enable debug mode with delve debugger (default: false)
+export M3_AGGREGATOR_DEBUG_BASE_PORT=40000 # Base port for debug ports (default: 40000)
 ```
 
 **Important**: `M3_AGGREGATOR_NODE_COUNT` must be an even number due to m3aggregator's leader-follower topology.
@@ -130,6 +132,8 @@ The start script generates temporary files that are cleaned up on stop:
 | `M3_AGGREGATOR_NODE_COUNT` | 4 | Number of aggregator nodes to create (must be even) |
 | `M3_AGGREGATOR_REPLICA_FACTOR` | 2 | Replication factor for placement |
 | `M3_AGGREGATOR_BASE_PORT` | 6000 | Base port for service allocation |
+| `M3_AGGREGATOR_DEBUG_MODE` | false | Enable debug mode with delve debugger |
+| `M3_AGGREGATOR_DEBUG_BASE_PORT` | 40000 | Base port for debug ports |
 | `FORCE_BUILD` | false | Force rebuild of Docker images |
 | `BUILD_M3COORDINATOR` | false | Force rebuild of m3coordinator image |
 | `BUILD_M3AGGREGATOR` | false | Force rebuild of m3aggregator image |
@@ -165,6 +169,98 @@ This script tests:
 2. Internal connectivity between Docker containers
 3. Placement configuration using Docker service names
 4. Metric ingestion via TCP
+
+## Debugging
+
+This setup supports debugging m3aggregator instances using the Go delve debugger. When debug mode is enabled, each aggregator node runs with delve and exposes a debug port for debugger attachment.
+
+### Enabling Debug Mode
+
+```bash
+export M3_AGGREGATOR_DEBUG_MODE=true
+export M3_AGGREGATOR_DEBUG_BASE_PORT=40000  # Optional: change debug base port
+./start_m3.sh
+```
+
+### Debug Port Allocation
+
+When debug mode is enabled, each aggregator node gets a debug port:
+- **Node 1**: Debug port 40000
+- **Node 2**: Debug port 40001
+- **Node 3**: Debug port 40002
+- etc.
+
+### Connecting a Debugger
+
+1. **Install delve** (if not already installed):
+   ```bash
+   # For Go 1.21, use delve v1.23.1 for compatibility
+   go install github.com/go-delve/delve/cmd/dlv@v1.23.1
+   # Or for Go 1.22+, you can use latest
+   # go install github.com/go-delve/delve/cmd/dlv@latest
+   ```
+
+2. **Connect to a debug port**:
+   ```bash
+   # Connect to m3aggregator01 (first node)
+   dlv connect <host_ip>:40000
+
+   # Connect to m3aggregator02 (second node)
+   dlv connect <host_ip>:40001
+   ```
+
+3. **Set breakpoints and debug**:
+   ```
+   (dlv) break main.main
+   (dlv) break github.com/m3db/m3/src/aggregator/aggregator.(*aggregator).AddTimedWithStagedMetadatas
+   (dlv) continue
+   ```
+
+### What Debug Mode Provides
+
+- **Delve debugger**: Each container runs with delve headless server
+- **Debug symbols**: m3aggregator binary compiled with debug symbols
+- **Source code access**: Host source code mounted in containers at `/go/src/github.com/m3db/m3`
+- **Debug ports**: Exposed ports for external debugger connection
+- **Multi-client support**: Multiple debuggers can connect to the same instance
+
+### Debug Mode Differences
+
+When `M3_AGGREGATOR_DEBUG_MODE=true`:
+- Uses `debug.Dockerfile` instead of `development.Dockerfile`
+- Builds with debug symbols using `-gcflags='all=-N -l'` (disables optimizations and inlining)
+- Mounts source code into containers for source-level debugging
+- Exposes debug ports (40000+) in addition to application ports
+- Applications start paused waiting for debugger connection
+
+### IDE Integration
+
+Most Go IDEs support remote debugging with delve:
+
+**VS Code with Go extension**:
+```json
+{
+    "name": "Connect to m3aggregator01",
+    "type": "go",
+    "request": "attach",
+    "mode": "remote",
+    "remotePath": "/go/src/github.com/m3db/m3",
+    "port": 40000,
+    "host": "<host_ip>"
+}
+```
+
+**GoLand/IntelliJ**:
+1. Run -> Edit Configurations
+2. Add "Go Remote" configuration
+3. Set Host: `<host_ip>`, Port: `40000`
+
+### Debugging Tips
+
+1. **Source mapping**: Source code is mounted at `/go/src/github.com/m3db/m3` in containers
+2. **Multiple instances**: Debug different nodes on different ports (40000, 40001, etc.)
+3. **Live code changes**: Mounted source allows viewing live code changes (restart required for execution)
+4. **Log output**: Container logs still available via `docker-compose logs m3aggregator01`
 
 ## Troubleshooting
 

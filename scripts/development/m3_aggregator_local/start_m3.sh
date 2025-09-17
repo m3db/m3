@@ -8,6 +8,8 @@ source "$(pwd)/../../docker-integration-tests/common.sh"
 M3_AGGREGATOR_NODE_COUNT=${M3_AGGREGATOR_NODE_COUNT:-4}
 M3_AGGREGATOR_REPLICA_FACTOR=${M3_AGGREGATOR_REPLICA_FACTOR:-2}
 M3_AGGREGATOR_BASE_PORT=${M3_AGGREGATOR_BASE_PORT:-6000}
+M3_AGGREGATOR_DEBUG_MODE=${M3_AGGREGATOR_DEBUG_MODE:-false}
+M3_AGGREGATOR_DEBUG_BASE_PORT=${M3_AGGREGATOR_DEBUG_BASE_PORT:-40000}
 
 # Validation
 if [ $((M3_AGGREGATOR_NODE_COUNT % 2)) -ne 0 ]; then
@@ -27,12 +29,27 @@ if [ $((M3_AGGREGATOR_NODE_COUNT % M3_AGGREGATOR_REPLICA_FACTOR)) -ne 0 ]; then
     exit 1
 fi
 
-echo "Starting M3 Aggregator Local Setup with $M3_AGGREGATOR_NODE_COUNT nodes and replica factor $M3_AGGREGATOR_REPLICA_FACTOR"
+if [ "$M3_AGGREGATOR_DEBUG_MODE" = "true" ]; then
+    echo "Starting M3 Aggregator Local Setup with $M3_AGGREGATOR_NODE_COUNT nodes and replica factor $M3_AGGREGATOR_REPLICA_FACTOR (DEBUG MODE ENABLED)"
+    echo "Debug ports will start at: $M3_AGGREGATOR_DEBUG_BASE_PORT"
+else
+    echo "Starting M3 Aggregator Local Setup with $M3_AGGREGATOR_NODE_COUNT nodes and replica factor $M3_AGGREGATOR_REPLICA_FACTOR"
+fi
 
 # Locally don't care if we hot loop faster
 export MAX_TIMEOUT=4
 
 RELATIVE="./../../.."
+
+# Custom debug build function
+build_m3aggregator_debug() {
+    echo "Building m3aggregator with debug symbols..."
+    # Get the build ldflags
+    BUILD_LDFLAGS=$(./scripts/go-build-ldflags.sh LDFLAG)
+    # Build with debug flags
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -gcflags='all=-N -l' -ldflags="$BUILD_LDFLAGS" -o ./bin/m3aggregator ./src/cmd/services/m3aggregator/main/.
+}
+
 prepare_build_cmd() {
     build_cmd="cd $RELATIVE && make clean-build docker-dev-prep && cp -r ./docker ./bin/ && $1"
 }
@@ -100,24 +117,81 @@ EOF
         local metrics_port=$((M3_AGGREGATOR_BASE_PORT + 2 + (i - 1) * 10))
         local tcp_port=$((M3_AGGREGATOR_BASE_PORT + 3 + (i - 1) * 10))
 
+        # Debug port calculation
+        local debug_port=$((M3_AGGREGATOR_DEBUG_BASE_PORT + i - 1))
+
         cat >> "$compose_file" << EOF
   m3aggregator${node_id}:
     expose:
       - "${http_port}"
       - "${tcp_port}"
+EOF
+
+        # Add debug port to expose list if debug mode is enabled
+        if [ "$M3_AGGREGATOR_DEBUG_MODE" = "true" ]; then
+            cat >> "$compose_file" << EOF
+      - "${debug_port}"
+EOF
+        fi
+
+        cat >> "$compose_file" << EOF
     ports:
       - "0.0.0.0:${http_port}:${http_port}"
       - "0.0.0.0:${tcp_port}:${tcp_port}"
+EOF
+
+        # Add debug port to ports list if debug mode is enabled
+        if [ "$M3_AGGREGATOR_DEBUG_MODE" = "true" ]; then
+            cat >> "$compose_file" << EOF
+      - "0.0.0.0:${debug_port}:${debug_port}"
+EOF
+        fi
+
+        cat >> "$compose_file" << EOF
     networks:
       - backend
     environment:
       - M3AGGREGATOR_HOST_ID=m3aggregator${node_id}
+EOF
+
+        # Add debug environment variables if debug mode is enabled
+        if [ "$M3_AGGREGATOR_DEBUG_MODE" = "true" ]; then
+            cat >> "$compose_file" << EOF
+      - M3_DEBUG_MODE=true
+      - M3_DEBUG_PORT=${debug_port}
+EOF
+        fi
+
+        # Use debug Dockerfile if debug mode is enabled
+        if [ "$M3_AGGREGATOR_DEBUG_MODE" = "true" ]; then
+            cat >> "$compose_file" << EOF
+    build:
+      context: ../../../bin
+      dockerfile: ./docker/m3aggregator/debug.Dockerfile
+    image: m3aggregator:debug
+EOF
+        else
+            cat >> "$compose_file" << EOF
     build:
       context: ../../../bin
       dockerfile: ./docker/m3aggregator/development.Dockerfile
     image: m3aggregator:dev
+EOF
+        fi
+
+        cat >> "$compose_file" << EOF
     volumes:
       - "./m3aggregator${node_id}.yml:/etc/m3aggregator/m3aggregator.yml"
+EOF
+
+        # Add source code volume mount for debugging if debug mode is enabled
+        if [ "$M3_AGGREGATOR_DEBUG_MODE" = "true" ]; then
+            cat >> "$compose_file" << EOF
+      - "../../../:/go/src/github.com/m3db/m3"
+EOF
+        fi
+
+        cat >> "$compose_file" << EOF
 
 EOF
     done
@@ -246,15 +320,24 @@ placement_json='{
 curl -vvvsSf -X POST localhost:7201/api/v1/services/m3aggregator/placement/init -d "$placement_json"
 
 # Build and start all aggregator nodes
-if [[ "$M3AGGREGATOR_DEV_IMG" == "0" ]] || [[ "$FORCE_BUILD" == true ]] || [[ "$BUILD_M3AGGREGATOR" == true ]]; then
-    prepare_build_cmd "make m3aggregator-linux-amd64"
-    echo "Building m3aggregator binary first"
-    bash -c "$build_cmd"
+if [[ "$M3AGGREGATOR_DEV_IMG" == "0" ]] || [[ "$FORCE_BUILD" == true ]] || [[ "$BUILD_M3AGGREGATOR" == true ]] || [[ "$M3_AGGREGATOR_DEBUG_MODE" == "true" ]]; then
+    if [ "$M3_AGGREGATOR_DEBUG_MODE" = "true" ]; then
+        echo "Building m3aggregator binary with debug symbols"
+        cd $RELATIVE
+        make clean-build docker-dev-prep
+        cp -r ./docker ./bin/
+        build_m3aggregator_debug
+        cd - > /dev/null
+    else
+        prepare_build_cmd "make m3aggregator-linux-amd64"
+        echo "Building m3aggregator binary first"
+        bash -c "$build_cmd"
+    fi
 fi
 
 for i in $(seq 1 $M3_AGGREGATOR_NODE_COUNT); do
     node_id=$(printf "%02d" $i)
-    if [[ "$M3AGGREGATOR_DEV_IMG" == "0" ]] || [[ "$FORCE_BUILD" == true ]] || [[ "$BUILD_M3AGGREGATOR" == true ]]; then
+    if [[ "$M3AGGREGATOR_DEV_IMG" == "0" ]] || [[ "$FORCE_BUILD" == true ]] || [[ "$BUILD_M3AGGREGATOR" == true ]] || [[ "$M3_AGGREGATOR_DEBUG_MODE" == "true" ]]; then
         docker-compose -f docker-compose.yml.generated up --build $DOCKER_ARGS "m3aggregator${node_id}"
     else
         docker-compose -f docker-compose.yml.generated up $DOCKER_ARGS "m3aggregator${node_id}"
@@ -267,6 +350,9 @@ echo "M3 Aggregator Local Setup Complete!"
 echo "======================================="
 echo "Node Count: $M3_AGGREGATOR_NODE_COUNT"
 echo "Replica Factor: $M3_AGGREGATOR_REPLICA_FACTOR"
+if [ "$M3_AGGREGATOR_DEBUG_MODE" = "true" ]; then
+    echo "Debug Mode: ENABLED"
+fi
 echo ""
 HOST_IP=$(get_host_ip)
 echo "Services:"
@@ -278,8 +364,32 @@ echo "  Host IP: $HOST_IP (works for both external tools and internal communicat
 for i in $(seq 1 $M3_AGGREGATOR_NODE_COUNT); do
     node_id=$(printf "%02d" $i)
     tcp_port=$((M3_AGGREGATOR_BASE_PORT + 3 + (i - 1) * 10))
-    echo "- m3aggregator${node_id}: ${HOST_IP}:${tcp_port}"
+    http_port=$((M3_AGGREGATOR_BASE_PORT + 1 + (i - 1) * 10))
+    debug_port=$((M3_AGGREGATOR_DEBUG_BASE_PORT + i - 1))
+
+    if [ "$M3_AGGREGATOR_DEBUG_MODE" = "true" ]; then
+        echo "- m3aggregator${node_id}: TCP=${HOST_IP}:${tcp_port}, HTTP=${HOST_IP}:${http_port}, DEBUG=${HOST_IP}:${debug_port}"
+    else
+        echo "- m3aggregator${node_id}: ${HOST_IP}:${tcp_port}"
+    fi
 done
+
+if [ "$M3_AGGREGATOR_DEBUG_MODE" = "true" ]; then
+    echo ""
+    echo "DEBUGGING INFORMATION:"
+    echo "======================"
+    echo "Debug ports are exposed and ready for debugger attachment."
+    echo "To attach a debugger to any node:"
+    echo "  1. Install delve: go install github.com/go-delve/delve/cmd/dlv@v1.23.1"
+    echo "  2. Connect to debug port: dlv connect ${HOST_IP}:<debug_port>"
+    echo ""
+    echo "Example: Connect to m3aggregator01 debug port:"
+    echo "  dlv connect ${HOST_IP}:$M3_AGGREGATOR_DEBUG_BASE_PORT"
+    echo ""
+    echo "Source code is mounted at /go/src/github.com/m3db/m3 in containers"
+    echo "Debug mode automatically builds with debug symbols and disabled optimizations"
+fi
+
 echo ""
 echo "Use 'curl localhost:7201/api/v1/services/m3aggregator/placement' to view placement"
 echo "Run './test_connectivity.sh' to verify networking setup"
