@@ -72,4 +72,5 @@ message ForwardMetadata {
 message TimedMetadata {
   aggregationpb.AggregationID aggregation_id = 1 [(gogoproto.nullable) = false];
   policypb.StoragePolicy storage_policy = 2 [(gogoproto.nullable) = false];
+  policypb.RoutePolicy route_policy = 3;
 }
