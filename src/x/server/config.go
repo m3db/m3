@@ -90,6 +90,9 @@ type TLSConfiguration struct {
 
 	// CertificatesTTL is a time duration certificates are stored in memory
 	CertificatesTTL time.Duration `yaml:"certificatesTTL"`
+
+	// TLSHandshakeOnConnect sets whether to perform a TLS handshake on connect
+	TLSHandshakeOnConnect bool `yaml:"tlsHandshakeOnConnect"`
 }
 
 // NewOptions creates TLS options
@@ -99,7 +102,8 @@ func (c TLSConfiguration) NewOptions() xtls.Options {
 		SetCertFile(c.CertFile).
 		SetKeyFile(c.KeyFile).
 		SetCAFile(c.ClientCAFile).
-		SetCertificatesTTL(c.CertificatesTTL)
+		SetCertificatesTTL(c.CertificatesTTL).
+		SetTLSHandshakeOnConnect(c.TLSHandshakeOnConnect)
 	var tlsMode xtls.ServerMode
 	if err := tlsMode.UnmarshalText([]byte(c.Mode)); err == nil {
 		opts = opts.SetServerMode(tlsMode)

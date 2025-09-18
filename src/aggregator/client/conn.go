@@ -24,6 +24,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"math/rand"
 	"net"
 	"sync"
@@ -163,7 +164,29 @@ func (c *connection) upgradeToTLS(conn net.Conn) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return tls.Client(conn, tlsConfig), nil
+
+	tlsConn := tls.Client(conn, tlsConfig)
+
+	if c.tlsConfigManager.TLSHandshakeOnConnect() {
+		// Set deadline for TLS handshake using existing connection timeout
+		handshakeDeadline := c.nowFn().Add(c.connTimeout)
+		if err := conn.SetDeadline(handshakeDeadline); err != nil {
+			return nil, fmt.Errorf("failed to set TLS handshake deadline: %w", err)
+		}
+
+		// Force immediate TLS handshake instead of lazy handshake
+		if err := tlsConn.Handshake(); err != nil {
+			return nil, fmt.Errorf("TLS handshake failed: %w", err)
+		}
+
+		// Clear deadline after successful handshake for normal operations
+		// This allows read/write timeouts to be managed separately
+		if err := conn.SetDeadline(time.Time{}); err != nil {
+			return nil, fmt.Errorf("failed to clear TLS handshake deadline: %w", err)
+		}
+	}
+
+	return tlsConn, nil
 }
 
 // writeAttemptWithLock attempts to establish a new connection and writes raw bytes
@@ -219,6 +242,7 @@ func (c *connection) connectWithLock() error {
 	// c.conn is always nil at this point, so closing the previous connection is unnecessary
 	c.conn = conn
 	c.writer.Reset(conn)
+	c.metrics.connectSuccess.Inc(1)
 	return nil
 }
 
@@ -310,6 +334,7 @@ const (
 )
 
 type connectionMetrics struct {
+	connectSuccess        tally.Counter
 	connectError          tally.Counter
 	writeError            tally.Counter
 	writeRetries          tally.Counter
@@ -320,6 +345,7 @@ type connectionMetrics struct {
 
 func newConnectionMetrics(scope tally.Scope) connectionMetrics {
 	return connectionMetrics{
+		connectSuccess: scope.Counter("success"),
 		connectError: scope.Tagged(map[string]string{errorMetricType: "connect"}).
 			Counter(errorMetric),
 		writeError: scope.Tagged(map[string]string{errorMetricType: "write"}).

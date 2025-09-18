@@ -43,6 +43,7 @@ type ConfigManager interface {
 	TLSConfig() (*tls.Config, error)
 	ServerMode() ServerMode
 	ClientEnabled() bool
+	TLSHandshakeOnConnect() bool
 }
 
 type configManager struct {
@@ -166,4 +167,8 @@ func (c *configManager) ServerMode() ServerMode {
 
 func (c *configManager) ClientEnabled() bool {
 	return c.options.ClientEnabled()
+}
+
+func (c *configManager) TLSHandshakeOnConnect() bool {
+	return c.options.TLSHandshakeOnConnect()
 }
