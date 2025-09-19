@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"sync/atomic"
+
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
@@ -12,13 +14,13 @@ import (
 
 // client is a client that wraps a TChannel client with a circuit breaker.
 type client struct {
-	enabled    bool
-	shadowMode bool
-	logger     *zap.Logger
-	circuit    *circuitbreaker.Circuit
-	metrics    *circuitBreakerMetrics
-	host       string
-	next       rpc.TChanNode
+	logger    *zap.Logger
+	circuit   *circuitbreaker.Circuit
+	metrics   *circuitBreakerMetrics
+	host      string
+	next      rpc.TChanNode
+	provider  EnableProvider
+	lastError atomic.Value // stores *error atomically
 }
 
 // M3DBMiddleware is a function that takes a TChannel client and returns a circuit breaker client interface.
@@ -29,16 +31,25 @@ type Client interface {
 	rpc.TChanNode
 }
 
+// NewNop returns a no-op middleware that simply forwards all calls to the underlying client
+func NewNop() M3DBMiddleware {
+	return func(next rpc.TChanNode) Client {
+		return next
+	}
+}
+
 // Params contains all parameters needed to create a new middleware
 type Params struct {
-	Config Config
-	Logger *zap.Logger
-	Scope  tally.Scope
-	Host   string
+	Config         Config
+	Logger         *zap.Logger
+	Scope          tally.Scope
+	Host           string
+	EnableProvider EnableProvider
 }
 
 // New creates a new circuit breaker middleware.
 func New(params Params) (M3DBMiddleware, error) {
+	params.Logger.Info("creating circuit breaker middleware", zap.Any("config", params.Config))
 	c, err := circuitbreaker.NewCircuit(params.Config.CircuitBreakerConfig)
 	if err != nil {
 		params.Logger.Warn("failed to create circuit breaker", zap.Error(err))
@@ -47,13 +58,12 @@ func New(params Params) (M3DBMiddleware, error) {
 
 	return func(next rpc.TChanNode) Client {
 		return &client{
-			enabled:    params.Config.Enabled,
-			shadowMode: params.Config.ShadowMode,
-			next:       next,
-			logger:     params.Logger,
-			host:       params.Host,
-			metrics:    newMetrics(params.Scope, params.Host),
-			circuit:    c,
+			next:     next,
+			logger:   params.Logger,
+			host:     params.Host,
+			metrics:  newMetrics(params.Scope, params.Host),
+			circuit:  c,
+			provider: params.EnableProvider,
 		}
 	}, nil
 }
@@ -61,7 +71,7 @@ func New(params Params) (M3DBMiddleware, error) {
 // withBreaker executes the given call with a circuit breaker if enabled.
 func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.Context, T) error) error {
 	// Early return if circuit breaker is disabled or not initialized
-	if !c.enabled || c.circuit == nil {
+	if c.circuit == nil || c.provider == nil || !c.provider.IsEnabled() {
 		return call(ctx, req)
 	}
 
@@ -70,11 +80,17 @@ func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.C
 
 	// If request is not allowed, log and return error
 	if !isAllowed {
-		if c.shadowMode {
+		if c.provider.IsShadowMode() {
 			c.metrics.shadowRejects.Inc(1)
 		} else {
 			c.metrics.rejects.Inc(1)
-			return circuitbreakererror.New(c.host)
+			var lastError error
+			if v := c.lastError.Load(); v != nil {
+				if errPtr := v.(*error); errPtr != nil {
+					lastError = *errPtr
+				}
+			}
+			return circuitbreakererror.NewWithLastError(c.host, lastError)
 		}
 	}
 
@@ -84,6 +100,8 @@ func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.C
 		c.metrics.successes.Inc(1)
 	} else {
 		c.metrics.failures.Inc(1)
+		// Store the last error for potential use when circuit breaker is open
+		c.lastError.Store(&err)
 	}
 
 	// Report request status to circuit breaker
@@ -246,21 +264,21 @@ func (c *client) Truncate(ctx thrift.Context, req *rpc.TruncateRequest) (*rpc.Tr
 }
 
 func (c *client) Write(ctx thrift.Context, req *rpc.WriteRequest) error {
-	return c.next.Write(ctx, req)
+	return withBreaker(c, ctx, req, c.next.Write)
 }
 
 func (c *client) WriteBatchRawV2(ctx thrift.Context, req *rpc.WriteBatchRawV2Request) error {
-	return c.next.WriteBatchRawV2(ctx, req)
+	return withBreaker(c, ctx, req, c.next.WriteBatchRawV2)
 }
 
 func (c *client) WriteTagged(ctx thrift.Context, req *rpc.WriteTaggedRequest) error {
-	return c.next.WriteTagged(ctx, req)
+	return withBreaker(c, ctx, req, c.next.WriteTagged)
 }
 
 func (c *client) WriteTaggedBatchRaw(ctx thrift.Context, req *rpc.WriteTaggedBatchRawRequest) error {
-	return c.next.WriteTaggedBatchRaw(ctx, req)
+	return withBreaker(c, ctx, req, c.next.WriteTaggedBatchRaw)
 }
 
 func (c *client) WriteTaggedBatchRawV2(ctx thrift.Context, req *rpc.WriteTaggedBatchRawV2Request) error {
-	return c.next.WriteTaggedBatchRawV2(ctx, req)
+	return withBreaker(c, ctx, req, c.next.WriteTaggedBatchRawV2)
 }

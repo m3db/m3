@@ -27,12 +27,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
 )
 
@@ -147,4 +152,53 @@ func TestValidateConfig(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, err, fmt.Errorf("m3db client cannot have both shardsLeavingCountTowardsConsistency and "+
 		"shardsLeavingAndInitializingCountTowardsConsistency as true"))
+}
+
+func TestCircuitBreakerMiddlewareConfig(t *testing.T) {
+	t.Run("success case", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockStore := kv.NewMockStore(ctrl)
+		mockWatch := kv.NewMockValueWatch(ctrl)
+		mockValue := kv.NewMockValue(ctrl)
+
+		// Set up mock expectations for success case
+		mockStore.EXPECT().Watch(gomock.Any()).Return(mockWatch, nil).AnyTimes()
+		mockStore.EXPECT().Get(gomock.Any()).Return(mockValue, nil).AnyTimes()
+		mockValue.EXPECT().Unmarshal(gomock.Any()).Return(nil).AnyTimes()
+
+		// Create environment config with required etcd settings
+		envCfg := environment.Configuration{
+			Services: environment.DynamicConfiguration{
+				&environment.DynamicCluster{
+					Service: &etcdclient.Configuration{
+						Zone:     "test",
+						Env:      "test",
+						Service:  "m3db",
+						CacheDir: "/tmp/m3kv",
+						ETCDClusters: []etcdclient.ClusterConfig{
+							{
+								Zone:      "test",
+								Endpoints: []string{"localhost:2379"},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		cfg := Configuration{
+			EnvironmentConfig: &envCfg,
+		}
+
+		params := ConfigurationParameters{
+			InstrumentOptions: instrument.NewOptions(),
+		}
+
+		// Test successful case
+		client, err := cfg.NewClient(params)
+		require.NoError(t, err)
+		require.NotNil(t, client)
+	})
 }
