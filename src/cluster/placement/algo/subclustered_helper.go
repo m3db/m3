@@ -435,7 +435,7 @@ func (ph *subclusteredHelper) canAssignInstance(shardID uint32, from, to placeme
 		}
 		// Case 2: If we are moving the shard across subclusters.
 		// Case 2.1: Check if the from instance's subcluster can give the shards, i.e.
-		// if the number of shards in the from instance's subcluster has reached to its targetShatdCount
+		// if the number of shards in the from instance's subcluster has reached to its targetShardCount
 		// in that case we cannot take any shard from this instance's subcluster.
 		fromSubcluster, exists := ph.subClusters[from.SubClusterID()]
 		if exists && len(fromSubcluster.shardMap) == fromSubcluster.targetShardCount {
