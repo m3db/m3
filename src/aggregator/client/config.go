@@ -211,13 +211,13 @@ func (c *Configuration) NewClientOptions(
 
 // TLSConfiguration contains the TLS configuration
 type TLSConfiguration struct {
-	Enabled            bool          `yaml:"enabled"`
-	InsecureSkipVerify bool          `yaml:"insecureSkipVerify"`
-	ServerName         string        `yaml:"serverName"`
-	CAFile             string        `yaml:"caFile"`
-	CertFile           string        `yaml:"certFile"`
-	KeyFile            string        `yaml:"keyFile"`
-	CertificatesTTL    time.Duration `yaml:"certificatesTTL"`
+	Enabled               bool          `yaml:"enabled"`
+	InsecureSkipVerify    bool          `yaml:"insecureSkipVerify"`
+	ServerName            string        `yaml:"serverName"`
+	CAFile                string        `yaml:"caFile"`
+	CertFile              string        `yaml:"certFile"`
+	KeyFile               string        `yaml:"keyFile"`
+	CertificatesTTL       time.Duration `yaml:"certificatesTTL"`
 	TLSHandshakeOnConnect bool          `yaml:"tlsHandshakeOnConnect"`
 }
 
