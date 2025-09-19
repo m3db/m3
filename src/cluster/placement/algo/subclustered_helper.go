@@ -63,10 +63,38 @@ type subcluster struct {
 	instanceShardCounts map[string]int
 }
 
-// nolint
-func newSubclusteredHelper(p placement.Placement, targetRF int, opts placement.Options, subClusterToExclude uint32) (placementHelper, error) {
+func newSubclusteredInitHelper(
+	instances []placement.Instance,
+	ids []uint32,
+	opts placement.Options,
+	rf int,
+) (placementHelper, error) {
+	err := assignSubClusterIDs(instances, nil, opts.InstancesPerSubCluster())
+	if err != nil {
+		return nil, err
+	}
+	emptyPlacement := placement.NewPlacement().
+		SetInstances(instances).
+		SetShards(ids).
+		SetReplicaFactor(rf).
+		SetIsSharded(true).
+		SetIsSubclustered(true).
+		SetInstancesPerSubCluster(opts.InstancesPerSubCluster()).
+		SetCutoverNanos(opts.PlacementCutoverNanosFn()())
+	ph, err := newSubclusteredHelper(emptyPlacement, opts, 0)
+	if err != nil {
+		return nil, err
+	}
+	return ph, nil
+}
+
+func newSubclusteredHelper(
+	p placement.Placement,
+	opts placement.Options,
+	subClusterToExclude uint32,
+) (placementHelper, error) {
 	ph := &subclusteredHelper{
-		rf:                     targetRF,
+		rf:                     p.ReplicaFactor(),
 		instances:              make(map[string]placement.Instance, p.NumInstances()),
 		uniqueShards:           p.Shards(),
 		log:                    opts.InstrumentOptions().Logger(),
@@ -85,21 +113,19 @@ func newSubclusteredHelper(p placement.Placement, targetRF int, opts placement.O
 	}
 
 	ph.scanCurrentLoad(subClusterToExclude)
-	ph.buildTargetLoad(subClusterToExclude)
-	ph.buildTargetSubclusterLoad(subClusterToExclude)
 
 	err = ph.validateSubclusterDistribution()
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: Implement subclustered helper logic build target load.
+	ph.buildTargetLoad(subClusterToExclude)
+	ph.buildTargetSubclusterLoad(subClusterToExclude)
 
 	return ph, nil
 }
 
 // validateInstanceWeight validates that all instances have the same weight.
-// nolint: unused
 func (ph *subclusteredHelper) validateInstanceWeight() error {
 	if len(ph.instances) == 0 {
 		return nil
@@ -225,8 +251,6 @@ func (ph *subclusteredHelper) buildTargetLoad(subClusterToExclude uint32) {
 // ensuring that each subcluster gets approximately the same number of shards to manage.
 // Any remaining shards (due to integer division) are distributed one by one to subclusters
 // in a deterministic order to ensure consistent placement.
-//
-// nolint: unused
 func (ph *subclusteredHelper) buildTargetSubclusterLoad(subClusterToExclude uint32) {
 	totalShards := len(ph.uniqueShards)
 	subClusters := ph.getSubclusterIds(subClusterToExclude)
@@ -247,7 +271,6 @@ func (ph *subclusteredHelper) buildTargetSubclusterLoad(subClusterToExclude uint
 }
 
 // getSubclusterIds gets the subcluster ids slice.
-// nolint: unused
 func (ph *subclusteredHelper) getSubclusterIds(subClusterToExclude uint32) []uint32 {
 	subClusterIds := make([]uint32, 0, len(ph.subClusters))
 	for k := range ph.subClusters {
@@ -260,7 +283,6 @@ func (ph *subclusteredHelper) getSubclusterIds(subClusterToExclude uint32) []uin
 }
 
 // getShardLen gets the shard length.
-// nolint: unused
 func (ph *subclusteredHelper) getShardLen() int {
 	return len(ph.uniqueShards)
 }
@@ -377,6 +399,86 @@ func (ph *subclusteredHelper) validateSubclusterDistribution() error {
 				return fmt.Errorf("subcluster %d isolation group %s has %d instances, expected 0",
 					subclusterID, isolationGroup, count)
 			}
+		}
+	}
+
+	return nil
+}
+
+func assignSubClusterIDs(
+	instances []placement.Instance,
+	currPlacement placement.Placement,
+	instancesPerSubcluster int,
+) error {
+	if instancesPerSubcluster <= 0 {
+		return fmt.Errorf("instances per subcluster is not set")
+	}
+
+	// Track subcluster counts and find incomplete subclusters
+	subclusterCounts := make(map[uint32]int)
+	var incompleteSubclusters []uint32
+	maxSubclusterID := uint32(0)
+
+	if currPlacement != nil {
+		currInstances := currPlacement.Instances()
+
+		// Count instances in each subcluster
+		for _, instance := range currInstances {
+			if instance.IsLeaving() {
+				continue
+			}
+			subClusterID := instance.SubClusterID()
+			subclusterCounts[subClusterID]++
+			if subClusterID > maxSubclusterID {
+				maxSubclusterID = subClusterID
+			}
+		}
+
+		// Find incomplete subclusters (those with fewer than instancesPerSubcluster instances)
+		for subClusterID, count := range subclusterCounts {
+			if count < instancesPerSubcluster {
+				incompleteSubclusters = append(incompleteSubclusters, subClusterID)
+			}
+		}
+
+		// Sort incomplete subclusters by ID in ascending order
+		sort.Slice(incompleteSubclusters, func(i, j int) bool {
+			return incompleteSubclusters[i] < incompleteSubclusters[j]
+		})
+	}
+
+	// Assign subcluster IDs to new instances
+	// First, fill incomplete subclusters in order of increasing ID
+	// Then, create new subclusters as needed
+	nextIncompleteIndex := 0
+	currentSubclusterID := uint32(0)
+	currentSubclusterCount := 0
+
+	for _, instance := range instances {
+		// Try to fill incomplete subclusters first
+		if nextIncompleteIndex < len(incompleteSubclusters) {
+			currentSubclusterID = incompleteSubclusters[nextIncompleteIndex]
+			currentSubclusterCount = subclusterCounts[currentSubclusterID]
+		} else if currentSubclusterCount == instancesPerSubcluster || currentSubclusterCount == 0 {
+			// No more incomplete subclusters, create a new one
+			maxSubclusterID++
+			currentSubclusterID = maxSubclusterID
+			currentSubclusterCount = 0
+		}
+
+		// Assign the instance to the current subcluster
+		instance.SetSubClusterID(currentSubclusterID)
+		currentSubclusterCount++
+
+		// Update tracking
+		subclusterCounts[currentSubclusterID] = currentSubclusterCount
+
+		// If we've filled this subcluster, move to the next incomplete one
+		if currentSubclusterCount == instancesPerSubcluster {
+			if nextIncompleteIndex < len(incompleteSubclusters) {
+				nextIncompleteIndex++
+			}
+			currentSubclusterCount = 0
 		}
 	}
 
