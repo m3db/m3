@@ -264,6 +264,7 @@ func TestSubclusteredAlgorithm_InitialPlacement(t *testing.T) {
 				assert.Equal(t, tt.replicaFactor, result.ReplicaFactor())
 				assert.True(t, result.IsSharded())
 				assert.True(t, result.IsSubclustered())
+				assert.NoError(t, placement.Validate(result))
 				assert.Equal(t, tt.instancesPerSubcluster, result.InstancesPerSubCluster())
 			}
 		})
@@ -331,7 +332,6 @@ func TestSubclusteredAlgorithm_InitialPlacement_ErrorCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := placement.NewOptions().SetInstancesPerSubCluster(tt.instancesPerSubcluster)
 			algo := subclusteredPlacementAlgorithm{opts: opts}
-
 			// Generate instances dynamically
 			instances := make([]placement.Instance, tt.totalInstances)
 			for i := 0; i < tt.totalInstances; i++ {
