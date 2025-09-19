@@ -176,6 +176,47 @@ func newubclusteredRemoveInstanceHelper(
 	return ph, leavingInstance, nil
 }
 
+func newubclusteredReplaceInstanceHelper(
+	p placement.Placement,
+	instanceIDs []string,
+	addingInstances []placement.Instance,
+	opts placement.Options,
+) (placementHelper, []placement.Instance, []placement.Instance, error) {
+	var (
+		leavingInstances = make([]placement.Instance, len(instanceIDs))
+		err              error
+	)
+	for i, instanceID := range instanceIDs {
+		p, leavingInstances[i], err = removeInstanceFromPlacement(p, instanceID)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	}
+
+	newAddingInstances := make([]placement.Instance, len(addingInstances))
+	for i, instance := range addingInstances {
+		p, newAddingInstances[i], err = addInstanceToPlacement(p, instance, anyType)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	}
+
+	if len(newAddingInstances) != len(leavingInstances) {
+		return nil, nil, nil, fmt.Errorf("number of adding instances (%d) does not match number of leaving instances (%d)",
+			len(newAddingInstances), len(leavingInstances))
+	}
+
+	// Match adding instances with leaving instances
+	for i, addingInstance := range newAddingInstances {
+		addingInstance.SetSubClusterID(leavingInstances[i].SubClusterID())
+	}
+	ph, err := newSubclusteredHelper(p, opts, 0)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return ph, leavingInstances, newAddingInstances, nil
+}
+
 func newSubclusteredHelper(
 	p placement.Placement,
 	opts placement.Options,
@@ -867,7 +908,18 @@ func (ph *subclusteredHelper) generatePlacement() placement.Placement {
 // by pulling them back from the rest of the cluster.
 // nolint: unused
 func (ph *subclusteredHelper) reclaimLeavingShards(instance placement.Instance) {
-	// TODO: Implement subclustered reclaim leaving shards logic
+	if instance.Shards().NumShardsForState(shard.Leaving) == 0 {
+		// Shortcut if there is nothing to be reclaimed.
+		return
+	}
+	id := instance.ID()
+	for _, i := range ph.instances {
+		for _, s := range i.Shards().ShardsForState(shard.Initializing) {
+			if s.SourceID() == id {
+				ph.moveShard(s, i, instance)
+			}
+		}
+	}
 }
 
 // returnInitializingShards returns all the initializing shards on the given instance
