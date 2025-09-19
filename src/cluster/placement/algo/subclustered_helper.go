@@ -23,6 +23,8 @@ package algo
 import (
 	"errors"
 	"fmt"
+	"math"
+	"sort"
 
 	"go.uber.org/zap"
 
@@ -83,6 +85,8 @@ func newSubclusteredHelper(p placement.Placement, targetRF int, opts placement.O
 	}
 
 	ph.scanCurrentLoad(subClusterToExclude)
+	ph.buildTargetLoad(subClusterToExclude)
+	ph.buildTargetSubclusterLoad(subClusterToExclude)
 
 	err = ph.validateSubclusterDistribution()
 	if err != nil {
@@ -164,6 +168,101 @@ func (ph *subclusteredHelper) scanCurrentLoad(subClusterToExclude uint32) {
 
 	}
 	ph.totalWeight = totalWeight
+}
+
+// buildTargetLoad builds the target load for the instances in the placement.
+// The target load is the number of shards that each instance should have.
+// The target load is calculated based on the total weight of the instances and the replica factor.
+// This method implements a weighted load balancing algorithm that handles both normal and
+// over-weighted isolation groups. Over-weighted groups are those that have more instances
+// than the replica factor allows, which requires special handling to ensure proper distribution.
+// nolint
+func (ph *subclusteredHelper) buildTargetLoad(subClusterToExclude uint32) {
+	// Step 1: Identify over-weighted isolation groups
+	// Over-weighted groups are those where the number of instances exceeds the replica factor.
+	// These groups need special handling as they can't follow the standard distribution formula.
+	overWeightedGroups := 0
+	overWeight := uint32(0)
+	for _, weight := range ph.groupToWeightMap {
+		if isOverWeighted(weight, ph.totalWeight, ph.rf) {
+			overWeightedGroups++
+			overWeight += weight
+		}
+	}
+
+	// Step 2: Calculate target load for each instance
+	// The target load determines how many shards each instance should ideally have.
+	targetLoad := make(map[string]int, len(ph.instances))
+	for _, instance := range ph.instances {
+		// Skip instances that are leaving the cluster
+		if instance.IsLeaving() {
+			continue
+		}
+
+		// Get the weight of the instance's isolation group
+		igWeight := ph.groupToWeightMap[instance.IsolationGroup()]
+
+		if isOverWeighted(igWeight, ph.totalWeight, ph.rf) {
+			// For over-weighted isolation groups:
+			// Distribute shards proportionally within the group based on instance weight.
+			// Use ceiling to ensure we don't under-allocate shards.
+			targetLoad[instance.ID()] = int(math.Ceil(float64(ph.getShardLen()) *
+				float64(instance.Weight()) / float64(igWeight)))
+		} else {
+			// For normal isolation groups:
+			// Use the standard formula that accounts for over-weighted groups.
+			// The formula ensures that the total shard count across all instances
+			// equals totalShards * replicaFactor, while respecting instance weights.
+			targetLoad[instance.ID()] = ph.getShardLen() * (ph.rf - overWeightedGroups) *
+				int(instance.Weight()) / int(ph.totalWeight-overWeight)
+		}
+	}
+	ph.targetLoad = targetLoad
+}
+
+// buildTargetSubclusterLoad builds the target load for the subclusters.
+// This method distributes the total number of shards evenly across all active subclusters,
+// ensuring that each subcluster gets approximately the same number of shards to manage.
+// Any remaining shards (due to integer division) are distributed one by one to subclusters
+// in a deterministic order to ensure consistent placement.
+//
+// nolint: unused
+func (ph *subclusteredHelper) buildTargetSubclusterLoad(subClusterToExclude uint32) {
+	totalShards := len(ph.uniqueShards)
+	subClusters := ph.getSubclusterIds(subClusterToExclude)
+	sort.Slice(subClusters, func(i, j int) bool { return subClusters[i] <= subClusters[j] })
+	totalDivided := 0
+	for _, subClusterID := range subClusters {
+		ph.subClusters[subClusterID].targetShardCount = int(math.Floor(float64(totalShards) / float64(len(subClusters))))
+		totalDivided += ph.subClusters[subClusterID].targetShardCount
+	}
+	diff := totalShards - totalDivided
+	for _, curr := range subClusters {
+		if diff == 0 {
+			break
+		}
+		ph.subClusters[curr].targetShardCount++
+		diff--
+	}
+}
+
+// getSubclusterIds gets the subcluster ids slice.
+// nolint: unused
+func (ph *subclusteredHelper) getSubclusterIds(subClusterToExclude uint32) []uint32 {
+	subClusterIds := make([]uint32, 0, len(ph.subClusters))
+	for k := range ph.subClusters {
+		if k == subClusterToExclude {
+			continue
+		}
+		subClusterIds = append(subClusterIds, k)
+	}
+	return subClusterIds
+}
+
+// getShardLen gets the shard length.
+// nolint: unused
+func (ph *subclusteredHelper) getShardLen() int {
+	return len(ph.uniqueShards)
 }
 
 // assignShardToInstance assigns a shard to an instance.
