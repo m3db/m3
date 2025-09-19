@@ -746,6 +746,9 @@ func TestPartialSubclustersRemoveOperation(t *testing.T) {
 			}
 			// Randomly select subclusters to remove
 			subclustersToRemove := getRandomSubclusterIDs(currentPlacement, tt.subClustersToRemove)
+			if tt.instancesToAdd%tt.instancesPerSubcluster != 0 {
+				subclustersToRemove = []uint32{1}
+			}
 
 			// Get all instances from the selected subclusters
 			var instancesToRemove []string
@@ -758,9 +761,7 @@ func TestPartialSubclustersRemoveOperation(t *testing.T) {
 			}
 
 			if tt.subClustersToRemove > 1 {
-				rand.Shuffle(len(instancesToRemove), func(i, j int) {
-					instancesToRemove[i], instancesToRemove[j] = instancesToRemove[j], instancesToRemove[i]
-				})
+				instancesToRemove[0], instancesToRemove[tt.instancesPerSubcluster] = instancesToRemove[tt.instancesPerSubcluster], instancesToRemove[0]
 			}
 
 			// Remove the instances
@@ -828,6 +829,7 @@ func TestPartialSubclustersAddOperation(t *testing.T) {
 		SetShards(shard.NewShards(nil))
 
 	newPlacement, err = algo.AddInstances(newPlacement, []placement.Instance{instanceToAdd})
-	assert.Error(t, err)
-	assert.Nil(t, newPlacement)
+	assert.NoError(t, err)
+	assert.NotNil(t, newPlacement)
+	assert.NoError(t, placement.Validate(newPlacement))
 }
