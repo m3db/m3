@@ -218,6 +218,7 @@ type TLSConfiguration struct {
 	CertFile           string        `yaml:"certFile"`
 	KeyFile            string        `yaml:"keyFile"`
 	CertificatesTTL    time.Duration `yaml:"certificatesTTL"`
+	TLSHandshakeOnConnect bool          `yaml:"tlsHandshakeOnConnect"`
 }
 
 // NewTLSOptions creates new TLS options
@@ -228,7 +229,8 @@ func (c *TLSConfiguration) NewTLSOptions() xtls.Options {
 		SetServerName(c.ServerName).
 		SetCAFile(c.CAFile).
 		SetCertFile(c.CertFile).
-		SetKeyFile(c.KeyFile)
+		SetKeyFile(c.KeyFile).
+		SetTLSHandshakeOnConnect(c.TLSHandshakeOnConnect)
 }
 
 // ConnectionConfiguration contains the connection configuration.

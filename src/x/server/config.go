@@ -90,9 +90,6 @@ type TLSConfiguration struct {
 
 	// MutualTLSEnabled sets mTLS
 	MutualTLSEnabled bool `yaml:"mTLSEnabled"`
-
-	// TLSHandshakeOnConnect sets whether to perform a TLS handshake on connect
-	TLSHandshakeOnConnect bool `yaml:"tlsHandshakeOnConnect"`
 }
 
 // NewOptions creates TLS options
@@ -102,8 +99,7 @@ func (c TLSConfiguration) NewOptions() xtls.Options {
 		SetCertFile(c.CertFile).
 		SetKeyFile(c.KeyFile).
 		SetCAFile(c.ClientCAFile).
-		SetCertificatesTTL(c.CertificatesTTL).
-		SetTLSHandshakeOnConnect(c.TLSHandshakeOnConnect)
+		SetCertificatesTTL(c.CertificatesTTL)
 	var tlsMode xtls.ServerMode
 	if err := tlsMode.UnmarshalText([]byte(c.Mode)); err == nil {
 		opts = opts.SetServerMode(tlsMode)
