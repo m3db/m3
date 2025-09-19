@@ -10,6 +10,7 @@ M3_AGGREGATOR_REPLICA_FACTOR=${M3_AGGREGATOR_REPLICA_FACTOR:-2}
 M3_AGGREGATOR_BASE_PORT=${M3_AGGREGATOR_BASE_PORT:-6000}
 M3_AGGREGATOR_DEBUG_MODE=${M3_AGGREGATOR_DEBUG_MODE:-false}
 M3_AGGREGATOR_DEBUG_BASE_PORT=${M3_AGGREGATOR_DEBUG_BASE_PORT:-40000}
+DISABLE_TLS=${DISABLE_TLS:-false}
 
 # Validation
 if [ $((M3_AGGREGATOR_NODE_COUNT % 2)) -ne 0 ]; then
@@ -184,6 +185,17 @@ EOF
       - "./m3aggregator${node_id}.yml:/etc/m3aggregator/m3aggregator.yml"
 EOF
 
+        # Add TLS certificate volumes if TLS is not disabled
+        if [ "$DISABLE_TLS" != "true" ]; then
+            cat >> "$compose_file" << EOF
+      - "../../../src/aggregator/client/testdata/rootCA.crt:/etc/tls/rootCA.crt"
+      - "../../../src/aggregator/client/testdata/client.crt:/etc/tls/client.crt"
+      - "../../../src/aggregator/client/testdata/client.key:/etc/tls/client.key"
+      - "../../../src/aggregator/client/testdata/server.crt:/etc/tls/server.crt"
+      - "../../../src/aggregator/client/testdata/server.key:/etc/tls/server.key"
+EOF
+        fi
+
         # Add source code volume mount for debugging if debug mode is enabled
         if [ "$M3_AGGREGATOR_DEBUG_MODE" = "true" ]; then
             cat >> "$compose_file" << EOF
@@ -212,10 +224,26 @@ generate_aggregator_configs() {
         local metrics_port=$((M3_AGGREGATOR_BASE_PORT + 2 + (i - 1) * 10))
         local tcp_port=$((M3_AGGREGATOR_BASE_PORT + 3 + (i - 1) * 10))
 
+        # Start with the base template and replace port variables
         sed "s/{{HTTP_PORT}}/$http_port/g; s/{{METRICS_PORT}}/$metrics_port/g; s/{{TCP_PORT}}/$tcp_port/g" \
-            m3aggregator.yml.template > "m3aggregator${node_id}.yml"
+            m3aggregator.yml.template > "m3aggregator${node_id}.yml.tmp"
 
-        echo "Generated m3aggregator${node_id}.yml (HTTP: $http_port, Metrics: $metrics_port, TCP: $tcp_port)"
+        # Remove TLS configuration sections if TLS is disabled
+        if [ "$DISABLE_TLS" = "true" ]; then
+            # Remove the TLS configuration block from the connection section
+            sed -i '/^    connection:/,/^        certificatesTTL: 24h$/d' "m3aggregator${node_id}.yml.tmp"
+            # Remove the TLS configuration block from the rawtcp section
+            sed -i '/^  tls:/,/^    clientCAFile: \/etc\/tls\/rootCA\.crt$/d' "m3aggregator${node_id}.yml.tmp"
+        fi
+
+        # Move the temporary file to the final location
+        mv "m3aggregator${node_id}.yml.tmp" "m3aggregator${node_id}.yml"
+
+        if [ "$DISABLE_TLS" = "true" ]; then
+            echo "Generated m3aggregator${node_id}.yml (HTTP: $http_port, Metrics: $metrics_port, TCP: $tcp_port, TLS: DISABLED)"
+        else
+            echo "Generated m3aggregator${node_id}.yml (HTTP: $http_port, Metrics: $metrics_port, TCP: $tcp_port, TLS: ENABLED)"
+        fi
     done
 }
 
@@ -283,6 +311,7 @@ cleanup() {
     for i in $(seq 1 $M3_AGGREGATOR_NODE_COUNT); do
         local node_id=$(printf "%02d" $i)
         rm -f "m3aggregator${node_id}.yml"
+        rm -f "m3aggregator${node_id}.yml.tmp"  # Clean up any leftover temporary files
     done
 }
 
@@ -352,6 +381,11 @@ echo "Node Count: $M3_AGGREGATOR_NODE_COUNT"
 echo "Replica Factor: $M3_AGGREGATOR_REPLICA_FACTOR"
 if [ "$M3_AGGREGATOR_DEBUG_MODE" = "true" ]; then
     echo "Debug Mode: ENABLED"
+fi
+if [ "$DISABLE_TLS" = "true" ]; then
+    echo "TLS: DISABLED"
+else
+    echo "TLS: ENABLED"
 fi
 echo ""
 HOST_IP=$(get_host_ip)

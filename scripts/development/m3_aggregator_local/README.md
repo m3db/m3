@@ -21,6 +21,7 @@ export M3_AGGREGATOR_REPLICA_FACTOR=2      # Replica factor (default: 2)
 export M3_AGGREGATOR_BASE_PORT=6000        # Base port for services (default: 6000)
 export M3_AGGREGATOR_DEBUG_MODE=false      # Enable debug mode with delve debugger (default: false)
 export M3_AGGREGATOR_DEBUG_BASE_PORT=40000 # Base port for debug ports (default: 40000)
+export DISABLE_TLS=false                   # Disable TLS for aggregator client connections (default: false)
 ```
 
 **Important**: `M3_AGGREGATOR_NODE_COUNT` must be an even number due to m3aggregator's leader-follower topology.
@@ -261,6 +262,31 @@ Most Go IDEs support remote debugging with delve:
 2. **Multiple instances**: Debug different nodes on different ports (40000, 40001, etc.)
 3. **Live code changes**: Mounted source allows viewing live code changes (restart required for execution)
 4. **Log output**: Container logs still available via `docker-compose logs m3aggregator01`
+
+## TLS Configuration
+
+By default, the setup enables TLS for aggregator client connections using test certificates. You can disable TLS for development/testing purposes:
+
+### Disabling TLS
+
+```bash
+export DISABLE_TLS=true
+./start_m3.sh
+```
+
+### TLS Behavior
+
+**When TLS is enabled (default):**
+- Client connections use TLS certificates from the aggregator test suite
+- Certificates are automatically mounted into Docker containers at `/etc/tls/`
+- Both client authentication and server verification are enabled
+- Uses certificates from `src/aggregator/client/testdata/`
+
+**When TLS is disabled:**
+- Client connections use plain TCP without encryption
+- Certificate volumes are not mounted to containers
+- Suitable for local development and testing scenarios
+- Configuration files omit the TLS connection block
 
 ## Troubleshooting
 
