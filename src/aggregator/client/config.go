@@ -213,12 +213,12 @@ func (c *Configuration) NewClientOptions(
 type TLSConfiguration struct {
 	Enabled               bool          `yaml:"enabled"`
 	InsecureSkipVerify    bool          `yaml:"insecureSkipVerify"`
+	TLSHandshakeOnConnect bool          `yaml:"tlsHandshakeOnConnect"`
 	ServerName            string        `yaml:"serverName"`
 	CAFile                string        `yaml:"caFile"`
 	CertFile              string        `yaml:"certFile"`
 	KeyFile               string        `yaml:"keyFile"`
 	CertificatesTTL       time.Duration `yaml:"certificatesTTL"`
-	TLSHandshakeOnConnect bool          `yaml:"tlsHandshakeOnConnect"`
 }
 
 // NewTLSOptions creates new TLS options
