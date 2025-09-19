@@ -23,6 +23,12 @@ rawtcp:
   keepAliveEnabled: true
   keepAlivePeriod: 1m
   listenAddress: 0.0.0.0:{{TCP_PORT}}
+  tls:
+    mode: permissive
+    mTLSEnabled: true
+    certFile: /etc/tls/server.crt
+    keyFile: /etc/tls/server.key
+    clientCAFile: /etc/tls/rootCA.crt
   protobufIterator:
     bytesPool:
       buckets:
@@ -109,6 +115,15 @@ aggregator:
     placementWatcher:
       key: m3aggregator
       initWatchTimeout: 15s
+    connection:
+      tls:
+        enabled: true
+        insecureSkipVerify: true
+        serverName: ""
+        caFile: /etc/tls/rootCA.crt
+        certFile: /etc/tls/client.crt
+        keyFile: /etc/tls/client.key
+        certificatesTTL: 24h
   placementManager:
     kvConfig:
       namespace: /placement
