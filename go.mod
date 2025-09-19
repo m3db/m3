@@ -51,7 +51,7 @@ require (
 	github.com/rakyll/statik v0.1.6
 	github.com/sergi/go-diff v1.1.0
 	github.com/spf13/cobra v1.3.0
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.10.0
 	github.com/twotwotwo/sorts v0.0.0-20160814051341-bf5c1f2b8553
 	github.com/uber-go/tally v3.5.8+incompatible
 	github.com/uber/jaeger-client-go v2.29.1+incompatible
