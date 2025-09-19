@@ -761,7 +761,8 @@ func TestPartialSubclustersRemoveOperation(t *testing.T) {
 			}
 
 			if tt.subClustersToRemove > 1 {
-				instancesToRemove[0], instancesToRemove[tt.instancesPerSubcluster] = instancesToRemove[tt.instancesPerSubcluster], instancesToRemove[0]
+				instancesToRemove[0], instancesToRemove[tt.instancesPerSubcluster] =
+					instancesToRemove[tt.instancesPerSubcluster], instancesToRemove[0]
 			}
 
 			// Remove the instances
