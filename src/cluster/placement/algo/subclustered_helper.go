@@ -416,33 +416,73 @@ func assignSubClusterIDs(
 		return fmt.Errorf("instances per subcluster is not set")
 	}
 
-	// If current placement is nil, start assigning from subcluster 1
-	maxSubclusterID := uint32(1)
-	maxSubclusterCount := 0
+	// Track subcluster counts and find incomplete subclusters
+	subclusterCounts := make(map[uint32]int)
+	var incompleteSubclusters []uint32
+	maxSubclusterID := uint32(0)
+
 	if currPlacement != nil {
 		currInstances := currPlacement.Instances()
 
+		// Count instances in each subcluster
 		for _, instance := range currInstances {
 			if instance.IsLeaving() {
 				continue
 			}
-			if instance.SubClusterID() > maxSubclusterID {
-				maxSubclusterID = instance.SubClusterID()
-				maxSubclusterCount = 1
-			} else if instance.SubClusterID() == maxSubclusterID {
-				maxSubclusterCount++
+			subClusterID := instance.SubClusterID()
+			subclusterCounts[subClusterID]++
+			if subClusterID > maxSubclusterID {
+				maxSubclusterID = subClusterID
 			}
 		}
+
+		// Find incomplete subclusters (those with fewer than instancesPerSubcluster instances)
+		for subClusterID, count := range subclusterCounts {
+			if count < instancesPerSubcluster {
+				incompleteSubclusters = append(incompleteSubclusters, subClusterID)
+			}
+		}
+
+		// Sort incomplete subclusters by ID in ascending order
+		sort.Slice(incompleteSubclusters, func(i, j int) bool {
+			return incompleteSubclusters[i] < incompleteSubclusters[j]
+		})
 	}
 
 	// Assign subcluster IDs to new instances
+	// First, fill incomplete subclusters in order of increasing ID
+	// Then, create new subclusters as needed
+	nextIncompleteIndex := 0
+	currentSubclusterID := uint32(0)
+	currentSubclusterCount := 0
+
 	for _, instance := range instances {
-		if maxSubclusterCount == instancesPerSubcluster {
+		// Try to fill incomplete subclusters first
+		if nextIncompleteIndex < len(incompleteSubclusters) {
+			currentSubclusterID = incompleteSubclusters[nextIncompleteIndex]
+			currentSubclusterCount = subclusterCounts[currentSubclusterID]
+		} else if currentSubclusterCount == instancesPerSubcluster || currentSubclusterCount == 0 {
+			// No more incomplete subclusters, create a new one
 			maxSubclusterID++
-			maxSubclusterCount = 0
+			currentSubclusterID = maxSubclusterID
+			currentSubclusterCount = 0
 		}
-		instance.SetSubClusterID(maxSubclusterID)
-		maxSubclusterCount++
+
+		// Assign the instance to the current subcluster
+		instance.SetSubClusterID(currentSubclusterID)
+		currentSubclusterCount++
+
+		// Update tracking
+		subclusterCounts[currentSubclusterID] = currentSubclusterCount
+
+		// If we've filled this subcluster, move to the next incomplete one
+		if currentSubclusterCount == instancesPerSubcluster {
+			if nextIncompleteIndex < len(incompleteSubclusters) {
+				nextIncompleteIndex++
+			}
+			currentSubclusterCount = 0
+		}
 	}
+
 	return nil
 }

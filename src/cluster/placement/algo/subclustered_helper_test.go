@@ -500,49 +500,6 @@ func TestAssignSubClusterIDs(t *testing.T) {
 			expectError:           false,
 		},
 		{
-			name:                   "current placement with partial subclusters",
-			instancesPerSubcluster: 4,
-			currentPlacement: placement.NewPlacement().
-				SetInstances([]placement.Instance{
-					placement.NewEmptyInstance("existing1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1),
-					placement.NewEmptyInstance("existing2", "r2", "z1", "endpoint2", 1).SetSubClusterID(1),
-					placement.NewEmptyInstance("existing3", "r3", "z1", "endpoint3", 1).SetSubClusterID(1),
-					placement.NewEmptyInstance("existing4", "r4", "z1", "endpoint4", 1).SetSubClusterID(1),
-					placement.NewEmptyInstance("existing5", "r5", "z1", "endpoint5", 1).SetSubClusterID(2),
-				}).
-				SetIsSharded(true).
-				SetIsSubclustered(true),
-			newInstances: []placement.Instance{
-				placement.NewEmptyInstance("new1", "r6", "z1", "endpoint6", 1),
-				placement.NewEmptyInstance("new2", "r7", "z1", "endpoint7", 1),
-				placement.NewEmptyInstance("new3", "r8", "z1", "endpoint8", 1),
-				placement.NewEmptyInstance("new4", "r9", "z1", "endpoint9", 1),
-				placement.NewEmptyInstance("new5", "r10", "z1", "endpoint10", 1),
-			},
-			expectedSubclusterIDs: []uint32{2, 2, 2, 3, 3},
-			expectError:           false,
-		},
-		{
-			name:                   "current placement with full subclusters",
-			instancesPerSubcluster: 2,
-			currentPlacement: placement.NewPlacement().
-				SetInstances([]placement.Instance{
-					placement.NewEmptyInstance("existing1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1),
-					placement.NewEmptyInstance("existing2", "r2", "z1", "endpoint2", 1).SetSubClusterID(1), // subcluster 1 full
-					placement.NewEmptyInstance("existing3", "r3", "z1", "endpoint3", 1).SetSubClusterID(2),
-					placement.NewEmptyInstance("existing4", "r4", "z1", "endpoint4", 1).SetSubClusterID(2), // subcluster 2 full
-				}).
-				SetIsSharded(true).
-				SetIsSubclustered(true),
-			newInstances: []placement.Instance{
-				placement.NewEmptyInstance("new1", "r5", "z1", "endpoint5", 1),
-				placement.NewEmptyInstance("new2", "r6", "z1", "endpoint6", 1),
-				placement.NewEmptyInstance("new3", "r7", "z1", "endpoint7", 1),
-			},
-			expectedSubclusterIDs: []uint32{3, 3, 4},
-			expectError:           false,
-		},
-		{
 			name:                   "empty new instances",
 			instancesPerSubcluster: 3,
 			currentPlacement:       nil,
@@ -600,16 +557,84 @@ func TestAssignSubClusterIDs(t *testing.T) {
 			errorMessage:          "instances per subcluster is not set",
 		},
 		{
-			name:                   "complex scenario with gaps in subclusters",
-			instancesPerSubcluster: 4,
+			name:                   "fill incomplete subclusters in order of increasing ID",
+			instancesPerSubcluster: 3,
+			currentPlacement: placement.NewPlacement().
+				SetInstances([]placement.Instance{
+					// Subcluster 1: 2 instances (incomplete)
+					placement.NewEmptyInstance("existing1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1),
+					placement.NewEmptyInstance("existing2", "r2", "z1", "endpoint2", 1).SetSubClusterID(1),
+					// Subcluster 3: 1 instance (incomplete)
+					placement.NewEmptyInstance("existing3", "r3", "z1", "endpoint3", 1).SetSubClusterID(3),
+					// Subcluster 5: 2 instances (incomplete)
+					placement.NewEmptyInstance("existing4", "r4", "z1", "endpoint4", 1).SetSubClusterID(5),
+					placement.NewEmptyInstance("existing5", "r5", "z1", "endpoint5", 1).SetSubClusterID(5),
+				}).
+				SetIsSharded(true).
+				SetIsSubclustered(true),
+			newInstances: []placement.Instance{
+				placement.NewEmptyInstance("new1", "r6", "z1", "endpoint6", 1),
+				placement.NewEmptyInstance("new2", "r7", "z1", "endpoint7", 1),
+				placement.NewEmptyInstance("new3", "r8", "z1", "endpoint8", 1),
+				placement.NewEmptyInstance("new4", "r9", "z1", "endpoint9", 1),
+				placement.NewEmptyInstance("new5", "r10", "z1", "endpoint10", 1),
+			},
+			expectedSubclusterIDs: []uint32{1, 3, 3, 5, 6}, // Fill 1, then 3, then 5, then create 6
+			expectError:           false,
+		},
+		{
+			name:                   "current placement with leaving instances",
+			instancesPerSubcluster: 3,
 			currentPlacement: placement.NewPlacement().
 				SetInstances([]placement.Instance{
 					placement.NewEmptyInstance("existing1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1),
 					placement.NewEmptyInstance("existing2", "r2", "z1", "endpoint2", 1).SetSubClusterID(1),
-					placement.NewEmptyInstance("existing3", "r3", "z1", "endpoint3", 1).SetSubClusterID(1), // subcluster 1 full
-					placement.NewEmptyInstance("existing4", "r4", "z1", "endpoint4", 1).SetSubClusterID(3), // skip subcluster 2
-					placement.NewEmptyInstance("existing5", "r5", "z1", "endpoint5", 1).SetSubClusterID(3),
-					placement.NewEmptyInstance("existing6", "r6", "z1", "endpoint6", 1).SetSubClusterID(3), // subcluster 3 full
+					placement.NewEmptyInstance("leaving1", "r3", "z1", "endpoint3", 1).
+						SetSubClusterID(1).
+						SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1).SetState(shard.Leaving)})),
+					placement.NewEmptyInstance("existing3", "r4", "z1", "endpoint4", 1).SetSubClusterID(2),
+				}).
+				SetIsSharded(true).
+				SetIsSubclustered(true),
+			newInstances: []placement.Instance{
+				placement.NewEmptyInstance("new1", "r5", "z1", "endpoint5", 1),
+				placement.NewEmptyInstance("new2", "r6", "z1", "endpoint6", 1),
+				placement.NewEmptyInstance("new3", "r7", "z1", "endpoint7", 1),
+			},
+			expectedSubclusterIDs: []uint32{1, 2, 2}, // Fill subcluster 1 (2 non-leaving), then 2
+			expectError:           false,
+		},
+		{
+			name:                   "single instance fills incomplete subcluster",
+			instancesPerSubcluster: 3,
+			currentPlacement: placement.NewPlacement().
+				SetInstances([]placement.Instance{
+					placement.NewEmptyInstance("existing1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1),
+					placement.NewEmptyInstance("existing2", "r2", "z1", "endpoint2", 1).SetSubClusterID(1),
+					placement.NewEmptyInstance("existing3", "r3", "z1", "endpoint3", 1).SetSubClusterID(2),
+				}).
+				SetIsSharded(true).
+				SetIsSubclustered(true),
+			newInstances: []placement.Instance{
+				placement.NewEmptyInstance("new1", "r4", "z1", "endpoint4", 1),
+			},
+			expectedSubclusterIDs: []uint32{1}, // Fill subcluster 1 (smaller ID)
+			expectError:           false,
+		},
+		{
+			name:                   "multiple incomplete subclusters with same count",
+			instancesPerSubcluster: 4,
+			currentPlacement: placement.NewPlacement().
+				SetInstances([]placement.Instance{
+					// Subcluster 5: 2 instances
+					placement.NewEmptyInstance("existing1", "r1", "z1", "endpoint1", 1).SetSubClusterID(5),
+					placement.NewEmptyInstance("existing2", "r2", "z1", "endpoint2", 1).SetSubClusterID(5),
+					// Subcluster 2: 2 instances
+					placement.NewEmptyInstance("existing3", "r3", "z1", "endpoint3", 1).SetSubClusterID(2),
+					placement.NewEmptyInstance("existing4", "r4", "z1", "endpoint4", 1).SetSubClusterID(2),
+					// Subcluster 7: 2 instances
+					placement.NewEmptyInstance("existing5", "r5", "z1", "endpoint5", 1).SetSubClusterID(7),
+					placement.NewEmptyInstance("existing6", "r6", "z1", "endpoint6", 1).SetSubClusterID(7),
 				}).
 				SetIsSharded(true).
 				SetIsSubclustered(true),
@@ -619,7 +644,46 @@ func TestAssignSubClusterIDs(t *testing.T) {
 				placement.NewEmptyInstance("new3", "r9", "z1", "endpoint9", 1),
 				placement.NewEmptyInstance("new4", "r10", "z1", "endpoint10", 1),
 			},
-			expectedSubclusterIDs: []uint32{3, 4, 4, 4},
+			expectedSubclusterIDs: []uint32{2, 2, 5, 5}, // Fill in order: 2, 5, 7 (by ID)
+			expectError:           false,
+		},
+		{
+			name:                   "all subclusters full, create new ones",
+			instancesPerSubcluster: 2,
+			currentPlacement: placement.NewPlacement().
+				SetInstances([]placement.Instance{
+					placement.NewEmptyInstance("existing1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1),
+					placement.NewEmptyInstance("existing2", "r2", "z1", "endpoint2", 1).SetSubClusterID(1), // subcluster 1 full
+					placement.NewEmptyInstance("existing3", "r3", "z1", "endpoint3", 1).SetSubClusterID(3),
+					placement.NewEmptyInstance("existing4", "r4", "z1", "endpoint4", 1).SetSubClusterID(3), // subcluster 3 full
+				}).
+				SetIsSharded(true).
+				SetIsSubclustered(true),
+			newInstances: []placement.Instance{
+				placement.NewEmptyInstance("new1", "r5", "z1", "endpoint5", 1),
+				placement.NewEmptyInstance("new2", "r6", "z1", "endpoint6", 1),
+				placement.NewEmptyInstance("new3", "r7", "z1", "endpoint7", 1),
+			},
+			expectedSubclusterIDs: []uint32{4, 4, 5}, // Create new subclusters 4 and 5
+			expectError:           false,
+		},
+		{
+			name:                   "edge case: exactly one instance needed to complete subcluster",
+			instancesPerSubcluster: 3,
+			currentPlacement: placement.NewPlacement().
+				SetInstances([]placement.Instance{
+					placement.NewEmptyInstance("existing1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1),
+					placement.NewEmptyInstance("existing2", "r2", "z1", "endpoint2", 1).SetSubClusterID(1),
+					placement.NewEmptyInstance("existing3", "r3", "z1", "endpoint3", 1).SetSubClusterID(2),
+					placement.NewEmptyInstance("existing4", "r4", "z1", "endpoint4", 1).SetSubClusterID(2),
+				}).
+				SetIsSharded(true).
+				SetIsSubclustered(true),
+			newInstances: []placement.Instance{
+				placement.NewEmptyInstance("new1", "r5", "z1", "endpoint5", 1),
+				placement.NewEmptyInstance("new2", "r6", "z1", "endpoint6", 1),
+			},
+			expectedSubclusterIDs: []uint32{1, 2}, // Complete subcluster 1, then 2
 			expectError:           false,
 		},
 	}
