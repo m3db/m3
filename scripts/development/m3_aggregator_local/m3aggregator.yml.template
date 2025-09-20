@@ -119,6 +119,7 @@ aggregator:
       tls:
         enabled: true
         insecureSkipVerify: true
+        tlsHandshakeOnConnect: true
         serverName: ""
         caFile: /etc/tls/rootCA.crt
         certFile: /etc/tls/client.crt
