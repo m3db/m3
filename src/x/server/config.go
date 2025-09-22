@@ -76,9 +76,6 @@ type TLSConfiguration struct {
 	// enforced - allows TLS connections only
 	Mode string `yaml:"mode" validate:"nonzero,regexp=^(disabled|permissive|enforced)$"`
 
-	// MutualTLSEnabled sets mTLS
-	MutualTLSEnabled bool `yaml:"mTLSEnabled"`
-
 	// CertFile path to a server certificate file
 	CertFile string `yaml:"certFile"`
 
@@ -90,6 +87,9 @@ type TLSConfiguration struct {
 
 	// CertificatesTTL is a time duration certificates are stored in memory
 	CertificatesTTL time.Duration `yaml:"certificatesTTL"`
+
+	// MutualTLSEnabled sets mTLS
+	MutualTLSEnabled bool `yaml:"mTLSEnabled"`
 }
 
 // NewOptions creates TLS options
