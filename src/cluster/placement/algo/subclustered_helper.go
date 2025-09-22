@@ -135,10 +135,12 @@ func (ph *subclusteredHelper) scanCurrentLoad(subClusterToExclude uint32) {
 			continue
 		}
 
-		if _, exist := ph.groupToInstancesMap[instance.IsolationGroup()]; !exist {
-			ph.groupToInstancesMap[instance.IsolationGroup()] = make(map[placement.Instance]struct{})
+		ig := instance.IsolationGroup()
+
+		if _, exist := ph.groupToInstancesMap[ig]; !exist {
+			ph.groupToInstancesMap[ig] = make(map[placement.Instance]struct{})
 		}
-		ph.groupToInstancesMap[instance.IsolationGroup()][instance] = struct{}{}
+		ph.groupToInstancesMap[ig][instance] = struct{}{}
 
 		subClusterID := instance.SubClusterID()
 		if _, exist := ph.subClusters[subClusterID]; !exist {
@@ -150,8 +152,8 @@ func (ph *subclusteredHelper) scanCurrentLoad(subClusterToExclude uint32) {
 			}
 		}
 
-		// if we are checking that all instance weight is same than we can simply the calculation by assuming it as 1
-		ph.groupToWeightMap[instance.IsolationGroup()]++
+		// if we are checking that all instance weight is same than we can simplify the calculation by assuming it as 1.
+		ph.groupToWeightMap[ig]++
 		totalWeight++
 		ph.subClusters[subClusterID].instances[instance.ID()] = instance
 
