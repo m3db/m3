@@ -17,12 +17,12 @@ func NewRoutePolicy(trafficTypes uint64) RoutePolicy {
 }
 
 // String returns a string representation of the route policy.
-func (p RoutePolicy) String() string {
+func (p *RoutePolicy) String() string {
 	return fmt.Sprintf("%d", p.TrafficTypes)
 }
 
 // ToProto converts the route policy to a protobuf message in place.
-func (p RoutePolicy) ToProto(pb *policypb.RoutePolicy) error {
+func (p *RoutePolicy) ToProto(pb *policypb.RoutePolicy) error {
 	pb.TrafficTypes = p.TrafficTypes
 	return nil
 }
@@ -34,6 +34,6 @@ func (p *RoutePolicy) FromProto(pb policypb.RoutePolicy) error {
 }
 
 // Equal returns true if the route policy is equal to the other route policy.
-func (p RoutePolicy) Equal(other RoutePolicy) bool {
+func (p *RoutePolicy) Equal(other *RoutePolicy) bool {
 	return p.TrafficTypes == other.TrafficTypes
 }
