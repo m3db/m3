@@ -616,10 +616,6 @@ func (ph *subclusteredHelper) optimizeForSubclusterBalance(
 	}
 	for _, s := range shards {
 		shardID := s.ID()
-		tempCounts := make(map[string]int)
-		for id, count := range countAfterReplicaRemoval {
-			tempCounts[id] = count
-		}
 
 		if count, exists := fromSubcluster.shardMap[shardID]; exists && count < ph.rf {
 			// if some of the replicas of the shards have been moved then that shard should be moved at last
@@ -632,22 +628,32 @@ func (ph *subclusteredHelper) optimizeForSubclusterBalance(
 			continue
 		}
 
+		// Track which instances we modified so we can restore them
+		modifiedInstances := make(map[string]int)
+
 		// Find all instances in the subcluster that currently hold this shard and remove it
 		if instancesWithShard, exists := ph.shardToInstanceMap[shardID]; exists {
 			for instance := range instancesWithShard {
+				instanceID := instance.ID()
 				// Only consider instances in the same subcluster to remove shard replicas count from.
-				if instance.SubClusterID() == fromInstance.SubClusterID() && tempCounts[instance.ID()] > 0 {
-					tempCounts[instance.ID()]-- // Remove one replica from this instance
+				if instance.SubClusterID() == fromInstance.SubClusterID() && countAfterReplicaRemoval[instanceID] > 0 {
+					modifiedInstances[instanceID] = countAfterReplicaRemoval[instanceID]
+					countAfterReplicaRemoval[instanceID]-- // Remove one replica from this instance
 				}
 			}
 		}
 
 		// Calculate resulting skew within the subcluster after removing all replicas of this shard
-		skewAfterRemoval := ph.calculateSubclusterSkew(tempCounts)
+		skewAfterRemoval := ph.calculateSubclusterSkew(countAfterReplicaRemoval)
 		shardScores = append(shardScores, shardSkewScore{
 			shard:            s,
 			skewAfterRemoval: skewAfterRemoval,
 		})
+
+		// Restore the original counts for the next iteration
+		for instanceID, originalCount := range modifiedInstances {
+			countAfterReplicaRemoval[instanceID] = originalCount
+		}
 	}
 
 	// Sort by skewAfterRemoval (ascending) - prioritize shards that result in lowest skew when removed
