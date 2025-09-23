@@ -2947,12 +2947,12 @@ type testSuffixAndValue struct {
 }
 
 type testLocalMetricWithMetadata struct {
-	idPrefix  []byte
-	id        id.RawID
-	idSuffix  []byte
-	timeNanos int64
-	value     float64
-	sp        policy.StoragePolicy
+	idPrefix    []byte
+	id          id.RawID
+	idSuffix    []byte
+	timeNanos   int64
+	value       float64
+	sp          policy.StoragePolicy
 	routePolicy policy.RoutePolicy
 }
 
@@ -2960,7 +2960,7 @@ type testForwardedMetricWithMetadata struct {
 	aggregationKey aggregationKey
 	timeNanos      int64
 	value          float64
-	routePolicy policy.RoutePolicy
+	routePolicy    policy.RoutePolicy
 }
 
 type testOnForwardedFlushedData struct {
@@ -2984,12 +2984,12 @@ func testFlushLocalMetricFn() (
 		routePolicy policy.RoutePolicy,
 	) {
 		result = append(result, testLocalMetricWithMetadata{
-			idPrefix:  idPrefix,
-			id:        id,
-			idSuffix:  idSuffix,
-			timeNanos: timeNanos,
-			value:     value,
-			sp:        sp,
+			idPrefix:    idPrefix,
+			id:          id,
+			idSuffix:    idSuffix,
+			timeNanos:   timeNanos,
+			value:       value,
+			sp:          sp,
 			routePolicy: routePolicy,
 		})
 	}, &result
