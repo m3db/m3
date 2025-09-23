@@ -167,7 +167,7 @@ var (
 		},
 		SourceId:          1234,
 		NumForwardedTimes: 3,
-		RoutePolicy:       policypb.RoutePolicy{
+		RoutePolicy: policypb.RoutePolicy{
 			TrafficTypes: 3,
 		},
 	}
