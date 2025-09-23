@@ -313,6 +313,8 @@ func (ph *subclusteredHelper) Instances() []placement.Instance {
 	return res
 }
 
+// moveShard tries to move a shard from the from instance to the to instance.
+// If the shard is not assignable to the to instance, it returns false.
 func (ph *subclusteredHelper) moveShard(candidateShard shard.Shard, from, to placement.Instance) bool {
 	shardID := candidateShard.ID()
 	if !ph.canAssignInstance(shardID, from, to) {
