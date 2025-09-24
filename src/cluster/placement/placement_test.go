@@ -860,11 +860,10 @@ func TestValidateSubclusteredPlacement(t *testing.T) {
 			instancesPerSubcluster: 6,
 			replicaFactor:          2,
 			instances: func() []Instance {
-				i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1)
+				i1 := NewEmptyInstance("i1", "IG1", "z1", "endpoint1", 1).SetSubClusterID(1)
 				i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
 				i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
-
-				i2 := NewEmptyInstance("i2", "r1", "z1", "endpoint2", 1).SetSubClusterID(1)
+				i2 := NewEmptyInstance("i2", "IG1", "z1", "endpoint2", 1).SetSubClusterID(1)
 				i2.Shards().Add(shard.NewShard(1).SetState(shard.Available))
 				i2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
 
@@ -951,7 +950,7 @@ func TestValidateSubclusteredPlacement(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:                   "shards are shared among multiple completebsubclusters",
+			name:                   "shards are shared among multiple complete subclusters",
 			instancesPerSubcluster: 3,
 			replicaFactor:          3,
 			instances: func() []Instance {
