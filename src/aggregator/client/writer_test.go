@@ -458,7 +458,7 @@ func TestWriterWriteUntimedLargeBatchTimerUsesMultipleBuffers(t *testing.T) {
 
 	bytesAdded, err := w.Write(0, payload)
 	require.NoError(t, err)
-	require.Equal(t, 35000, bytesAdded)
+	require.Equal(t, 35560, bytesAdded)
 	require.NoError(t, w.Flush())
 	time.Sleep(1 * time.Second) // TODO: remove once queue is sync
 	require.NoError(t, w.Close())

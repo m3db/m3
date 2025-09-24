@@ -54,7 +54,7 @@ var (
 	testGaugeID                   = id.RawID("testGauge")
 	testAnnot                     = []byte("testAnnotation")
 	testStoragePolicy             = policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour)
-	testRoutePolicy               = policy.NewRoutePolicy(1)
+	testRoutePolicy               = policy.NewRoutePolicy(0)
 	testAggregationTypes          = maggregation.Types{maggregation.Mean, maggregation.Sum}
 	testAggregationTypesExpensive = maggregation.Types{maggregation.SumSq}
 	testTimerAggregationTypes     = maggregation.Types{maggregation.SumSq, maggregation.P99}
