@@ -942,7 +942,7 @@ func TestValidateSubclusteredPlacement(t *testing.T) {
 				i3.Shards().Add(shard.NewShard(3).SetState(shard.Leaving))
 				i3.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 
-				i4 := NewEmptyInstance("i4", "r1", "z1", "endpoint4", 1).SetSubClusterID(1)
+				i4 := NewEmptyInstance("i4", "r1", "z1", "endpoint4", 1).SetSubClusterID(2)
 				i4.Shards().Add(shard.NewShard(3).SetState(shard.Initializing).SetSourceID("i3"))
 
 				return []Instance{i1, i2, i3, i4}
@@ -1167,6 +1167,34 @@ func TestValidateSubclusteredPlacementEdgeCases(t *testing.T) {
 			shards:       []uint32{1},
 			expectError:  true,
 			errorMessage: "invalid shard 1, expected 3 isolation groups, actual 2",
+		},
+		{
+			name:                   "subcluster with more instances than instancesPerSubcluster",
+			instancesPerSubcluster: 3,
+			replicaFactor:          3,
+			instances: func() []Instance {
+				i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1)
+				i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+				i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+				i1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+				i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint2", 1).SetSubClusterID(1)
+				i2.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+				i2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+				i2.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+				i3 := NewEmptyInstance("i3", "r3", "z1", "endpoint3", 1).SetSubClusterID(1)
+				i3.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+				i3.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+
+				i4 := NewEmptyInstance("i4", "r3", "z1", "endpoint4", 1).SetSubClusterID(1)
+				i4.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+				return []Instance{i1, i2, i3, i4}
+			}(),
+			shards:       []uint32{1, 2, 3},
+			expectError:  true,
+			errorMessage: "invalid subcluster 1, expected at most 3 instances, actual 4",
 		},
 	}
 

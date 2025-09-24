@@ -453,10 +453,11 @@ func validateSubclusteredPlacement(p Placement) error {
 		if instance.IsLeaving() {
 			continue
 		}
-		if _, exist := subClusterToInstanceMap[instance.SubClusterID()]; !exist {
-			subClusterToInstanceMap[instance.SubClusterID()] = make(map[Instance]struct{})
+		subclusterID := instance.SubClusterID()
+		if _, exist := subClusterToInstanceMap[subclusterID]; !exist {
+			subClusterToInstanceMap[subclusterID] = make(map[Instance]struct{})
 		}
-		subClusterToInstanceMap[instance.SubClusterID()][instance] = struct{}{}
+		subClusterToInstanceMap[subclusterID][instance] = struct{}{}
 
 		for _, s := range instance.Shards().All() {
 			if s.State() == shard.Leaving {
@@ -469,7 +470,14 @@ func validateSubclusteredPlacement(p Placement) error {
 			if _, exist := shardToSubclusterMap[s.ID()]; !exist {
 				shardToSubclusterMap[s.ID()] = make(map[uint32]struct{})
 			}
-			shardToSubclusterMap[s.ID()][instance.SubClusterID()] = struct{}{}
+			shardToSubclusterMap[s.ID()][subclusterID] = struct{}{}
+		}
+	}
+
+	for subclusterID, instances := range subClusterToInstanceMap {
+		if len(instances) > instancesPerSubCluster {
+			return fmt.Errorf("invalid subcluster %d, expected at most %d instances, actual %d",
+				subclusterID, instancesPerSubCluster, len(instances))
 		}
 	}
 
@@ -477,7 +485,7 @@ func validateSubclusteredPlacement(p Placement) error {
 		firstReplica := true
 		shardSubclusterID := uninitializedSubClusterID
 
-		// If the movement is happening than the shard can be shared by at most two subclusters.
+		// If the movement is happening then the shard can be shared by at most two subclusters.
 		// One which is giving the shard and one which is receiving the shard.
 		if len(subclusters) > 2 {
 			return fmt.Errorf("invalid shard %d, expected at most 2 subclusters (only during shard movement),"+
