@@ -211,13 +211,14 @@ func (c *Configuration) NewClientOptions(
 
 // TLSConfiguration contains the TLS configuration
 type TLSConfiguration struct {
-	Enabled            bool          `yaml:"enabled"`
-	InsecureSkipVerify bool          `yaml:"insecureSkipVerify"`
-	ServerName         string        `yaml:"serverName"`
-	CAFile             string        `yaml:"caFile"`
-	CertFile           string        `yaml:"certFile"`
-	KeyFile            string        `yaml:"keyFile"`
-	CertificatesTTL    time.Duration `yaml:"certificatesTTL"`
+	Enabled               bool          `yaml:"enabled"`
+	InsecureSkipVerify    bool          `yaml:"insecureSkipVerify"`
+	TLSHandshakeOnConnect bool          `yaml:"tlsHandshakeOnConnect"`
+	ServerName            string        `yaml:"serverName"`
+	CAFile                string        `yaml:"caFile"`
+	CertFile              string        `yaml:"certFile"`
+	KeyFile               string        `yaml:"keyFile"`
+	CertificatesTTL       time.Duration `yaml:"certificatesTTL"`
 }
 
 // NewTLSOptions creates new TLS options
@@ -228,7 +229,8 @@ func (c *TLSConfiguration) NewTLSOptions() xtls.Options {
 		SetServerName(c.ServerName).
 		SetCAFile(c.CAFile).
 		SetCertFile(c.CertFile).
-		SetKeyFile(c.KeyFile)
+		SetKeyFile(c.KeyFile).
+		SetTLSHandshakeOnConnect(c.TLSHandshakeOnConnect)
 }
 
 // ConnectionConfiguration contains the connection configuration.
