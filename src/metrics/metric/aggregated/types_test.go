@@ -92,7 +92,7 @@ var (
 		}),
 		SourceID:          1234,
 		NumForwardedTimes: 3,
-		RoutePolicy:       policy.NewRoutePolicy(1),
+		RoutePolicy:       policy.NewRoutePolicy(3),
 	}
 	testForwardMetadata2 = metadata.ForwardMetadata{
 		AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
@@ -201,6 +201,9 @@ var (
 		},
 		SourceId:          897,
 		NumForwardedTimes: 2,
+		RoutePolicy: policypb.RoutePolicy{
+			TrafficTypes: 2,
+		},
 	}
 	testBadMetricProto = metricpb.TimedMetric{
 		Type: 999,
