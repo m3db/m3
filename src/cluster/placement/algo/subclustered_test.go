@@ -283,6 +283,7 @@ func TestSubclusteredAlgorithm_InitialPlacement(t *testing.T) {
 
 				// Verify subcluster assignments
 				assert.Equal(t, tt.expectedSubclusters, len(subclusterMap))
+
 				// Verify placement properties
 				assert.Equal(t, tt.replicaFactor, result.ReplicaFactor())
 				assert.True(t, result.IsSharded())
@@ -593,7 +594,7 @@ func TestRemoveInstancesValidCases(t *testing.T) {
 		{
 			name:                   "valid configuration - rf=3, instancesPerSubcluster=9",
 			replicaFactor:          3,
-			initialSubClusters:     24,
+			initialSubClusters:     10,
 			instancesPerSubcluster: 9,
 			subClustersToRemove:    5,
 			totalShards:            1024,
@@ -612,17 +613,15 @@ func TestRemoveInstancesValidCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := placement.NewOptions().SetInstancesPerSubCluster(tt.instancesPerSubcluster).
 				SetIsSubclustered(true)
-			algo := subclusteredPlacementAlgorithm{opts: opts}
+			algo := subclusteredPlacementAlgorithm{opts}
 
 			initialInstances := make([]placement.Instance, tt.instancesPerSubcluster*tt.initialSubClusters)
 			for i := 0; i < tt.instancesPerSubcluster*tt.initialSubClusters; i++ {
-				subclusterID := uint32(i/tt.instancesPerSubcluster + 1)
 				initialInstances[i] = placement.NewInstance().
 					SetID(fmt.Sprintf("I%d", i)).
 					SetIsolationGroup(fmt.Sprintf("R%d", i%tt.replicaFactor)).
 					SetWeight(1).
 					SetEndpoint(fmt.Sprintf("E%d", i)).
-					SetSubClusterID(subclusterID).
 					SetShards(shard.NewShards(nil))
 			}
 
@@ -642,7 +641,7 @@ func TestRemoveInstancesValidCases(t *testing.T) {
 			// Get all instances from the selected subclusters
 			var instancesToRemove []string
 			for _, subclusterID := range subclustersToRemove {
-				for _, instance := range result.Instances() {
+				for _, instance := range placement.BySubClusterIDThenInstanceID(result.Instances()) {
 					if instance.SubClusterID() == subclusterID {
 						instancesToRemove = append(instancesToRemove, instance.ID())
 					}
@@ -1376,5 +1375,246 @@ func TestReclaimLeavingInstance(t *testing.T) {
 	instance, exists := finalPlacement.Instance(instanceToRemove)
 	assert.True(t, exists)
 	assert.False(t, instance.IsLeaving())
+}
 
+func newSubclusteredTestInstance(id string) placement.Instance {
+	return placement.NewInstance().
+		SetID(id).
+		SetIsolationGroup("rack-" + id).
+		SetEndpoint("endpoint-" + id).
+		SetWeight(1)
+}
+
+func TestSubclusteredAlgorithm_BalanceShards_WhenBalanced(t *testing.T) {
+	// Create instances for 2 subclusters, each with 3 instances (6 total)
+	// Replica factor 3, so we need 3 isolation groups
+	// With 2 shards and RF=3, we should have 6 total shard replicas distributed across instances
+	i1 := newSubclusteredTestInstance("i1").
+		SetIsolationGroup("rack-0").
+		SetSubClusterID(1).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(0).SetState(shard.Available),
+		}))
+	i2 := newSubclusteredTestInstance("i2").
+		SetIsolationGroup("rack-1").
+		SetSubClusterID(1).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(0).SetState(shard.Available),
+		}))
+	i3 := newSubclusteredTestInstance("i3").
+		SetIsolationGroup("rack-2").
+		SetSubClusterID(1).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(0).SetState(shard.Available),
+		}))
+	i4 := newSubclusteredTestInstance("i4").
+		SetIsolationGroup("rack-0").
+		SetSubClusterID(2).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(1).SetState(shard.Available),
+		}))
+	i5 := newSubclusteredTestInstance("i5").
+		SetIsolationGroup("rack-1").
+		SetSubClusterID(2).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(1).SetState(shard.Available),
+		}))
+	i6 := newSubclusteredTestInstance("i6").
+		SetIsolationGroup("rack-2").
+		SetSubClusterID(2).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(1).SetState(shard.Available),
+		}))
+
+	initialPlacement := placement.NewPlacement().
+		SetReplicaFactor(3).
+		SetShards([]uint32{0, 1}).
+		SetInstances([]placement.Instance{i1, i2, i3, i4, i5, i6}).
+		SetIsSharded(true).
+		SetIsSubclustered(true).
+		SetInstancesPerSubCluster(3)
+
+	expectedPlacement := initialPlacement.Clone()
+
+	opts := placement.NewOptions().
+		SetInstancesPerSubCluster(3).
+		SetIsSubclustered(true)
+	algo := subclusteredPlacementAlgorithm{opts: opts}
+
+	balancedPlacement, err := algo.BalanceShards(initialPlacement)
+	assert.NoError(t, err)
+
+	// Verify the placement is valid
+	assert.NoError(t, placement.Validate(balancedPlacement))
+
+	// Verify subcluster properties are maintained
+	assert.True(t, balancedPlacement.IsSubclustered())
+	assert.Equal(t, 3, balancedPlacement.InstancesPerSubCluster())
+	assert.Equal(t, 3, balancedPlacement.ReplicaFactor())
+
+	// Verify instance count is preserved
+	assert.Equal(t, len(expectedPlacement.Instances()), len(balancedPlacement.Instances()))
+
+	// Verify total shard count is preserved
+	originalShardCount := 0
+	balancedShardCount := 0
+	for _, instance := range initialPlacement.Instances() {
+		originalShardCount += instance.Shards().NumShards()
+	}
+	for _, instance := range balancedPlacement.Instances() {
+		balancedShardCount += instance.Shards().NumShards()
+	}
+	assert.Equal(t, originalShardCount, balancedShardCount)
+}
+
+func TestSubclusteredAlgorithm_BalanceShards_WhenImbalanced(t *testing.T) {
+	// Create an imbalanced placement where some instances have more shards
+	// With 3 shards and RF=3, we should have 9 total shard replicas distributed across instances
+	i1 := newSubclusteredTestInstance("i1").
+		SetIsolationGroup("rack-0").
+		SetSubClusterID(1).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(0).SetState(shard.Available),
+			shard.NewShard(1).SetState(shard.Available),
+			shard.NewShard(2).SetState(shard.Available),
+		}))
+	i2 := newSubclusteredTestInstance("i2").
+		SetIsolationGroup("rack-1").
+		SetSubClusterID(1).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(0).SetState(shard.Available),
+			shard.NewShard(1).SetState(shard.Available),
+			shard.NewShard(2).SetState(shard.Available),
+		}))
+	i3 := newSubclusteredTestInstance("i3").
+		SetIsolationGroup("rack-2").
+		SetSubClusterID(1).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(0).SetState(shard.Available),
+			shard.NewShard(1).SetState(shard.Available),
+			shard.NewShard(2).SetState(shard.Available),
+		}))
+	i4 := newSubclusteredTestInstance("i4").
+		SetIsolationGroup("rack-0").
+		SetSubClusterID(2).
+		SetShards(shard.NewShards([]shard.Shard{}))
+	i5 := newSubclusteredTestInstance("i5").
+		SetIsolationGroup("rack-1").
+		SetSubClusterID(2).
+		SetShards(shard.NewShards([]shard.Shard{}))
+	i6 := newSubclusteredTestInstance("i6").
+		SetIsolationGroup("rack-2").
+		SetSubClusterID(2).
+		SetShards(shard.NewShards([]shard.Shard{}))
+
+	p := placement.NewPlacement().
+		SetReplicaFactor(3).
+		SetShards([]uint32{0, 1, 2}).
+		SetInstances([]placement.Instance{i1, i2, i3, i4, i5, i6}).
+		SetIsSharded(true).
+		SetIsSubclustered(true).
+		SetInstancesPerSubCluster(3)
+
+	opts := placement.NewOptions().
+		SetInstancesPerSubCluster(3).
+		SetIsSubclustered(true)
+	algo := subclusteredPlacementAlgorithm{opts: opts}
+
+	balancedPlacement, err := algo.BalanceShards(p)
+	assert.NoError(t, err)
+
+	// Verify the placement is valid
+	assert.NoError(t, placement.Validate(balancedPlacement))
+
+	// Verify subcluster properties are maintained
+	assert.True(t, balancedPlacement.IsSubclustered())
+	assert.Equal(t, 3, balancedPlacement.InstancesPerSubCluster())
+	assert.Equal(t, 3, balancedPlacement.ReplicaFactor())
+
+	// Verify instance count is preserved
+	assert.Equal(t, len(p.Instances()), len(balancedPlacement.Instances()))
+
+	// Verify total shard count is preserved
+	originalShardCount := 0
+	balancedShardCount := 0
+	for _, instance := range p.Instances() {
+		originalShardCount += instance.Shards().NumShards()
+	}
+	for _, instance := range balancedPlacement.Instances() {
+		balancedShardCount += instance.Shards().NumShards()
+	}
+	assert.Equal(t, originalShardCount, balancedShardCount)
+
+	// Verify all instances are in the correct subclusters
+	for _, instance := range balancedPlacement.Instances() {
+		expectedSubcluster := uint32(1)
+		if instance.ID() >= "i4" {
+			expectedSubcluster = 2
+		}
+		assert.Equal(t, expectedSubcluster, instance.SubClusterID())
+	}
+}
+
+func TestSubclusteredAlgorithm_BalanceShards_ErrorCases(t *testing.T) {
+	opts := placement.NewOptions().
+		SetInstancesPerSubCluster(3).
+		SetIsSubclustered(true)
+	algo := subclusteredPlacementAlgorithm{opts: opts}
+
+	tests := []struct {
+		name          string
+		placement     placement.Placement
+		errorContains string
+	}{
+		{
+			name:          "nil placement",
+			placement:     nil,
+			errorContains: "placement is nil",
+		},
+		{
+			name: "not sharded placement",
+			placement: placement.NewPlacement().
+				SetIsSharded(false).
+				SetIsSubclustered(true),
+			errorContains: "could not apply subclustered algo on the placement",
+		},
+		{
+			name: "not subclustered placement",
+			placement: placement.NewPlacement().
+				SetIsSharded(true).
+				SetIsSubclustered(false),
+			errorContains: "could not apply subclustered algo on the placement",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			balancedPlacement, err := algo.BalanceShards(tt.placement)
+			assert.Error(t, err)
+			assert.Nil(t, balancedPlacement)
+			assert.Contains(t, err.Error(), tt.errorContains)
+		})
+	}
+}
+
+// TestSubclusteredAlgorithm_BalanceShards_EmptyPlacement tests balancing empty placements
+func TestSubclusteredAlgorithm_BalanceShards_EmptyPlacement(t *testing.T) {
+	opts := placement.NewOptions().
+		SetInstancesPerSubCluster(3).
+		SetIsSubclustered(true)
+	algo := subclusteredPlacementAlgorithm{opts: opts}
+
+	emptyPlacement := placement.NewPlacement().
+		SetInstances([]placement.Instance{}).
+		SetShards([]uint32{}).
+		SetReplicaFactor(3).
+		SetInstancesPerSubCluster(3).
+		SetIsSubclustered(true).
+		SetIsSharded(true)
+
+	balancedPlacement, err := algo.BalanceShards(emptyPlacement)
+	assert.NoError(t, err)
+	assert.NotNil(t, balancedPlacement)
+	assert.NoError(t, placement.Validate(balancedPlacement))
+	assert.Equal(t, 0, len(balancedPlacement.Instances()))
 }

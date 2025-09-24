@@ -11,6 +11,10 @@ var (
 	errIncompatibleWithSubclusteredAlgo = errors.New("could not apply subclustered algo on the placement")
 )
 
+const (
+	uninitializedSubClusterID = 0
+)
+
 type subclusteredPlacementAlgorithm struct {
 	opts placement.Options
 }
@@ -69,6 +73,7 @@ func (a subclusteredPlacementAlgorithm) AddReplica(p placement.Placement) (place
 	return nil, fmt.Errorf("AddReplica is not supported for subclustered placement")
 }
 
+// nolint:dupl
 func (a subclusteredPlacementAlgorithm) RemoveInstances(
 	p placement.Placement,
 	instanceIDs []string,
@@ -87,9 +92,9 @@ func (a subclusteredPlacementAlgorithm) RemoveInstances(
 			return nil, err
 		}
 
-		// if err := ph.optimize(safe); err != nil {
-		// 	return nil, err
-		// }
+		if err := ph.optimize(safe); err != nil {
+			return nil, err
+		}
 
 		if p, _, err = addInstanceToPlacement(ph.generatePlacement(), leavingInstance, withShards); err != nil {
 			return nil, err
@@ -189,7 +194,17 @@ func (a subclusteredPlacementAlgorithm) BalanceShards(
 	if err := a.IsCompatibleWith(p); err != nil {
 		return nil, err
 	}
+	ph, err := newSubclusteredHelper(p, a.opts, uninitializedSubClusterID)
+	if err != nil {
+		return nil, err
+	}
+	err = ph.validatePartialSubclusters(uninitializedSubClusterID, validationOpBalance)
+	if err != nil {
+		return nil, err
+	}
+	if err := ph.optimize(unsafe); err != nil {
+		return nil, fmt.Errorf("shard balance optimization failed: %w", err)
+	}
 
-	// TODO: Implement subclustered balance shards logic
-	return nil, fmt.Errorf("subclustered balance shards not yet implemented")
+	return tryCleanupShardState(ph.generatePlacement(), a.opts)
 }
