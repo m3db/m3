@@ -128,7 +128,12 @@ func TestPlacementGetHandler(t *testing.T) {
 			},
 		}
 
-		const placementJSON = `{"placement":{"instances":{"host1":{"id":"host1","isolationGroup":"rack1","zone":"test","weight":1,"endpoint":"http://host1:1234","shards":[],"shardSetId":0,"hostname":"host1","port":1234,"metadata":{"debugPort":1}},"host2":{"id":"host2","isolationGroup":"rack1","zone":"test","weight":1,"endpoint":"http://host2:1234","shards":[],"shardSetId":0,"hostname":"host2","port":1234,"metadata":{"debugPort":2}}},"replicaFactor":0,"numShards":0,"isSharded":false,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0},"version":%d}`
+		const placementJSON = `{"placement":{"instances":{"host1":{"id":"host1","isolationGroup":"rack1","zone":"test",` +
+			`"weight":1,"endpoint":"http://host1:1234","shards":[],"shardSetId":0,"hostname":"host1","port":1234,` +
+			`"metadata":{"debugPort":1},"subclusterId":0},"host2":{"id":"host2","isolationGroup":"rack1","zone":"test",` +
+			`"weight":1,"endpoint":"http://host2:1234","shards":[],"shardSetId":0,"hostname":"host2","port":1234,` +
+			`"metadata":{"debugPort":2},"subclusterId":0}},"replicaFactor":0,"numShards":0,"isSharded":false,"cutoverTime":` +
+			`"0","isMirrored":false,"maxShardSetId":0,"isSubclustered":false,"instancesPerSubcluster":0},"version":%d}`
 
 		placementObj, err := placement.NewPlacementFromProto(placementProto)
 		require.NoError(t, err)
