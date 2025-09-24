@@ -152,11 +152,10 @@ func TestNewSubclusteredHelper(t *testing.T) {
 				assert.NotNil(t, helper)
 
 				// Verify helper properties
-				sh := helper.(*subclusteredHelper)
-				assert.Equal(t, tt.targetRF, sh.rf)
-				assert.Equal(t, tt.placement.InstancesPerSubCluster(), sh.instancesPerSubcluster)
-				assert.Equal(t, len(tt.placement.Instances()), len(sh.instances))
-				assert.Equal(t, len(tt.placement.Shards()), len(sh.uniqueShards))
+				assert.Equal(t, tt.targetRF, helper.rf)
+				assert.Equal(t, tt.placement.InstancesPerSubCluster(), helper.instancesPerSubcluster)
+				assert.Equal(t, len(tt.placement.Instances()), len(helper.instances))
+				assert.Equal(t, len(tt.placement.Shards()), len(helper.uniqueShards))
 			}
 		})
 	}
@@ -447,13 +446,12 @@ func TestNewSubclusteredHelperIntegration(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, helper)
 
-	sh := helper.(*subclusteredHelper)
-	assert.Equal(t, 3, sh.rf)
-	assert.Equal(t, 3, sh.instancesPerSubcluster)
-	assert.Equal(t, 3, len(sh.instances))
-	assert.Equal(t, 3, len(sh.uniqueShards))
-	assert.Equal(t, 3, len(sh.groupToInstancesMap))
-	assert.Equal(t, 1, len(sh.subClusters))
+	assert.Equal(t, 3, helper.rf)
+	assert.Equal(t, 3, helper.instancesPerSubcluster)
+	assert.Equal(t, 3, len(helper.instances))
+	assert.Equal(t, 3, len(helper.uniqueShards))
+	assert.Equal(t, 3, len(helper.groupToInstancesMap))
+	assert.Equal(t, 1, len(helper.subClusters))
 }
 
 func TestValidateInstanceWeightIntegration(t *testing.T) {
