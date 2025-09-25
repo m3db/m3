@@ -94,7 +94,7 @@ require (
 require (
 	github.com/twmb/murmur3 v1.1.6
 	golang.org/x/exp v0.0.0-20230725093048-515e97ebf090
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -166,7 +166,7 @@ require (
 	github.com/soheilhy/cmux v0.1.5 // indirect
 	github.com/spf13/cast v1.4.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/stretchr/objx v0.3.0 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/tinylib/msgp v1.1.0 // indirect
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20201229170055-e5319fda7802 // indirect
 	github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 // indirect
@@ -206,8 +206,6 @@ require (
 // src/metrics/encoding/msgpack/base_encoder.go
 // src/dbnode/persist/fs/msgpack/encoder.go
 replace gopkg.in/vmihailenco/msgpack.v2 => github.com/vmihailenco/msgpack v2.8.3+incompatible
-
-replace github.com/stretchr/testify => github.com/stretchr/testify v1.1.4-0.20160305165446-6fe211e49392
 
 replace github.com/google/flatbuffers => github.com/google/flatbuffers v1.12.1
 
