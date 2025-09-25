@@ -117,6 +117,12 @@ type FilterConfig interface {
 
 	// SetShardSetFilter sets the shard set data filter of the consumer service.
 	SetShardSetFilter(value ShardSetFilter) FilterConfig
+
+	// RoutePolicyFilter returns the route policy data filter of the consumer service.
+	RoutePolicyFilter() RoutePolicyFilter
+
+	// SetRoutePolicyFilter sets the route policy data filter of the consumer service.
+	SetRoutePolicyFilter(value RoutePolicyFilter) FilterConfig
 }
 
 // PercentageFilter is sampling percentage filter for a consumer service.
@@ -134,6 +140,14 @@ type StoragePolicyFilter interface {
 type ShardSetFilter interface {
 	ShardSet() string
 }
+
+// RoutePolicyFilter is the route policy filter for a consumer service, filters metrics based on specified route policies.
+type RoutePolicyFilter interface {
+	AllowedTrafficTypes() []string
+	IsDefault() bool
+}
+
+// RoutePolicyFilter is the route policy filter for a consumer service, filters metrics based on specified route policies.
 
 // Watch watches the updates of a topic.
 type Watch interface {
