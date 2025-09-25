@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package routingpb;
+
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+message RoutingPolicyConfig {
+    map<string, uint64> traffic_types = 1;
+}

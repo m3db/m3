@@ -18,6 +18,7 @@ message Filters {
   StoragePolicyFilter storage_policy_filter = 1;
   PercentageFilter percentage_filter = 2;
   ShardSetFilter shard_set_filter = 3;
+  RoutePolicyFilter route_policy_filter = 4;
 }
 
 message StoragePolicyFilter { repeated string storage_policies = 1; }
@@ -25,6 +26,11 @@ message StoragePolicyFilter { repeated string storage_policies = 1; }
 message PercentageFilter { double percentage = 1; }
 
 message ShardSetFilter { string shard_set = 1; }
+
+message RoutePolicyFilter {
+  repeated string allowed_traffic_types = 1;
+  bool is_default = 2;
+}
 
 message ServiceID {
   string name = 1;
