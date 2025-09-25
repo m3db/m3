@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/producer"
+	"github.com/m3db/m3/src/msg/routing"
 	"github.com/m3db/m3/src/msg/topic"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/watch"
@@ -76,6 +77,7 @@ type writer struct {
 	numShards              uint32
 	consumerServiceWriters map[string]consumerServiceWriter
 	filterRegistry         map[string][]producer.FilterFunc
+	routingPolicyHandler   routing.PolicyHandler
 	isClosed               bool
 	m                      writerMetrics
 
@@ -186,7 +188,7 @@ func (w *writer) process(update interface{}) error {
 			csw.SetMessageTTLNanos(cs.MessageTTLNanos())
 
 			if cs.DynamicFilterConfigs() != nil {
-				dynamicFilters, err := ParseDynamicFilters(csw, cs.DynamicFilterConfigs())
+				dynamicFilters, err := ParseDynamicFilters(csw, w.routingPolicyHandler, cs.DynamicFilterConfigs())
 
 				if err != nil {
 					w.logger.Error("could not update dynamic filters on consumer service writer, error registering dynamic filters",
@@ -234,7 +236,7 @@ func (w *writer) process(update interface{}) error {
 
 		// if there are dynamicly configured filters, they are the source of truth
 		if cs.DynamicFilterConfigs() != nil {
-			dynamicFilters, err := ParseDynamicFilters(csw, cs.DynamicFilterConfigs())
+			dynamicFilters, err := ParseDynamicFilters(csw, w.routingPolicyHandler, cs.DynamicFilterConfigs())
 
 			if err != nil {
 				w.logger.Error("could not create consumer service writer, error registering dynamic filters",
@@ -344,8 +346,14 @@ func (w *writer) UnregisterFilters(sid services.ServiceID) {
 	}
 }
 
+func (w *writer) SetRoutingPolicyHandler(policyHandler routing.PolicyHandler) {
+	w.Lock()
+	defer w.Unlock()
+	w.routingPolicyHandler = policyHandler
+}
+
 // ParseDynamicFilters parses the dynamic filters for a consumer service from a topic update.
-func ParseDynamicFilters(csw consumerServiceWriter, filterConfig topic.FilterConfig) ([]producer.FilterFunc, error) {
+func ParseDynamicFilters(csw consumerServiceWriter, rph routing.PolicyHandler, filterConfig topic.FilterConfig) ([]producer.FilterFunc, error) {
 	filterFuncs := []producer.FilterFunc{}
 
 	if filterConfig == nil {
@@ -382,6 +390,16 @@ func ParseDynamicFilters(csw consumerServiceWriter, filterConfig topic.FilterCon
 		filterFuncs = append(filterFuncs, percentageFilterFunc)
 	}
 
+	if filterConfig.RoutePolicyFilter() != nil {
+		routePolicyFilterFunc, err := ParseRoutePolicyFilterFromFromTopicUpdate(csw, rph, filterConfig.RoutePolicyFilter())
+
+		if err != nil {
+			return filterFuncs, fmt.Errorf("Error registering route policy filter: %w", err)
+		}
+
+		filterFuncs = append(filterFuncs, routePolicyFilterFunc)
+	}
+
 	return filterFuncs, nil
 }
 
@@ -414,7 +432,7 @@ func ParseStoragePolicyFilterFromTopicUpdate(
 
 	parsedPolicies := []policy.StoragePolicy{}
 	for _, storagePolicyString := range storagePolicies {
-		parsedPolicy, err := policy.ParseStoragePolicy(storagePolicyString)
+		 parsedPolicy, err := policy.ParseStoragePolicy(storagePolicyString)
 
 		if err != nil {
 			return filterFunc, fmt.Errorf("Error parsing storage policy: %w", err)
@@ -438,5 +456,19 @@ func ParsePercentageFilterFromFromTopicUpdate(
 
 	filterFunc = filter.NewPercentageFilter(percentage, producer.DynamicConfig)
 
+	return filterFunc, nil
+}
+
+// ParseRoutePolicyFilterFromFromTopicUpdate parses a route policy filter from a topic update.
+func ParseRoutePolicyFilterFromFromTopicUpdate(
+	csw consumerServiceWriter,
+	rph routing.PolicyHandler,
+	rpf topic.RoutePolicyFilter) (producer.FilterFunc, error) {
+	params := handlerWriter.RoutePolicyFilterParams{
+		RoutePolicyHandler:  rph,
+		IsDefault:           rpf.IsDefault(),
+		AllowedTrafficTypes: rpf.AllowedTrafficTypes(),
+	}
+	filterFunc := handlerWriter.NewRoutePolicyFilter(params, producer.DynamicConfig)
 	return filterFunc, nil
 }
