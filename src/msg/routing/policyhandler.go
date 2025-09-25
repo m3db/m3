@@ -39,6 +39,7 @@ func NewRoutingPolicyHandler(opts PolicyHandlerOptions) (PolicyHandler, error) {
 	p := &routingPolicyHandler{
 		store:        store,
 		trafficTypes: opts.StaticTrafficTypes(),
+		key:          opts.DynamicTrafficTypesKVKey(),
 		isClosed:     false,
 	}
 	p.processFn = p.processUpdate
