@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3/src/cluster/services"
+	"github.com/m3db/m3/src/msg/routing"
 )
 
 // FinalizeReason defines the reason why the message is being finalized by Producer.
@@ -85,6 +86,9 @@ type Producer interface {
 	// If the CloseType is WaitForConsumption, then it will block until all the messages have been consumed.
 	// If the CloseType is DropEverything, then it will simply drop all the messages buffered and return.
 	Close(ct CloseType)
+
+	// SetRoutingPolicy sets the routing policy.
+	SetRoutingPolicyHandler(policy routing.PolicyHandler)
 }
 
 // FilterFuncType specifies the type of filter function.
@@ -97,6 +101,8 @@ const (
 	StoragePolicyFilter
 	// PercentageFilter filters messages on a sampling percentage.
 	PercentageFilter
+	// RoutePolicyFilter filters messages based on a route policy.
+	RoutePolicyFilter
 	// AcceptAllFilter accepts all messages.
 	AcceptAllFilter
 	// UnspecifiedFilter is any filter that is not one of the well known types.
@@ -112,6 +118,8 @@ func (f FilterFuncType) String() string {
 		return "StoragePolicyFilter"
 	case PercentageFilter:
 		return "PercentageFilter"
+	case RoutePolicyFilter:
+		return "RoutePolicyFilter"
 	case AcceptAllFilter:
 		return "AcceptAllFilter"
 	case UnspecifiedFilter:
@@ -226,6 +234,9 @@ type Writer interface {
 	// NumShards returns the total number of shards of the topic the writer is
 	// writing to.
 	NumShards() uint32
+
+	// SetRoutingPolicy sets the routing policy.
+	SetRoutingPolicyHandler(h routing.PolicyHandler)
 
 	// Init initializes a writer.
 	Init() error

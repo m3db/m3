@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/msg/protocol/proto"
+	"github.com/m3db/m3/src/msg/routing"
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/x/instrument"
 	xnet "github.com/m3db/m3/src/x/net"
@@ -429,6 +430,12 @@ type Options interface {
 
 	// SetWithoutConsumerScope sets the value for WithoutConsumerScope.
 	SetWithoutConsumerScope(value bool) Options
+
+	// SetRoutingPolicy sets the routing options
+	SetRoutingPolicy(value routing.Policy) Options
+
+	// RoutingPolicy returns the routing options
+	RoutingPolicy() routing.Policy
 }
 
 type writerOptions struct {
@@ -451,6 +458,7 @@ type writerOptions struct {
 	iOpts                             instrument.Options
 	ignoreCutoffCutover               bool
 	withoutConsumerScope              bool
+	routingPolicy                     routing.Policy
 }
 
 // NewOptions creates Options.
@@ -663,4 +671,14 @@ func (opts *writerOptions) SetWithoutConsumerScope(value bool) Options {
 	o := *opts
 	o.withoutConsumerScope = value
 	return &o
+}
+
+func (opts *writerOptions) SetRoutingPolicy(value routing.Policy) Options {
+	o := *opts
+	o.routingPolicy = value
+	return &o
+}
+
+func (opts *writerOptions) RoutingPolicy() routing.Policy {
+	return opts.routingPolicy
 }
