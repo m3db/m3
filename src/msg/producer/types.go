@@ -101,8 +101,8 @@ const (
 	StoragePolicyFilter
 	// PercentageFilter filters messages on a sampling percentage.
 	PercentageFilter
-	// RoutePolicyFilter filters messages based on a route policy.
-	RoutePolicyFilter
+	// RoutingPolicyFilter filters messages based on a route policy.
+	RoutingPolicyFilter
 	// AcceptAllFilter accepts all messages.
 	AcceptAllFilter
 	// UnspecifiedFilter is any filter that is not one of the well known types.
@@ -118,8 +118,8 @@ func (f FilterFuncType) String() string {
 		return "StoragePolicyFilter"
 	case PercentageFilter:
 		return "PercentageFilter"
-	case RoutePolicyFilter:
-		return "RoutePolicyFilter"
+	case RoutingPolicyFilter:
+		return "RoutingPolicyFilter"
 	case AcceptAllFilter:
 		return "AcceptAllFilter"
 	case UnspecifiedFilter:
