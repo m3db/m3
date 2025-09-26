@@ -1,6 +1,7 @@
 package routing
 
 import (
+	"errors"
 	"sync"
 
 	"github.com/m3db/m3/src/cluster/kv"
@@ -20,7 +21,7 @@ type routingPolicyHandler struct {
 	sync.RWMutex
 
 	store        kv.Store
-	trafficTypes map[string]uint64
+	policyConfig PolicyConfig
 	key          string
 
 	value     watch.Value
@@ -38,7 +39,7 @@ func NewRoutingPolicyHandler(opts PolicyHandlerOptions) (PolicyHandler, error) {
 	}
 	p := &routingPolicyHandler{
 		store:        store,
-		trafficTypes: opts.StaticTrafficTypes(),
+		policyConfig: opts.PolicyConfig(),
 		key:          opts.DynamicTrafficTypesKVKey(),
 		isClosed:     false,
 	}
@@ -53,11 +54,11 @@ func (p *routingPolicyHandler) Init() error {
 	getUpdateFn := func(value watch.Updatable) (interface{}, error) {
 		v := value.(kv.ValueWatch).Get()
 		if v == nil {
-			// TODO log error
+			return nil, errors.New("routing policy update value is nil")
 		}
-		policy, err := NewPolicyFromValue(v)
+		policy, err := NewPolicyConfigFromValue(v)
 		if err != nil {
-			// TODO log error
+			return nil, err
 		}
 		return policy, nil
 	}
@@ -79,8 +80,11 @@ func (p *routingPolicyHandler) processUpdate(update interface{}) error {
 	if p.isClosed {
 		return nil
 	}
-	v := update.(Policy)
-	p.trafficTypes = v.TrafficTypes()
+	v, ok := update.(PolicyConfig)
+	if !ok {
+		return errors.New("incoming update is not a PolicyConfig")
+	}
+	p.policyConfig = v
 	return nil
 }
 
@@ -102,5 +106,5 @@ func (p *routingPolicyHandler) Close() {
 func (p *routingPolicyHandler) GetTrafficTypes() map[string]uint64 {
 	p.RLock()
 	defer p.RUnlock()
-	return p.trafficTypes
+	return p.policyConfig.TrafficTypes()
 }
