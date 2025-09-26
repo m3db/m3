@@ -115,7 +115,7 @@ type RawMetric interface {
 type MetricWithStoragePolicy struct {
 	Metric
 	policy.StoragePolicy
-	policy.RoutePolicy
+	policy.RoutingPolicy
 }
 
 // ToProto converts the chunked metric with storage policy to a protobuf message in place.
@@ -127,7 +127,7 @@ func (m MetricWithStoragePolicy) ToProto(pb *metricpb.TimedMetricWithStoragePoli
 	if err != nil {
 		return err
 	}
-	err = m.RoutePolicy.ToProto(&pb.RoutePolicy)
+	err = m.RoutingPolicy.ToProto(&pb.RoutingPolicy)
 	if err != nil {
 		return err
 	}
@@ -143,7 +143,7 @@ func (m *MetricWithStoragePolicy) FromProto(pb metricpb.TimedMetricWithStoragePo
 	if err != nil {
 		return err
 	}
-	err = m.RoutePolicy.FromProto(pb.RoutePolicy)
+	err = m.RoutingPolicy.FromProto(pb.RoutingPolicy)
 	if err != nil {
 		return err
 	}
@@ -153,10 +153,10 @@ func (m *MetricWithStoragePolicy) FromProto(pb metricpb.TimedMetricWithStoragePo
 // String is the string representation of a metric with storage policy.
 func (m MetricWithStoragePolicy) String() string {
 	return fmt.Sprintf(
-		"{metric:%s,policy:%s,route_policy:%s}",
+		"{metric:%s,policy:%s,routing_policy:%s}",
 		m.Metric.String(),
 		m.StoragePolicy.String(),
-		m.RoutePolicy.String(),
+		m.RoutingPolicy.String(),
 	)
 }
 
@@ -164,7 +164,7 @@ func (m MetricWithStoragePolicy) String() string {
 type ChunkedMetricWithStoragePolicy struct {
 	ChunkedMetric
 	policy.StoragePolicy
-	policy.RoutePolicy
+	policy.RoutingPolicy
 }
 
 // ForwardedMetric is a forwarded metric.
@@ -296,7 +296,7 @@ func (tm *TimedMetricWithMetadatas) FromProto(pb *metricpb.TimedMetricWithMetada
 type PassthroughMetricWithMetadata struct {
 	Metric
 	policy.StoragePolicy
-	policy.RoutePolicy
+	policy.RoutingPolicy
 }
 
 // ToProto converts the passthrough metric with metadata to a protobuf message in place.
@@ -308,7 +308,7 @@ func (pm PassthroughMetricWithMetadata) ToProto(pb *metricpb.TimedMetricWithStor
 	if err != nil {
 		return err
 	}
-	err = pm.RoutePolicy.ToProto(&pb.RoutePolicy)
+	err = pm.RoutingPolicy.ToProto(&pb.RoutingPolicy)
 	if err != nil {
 		return err
 	}
@@ -328,7 +328,7 @@ func (pm *PassthroughMetricWithMetadata) FromProto(pb *metricpb.TimedMetricWithS
 	if err != nil {
 		return err
 	}
-	err = pm.RoutePolicy.FromProto(pb.RoutePolicy)
+	err = pm.RoutingPolicy.FromProto(pb.RoutingPolicy)
 	if err != nil {
 		return err
 	}

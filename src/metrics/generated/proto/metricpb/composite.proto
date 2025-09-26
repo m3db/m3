@@ -62,7 +62,7 @@ message TimedMetricWithMetadatas {
 message TimedMetricWithStoragePolicy {
   TimedMetric timed_metric = 1 [(gogoproto.nullable) = false];
   policypb.StoragePolicy storage_policy = 2 [(gogoproto.nullable) = false];
-  policypb.RoutePolicy route_policy = 3 [(gogoproto.nullable) = false];
+  policypb.RoutingPolicy routing_policy = 3 [(gogoproto.nullable) = false];
 }
 
 message AggregatedMetric {

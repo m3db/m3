@@ -87,8 +87,8 @@ var (
 func TestStoragePolicyFilter(t *testing.T) {
 	sp1 := policy.NewStoragePolicy(time.Minute, xtime.Second, time.Hour)
 	sp2 := policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute)
-	rp1 := policy.NewRoutePolicy(1)
-	rp2 := policy.NewRoutePolicy(2)
+	rp1 := policy.NewRoutingPolicy(1)
+	rp2 := policy.NewRoutingPolicy(2)
 	m2 := producer.NewMockMessage(nil)
 
 	f := NewStoragePolicyFilter([]policy.StoragePolicy{sp2}, producer.StaticConfig)

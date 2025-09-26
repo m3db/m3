@@ -96,7 +96,7 @@ func (w *protobufWriter) Write(mp aggregated.ChunkedMetricWithStoragePolicy) err
 		return err
 	}
 
-	if err := w.p.Produce(newMessage(shard, mp.StoragePolicy, mp.RoutePolicy, w.encoder.Buffer())); err != nil {
+	if err := w.p.Produce(newMessage(shard, mp.StoragePolicy, mp.RoutingPolicy, w.encoder.Buffer())); err != nil {
 		w.metrics.routeErrors.Inc(1)
 		return err
 	}
@@ -135,14 +135,14 @@ func (w *protobufWriter) Close() error {
 type message struct {
 	shard uint32
 	sp    policy.StoragePolicy
-	rp    policy.RoutePolicy
+	rp    policy.RoutingPolicy
 	data  protobuf.Buffer
 }
 
 func newMessage(
 	shard uint32,
 	sp policy.StoragePolicy,
-	rp policy.RoutePolicy,
+	rp policy.RoutingPolicy,
 	data protobuf.Buffer,
 ) producer.Message {
 	return message{
