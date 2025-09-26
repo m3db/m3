@@ -614,7 +614,7 @@ func (e *Entry) addNewAggregationKeyWithLock(
 	listID metricListID,
 	newAggregations aggregationValues,
 	resendEnabled bool,
-	routePolicy policy.RoutePolicy,
+	routePolicy policy.RoutingPolicy,
 ) (aggregationValues, error) {
 	// Remove duplicate aggregation pipelines.
 	if newAggregations.contains(key) {
@@ -654,7 +654,7 @@ func (e *Entry) addNewAggregationKeyWithLock(
 		NumForwardedTimes:  key.numForwardedTimes,
 		IDPrefixSuffixType: key.idPrefixSuffixType,
 		ListType:           listID.listType,
-		RoutePolicy:        routePolicy,
+		RoutingPolicy:        routePolicy,
 	}); err != nil {
 		return nil, err
 	}
@@ -720,7 +720,7 @@ func (e *Entry) updateStagedMetadatasWithLock(
 			}
 			var err error
 			newAggregations, err = e.addNewAggregationKeyWithLock(metricType, elemID, key, listID, newAggregations,
-				resendEnabled, sm.Pipelines[i].RoutePolicy)
+				resendEnabled, sm.Pipelines[i].RoutingPolicy)
 			if err != nil {
 				return err
 			}
@@ -980,7 +980,7 @@ func (e *Entry) updateTimedMetadataWithLock(
 		resolution: metadata.StoragePolicy.Resolution().Window,
 	}.toMetricListID()
 	newAggregations, err := e.addNewAggregationKeyWithLock(
-		metric.Type, elemID, key, listID, e.aggregations, false, metadata.RoutePolicy,
+		metric.Type, elemID, key, listID, e.aggregations, false, metadata.RoutingPolicy,
 	)
 	if err != nil {
 		return err
@@ -1159,7 +1159,7 @@ func (e *Entry) updateForwardMetadataWithLock(
 	}.toMetricListID()
 	newAggregations, err := e.addNewAggregationKeyWithLock(
 		metric.Type, elemID, key, listID, e.aggregations,
-		metadata.ResendEnabled, metadata.RoutePolicy,
+		metadata.ResendEnabled, metadata.RoutingPolicy,
 	)
 	if err != nil {
 		return err
@@ -1224,8 +1224,8 @@ type aggregationValue struct {
 	// transitioning to resendEnabled without a gap in the aggregation.
 	resendEnabled bool
 
-	// RoutePolicy is the route policy to apply to the metric.
-	routePolicy policy.RoutePolicy
+	// RoutingPolicy is the route policy to apply to the metric.
+	routePolicy policy.RoutingPolicy
 }
 
 // TODO(xichen): benchmark the performance of using a single slice

@@ -429,5 +429,5 @@ func (m *PipelineMetadata) reuse() {
 	m.Pipeline.Reuse()
 	m.DropPolicy = 0
 	m.ResendEnabled = false
-	m.RoutePolicy = policypb.RoutePolicy{}
+	m.RoutingPolicy = policypb.RoutingPolicy{}
 }

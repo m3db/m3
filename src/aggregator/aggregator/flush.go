@@ -99,7 +99,7 @@ type flushLocalMetricFn func(
 	value float64,
 	annotation []byte,
 	sp policy.StoragePolicy,
-	routePolicy policy.RoutePolicy,
+	routePolicy policy.RoutingPolicy,
 )
 
 // A flushForwardedMetricFn flushes an aggregated metric datapoint eligible for
@@ -114,7 +114,7 @@ type flushForwardedMetricFn func(
 	prevValue float64,
 	annotation []byte,
 	resendEnabled bool,
-	routePolicy policy.RoutePolicy,
+	routePolicy policy.RoutingPolicy,
 )
 
 // An onForwardingElemFlushedFn is a callback function that should be called
