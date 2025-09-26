@@ -61,7 +61,7 @@ var (
 	testMetricWithStoragePolicy = MetricWithStoragePolicy{
 		Metric:        testMetric1,
 		StoragePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour),
-		RoutePolicy:   policy.NewRoutePolicy(1),
+		RoutingPolicy:   policy.NewRoutingPolicy(1),
 	}
 	testForwardedMetric1 = ForwardedMetric{
 		Type:      metric.CounterType,
@@ -92,7 +92,7 @@ var (
 		}),
 		SourceID:          1234,
 		NumForwardedTimes: 3,
-		RoutePolicy:       policy.NewRoutePolicy(3),
+		RoutingPolicy:       policy.NewRoutingPolicy(3),
 	}
 	testForwardMetadata2 = metadata.ForwardMetadata{
 		AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
@@ -114,7 +114,7 @@ var (
 		}),
 		SourceID:          897,
 		NumForwardedTimes: 2,
-		RoutePolicy:       policy.NewRoutePolicy(2),
+		RoutingPolicy:       policy.NewRoutingPolicy(2),
 	}
 	testBadForwardMetadata = metadata.ForwardMetadata{
 		StoragePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Unit(101), 6*time.Hour),
@@ -167,7 +167,7 @@ var (
 		},
 		SourceId:          1234,
 		NumForwardedTimes: 3,
-		RoutePolicy: policypb.RoutePolicy{
+		RoutingPolicy: policypb.RoutingPolicy{
 			TrafficTypes: 3,
 		},
 	}
@@ -201,7 +201,7 @@ var (
 		},
 		SourceId:          897,
 		NumForwardedTimes: 2,
-		RoutePolicy: policypb.RoutePolicy{
+		RoutingPolicy: policypb.RoutingPolicy{
 			TrafficTypes: 2,
 		},
 	}

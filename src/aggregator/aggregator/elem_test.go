@@ -54,7 +54,7 @@ var (
 	testGaugeID                   = id.RawID("testGauge")
 	testAnnot                     = []byte("testAnnotation")
 	testStoragePolicy             = policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour)
-	testRoutePolicy               = policy.NewRoutePolicy(0)
+	testRoutingPolicy               = policy.NewRoutingPolicy(0)
 	testAggregationTypes          = maggregation.Types{maggregation.Mean, maggregation.Sum}
 	testAggregationTypesExpensive = maggregation.Types{maggregation.SumSq}
 	testTimerAggregationTypes     = maggregation.Types{maggregation.SumSq, maggregation.P99}
@@ -147,7 +147,7 @@ func TestCounterResetSetData(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, testCounterID, ce.id)
 	require.Equal(t, testStoragePolicy, ce.sp)
-	require.Equal(t, testRoutePolicy, ce.routePolicy)
+	require.Equal(t, testRoutingPolicy, ce.routePolicy)
 	require.Equal(t, testAggregationTypesExpensive, ce.aggTypes)
 	require.Equal(t, parsedPipeline{}, ce.parsedPipeline)
 	require.False(t, ce.tombstoned)
@@ -2953,14 +2953,14 @@ type testLocalMetricWithMetadata struct {
 	timeNanos   int64
 	value       float64
 	sp          policy.StoragePolicy
-	routePolicy policy.RoutePolicy
+	routePolicy policy.RoutingPolicy
 }
 
 type testForwardedMetricWithMetadata struct {
 	aggregationKey aggregationKey
 	timeNanos      int64
 	value          float64
-	routePolicy    policy.RoutePolicy
+	routePolicy    policy.RoutingPolicy
 }
 
 type testOnForwardedFlushedData struct {
@@ -2981,7 +2981,7 @@ func testFlushLocalMetricFn() (
 		value float64,
 		annotation []byte,
 		sp policy.StoragePolicy,
-		routePolicy policy.RoutePolicy,
+		routePolicy policy.RoutingPolicy,
 	) {
 		result = append(result, testLocalMetricWithMetadata{
 			idPrefix:    idPrefix,
@@ -3008,7 +3008,7 @@ func testFlushForwardedMetricFn() (
 		prevValue float64,
 		annotation []byte,
 		resendEnabled bool,
-		routePolicy policy.RoutePolicy,
+		routePolicy policy.RoutingPolicy,
 	) {
 		result = append(result, testForwardedMetricWithMetadata{
 			aggregationKey: aggregationKey,
