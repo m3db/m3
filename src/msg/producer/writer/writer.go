@@ -390,14 +390,14 @@ func ParseDynamicFilters(csw consumerServiceWriter, rph routing.PolicyHandler, f
 		filterFuncs = append(filterFuncs, percentageFilterFunc)
 	}
 
-	if filterConfig.RoutePolicyFilter() != nil {
-		routePolicyFilterFunc, err := ParseRoutePolicyFilterFromFromTopicUpdate(csw, rph, filterConfig.RoutePolicyFilter())
+	if filterConfig.RoutingPolicyFilter() != nil {
+		routingPolicyFilterFunc, err := ParseRoutingPolicyFilterFromFromTopicUpdate(csw, rph, filterConfig.RoutingPolicyFilter())
 
 		if err != nil {
-			return filterFuncs, fmt.Errorf("Error registering route policy filter: %w", err)
+			return filterFuncs, fmt.Errorf("Error registering routing policy filter: %w", err)
 		}
 
-		filterFuncs = append(filterFuncs, routePolicyFilterFunc)
+		filterFuncs = append(filterFuncs, routingPolicyFilterFunc)
 	}
 
 	return filterFuncs, nil
@@ -432,7 +432,7 @@ func ParseStoragePolicyFilterFromTopicUpdate(
 
 	parsedPolicies := []policy.StoragePolicy{}
 	for _, storagePolicyString := range storagePolicies {
-		 parsedPolicy, err := policy.ParseStoragePolicy(storagePolicyString)
+		parsedPolicy, err := policy.ParseStoragePolicy(storagePolicyString)
 
 		if err != nil {
 			return filterFunc, fmt.Errorf("Error parsing storage policy: %w", err)
@@ -459,16 +459,16 @@ func ParsePercentageFilterFromFromTopicUpdate(
 	return filterFunc, nil
 }
 
-// ParseRoutePolicyFilterFromFromTopicUpdate parses a route policy filter from a topic update.
-func ParseRoutePolicyFilterFromFromTopicUpdate(
+// ParseRoutingPolicyFilterFromFromTopicUpdate parses a routing policy filter from a topic update.
+func ParseRoutingPolicyFilterFromFromTopicUpdate(
 	csw consumerServiceWriter,
 	rph routing.PolicyHandler,
-	rpf topic.RoutePolicyFilter) (producer.FilterFunc, error) {
-	params := handlerWriter.RoutePolicyFilterParams{
-		RoutePolicyHandler:  rph,
-		IsDefault:           rpf.IsDefault(),
-		AllowedTrafficTypes: rpf.AllowedTrafficTypes(),
+	rpf topic.RoutingPolicyFilter) (producer.FilterFunc, error) {
+	params := handlerWriter.RoutingPolicyFilterParams{
+		RoutingPolicyHandler: rph,
+		IsDefault:            rpf.IsDefault(),
+		AllowedTrafficTypes:  rpf.AllowedTrafficTypes(),
 	}
-	filterFunc := handlerWriter.NewRoutePolicyFilter(params, producer.DynamicConfig)
+	filterFunc := handlerWriter.NewRoutingPolicyFilter(params, producer.DynamicConfig)
 	return filterFunc, nil
 }

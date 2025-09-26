@@ -199,30 +199,30 @@ func (f storagePolicyFilter) Filter(m producer.Message) bool {
 	return false
 }
 
-// RoutePolicyFilter is a filter for route policy.
-type RoutePolicyFilterParams struct {
-	RoutePolicyHandler  routing.PolicyHandler
-	IsDefault           bool
-	AllowedTrafficTypes []string
+// RoutingPolicyFilter is a filter for routing policy.
+type RoutingPolicyFilterParams struct {
+	RoutingPolicyHandler routing.PolicyHandler
+	IsDefault            bool
+	AllowedTrafficTypes  []string
 }
 
-// NewRoutePolicyFilter creates a new route policy based filter.
-func NewRoutePolicyFilter(p RoutePolicyFilterParams, configSource producer.FilterFuncConfigSourceType) producer.FilterFunc {
-	cfg := routePolicyFilter{
-		rph:                 p.RoutePolicyHandler,
+// NewRoutingPolicyFilter creates a new routing policy based filter.
+func NewRoutingPolicyFilter(p RoutingPolicyFilterParams, configSource producer.FilterFuncConfigSourceType) producer.FilterFunc {
+	cfg := routingPolicyFilter{
+		rph:                 p.RoutingPolicyHandler,
 		isDefault:           p.IsDefault,
 		allowedTrafficTypes: p.AllowedTrafficTypes,
 	}
-	return producer.NewFilterFunc(cfg.Filter, producer.RoutePolicyFilter, configSource)
+	return producer.NewFilterFunc(cfg.Filter, producer.RoutingPolicyFilter, configSource)
 }
 
-type routePolicyFilter struct {
+type routingPolicyFilter struct {
 	rph                 routing.PolicyHandler
 	isDefault           bool
 	allowedTrafficTypes []string
 }
 
-func (f routePolicyFilter) Filter(m producer.Message) bool {
+func (f routingPolicyFilter) Filter(m producer.Message) bool {
 	msg, ok := m.(message)
 	if !ok {
 		return true
@@ -242,7 +242,7 @@ func (f routePolicyFilter) Filter(m producer.Message) bool {
 	return false
 }
 
-func (f routePolicyFilter) resolveTrafficTypeToBitPosition(trafficType string) int {
+func (f routingPolicyFilter) resolveTrafficTypeToBitPosition(trafficType string) int {
 	tt := f.rph.GetTrafficTypes()
 	bitPosition, ok := tt[trafficType]
 	if !ok {

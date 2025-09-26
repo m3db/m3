@@ -12,7 +12,6 @@ import (
 	"github.com/m3db/m3/src/msg/routing"
 )
 
-
 func TestRoutePolicyFilter_Filter_ZeroTrafficTypes(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -38,13 +37,13 @@ func TestRoutePolicyFilter_Filter_ZeroTrafficTypes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			params := RoutePolicyFilterParams{
-				RoutePolicyHandler:  rph,
+			params := RoutingPolicyFilterParams{
+				RoutingPolicyHandler:  rph,
 				IsDefault:           tt.isDefault,
 				AllowedTrafficTypes: []string{"type1"},
 			}
 
-			filter := NewRoutePolicyFilter(params, producer.StaticConfig)
+			filter := NewRoutingPolicyFilter(params, producer.StaticConfig)
 
 			// Create message with zero traffic types
 			msg := createTestMessage(0)
@@ -119,18 +118,18 @@ func TestRoutePolicyFilter_Filter_WithTrafficTypes(t *testing.T) {
 				"type2": 1, // bit position 1
 			},
 			allowedTypes:        []string{"type3"}, // type3 not in traffic types
-			messageTrafficTypes: 1, // bit 0 set (type1)
+			messageTrafficTypes: 1,                 // bit 0 set (type1)
 			expected:            false,
 			description:         "should reject when allowed type doesn't exist in traffic types",
 		},
 		{
 			name: "complex bit pattern",
 			trafficTypes: map[string]uint64{
-				"read":    0,  // bit 0
-				"write":   1,  // bit 1
-				"admin":   2,  // bit 2
-				"metrics": 3,  // bit 3
-				"debug":   4,  // bit 4
+				"read":    0, // bit 0
+				"write":   1, // bit 1
+				"admin":   2, // bit 2
+				"metrics": 3, // bit 3
+				"debug":   4, // bit 4
 			},
 			allowedTypes:        []string{"read", "write"},
 			messageTrafficTypes: 0b10110, // bits 1, 2, 4 set (write, admin, debug)
@@ -144,13 +143,13 @@ func TestRoutePolicyFilter_Filter_WithTrafficTypes(t *testing.T) {
 			rph := routing.NewMockPolicyHandler(ctrl)
 			rph.EXPECT().GetTrafficTypes().Return(tt.trafficTypes).AnyTimes()
 
-			params := RoutePolicyFilterParams{
-				RoutePolicyHandler:  rph,
+			params := RoutingPolicyFilterParams{
+				RoutingPolicyHandler:  rph,
 				IsDefault:           false,
 				AllowedTrafficTypes: tt.allowedTypes,
 			}
 
-			filter := NewRoutePolicyFilter(params, producer.StaticConfig)
+			filter := NewRoutingPolicyFilter(params, producer.StaticConfig)
 
 			msg := createTestMessage(tt.messageTrafficTypes)
 			result := filter.Function(msg)
@@ -172,7 +171,7 @@ func TestRoutePolicyFilter_resolveTrafficTypeToBitPosition(t *testing.T) {
 	}
 	rph.EXPECT().GetTrafficTypes().Return(trafficTypes).AnyTimes()
 
-	filter := routePolicyFilter{
+	filter := routingPolicyFilter{
 		rph:                 rph,
 		isDefault:           false,
 		allowedTrafficTypes: []string{"type1", "type2", "type3", "type4", "nonexistent"},
@@ -203,11 +202,11 @@ func TestRoutePolicyFilter_EdgeCases(t *testing.T) {
 	defer ctrl.Finish()
 
 	tests := []struct {
-		name        string
-		setupFilter func() producer.FilterFunc
+		name         string
+		setupFilter  func() producer.FilterFunc
 		setupMessage func() producer.Message
-		expected    bool
-		description string
+		expected     bool
+		description  string
 	}{
 		{
 			name: "empty allowed traffic types",
@@ -215,12 +214,12 @@ func TestRoutePolicyFilter_EdgeCases(t *testing.T) {
 				rph := routing.NewMockPolicyHandler(ctrl)
 				rph.EXPECT().GetTrafficTypes().Return(map[string]uint64{"type1": 0}).AnyTimes()
 
-				params := RoutePolicyFilterParams{
-					RoutePolicyHandler:  rph,
+				params := RoutingPolicyFilterParams{
+					RoutingPolicyHandler:  rph,
 					IsDefault:           false,
 					AllowedTrafficTypes: []string{}, // empty
 				}
-				return NewRoutePolicyFilter(params, producer.StaticConfig)
+				return NewRoutingPolicyFilter(params, producer.StaticConfig)
 			},
 			setupMessage: func() producer.Message {
 				return createTestMessage(1) // has traffic types
@@ -234,12 +233,12 @@ func TestRoutePolicyFilter_EdgeCases(t *testing.T) {
 				rph := routing.NewMockPolicyHandler(ctrl)
 				rph.EXPECT().GetTrafficTypes().Return(nil).AnyTimes()
 
-				params := RoutePolicyFilterParams{
-					RoutePolicyHandler:  rph,
+				params := RoutingPolicyFilterParams{
+					RoutingPolicyHandler:  rph,
 					IsDefault:           true,
 					AllowedTrafficTypes: []string{"type1"},
 				}
-				return NewRoutePolicyFilter(params, producer.StaticConfig)
+				return NewRoutingPolicyFilter(params, producer.StaticConfig)
 			},
 			setupMessage: func() producer.Message {
 				return createTestMessage(1)
@@ -255,12 +254,12 @@ func TestRoutePolicyFilter_EdgeCases(t *testing.T) {
 					"all": 0,
 				}).AnyTimes()
 
-				params := RoutePolicyFilterParams{
-					RoutePolicyHandler:  rph,
+				params := RoutingPolicyFilterParams{
+					RoutingPolicyHandler:  rph,
 					IsDefault:           false,
 					AllowedTrafficTypes: []string{"all"},
 				}
-				return NewRoutePolicyFilter(params, producer.StaticConfig)
+				return NewRoutingPolicyFilter(params, producer.StaticConfig)
 			},
 			setupMessage: func() producer.Message {
 				return createTestMessage(^uint64(0)) // all bits set
@@ -285,18 +284,18 @@ func createTestMessage(trafficTypes uint64) message {
 	return message{
 		shard: 1,
 		sp:    policy.NewStoragePolicy(0, 0, 0),
-		rp:    policy.NewRoutePolicy(trafficTypes),
+		rp:    policy.NewRoutingPolicy(trafficTypes),
 		data:  protobuf.Buffer{},
 	}
 }
 
 func TestRoutePolicyFilter_BitMaskingEdgeCases(t *testing.T) {
 	tests := []struct {
-		name            string
-		trafficTypes    map[string]uint64
-		allowedTypes    []string
-		messageTypes    uint64
-		expected        bool
+		name         string
+		trafficTypes map[string]uint64
+		allowedTypes []string
+		messageTypes uint64
+		expected     bool
 	}{
 		{
 			name: "bit position 0 - edge case",
@@ -326,7 +325,7 @@ func TestRoutePolicyFilter_BitMaskingEdgeCases(t *testing.T) {
 			},
 			allowedTypes: []string{"bit5", "bit20"},
 			messageTypes: (1 << 5) | (1 << 10) | (1 << 20), // bits 5, 10, 20 set
-			expected:     true, // matches bit5 and bit20
+			expected:     true,                             // matches bit5 and bit20
 		},
 		{
 			name: "no bits match despite having traffic types",
@@ -348,13 +347,13 @@ func TestRoutePolicyFilter_BitMaskingEdgeCases(t *testing.T) {
 			rph := routing.NewMockPolicyHandler(ctrl)
 			rph.EXPECT().GetTrafficTypes().Return(tt.trafficTypes).AnyTimes()
 
-			params := RoutePolicyFilterParams{
-				RoutePolicyHandler:  rph,
+			params := RoutingPolicyFilterParams{
+				RoutingPolicyHandler:  rph,
 				IsDefault:           false,
 				AllowedTrafficTypes: tt.allowedTypes,
 			}
 
-			filter := NewRoutePolicyFilter(params, producer.StaticConfig)
+			filter := NewRoutingPolicyFilter(params, producer.StaticConfig)
 			msg := createTestMessage(tt.messageTypes)
 			result := filter.Function(msg)
 			assert.Equal(t, tt.expected, result)

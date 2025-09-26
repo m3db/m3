@@ -26,7 +26,6 @@ import (
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/msg/protocol/proto"
-	"github.com/m3db/m3/src/msg/routing"
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/x/instrument"
 	xnet "github.com/m3db/m3/src/x/net"
@@ -452,7 +451,6 @@ type writerOptions struct {
 	iOpts                             instrument.Options
 	ignoreCutoffCutover               bool
 	withoutConsumerScope              bool
-	routingPolicy                     routing.Policy
 }
 
 // NewOptions creates Options.
