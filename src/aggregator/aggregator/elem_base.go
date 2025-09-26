@@ -166,7 +166,7 @@ type ElemData struct {
 	NumForwardedTimes  int
 	IDPrefixSuffixType IDPrefixSuffixType
 	ListType           metricListType
-	RoutingPolicy        policy.RoutingPolicy
+	RoutingPolicy      policy.RoutingPolicy
 }
 
 // nolint: maligned
