@@ -1158,10 +1158,10 @@ func TestVersionedStagedMetadatasMarshalJSON(t *testing.T) {
 		`{"storagePolicies":["1s:1h","1m:12h"],` +
 		`"aggregation":["Sum"],` +
 		`"resendEnabled":true,` +
-		`"routePolicy":{"TrafficTypes":0}},` +
+		`"routingPolicy":{"TrafficTypes":0}},` +
 		`{"storagePolicies":["10s:1h"],` +
 		`"aggregation":null,` +
-		`"routePolicy":{"TrafficTypes":0}}]},` +
+		`"routingPolicy":{"TrafficTypes":0}}]},` +
 		`"cutoverNanos":4567,` +
 		`"tombstoned":true}],` +
 		`"version":12` +
