@@ -87,14 +87,15 @@ var (
 func TestStoragePolicyFilter(t *testing.T) {
 	sp1 := policy.NewStoragePolicy(time.Minute, xtime.Second, time.Hour)
 	sp2 := policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute)
-
+	rp1 := policy.NewRoutingPolicy(1)
+	rp2 := policy.NewRoutingPolicy(2)
 	m2 := producer.NewMockMessage(nil)
 
 	f := NewStoragePolicyFilter([]policy.StoragePolicy{sp2}, producer.StaticConfig)
 
 	require.True(t, f.Function(m2))
-	require.False(t, f.Function(newMessage(0, sp1, protobuf.Buffer{})))
-	require.True(t, f.Function(newMessage(0, sp2, protobuf.Buffer{})))
+	require.False(t, f.Function(newMessage(0, sp1, rp1, protobuf.Buffer{})))
+	require.True(t, f.Function(newMessage(0, sp2, rp2, protobuf.Buffer{})))
 }
 
 func TestProtobufWriterWriteClosed(t *testing.T) {
