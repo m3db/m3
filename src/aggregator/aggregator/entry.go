@@ -654,7 +654,7 @@ func (e *Entry) addNewAggregationKeyWithLock(
 		NumForwardedTimes:  key.numForwardedTimes,
 		IDPrefixSuffixType: key.idPrefixSuffixType,
 		ListType:           listID.listType,
-		RoutingPolicy:        routePolicy,
+		RoutingPolicy:      routePolicy,
 	}); err != nil {
 		return nil, err
 	}
