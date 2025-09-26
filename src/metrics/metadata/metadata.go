@@ -90,8 +90,8 @@ type PipelineMetadata struct {
 	DropPolicy policy.DropPolicy `json:"dropPolicy,omitempty"`
 	// ResendEnabled is true if the Pipeline supports resending aggregate values after the initial flush.
 	ResendEnabled bool `json:"resendEnabled,omitempty"`
-	// RoutePolicy is the route policy to apply to the metric.
-	RoutePolicy policy.RoutePolicy `json:"routePolicy,omitempty"`
+	// RoutingPolicy is the routing policy to apply to the metric.
+	RoutingPolicy policy.RoutingPolicy `json:"routingPolicy,omitempty"`
 }
 
 func (m PipelineMetadata) String() string {
@@ -173,8 +173,8 @@ func (m PipelineMetadata) ToProto(pb *metricpb.PipelineMetadata) error {
 	}
 	pb.DropPolicy = policypb.DropPolicy(m.DropPolicy)
 	pb.ResendEnabled = m.ResendEnabled
-	pb.RoutePolicy = policypb.RoutePolicy{
-		TrafficTypes: m.RoutePolicy.TrafficTypes,
+	pb.RoutingPolicy = policypb.RoutingPolicy{
+		TrafficTypes: m.RoutingPolicy.TrafficTypes,
 	}
 	return nil
 }
@@ -198,8 +198,8 @@ func (m *PipelineMetadata) FromProto(pb metricpb.PipelineMetadata) error {
 	}
 	m.DropPolicy = policy.DropPolicy(pb.DropPolicy)
 	m.ResendEnabled = pb.ResendEnabled
-	m.RoutePolicy = policy.RoutePolicy{
-		TrafficTypes: pb.RoutePolicy.TrafficTypes,
+	m.RoutingPolicy = policy.RoutingPolicy{
+		TrafficTypes: pb.RoutingPolicy.TrafficTypes,
 	}
 	return nil
 }
@@ -426,8 +426,8 @@ type ForwardMetadata struct {
 	SourceID uint32
 	// ResendEnabled is true if the Pipeline supports resending aggregate values after the initial flush.
 	ResendEnabled bool
-	// RoutePolicy is the route policy to apply to the metric.
-	RoutePolicy policy.RoutePolicy
+	// RoutingPolicy is the routing policy to apply to the metric.
+	RoutingPolicy policy.RoutingPolicy
 }
 
 // ToProto converts the forward metadata to a protobuf message in place.
@@ -442,8 +442,8 @@ func (m ForwardMetadata) ToProto(pb *metricpb.ForwardMetadata) error {
 	pb.SourceId = m.SourceID
 	pb.NumForwardedTimes = int32(m.NumForwardedTimes)
 	pb.ResendEnabled = m.ResendEnabled
-	pb.RoutePolicy = policypb.RoutePolicy{
-		TrafficTypes: m.RoutePolicy.TrafficTypes,
+	pb.RoutingPolicy = policypb.RoutingPolicy{
+		TrafficTypes: m.RoutingPolicy.TrafficTypes,
 	}
 	return nil
 }
@@ -460,8 +460,8 @@ func (m *ForwardMetadata) FromProto(pb metricpb.ForwardMetadata) error {
 	m.SourceID = pb.SourceId
 	m.NumForwardedTimes = int(pb.NumForwardedTimes)
 	m.ResendEnabled = pb.ResendEnabled
-	m.RoutePolicy = policy.RoutePolicy{
-		TrafficTypes: pb.RoutePolicy.TrafficTypes,
+	m.RoutingPolicy = policy.RoutingPolicy{
+		TrafficTypes: pb.RoutingPolicy.TrafficTypes,
 	}
 	return nil
 }
@@ -686,8 +686,8 @@ type TimedMetadata struct {
 	// Storage policy.
 	StoragePolicy policy.StoragePolicy
 
-	// RoutePolicy is the route policy to apply to the metric.
-	RoutePolicy policy.RoutePolicy
+	// RoutingPolicy is the routing policy to apply to the metric.
+	RoutingPolicy policy.RoutingPolicy
 }
 
 // ToProto converts the timed metadata to a protobuf message in place.
@@ -696,8 +696,8 @@ func (m TimedMetadata) ToProto(pb *metricpb.TimedMetadata) error {
 	if err := m.StoragePolicy.ToProto(&pb.StoragePolicy); err != nil {
 		return err
 	}
-	pb.RoutePolicy = policypb.RoutePolicy{
-		TrafficTypes: m.RoutePolicy.TrafficTypes,
+	pb.RoutingPolicy = policypb.RoutingPolicy{
+		TrafficTypes: m.RoutingPolicy.TrafficTypes,
 	}
 	return nil
 }
@@ -708,8 +708,8 @@ func (m *TimedMetadata) FromProto(pb metricpb.TimedMetadata) error {
 	if err := m.StoragePolicy.FromProto(pb.StoragePolicy); err != nil {
 		return err
 	}
-	m.RoutePolicy = policy.RoutePolicy{
-		TrafficTypes: pb.RoutePolicy.TrafficTypes,
+	m.RoutingPolicy = policy.RoutingPolicy{
+		TrafficTypes: pb.RoutingPolicy.TrafficTypes,
 	}
 	return nil
 }
