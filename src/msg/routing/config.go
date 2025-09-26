@@ -15,8 +15,8 @@ type PolicyHandlerOptions interface {
 	WithKVOverrideOptions(kvOverrideOptions kv.OverrideOptions) PolicyHandlerOptions
 	KVOverrideOptions() kv.OverrideOptions
 
-	WithStaticTrafficTypes(staticTrafficTypes map[string]uint64) PolicyHandlerOptions
-	StaticTrafficTypes() map[string]uint64
+	WithPolicyConfig(policyConfig PolicyConfig) PolicyHandlerOptions
+	PolicyConfig() PolicyConfig
 
 	WithDynamicTrafficTypesKVKey(dynamicTrafficTypesKVKey string) PolicyHandlerOptions
 	DynamicTrafficTypesKVKey() string
@@ -32,7 +32,7 @@ type policyHandlerOptions struct {
 	kvClient                 client.Client
 	kvOverrideOptions        kv.OverrideOptions
 	dynamicTrafficTypesKVKey string
-	staticTrafficTypes       map[string]uint64
+	policyConfig             PolicyConfig
 }
 
 func (o *policyHandlerOptions) WithKVClient(kvClient client.Client) PolicyHandlerOptions {
@@ -53,13 +53,13 @@ func (o *policyHandlerOptions) KVOverrideOptions() kv.OverrideOptions {
 	return o.kvOverrideOptions
 }
 
-func (o *policyHandlerOptions) WithStaticTrafficTypes(staticTrafficTypes map[string]uint64) PolicyHandlerOptions {
-	o.staticTrafficTypes = staticTrafficTypes
+func (o *policyHandlerOptions) WithPolicyConfig(policyConfig PolicyConfig) PolicyHandlerOptions {
+	o.policyConfig = policyConfig
 	return o
 }
 
-func (o *policyHandlerOptions) StaticTrafficTypes() map[string]uint64 {
-	return o.staticTrafficTypes
+func (o *policyHandlerOptions) PolicyConfig() PolicyConfig {
+	return o.policyConfig
 }
 
 func (o *policyHandlerOptions) WithDynamicTrafficTypesKVKey(dynamicTrafficTypesKey string) PolicyHandlerOptions {
@@ -81,8 +81,8 @@ func (o *policyHandlerOptions) Validate() error {
 	if o.dynamicTrafficTypesKVKey == "" {
 		return errors.New("dynamicTrafficTypesKVKey is required")
 	}
-	if o.staticTrafficTypes == nil {
-		return errors.New("staticTrafficTypes is required")
+	if o.policyConfig == nil {
+		return errors.New("policyConfig is required")
 	}
 	return nil
 }

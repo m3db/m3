@@ -30,7 +30,7 @@ func setupTestHandlerWithKey(ctrl *gomock.Controller, key string, staticTypes ma
 		WithKVClient(kvClient).
 		WithKVOverrideOptions(kvOpts).
 		WithDynamicTrafficTypesKVKey(key).
-		WithStaticTrafficTypes(staticTypes)
+		WithPolicyConfig(NewPolicyConfig(staticTypes))
 
 	handler, err := NewRoutingPolicyHandler(opts)
 	if err != nil {
@@ -62,7 +62,7 @@ func TestRoutingPolicyHandler_NewRoutingPolicyHandler(t *testing.T) {
 					WithKVClient(kvClient).
 					WithKVOverrideOptions(kvOpts).
 					WithDynamicTrafficTypesKVKey("test-key").
-					WithStaticTrafficTypes(map[string]uint64{"static": 1})
+					WithPolicyConfig(NewPolicyConfig(map[string]uint64{"static": 1}))
 			},
 			expectError: false,
 		},
@@ -72,7 +72,7 @@ func TestRoutingPolicyHandler_NewRoutingPolicyHandler(t *testing.T) {
 				return NewPolicyHandlerOptions().
 					WithKVOverrideOptions(kv.NewOverrideOptions()).
 					WithDynamicTrafficTypesKVKey("test-key").
-					WithStaticTrafficTypes(map[string]uint64{"static": 1})
+					WithPolicyConfig(NewPolicyConfig(map[string]uint64{"static": 1}))
 			},
 			expectError: true,
 			errorMsg:    "kvClient is required",
@@ -84,7 +84,7 @@ func TestRoutingPolicyHandler_NewRoutingPolicyHandler(t *testing.T) {
 				return NewPolicyHandlerOptions().
 					WithKVClient(kvClient).
 					WithKVOverrideOptions(kv.NewOverrideOptions().SetZone("test-zone").SetEnvironment("test-env").SetNamespace("test-ns")).
-					WithStaticTrafficTypes(map[string]uint64{"static": 1})
+					WithPolicyConfig(NewPolicyConfig(map[string]uint64{"static": 1}))
 			},
 			expectError: true,
 			errorMsg:    "dynamicTrafficTypesKVKey is required",
@@ -99,7 +99,7 @@ func TestRoutingPolicyHandler_NewRoutingPolicyHandler(t *testing.T) {
 					WithDynamicTrafficTypesKVKey("test-key")
 			},
 			expectError: true,
-			errorMsg:    "staticTrafficTypes is required",
+			errorMsg:    "policyConfig is required",
 		},
 	}
 
@@ -340,7 +340,7 @@ func TestNewPolicyFromValue(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			value := tt.setupValue()
-			policy, err := NewPolicyFromValue(value)
+			policy, err := NewPolicyConfigFromValue(value)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -366,12 +366,12 @@ func TestPolicyHandlerOptions(t *testing.T) {
 	opts := NewPolicyHandlerOptions().
 		WithKVClient(kvClient).
 		WithKVOverrideOptions(kvOpts).
-		WithStaticTrafficTypes(staticTypes).
+		WithPolicyConfig(NewPolicyConfig(staticTypes)).
 		WithDynamicTrafficTypesKVKey(key)
 
 	assert.Equal(t, kvClient, opts.KVClient())
 	assert.Equal(t, kvOpts, opts.KVOverrideOptions())
-	assert.Equal(t, staticTypes, opts.StaticTrafficTypes())
+	assert.Equal(t, staticTypes, opts.PolicyConfig().TrafficTypes())
 	assert.Equal(t, key, opts.DynamicTrafficTypesKVKey())
 
 	// Test validation

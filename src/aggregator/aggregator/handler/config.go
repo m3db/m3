@@ -166,8 +166,8 @@ type DynamicBackendConfiguration struct {
 	// PercentageFilters configs the percentage filter for consumer services.
 	PercentageFilters []percentageFilterConfiguration `yaml:"percentageFilters"`
 
-	// RoutePolicyFilters configs the route policy filter for consumer services.
-	RoutePolicyFilters []routePolicyFilterConfiguration `yaml:"routePolicyFilters"`
+	// RoutingPolicyFilters configs the routing policy filter for consumer services.
+	RoutingPolicyFilters []routingPolicyFilterConfiguration `yaml:"routingPolicyFilters"`
 
 	// RoutingPolicyConfig configs the routing policy options for the topic.
 	RoutingPolicyConfig routingPolicyConfiguration `yaml:"routingPolicyConfig"`
@@ -199,6 +199,9 @@ func (c *DynamicBackendConfiguration) newProtobufHandler(
 	if err != nil {
 		return nil, err
 	}
+	if err := rph.Init(); err != nil {
+		return nil, err
+	}
 	p.SetRoutingPolicyHandler(rph)
 
 	for _, filter := range c.ShardSetFilters {
@@ -220,10 +223,10 @@ func (c *DynamicBackendConfiguration) newProtobufHandler(
 			zap.Any("percentage", filter.Percentage),
 			zap.Stringer("service", sid))
 	}
-	for _, filter := range c.RoutePolicyFilters {
+	for _, filter := range c.RoutingPolicyFilters {
 		sid, f := filter.NewConsumerServiceFilter(rph)
 		p.RegisterFilter(sid, f)
-		logger.Info("registered route policy filter for consumer service",
+		logger.Info("registered routing policy filter for consumer service",
 			zap.Any("isDefault", filter.IsDefault),
 			zap.Any("allowedTrafficTypes", filter.AllowedTrafficTypes),
 			zap.Stringer("service", sid))
@@ -251,19 +254,19 @@ func (c percentageFilterConfiguration) NewConsumerServiceFilter() (services.Serv
 	return c.ServiceID.NewServiceID(), filter.NewPercentageFilter(c.Percentage, producer.StaticConfig)
 }
 
-type routePolicyFilterConfiguration struct {
+type routingPolicyFilterConfiguration struct {
 	ServiceID           services.ServiceIDConfiguration `yaml:"serviceID" validate:"nonzero"`
 	IsDefault           bool                            `yaml:"isDefault"`
 	AllowedTrafficTypes []string                        `yaml:"allowedTrafficTypes" validate:"nonzero"`
 }
 
-func (c routePolicyFilterConfiguration) NewConsumerServiceFilter(rph routing.PolicyHandler) (services.ServiceID, producer.FilterFunc) {
-	p := writer.RoutePolicyFilterParams{
-		RoutePolicyHandler:  rph,
-		IsDefault:           c.IsDefault,
-		AllowedTrafficTypes: c.AllowedTrafficTypes,
+func (c routingPolicyFilterConfiguration) NewConsumerServiceFilter(rph routing.PolicyHandler) (services.ServiceID, producer.FilterFunc) {
+	p := writer.RoutingPolicyFilterParams{
+		RoutingPolicyHandler: rph,
+		IsDefault:            c.IsDefault,
+		AllowedTrafficTypes:  c.AllowedTrafficTypes,
 	}
-	return c.ServiceID.NewServiceID(), writer.NewRoutePolicyFilter(p, producer.StaticConfig)
+	return c.ServiceID.NewServiceID(), writer.NewRoutingPolicyFilter(p, producer.StaticConfig)
 }
 
 // ConsumerServiceFilterConfiguration - exported to be able to write unit tests
@@ -292,9 +295,14 @@ func (c routingPolicyConfiguration) NewRoutingPolicyHandler(kvClient client.Clie
 		WithKVClient(kvClient).
 		WithKVOverrideOptions(kvOverrideOpts).
 		WithDynamicTrafficTypesKVKey(c.DynamicTrafficTypesKey)
+
+	var pc routing.PolicyConfig
 	if c.StaticTrafficTypes != nil {
-		opts.WithStaticTrafficTypes(c.StaticTrafficTypes)
+		pc = routing.NewPolicyConfig(c.StaticTrafficTypes)
+	} else {
+		pc = routing.NewPolicyConfig(map[string]uint64{})
 	}
+	opts.WithPolicyConfig(pc)
 	return routing.NewRoutingPolicyHandler(opts)
 }
 
