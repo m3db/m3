@@ -430,12 +430,6 @@ type Options interface {
 
 	// SetWithoutConsumerScope sets the value for WithoutConsumerScope.
 	SetWithoutConsumerScope(value bool) Options
-
-	// SetRoutingPolicy sets the routing options
-	SetRoutingPolicy(value routing.Policy) Options
-
-	// RoutingPolicy returns the routing options
-	RoutingPolicy() routing.Policy
 }
 
 type writerOptions struct {
@@ -671,14 +665,4 @@ func (opts *writerOptions) SetWithoutConsumerScope(value bool) Options {
 	o := *opts
 	o.withoutConsumerScope = value
 	return &o
-}
-
-func (opts *writerOptions) SetRoutingPolicy(value routing.Policy) Options {
-	o := *opts
-	o.routingPolicy = value
-	return &o
-}
-
-func (opts *writerOptions) RoutingPolicy() routing.Policy {
-	return opts.routingPolicy
 }

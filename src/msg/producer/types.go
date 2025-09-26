@@ -85,7 +85,7 @@ type Producer interface {
 	// If the CloseType is DropEverything, then it will simply drop all the messages buffered and return.
 	Close(ct CloseType)
 
-	// SetRoutingPolicy sets the routing policy.
+	// SetRoutingPolicyHandler sets the routing policy handler.
 	SetRoutingPolicyHandler(policy routing.PolicyHandler)
 }
 
@@ -226,7 +226,7 @@ type Writer interface {
 	// writing to.
 	NumShards() uint32
 
-	// SetRoutingPolicy sets the routing policy.
+	// SetRoutingPolicyHandler sets the routing policy handler.
 	SetRoutingPolicyHandler(h routing.PolicyHandler)
 
 	// Init initializes a writer.
