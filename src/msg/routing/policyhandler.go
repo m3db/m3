@@ -9,8 +9,6 @@ import (
 )
 
 type PolicyHandler interface {
-	// Init initializes the policy watcher.
-	Init() error
 	// Close closes the policy watcher.
 	Close()
 	// GetTrafficTypes returns the traffic types.
@@ -22,34 +20,42 @@ type routingPolicyHandler struct {
 
 	store        kv.Store
 	policyConfig PolicyConfig
-	key          string
 
-	value     watch.Value
-	isClosed  bool
-	processFn watch.ProcessFn
+	value            watch.Value
+	isWatchingValue  bool
 }
 
 func NewRoutingPolicyHandler(opts PolicyHandlerOptions) (PolicyHandler, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
-	store, err := opts.KVClient().Store(opts.KVOverrideOptions())
-	if err != nil {
+	p := &routingPolicyHandler{
+		store:        nil,
+		policyConfig: opts.PolicyConfig(),
+	}
+
+	if err := p.initWatch(opts); err != nil {
 		return nil, err
 	}
-	p := &routingPolicyHandler{
-		store:        store,
-		policyConfig: opts.PolicyConfig(),
-		key:          opts.DynamicTrafficTypesKVKey(),
-		isClosed:     false,
-	}
-	p.processFn = p.processUpdate
 	return p, nil
 }
 
-func (p *routingPolicyHandler) Init() error {
+// initWatch starts the watch for the policy config if configured
+func (p *routingPolicyHandler) initWatch(opts PolicyHandlerOptions) error {
+	// if no kv client is set, we don't need to watch for dynamic kv updates
+	if opts.KVClient() == nil {
+		return nil
+	}
+
+	var err error
+	p.store, err = opts.KVClient().Store(opts.KVOverrideOptions())
+	if err != nil {
+		return err
+	}
+	p.isWatchingValue = true
+
 	newUpdatableFn := func() (watch.Updatable, error) {
-		return p.store.Watch(p.key)
+		return p.store.Watch(opts.KVKey())
 	}
 	getUpdateFn := func(value watch.Updatable) (interface{}, error) {
 		v := value.(kv.ValueWatch).Get()
@@ -65,8 +71,8 @@ func (p *routingPolicyHandler) Init() error {
 	vOptions := watch.NewOptions().
 		SetNewUpdatableFn(newUpdatableFn).
 		SetGetUpdateFn(getUpdateFn).
-		SetProcessFn(p.processFn).
-		SetKey(p.key)
+		SetProcessFn(p.processUpdate).
+		SetKey(opts.KVKey())
 	p.value = watch.NewValue(vOptions)
 	if err := p.value.Watch(); err != nil {
 		return err
@@ -77,7 +83,7 @@ func (p *routingPolicyHandler) Init() error {
 func (p *routingPolicyHandler) processUpdate(update interface{}) error {
 	p.Lock()
 	defer p.Unlock()
-	if p.isClosed {
+	if !p.isWatchingValue {
 		return nil
 	}
 	v, ok := update.(PolicyConfig)
@@ -90,13 +96,12 @@ func (p *routingPolicyHandler) processUpdate(update interface{}) error {
 
 func (p *routingPolicyHandler) Close() {
 	p.Lock()
-	if p.isClosed {
+	if !p.isWatchingValue {
 		p.Unlock()
 		return
 	}
-	p.isClosed = true
+	p.isWatchingValue = false
 	p.Unlock()
-
 	if p.value != nil {
 		p.value.Unwatch()
 	}
