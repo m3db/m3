@@ -199,9 +199,6 @@ func (c *DynamicBackendConfiguration) newProtobufHandler(
 	if err != nil {
 		return nil, err
 	}
-	if err := rph.Init(); err != nil {
-		return nil, err
-	}
 	p.SetRoutingPolicyHandler(rph)
 
 	for _, filter := range c.ShardSetFilters {
@@ -281,28 +278,41 @@ func (c ConsumerServiceFilterConfiguration) NewConsumerServiceFilter() (services
 }
 
 type routingPolicyConfiguration struct {
-	StaticTrafficTypes     map[string]uint64        `yaml:"staticTrafficTypes" validate:"nonzero"`
-	KvConfig               kv.OverrideConfiguration `yaml:"kvConfig" validate:"nonzero"`
-	DynamicTrafficTypesKey string                   `yaml:"dynamicTrafficTypesKVKey" validate:"nonzero"`
+	StaticConfig  staticRoutingPolicyConfiguration  `yaml:"staticConfig" validate:"nonzero"`
+	DynamicConfig dynamicRoutingPolicyConfiguration `yaml:"dynamicConfig" validate:"nonzero"`
+}
+
+// staticRoutingPolicyConfiguration configures a routing policy that is configured on startup
+type staticRoutingPolicyConfiguration struct {
+	TrafficTypes map[string]uint64 `yaml:"trafficTypes" validate:"nonzero"`
+}
+
+// dynamicRoutingPolicyConfiguration configures a routing policy that is configured via kv(etcd)
+type dynamicRoutingPolicyConfiguration struct {
+	KvConfig kv.OverrideConfiguration `yaml:"kvConfig" validate:"nonzero"`
+	KVKey    string                   `yaml:"kvKey" validate:"nonzero"`
+}
+
+func (c dynamicRoutingPolicyConfiguration) isEnabled() bool {
+	return c.KVKey != ""
 }
 
 func (c routingPolicyConfiguration) NewRoutingPolicyHandler(kvClient client.Client) (routing.PolicyHandler, error) {
-	kvOverrideOpts, err := c.KvConfig.NewOverrideOptions()
-	if err != nil {
-		return nil, err
-	}
-	opts := routing.NewPolicyHandlerOptions().
-		WithKVClient(kvClient).
-		WithKVOverrideOptions(kvOverrideOpts).
-		WithDynamicTrafficTypesKVKey(c.DynamicTrafficTypesKey)
+	pc := routing.NewPolicyConfig(c.StaticConfig.TrafficTypes)
+	opts := routing.NewPolicyHandlerOptions().WithPolicyConfig(pc)
 
-	var pc routing.PolicyConfig
-	if c.StaticTrafficTypes != nil {
-		pc = routing.NewPolicyConfig(c.StaticTrafficTypes)
-	} else {
-		pc = routing.NewPolicyConfig(map[string]uint64{})
+	// if dynamic config is enabled, setup kv settings
+	if c.DynamicConfig.isEnabled() {
+		dc := c.DynamicConfig
+		kvOverrideOpts, err := dc.KvConfig.NewOverrideOptions()
+		if err != nil {
+			return nil, err
+		}
+		opts = opts.WithKVOverrideOptions(kvOverrideOpts)
+		opts = opts.WithKVKey(dc.KVKey)
+		opts = opts.WithKVClient(kvClient)
 	}
-	opts.WithPolicyConfig(pc)
+
 	return routing.NewRoutingPolicyHandler(opts)
 }
 
