@@ -21,6 +21,9 @@ func (p *policyConfig) TrafficTypes() map[string]uint64 {
 
 // NewPolicyConfig creates a new policy config.
 func NewPolicyConfig(trafficTypes map[string]uint64) PolicyConfig {
+	if trafficTypes == nil {
+		trafficTypes = map[string]uint64{}
+	}
 	return &policyConfig{
 		trafficTypes: trafficTypes,
 	}

@@ -18,8 +18,8 @@ type PolicyHandlerOptions interface {
 	WithPolicyConfig(policyConfig PolicyConfig) PolicyHandlerOptions
 	PolicyConfig() PolicyConfig
 
-	WithDynamicTrafficTypesKVKey(dynamicTrafficTypesKVKey string) PolicyHandlerOptions
-	DynamicTrafficTypesKVKey() string
+	WithKVKey(kvKey string) PolicyHandlerOptions
+	KVKey() string
 
 	Validate() error
 }
@@ -31,7 +31,7 @@ func NewPolicyHandlerOptions() PolicyHandlerOptions {
 type policyHandlerOptions struct {
 	kvClient                 client.Client
 	kvOverrideOptions        kv.OverrideOptions
-	dynamicTrafficTypesKVKey string
+	kvKey                    string
 	policyConfig             PolicyConfig
 }
 
@@ -62,24 +62,23 @@ func (o *policyHandlerOptions) PolicyConfig() PolicyConfig {
 	return o.policyConfig
 }
 
-func (o *policyHandlerOptions) WithDynamicTrafficTypesKVKey(dynamicTrafficTypesKey string) PolicyHandlerOptions {
-	o.dynamicTrafficTypesKVKey = dynamicTrafficTypesKey
+func (o *policyHandlerOptions) WithKVKey(kvKey string) PolicyHandlerOptions {
+	o.kvKey = kvKey
 	return o
 }
 
-func (o *policyHandlerOptions) DynamicTrafficTypesKVKey() string {
-	return o.dynamicTrafficTypesKVKey
+func (o *policyHandlerOptions) KVKey() string {
+	return o.kvKey
 }
 
 func (o *policyHandlerOptions) Validate() error {
-	if o.kvClient == nil {
-		return errors.New("kvClient is required")
-	}
-	if err := o.kvOverrideOptions.Validate(); err != nil {
-		return fmt.Errorf("kvOverride options is invalid: %w", err)
-	}
-	if o.dynamicTrafficTypesKVKey == "" {
-		return errors.New("dynamicTrafficTypesKVKey is required")
+	if o.kvKey != "" {
+		if o.kvClient == nil {
+			return errors.New("kvClient is required if kvKey is set")
+		}
+		if err := o.kvOverrideOptions.Validate(); err != nil {
+			return fmt.Errorf("kvOverride options is invalid: %w", err)
+		}
 	}
 	if o.policyConfig == nil {
 		return errors.New("policyConfig is required")
