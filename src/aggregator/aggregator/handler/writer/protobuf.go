@@ -247,7 +247,6 @@ func (f routingPolicyFilter) resolveTrafficTypeToBitPosition(trafficType string)
 	tt := f.rph.GetTrafficTypes()
 	bitPosition, ok := tt[trafficType]
 	if !ok {
-		// TODO record missing traffic type here
 		return -1
 	}
 	return int(bitPosition)
