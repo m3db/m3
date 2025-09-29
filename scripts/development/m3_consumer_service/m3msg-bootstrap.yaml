@@ -1,0 +1,34 @@
+kv:
+  zone: embedded
+  env: default_env
+  endpoints:
+    - etcd01:2379
+
+coordinator:
+  baseURL: http://m3coordinator01:7201
+  environment: default_env
+  zone: embedded
+
+topics:
+  - name: aggregated_metrics
+    numberOfShards: 64
+    consumers:
+      - serviceId:
+          name: local-consumer-service
+          environment: default_env
+          zone: embedded
+        consumptionType: SHARED
+        messageTtlNanos: 600000000000
+
+placements:
+  - service: local-consumer-service
+    numShards: 64
+    replicationFactor: 1
+    instances:
+      - id: m3consumer01
+        isolationGroup: rack-a
+        zone: embedded
+        weight: 1024
+        endpoint: m3consumer01:9000
+        hostname: m3consumer01
+        port: 9000

@@ -11,6 +11,7 @@ M3_AGGREGATOR_BASE_PORT=${M3_AGGREGATOR_BASE_PORT:-6000}
 M3_AGGREGATOR_DEBUG_MODE=${M3_AGGREGATOR_DEBUG_MODE:-false}
 M3_AGGREGATOR_DEBUG_BASE_PORT=${M3_AGGREGATOR_DEBUG_BASE_PORT:-40000}
 DISABLE_TLS=${DISABLE_TLS:-false}
+TOPIC_NAME=${TOPIC_NAME:-aggregated_metrics}
 
 # Validation
 if [ $((M3_AGGREGATOR_NODE_COUNT % 2)) -ne 0 ]; then
@@ -223,9 +224,10 @@ generate_aggregator_configs() {
         local http_port=$((M3_AGGREGATOR_BASE_PORT + 1 + (i - 1) * 10))
         local metrics_port=$((M3_AGGREGATOR_BASE_PORT + 2 + (i - 1) * 10))
         local tcp_port=$((M3_AGGREGATOR_BASE_PORT + 3 + (i - 1) * 10))
+        local topic_name=$TOPIC_NAME
 
         # Start with the base template and replace port variables
-        sed "s/{{HTTP_PORT}}/$http_port/g; s/{{METRICS_PORT}}/$metrics_port/g; s/{{TCP_PORT}}/$tcp_port/g" \
+        sed "s/{{HTTP_PORT}}/$http_port/g; s/{{METRICS_PORT}}/$metrics_port/g; s/{{TCP_PORT}}/$tcp_port/g; s/{{TOPIC_NAME}}/$topic_name/g" \
             m3aggregator.yml.template > "m3aggregator${node_id}.yml.tmp"
 
         # Remove TLS configuration sections if TLS is disabled
@@ -347,6 +349,16 @@ placement_json='{
 }'
 
 curl -vvvsSf -X POST localhost:7201/api/v1/services/m3aggregator/placement/init -d "$placement_json"
+
+# Ensure m3msg topic exists for aggregated metrics (no consumers required)
+echo "Ensuring m3msg topic 'aggregated_metrics' exists"
+topic_init_json='{"numberOfShards": 64}'
+curl -vvvsS \
+  -H "Content-Type: application/json" \
+  -H "Topic-Name: aggregated_metrics" \
+  -H "Cluster-Environment-Name: default_env" \
+  -X POST localhost:7201/api/v1/topic/init \
+  -d "$topic_init_json" || true
 
 # Build and start all aggregator nodes
 if [[ "$M3AGGREGATOR_DEV_IMG" == "0" ]] || [[ "$FORCE_BUILD" == true ]] || [[ "$BUILD_M3AGGREGATOR" == true ]] || [[ "$M3_AGGREGATOR_DEBUG_MODE" == "true" ]]; then
