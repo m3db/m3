@@ -96,8 +96,9 @@ type PipelineMetadata struct {
 
 func (m PipelineMetadata) String() string {
 	var b bytes.Buffer
-	b.WriteString(fmt.Sprintf("ResendEnabled: %v, StoragePolicies: %v, Pipeline: %v",
-		m.ResendEnabled, m.StoragePolicies, m.Pipeline))
+	b.WriteString(fmt.Sprintf(
+		"ResendEnabled: %v, StoragePolicies: %v, Pipeline: %v, RoutingPolicy: %v",
+		m.ResendEnabled, m.StoragePolicies, m.Pipeline, m.RoutingPolicy))
 	return b.String()
 }
 
