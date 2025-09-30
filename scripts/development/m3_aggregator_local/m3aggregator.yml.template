@@ -197,8 +197,27 @@ aggregator:
     forcedFlushWindowSize: 10s
   flush:
     handlers:
-      - staticBackend:
-          type: blackhole
+      - dynamicBackend:
+          name: m3msg
+          hashType: murmur32
+          storagePolicyFilters:
+            - serviceID:
+                environment: default_env
+                name: local-consumer-service
+                zone: embedded
+              storagePolicies:
+                - 10s:2d
+          producer:
+            writer:
+              topicName: {{TOPIC_NAME}}
+              topicServiceOverride:
+                zone: embedded
+                environment: default_env
+              messagePool:
+                size: 16384
+                watermark:
+                  low: 0.2
+                  high: 0.5
   forwarding:
     maxSingleDelay: 5s
   entryTTL: 1h
