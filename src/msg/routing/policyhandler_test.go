@@ -26,19 +26,19 @@ func setupTestHandlerWithKey(ctrl *gomock.Controller, key string, staticTypes ma
 	kvOpts := kv.NewOverrideOptions().SetZone("test-zone").SetEnvironment("test-env").SetNamespace("test-ns")
 	kvClient.EXPECT().Store(kvOpts).Return(store, nil)
 
-    // Pre-populate the store so the watch can initialize successfully during handler construction
-    initialPolicy := &routingpolicypb.RoutingPolicyConfig{
-        TrafficTypes: staticTypes,
-    }
-    _, err := store.Set(key, initialPolicy)
-    if err != nil {
-        panic(err)
-    }
+	// Pre-populate the store so the watch can initialize successfully during handler construction
+	initialPolicy := &routingpolicypb.RoutingPolicyConfig{
+		TrafficTypes: staticTypes,
+	}
+	_, err := store.Set(key, initialPolicy)
+	if err != nil {
+		panic(err)
+	}
 
 	opts := NewPolicyHandlerOptions().
 		WithKVClient(kvClient).
 		WithKVOverrideOptions(kvOpts).
-        WithKVKey(key).
+		WithKVKey(key).
 		WithPolicyConfig(NewPolicyConfig(staticTypes))
 
 	handler, err := NewRoutingPolicyHandler(opts)
@@ -67,13 +67,13 @@ func TestRoutingPolicyHandler_NewRoutingPolicyHandler(t *testing.T) {
 				kvOpts := kv.NewOverrideOptions().SetZone("test-zone").SetEnvironment("test-env").SetNamespace("test-ns")
 				kvClient.EXPECT().Store(kvOpts).Return(store, nil)
 
-                // Seed the store so constructor watch can read the initial value
-                _, _ = store.Set("test-key", &routingpolicypb.RoutingPolicyConfig{TrafficTypes: map[string]uint64{"static": 1}})
+				// Seed the store so constructor watch can read the initial value
+				_, _ = store.Set("test-key", &routingpolicypb.RoutingPolicyConfig{TrafficTypes: map[string]uint64{"static": 1}})
 
 				return NewPolicyHandlerOptions().
 					WithKVClient(kvClient).
 					WithKVOverrideOptions(kvOpts).
-                    WithKVKey("test-key").
+					WithKVKey("test-key").
 					WithPolicyConfig(NewPolicyConfig(map[string]uint64{"static": 1}))
 			},
 			expectError: false,
@@ -83,20 +83,20 @@ func TestRoutingPolicyHandler_NewRoutingPolicyHandler(t *testing.T) {
 			setupOpts: func() PolicyHandlerOptions {
 				return NewPolicyHandlerOptions().
 					WithKVOverrideOptions(kv.NewOverrideOptions()).
-                    WithKVKey("test-key").
+					WithKVKey("test-key").
 					WithPolicyConfig(NewPolicyConfig(map[string]uint64{"static": 1}))
 			},
 			expectError: true,
-            errorMsg:    "kvClient is required if kvKey is set",
+			errorMsg:    "kvClient is required if kvKey is set",
 		},
-        {
-            name: "no kv key provided (no watch)",
-            setupOpts: func() PolicyHandlerOptions {
-                return NewPolicyHandlerOptions().
-                    WithPolicyConfig(NewPolicyConfig(map[string]uint64{"static": 1}))
-            },
-            expectError: false,
-        },
+		{
+			name: "no kv key provided (no watch)",
+			setupOpts: func() PolicyHandlerOptions {
+				return NewPolicyHandlerOptions().
+					WithPolicyConfig(NewPolicyConfig(map[string]uint64{"static": 1}))
+			},
+			expectError: false,
+		},
 		{
 			name: "missing static traffic types",
 			setupOpts: func() PolicyHandlerOptions {
@@ -104,7 +104,7 @@ func TestRoutingPolicyHandler_NewRoutingPolicyHandler(t *testing.T) {
 				return NewPolicyHandlerOptions().
 					WithKVClient(kvClient).
 					WithKVOverrideOptions(kv.NewOverrideOptions().SetZone("test-zone").SetEnvironment("test-env").SetNamespace("test-ns")).
-                    WithKVKey("test-key")
+					WithKVKey("test-key")
 			},
 			expectError: true,
 			errorMsg:    "policyConfig is required",
@@ -161,12 +161,12 @@ func TestRoutingPolicyHandler_WatchAndUpdate(t *testing.T) {
 
 	handler, store := setupTestHandlerWithKey(ctrl, key, staticTrafficTypes)
 
-    // Pre-populate again to trigger the initial update (helper already seeded before construction)
-    initialPolicy := &routingpolicypb.RoutingPolicyConfig{
-        TrafficTypes: staticTrafficTypes,
-    }
-    _, err := store.Set(key, initialPolicy)
-    require.NoError(t, err)
+	// Pre-populate again to trigger the initial update (helper already seeded before construction)
+	initialPolicy := &routingpolicypb.RoutingPolicyConfig{
+		TrafficTypes: staticTrafficTypes,
+	}
+	_, err := store.Set(key, initialPolicy)
+	require.NoError(t, err)
 	defer handler.Close()
 
 	// Verify initial static traffic types
@@ -360,16 +360,16 @@ func TestPolicyHandlerOptions(t *testing.T) {
 	staticTypes := map[string]uint64{"test": 1}
 	key := "test-key"
 
-    opts := NewPolicyHandlerOptions().
-        WithKVClient(kvClient).
-        WithKVOverrideOptions(kvOpts).
-        WithPolicyConfig(NewPolicyConfig(staticTypes)).
-        WithKVKey(key)
+	opts := NewPolicyHandlerOptions().
+		WithKVClient(kvClient).
+		WithKVOverrideOptions(kvOpts).
+		WithPolicyConfig(NewPolicyConfig(staticTypes)).
+		WithKVKey(key)
 
 	assert.Equal(t, kvClient, opts.KVClient())
 	assert.Equal(t, kvOpts, opts.KVOverrideOptions())
 	assert.Equal(t, staticTypes, opts.PolicyConfig().TrafficTypes())
-    assert.Equal(t, key, opts.KVKey())
+	assert.Equal(t, key, opts.KVKey())
 
 	// Test validation
 	err := opts.Validate()
