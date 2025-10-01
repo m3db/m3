@@ -75,7 +75,12 @@ func (p *routingPolicyHandler) initWatch(opts PolicyHandlerOptions) error {
 		SetKey(opts.KVKey())
 	p.value = watch.NewValue(vOptions)
 	if err := p.value.Watch(); err != nil {
-		return err
+		// If the error is an InitValueError (e.g., timeout), we can continue
+		// since the watch is still running in the background and will update
+		// when the key becomes available.
+		if _, ok := err.(watch.InitValueError); !ok {
+			return err
+		}
 	}
 	return nil
 }
