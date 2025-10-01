@@ -7,17 +7,20 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	etcdcfg "github.com/m3db/m3/src/cluster/client/etcd"
-	"github.com/m3db/m3/src/cluster/kv"
-	"github.com/m3db/m3/src/cluster/placement"
-	"github.com/m3db/m3/src/cluster/services"
-	"github.com/m3db/m3/src/x/instrument"
-	"gopkg.in/yaml.v3"
 	"io"
 	"net/http"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/m3db/m3/src/cluster/client"
+	etcdcfg "github.com/m3db/m3/src/cluster/client/etcd"
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/services"
+	routingpolicypb "github.com/m3db/m3/src/msg/generated/proto/routingpolicypb"
+	"github.com/m3db/m3/src/x/instrument"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -71,11 +74,18 @@ type PlacementConfig struct {
 	Instances         []PlacementInstance `yaml:"instances"`
 }
 
+type RoutingPolicyConfig struct {
+	KVNamespace  string            `yaml:"kvNamespace"`
+	KVKey        string            `yaml:"kvKey"`
+	TrafficTypes map[string]uint64 `yaml:"trafficTypes"`
+}
+
 type Config struct {
-	KV          KVConfig          `yaml:"kv"`
-	Coordinator CoordinatorConfig `yaml:"coordinator"`
-	Topics      []TopicConfig     `yaml:"topics"`
-	Placements  []PlacementConfig `yaml:"placements"`
+	KV             KVConfig              `yaml:"kv"`
+	Coordinator    CoordinatorConfig     `yaml:"coordinator"`
+	Topics         []TopicConfig         `yaml:"topics"`
+	Placements     []PlacementConfig     `yaml:"placements"`
+	RoutingPolicy  *RoutingPolicyConfig  `yaml:"routingPolicy"`
 }
 
 func (c *Config) newCoordinatorClientFromConfig() *coordinatorClient {
@@ -151,8 +161,14 @@ func main() {
 
 	kvClient := cfg.newKvClientFromConfig()
 	for _, p := range cfg.Placements {
-		if err := kvClient.BootstrapPlacement(p); err != nil {
+		if err := kvClient.SetPlacement(p); err != nil {
 			fatalf("create placement: %v", err)
+		}
+	}
+
+	if cfg.RoutingPolicy != nil {
+		if err := kvClient.SetRoutingPolicy(*cfg.RoutingPolicy); err != nil {
+			fatalf("create routing policy: %v", err)
 		}
 	}
 }
@@ -276,6 +292,7 @@ func (c *coordinatorClient) makeReq(ctx context.Context, method, url string, bod
 }
 
 type kvClient struct {
+	csClient       client.Client
 	servicesClient services.Services
 	env            string
 	zone           string
@@ -298,10 +315,10 @@ func NewKVClient(env string, zone string, endpoints []string) *kvClient {
 	if err != nil {
 		fatalf("create services client: %v", err)
 	}
-	return &kvClient{servicesClient: servicesClient, env: env, zone: zone}
+	return &kvClient{csClient: csClient, servicesClient: servicesClient, env: env, zone: zone}
 }
 
-func (c *kvClient) BootstrapPlacement(p PlacementConfig) error {
+func (c *kvClient) SetPlacement(p PlacementConfig) error {
 	sid := services.NewServiceID().
 		SetName(p.Service).
 		SetEnvironment(c.env).
@@ -347,6 +364,34 @@ func (c *kvClient) BootstrapPlacement(p PlacementConfig) error {
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (c *kvClient) SetRoutingPolicy(rp RoutingPolicyConfig) error {
+	// Create the routing policy protobuf message
+	policyProto := &routingpolicypb.RoutingPolicyConfig{
+		TrafficTypes: rp.TrafficTypes,
+	}
+
+	// Get or create the store with the specified namespace
+	kvOpts := kv.NewOverrideOptions().
+		SetEnvironment(c.env).
+		SetZone(c.zone).
+		SetNamespace(rp.KVNamespace)
+
+	store, err := c.csClient.Store(kvOpts)
+	if err != nil {
+		return fmt.Errorf("get kv store for routing policy: %v", err)
+	}
+
+	// Set the value in etcd
+	_, err = store.Set(rp.KVKey, policyProto)
+	if err != nil {
+		return fmt.Errorf("set routing policy in kv: %v", err)
+	}
+
+	fmt.Printf("✓ Routing policy set at %s/%s with traffic types: %v\n",
+		rp.KVNamespace, rp.KVKey, rp.TrafficTypes)
 	return nil
 }
 
