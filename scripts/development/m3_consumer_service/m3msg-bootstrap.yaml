@@ -2,10 +2,10 @@ kv:
   zone: embedded
   env: default_env
   endpoints:
-    - etcd01:2379
+    - localhost:2379
 
 coordinator:
-  baseURL: http://m3coordinator01:7201
+  baseURL: http://localhost:7201
   environment: default_env
   zone: embedded
 
@@ -32,3 +32,11 @@ placements:
         endpoint: m3consumer01:9000
         hostname: m3consumer01
         port: 9000
+
+routingPolicy:
+  kvNamespace: /routing-policy
+  kvKey: routing-policy-config
+  trafficTypes:
+    m3: 2
+    os: 1
+    somethingelse: 0

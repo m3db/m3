@@ -39,6 +39,7 @@ High-level data flow:
 ### Quick start
 
 1. Start the aggregator environment (in another shell):
+
    - From repo root: `scripts/development/m3_aggregator_local/start_m3.sh`
 
 2. Start the consumer service (in this directory):
@@ -51,7 +52,7 @@ High-level data flow:
    - What this does:
      - Builds a static `m3consumer` Linux binary.
      - Builds and starts the `m3consumer01` container on port `9000`.
-     - Builds and runs `m3bootstrap`, which initializes topic and placement using `m3msg-bootstrap.yaml`.
+     - Builds and runs `m3bootstrap` locally, which initializes topic and placement using `m3msg-bootstrap.yaml`.
 
 3. Verify it’s receiving data:
    - View logs: `docker-compose logs -f m3consumer01`
@@ -68,8 +69,8 @@ High-level data flow:
   - `topics[0].name`: The m3msg topic name (default `aggregated_metrics`).
   - `topics[0].consumers[*]`: Includes `local-consumer-service` as a SHARED consumer.
   - `placements[0]`: Creates a placement for service `local-consumer-service` with an instance `m3consumer01` at `m3consumer01:9000`.
-  - `kv.endpoints`: Points to the local `etcd` (default `etcd01:2379`) from the aggregator stack.
-  - `coordinator.baseURL`: Coordinator admin API (default `http://localhost:7201`).
+  - `kv.endpoints`: Points to etcd at `localhost:2379`.
+  - `coordinator.baseURL`: Coordinator admin API at `http://localhost:7201`.
 
 - Aggregator publishing topic:
   - In `scripts/development/m3_aggregator_local/m3aggregator.yml.template`, the producer writes to `topicName: {{TOPIC_NAME}}`.
@@ -91,17 +92,28 @@ High-level data flow:
   docker-compose down
   ```
 
-- Re-run bootstrap (idempotent; tolerates already-exists):
+- Re-run bootstrap locally (idempotent; tolerates already-exists):
+
   ```bash
   cd scripts/development/m3_consumer_service
-  docker-compose run --rm bootstrap
+  ./bootstrap-local.sh
+  # Or with a custom config:
+  ./bootstrap-local.sh custom-config.yaml
+  ```
+
+- Update placement or topic configuration:
+  ```bash
+  # Edit m3msg-bootstrap.yaml with your changes
+  # Then re-run bootstrap (it's idempotent for most operations)
+  ./bootstrap-local.sh
   ```
 
 ### Directory contents
 
-- `start_m3.sh`: Builds and runs the consumer and bootstrap jobs via Docker Compose.
-- `docker-compose.yml`: Defines `m3consumer01` and a `bootstrap` job; connects to the aggregator’s Docker network `m3_aggregator_local_backend`.
+- `start_m3.sh`: Builds and runs the consumer container and bootstrap tool locally.
+- `bootstrap-local.sh`: Standalone script to run bootstrap (useful for updating configs).
+- `docker-compose.yml`: Defines `m3consumer01` container; connects to the aggregator's Docker network `m3_aggregator_local_backend`.
 - `Dockerfile`: Minimal image that runs the prebuilt `m3consumer` binary on port `9000`.
 - `main.go`: The consumer program. Starts an m3msg server and logs received metrics.
 - `bootstrap/`: Small Go program that initializes m3msg topics and placements from YAML.
-- `m3msg-bootstrap.yaml`: Declarative config used by the bootstrap program.
+- `m3msg-bootstrap.yaml`: Bootstrap config with `localhost` endpoints for etcd and coordinator.
