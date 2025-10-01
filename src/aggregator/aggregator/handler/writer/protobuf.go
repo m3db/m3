@@ -21,6 +21,7 @@
 package writer
 
 import (
+	"fmt"
 	"errors"
 
 	"github.com/uber-go/tally"
@@ -97,6 +98,7 @@ func (w *protobufWriter) Write(mp aggregated.ChunkedMetricWithStoragePolicy) err
 		return err
 	}
 
+	fmt.Println("mp.RoutingPolicy", mp.RoutingPolicy)
 	if err := w.p.Produce(newMessage(shard, mp.StoragePolicy, mp.RoutingPolicy, w.encoder.Buffer())); err != nil {
 		w.metrics.routeErrors.Inc(1)
 		return err
@@ -227,9 +229,11 @@ func (f routingPolicyFilter) Filter(m producer.Message) bool {
 	if !ok {
 		return true
 	}
+	fmt.Println("msg.rp.TrafficTypes", msg.rp.TrafficTypes)
 	if msg.rp.TrafficTypes == 0 {
 		return f.isDefault
 	}
+	fmt.Println("allowedTrafficTypes", f.allowedTrafficTypes)
 	for _, trafficType := range f.allowedTrafficTypes {
 		bitPosition := f.resolveTrafficTypeToBitPosition(trafficType)
 		if bitPosition == -1 {
@@ -244,6 +248,7 @@ func (f routingPolicyFilter) Filter(m producer.Message) bool {
 
 func (f routingPolicyFilter) resolveTrafficTypeToBitPosition(trafficType string) int {
 	tt := f.rph.GetTrafficTypes()
+	fmt.Println("traffic type mapping", tt)
 	bitPosition, ok := tt[trafficType]
 	if !ok {
 		return -1

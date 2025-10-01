@@ -123,6 +123,9 @@ type metricElem interface {
 		onDoneFn onForwardedAggregationDoneFn,
 	)
 
+	// SetRoutingPolicy updates the routing policy for this element.
+	SetRoutingPolicy(rp policy.RoutingPolicy)
+
 	// AddUnion adds a metric value union at a given timestamp.
 	AddUnion(timestamp time.Time, mu unaggregated.MetricUnion, resendEnabled bool) error
 
@@ -482,6 +485,10 @@ func (e *elemBase) SetForwardedCallbacks(
 }
 
 func (e *elemBase) ID() id.RawID { return e.id }
+
+func (e *elemBase) SetRoutingPolicy(rp policy.RoutingPolicy) {
+	e.routePolicy = rp
+}
 
 func (e *elemBase) ForwardedID() (id.RawID, bool) {
 	if !e.parsedPipeline.HasRollup {

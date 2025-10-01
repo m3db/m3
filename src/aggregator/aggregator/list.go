@@ -450,6 +450,7 @@ func (l *baseMetricList) consumeLocalMetric(
 			Annotation: annotation,
 		},
 		StoragePolicy: sp,
+		RoutingPolicy: routePolicy,
 	}
 	if err := l.localWriter.Write(chunkedMetricWithPolicy); err != nil {
 		l.metrics.flushLocal.metricConsumeErrors.Inc(1)

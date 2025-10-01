@@ -207,6 +207,26 @@ aggregator:
                 zone: embedded
               storagePolicies:
                 - 10s:2d
+          routingPolicyFilters:
+            - serviceID:
+                environment: default_env
+                name: local-consumer-service
+                zone: embedded
+              isDefault: true
+              allowedTrafficTypes:
+                - m3
+          routingPolicyConfig:
+            staticConfig:
+              trafficTypes:
+                somethingelse: 0
+                m3: 1
+                os: 2
+            dynamicConfig:
+              kvConfig:
+                environment: default_env
+                zone: embedded
+                namespace: /routing-policy
+              kvKey: "routing-policy-config"
           producer:
             writer:
               topicName: {{TOPIC_NAME}}

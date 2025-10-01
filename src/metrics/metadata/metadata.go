@@ -146,11 +146,13 @@ func (m PipelineMetadata) IsDropPolicySet() bool {
 
 // Clone clones the pipeline metadata.
 func (m PipelineMetadata) Clone() PipelineMetadata {
+	fmt.Println("m.RoutingPolicy", m.RoutingPolicy)
 	return PipelineMetadata{
 		AggregationID:   m.AggregationID,
 		StoragePolicies: m.StoragePolicies.Clone(),
 		Pipeline:        m.Pipeline.Clone(),
 		ResendEnabled:   m.ResendEnabled,
+		RoutingPolicy:   m.RoutingPolicy.Clone(),
 	}
 }
 
@@ -618,6 +620,7 @@ func (sms *StagedMetadatas) FromProto(pb metricpb.StagedMetadatas) error {
 			pipeline.AggregationID[0] = pipelinePb.AggregationId.Id
 			pipeline.DropPolicy = policy.DropPolicy(pipelinePb.DropPolicy)
 			pipeline.ResendEnabled = pipelinePb.ResendEnabled
+			pipeline.RoutingPolicy = policy.RoutingPolicy{TrafficTypes: pipelinePb.RoutingPolicy.TrafficTypes}
 
 			if len(pipeline.Tags) > 0 {
 				pipeline.Tags = pipeline.Tags[:0]
