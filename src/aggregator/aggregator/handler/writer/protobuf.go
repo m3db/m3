@@ -114,6 +114,7 @@ func (w *protobufWriter) prepare(mp aggregated.ChunkedMetricWithStoragePolicy) (
 	w.m.Metric.Value = mp.Value
 	w.m.Annotation = mp.ChunkedMetric.Annotation
 	w.m.StoragePolicy = mp.StoragePolicy
+	w.m.RoutingPolicy = mp.RoutingPolicy
 	shard := w.shardFn(w.m.ID, w.numShards)
 	return w.m, shard
 }
