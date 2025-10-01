@@ -1,0 +1,65 @@
+metricID: "dev.metric,app=m3,env=local"
+metricType: "gauge"
+value: 1
+interval: "1s"
+jitter: "250ms"
+annotation: "local dev"
+metricsPrefix: "m3aggclient"
+
+# One of the two client types can be used:
+# 1) legacy (tcp) which connects via raw TCP using placementKV and placementWatcher
+# 2) m3msg which produces to an m3msg topic consumed by the aggregator
+
+client:
+  type: legacy
+  placementKV:
+    # These must match the local dev stack started in scripts/development/m3_aggregator_local
+    environment: default_env
+    zone: embedded
+    namespace: /placement
+  placementWatcher:
+    key: m3aggregator
+    initWatchTimeout: 10s
+  hashType: murmur32
+  shardCutoffLingerDuration: 1m
+  forceFlushEvery: 1s
+  flushWorkerCount: 4
+  maxTimerBatchSize: 1024
+  queueSize: 256
+  queueDropType: oldest
+  encoder:
+    initBufferSize: 2048
+    maxMessageSize: 10485760
+    bytesPool:
+      buckets:
+        - capacity: 2048
+          count: 4096
+        - capacity: 4096
+          count: 4096
+      watermark:
+        low: 0.7
+        high: 1.0
+  connection:
+    writeTimeout: 250ms
+    # Enable TLS when your local stack has TLS enabled (default in new scripts). Otherwise set DISABLE_TLS=true when starting stack.
+    tls:
+      enabled: false
+# Example m3msg client configuration (alternative to tcp):
+# client:
+#   type: m3msg
+#   m3msg:
+#     producer:
+#       writer:
+#         topicName: aggregated_metrics
+#         placement:
+#           isStaged: false
+#           isMirrored: false
+#           isSharded: true
+#           shardStateMode: 1
+#           validZone: embedded
+#         placementServiceOverride:
+#           namespaces:
+#             m3msg: aggregator
+#         topicServiceOverride:
+#           zone: embedded
+#           env: default_env
