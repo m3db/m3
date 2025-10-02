@@ -580,6 +580,9 @@ func (e *Entry) shouldUpdateStagedMetadatasWithLock(sm metadata.StagedMetadata) 
 				// the resendEnabled state on the aggregations.
 				return true
 			}
+			if !val.routePolicy.Equal(&sm.Pipelines[i].RoutingPolicy) {
+				return true
+			}
 			bs.Set(uint(idx))
 		}
 	}
@@ -626,6 +629,7 @@ func (e *Entry) addNewAggregationKeyWithLock(
 		a := e.aggregations[idx]
 		a.resendEnabled = resendEnabled
 		a.routePolicy = routePolicy
+		a.elem.Value.(metricElem).SetRoutingPolicy(routePolicy)
 		newAggregations = append(newAggregations, a)
 		return newAggregations, nil
 	}
