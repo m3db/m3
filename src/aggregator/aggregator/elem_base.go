@@ -116,6 +116,9 @@ type metricElem interface {
 	// ResetSetData resets the element and sets data.
 	ResetSetData(data ElemData) error
 
+	// SetRoutingPolicy updates the routing policy for this element.
+	SetRoutingPolicy(rp policy.RoutingPolicy)
+
 	// SetForwardedCallbacks sets the callback functions to write forwarded
 	// metrics for elements producing such forwarded metrics.
 	SetForwardedCallbacks(
@@ -482,6 +485,11 @@ func (e *elemBase) SetForwardedCallbacks(
 }
 
 func (e *elemBase) ID() id.RawID { return e.id }
+
+// SetRoutingPolicy sets the routing policy for the element.
+func (e *elemBase) SetRoutingPolicy(rp policy.RoutingPolicy) {
+	e.routePolicy = rp
+}
 
 func (e *elemBase) ForwardedID() (id.RawID, bool) {
 	if !e.parsedPipeline.HasRollup {

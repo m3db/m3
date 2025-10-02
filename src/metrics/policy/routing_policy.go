@@ -37,3 +37,10 @@ func (p *RoutingPolicy) FromProto(pb policypb.RoutingPolicy) error {
 func (p *RoutingPolicy) Equal(other *RoutingPolicy) bool {
 	return p.TrafficTypes == other.TrafficTypes
 }
+
+// Clone clones the routing policy.
+func (p *RoutingPolicy) Clone() RoutingPolicy {
+	return RoutingPolicy{
+		TrafficTypes: p.TrafficTypes,
+	}
+}
