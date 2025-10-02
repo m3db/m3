@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/producer"
+	"github.com/m3db/m3/src/msg/routing"
 )
 
 var (
@@ -197,4 +198,56 @@ func (f storagePolicyFilter) Filter(m producer.Message) bool {
 		}
 	}
 	return false
+}
+
+// RoutingPolicyFilter is a filter for routing policy.
+type RoutingPolicyFilterParams struct {
+	RoutingPolicyHandler routing.PolicyHandler
+	IsDefault            bool
+	AllowedTrafficTypes  []string
+}
+
+// NewRoutingPolicyFilter creates a new routing policy based filter.
+func NewRoutingPolicyFilter(p RoutingPolicyFilterParams, configSource producer.FilterFuncConfigSourceType) producer.FilterFunc {
+	cfg := routingPolicyFilter{
+		rph:                 p.RoutingPolicyHandler,
+		isDefault:           p.IsDefault,
+		allowedTrafficTypes: p.AllowedTrafficTypes,
+	}
+	return producer.NewFilterFunc(cfg.Filter, producer.RoutingPolicyFilter, configSource)
+}
+
+type routingPolicyFilter struct {
+	rph                 routing.PolicyHandler
+	isDefault           bool
+	allowedTrafficTypes []string
+}
+
+func (f routingPolicyFilter) Filter(m producer.Message) bool {
+	msg, ok := m.(message)
+	if !ok {
+		return true
+	}
+	if msg.rp.TrafficTypes == 0 {
+		return f.isDefault
+	}
+	for _, trafficType := range f.allowedTrafficTypes {
+		bitPosition := f.resolveTrafficTypeToBitPosition(trafficType)
+		if bitPosition == -1 {
+			continue
+		}
+		if msg.rp.TrafficTypes&(1<<bitPosition) != 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func (f routingPolicyFilter) resolveTrafficTypeToBitPosition(trafficType string) int {
+	tt := f.rph.GetTrafficTypes()
+	bitPosition, ok := tt[trafficType]
+	if !ok {
+		return -1
+	}
+	return int(bitPosition)
 }
