@@ -21,6 +21,8 @@
 package producer
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3/src/cluster/services"
 )
 
@@ -145,6 +147,7 @@ func (f FilterFuncConfigSourceType) String() string {
 type FilterFuncMetadata struct {
 	FilterType FilterFuncType
 	SourceType FilterFuncConfigSourceType
+	cacheKey   string // Pre-computed key for metric map lookups to avoid allocations in hot path
 }
 
 // NewFilterFuncMetadata creates a new filter function metadata.
@@ -154,7 +157,13 @@ func NewFilterFuncMetadata(
 	return FilterFuncMetadata{
 		FilterType: filterType,
 		SourceType: sourceType,
+		cacheKey:   fmt.Sprintf("%s::%s", filterType.String(), sourceType.String()),
 	}
+}
+
+// CacheKey returns the pre-computed cache key for this metadata.
+func (m FilterFuncMetadata) CacheKey() string {
+	return m.cacheKey
 }
 
 // FilterFunc can filter message.

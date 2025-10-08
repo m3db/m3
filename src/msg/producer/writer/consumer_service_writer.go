@@ -41,10 +41,10 @@ var (
 			Function: func(m producer.Message) bool {
 				return true
 			},
-			Metadata: producer.FilterFuncMetadata{
-				FilterType: producer.AcceptAllFilter,
-				SourceType: producer.StaticConfig,
-			},
+			Metadata: producer.NewFilterFuncMetadata(
+				producer.AcceptAllFilter,
+				producer.StaticConfig,
+			),
 		},
 	)
 
@@ -105,7 +105,7 @@ type consumerServiceWriterMetrics struct {
 }
 
 func (cswm *consumerServiceWriterMetrics) getGranularFilterCounterMapKey(metadata producer.FilterFuncMetadata) string {
-	return fmt.Sprintf("%s::%s", metadata.FilterType.String(), metadata.SourceType.String())
+	return metadata.CacheKey()
 }
 
 //nolint:dupl
