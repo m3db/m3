@@ -711,10 +711,10 @@ func TestConsumerServiceWriterMetrics(t *testing.T) {
 	accepetKey := m.getGranularFilterCounterMapKey(acceptedMetadata)
 	notAcceptKey := m.getGranularFilterCounterMapKey(notAcceptedMetadata)
 
-	_, ok := m.filterAcceptedGranular[accepetKey]
+	_, ok := m.filterAcceptedGranular.Load(accepetKey)
 	require.True(t, ok)
 
-	_, ok = m.filterNotAcceptedGranular[notAcceptKey]
+	_, ok = m.filterNotAcceptedGranular.Load(notAcceptKey)
 	require.True(t, ok)
 
 	gotAcceptedValue := false
