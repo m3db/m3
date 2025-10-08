@@ -41,10 +41,10 @@ var (
 			Function: func(m producer.Message) bool {
 				return true
 			},
-			Metadata: producer.FilterFuncMetadata{
-				FilterType: producer.AcceptAllFilter,
-				SourceType: producer.StaticConfig,
-			},
+			Metadata: producer.NewFilterFuncMetadata(
+				producer.AcceptAllFilter,
+				producer.StaticConfig,
+			),
 		},
 	)
 
@@ -92,20 +92,18 @@ type consumerServiceWriter interface {
 }
 
 type consumerServiceWriterMetrics struct {
-	placementError                tally.Counter
-	placementUpdate               tally.Counter
-	queueSize                     tally.Gauge
-	filterAccepted                tally.Counter
-	filterNotAccepted             tally.Counter
-	filterAcceptedGranular        map[string]tally.Counter
-	filterAcceptedGranularLock    sync.RWMutex
-	filterNotAcceptedGranular     map[string]tally.Counter
-	filterNotAcceptedGranularLock sync.RWMutex
-	scope                         tally.Scope
+	placementError            tally.Counter
+	placementUpdate           tally.Counter
+	queueSize                 tally.Gauge
+	filterAccepted            tally.Counter
+	filterNotAccepted         tally.Counter
+	filterAcceptedGranular    sync.Map // map[string]tally.Counter, lock-free for read-heavy workload
+	filterNotAcceptedGranular sync.Map // map[string]tally.Counter, lock-free for read-heavy workload
+	scope                     tally.Scope
 }
 
 func (cswm *consumerServiceWriterMetrics) getGranularFilterCounterMapKey(metadata producer.FilterFuncMetadata) string {
-	return fmt.Sprintf("%s::%s", metadata.FilterType.String(), metadata.SourceType.String())
+	return metadata.CacheKey()
 }
 
 //nolint:dupl
@@ -113,22 +111,20 @@ func (cswm *consumerServiceWriterMetrics) getFilterAcceptedGranularCounter(
 	metadata producer.FilterFuncMetadata) tally.Counter {
 	key := cswm.getGranularFilterCounterMapKey(metadata)
 
-	cswm.filterAcceptedGranularLock.RLock()
-	val, ok := cswm.filterAcceptedGranular[key]
-	cswm.filterAcceptedGranularLock.RUnlock()
-
-	if !ok {
-		val = cswm.scope.Tagged(map[string]string{
-			"config-source": metadata.SourceType.String(),
-			"filter-type":   metadata.FilterType.String(),
-		}).Counter("filter-accepted-granular")
-
-		cswm.filterAcceptedGranularLock.Lock()
-		cswm.filterAcceptedGranular[key] = val
-		cswm.filterAcceptedGranularLock.Unlock()
+	// Fast path: lock-free read for existing entries
+	if val, ok := cswm.filterAcceptedGranular.Load(key); ok {
+		return val.(tally.Counter)
 	}
 
-	return val
+	// Slow path: create counter (happens only ~10 times per writer lifetime)
+	val := cswm.scope.Tagged(map[string]string{
+		"config-source": metadata.SourceType.String(),
+		"filter-type":   metadata.FilterType.String(),
+	}).Counter("filter-accepted-granular")
+
+	// Store and return; if another goroutine already stored, use theirs
+	actual, _ := cswm.filterAcceptedGranular.LoadOrStore(key, val)
+	return actual.(tally.Counter)
 }
 
 //nolint:dupl
@@ -136,34 +132,31 @@ func (cswm *consumerServiceWriterMetrics) getFilterNotAcceptedGranularCounter(
 	metadata producer.FilterFuncMetadata) tally.Counter {
 	key := cswm.getGranularFilterCounterMapKey(metadata)
 
-	cswm.filterNotAcceptedGranularLock.RLock()
-	val, ok := cswm.filterNotAcceptedGranular[key]
-	cswm.filterNotAcceptedGranularLock.RUnlock()
-
-	if !ok {
-		val = cswm.scope.Tagged(map[string]string{
-			"config-source": metadata.SourceType.String(),
-			"filter-type":   metadata.FilterType.String(),
-		}).Counter("filter-not-accepted-granular")
-
-		cswm.filterNotAcceptedGranularLock.Lock()
-		cswm.filterNotAcceptedGranular[key] = val
-		cswm.filterNotAcceptedGranularLock.Unlock()
+	// Fast path: lock-free read for existing entries
+	if val, ok := cswm.filterNotAcceptedGranular.Load(key); ok {
+		return val.(tally.Counter)
 	}
 
-	return val
+	// Slow path: create counter (happens only ~10 times per writer lifetime)
+	val := cswm.scope.Tagged(map[string]string{
+		"config-source": metadata.SourceType.String(),
+		"filter-type":   metadata.FilterType.String(),
+	}).Counter("filter-not-accepted-granular")
+
+	// Store and return; if another goroutine already stored, use theirs
+	actual, _ := cswm.filterNotAcceptedGranular.LoadOrStore(key, val)
+	return actual.(tally.Counter)
 }
 
 func newConsumerServiceWriterMetrics(scope tally.Scope) consumerServiceWriterMetrics {
 	return consumerServiceWriterMetrics{
-		placementUpdate:           scope.Counter("placement-update"),
-		placementError:            scope.Counter("placement-error"),
-		filterAccepted:            scope.Counter("filter-accepted"),
-		filterNotAccepted:         scope.Counter("filter-not-accepted"),
-		scope:                     scope,
-		filterAcceptedGranular:    make(map[string]tally.Counter),
-		filterNotAcceptedGranular: make(map[string]tally.Counter),
-		queueSize:                 scope.Gauge("queue-size"),
+		placementUpdate:   scope.Counter("placement-update"),
+		placementError:    scope.Counter("placement-error"),
+		filterAccepted:    scope.Counter("filter-accepted"),
+		filterNotAccepted: scope.Counter("filter-not-accepted"),
+		scope:             scope,
+		// filterAcceptedGranular and filterNotAcceptedGranular use sync.Map zero value (ready to use)
+		queueSize: scope.Gauge("queue-size"),
 	}
 }
 

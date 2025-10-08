@@ -696,13 +696,13 @@ func TestConsumerServiceCloseShardWritersConcurrently(t *testing.T) {
 func TestConsumerServiceWriterMetrics(t *testing.T) {
 	testScope := tally.NewTestScope("test", nil)
 
-	acceptedMetadata := producer.FilterFuncMetadata{
-		FilterType: producer.ShardSetFilter,
-		SourceType: producer.DynamicConfig}
+	acceptedMetadata := producer.NewFilterFuncMetadata(
+		producer.ShardSetFilter,
+		producer.DynamicConfig)
 
-	notAcceptedMetadata := producer.FilterFuncMetadata{
-		FilterType: producer.PercentageFilter,
-		SourceType: producer.DynamicConfig}
+	notAcceptedMetadata := producer.NewFilterFuncMetadata(
+		producer.PercentageFilter,
+		producer.DynamicConfig)
 
 	m := newConsumerServiceWriterMetrics(testScope)
 	m.getFilterAcceptedGranularCounter(acceptedMetadata).Inc(1)
@@ -711,10 +711,10 @@ func TestConsumerServiceWriterMetrics(t *testing.T) {
 	accepetKey := m.getGranularFilterCounterMapKey(acceptedMetadata)
 	notAcceptKey := m.getGranularFilterCounterMapKey(notAcceptedMetadata)
 
-	_, ok := m.filterAcceptedGranular[accepetKey]
+	_, ok := m.filterAcceptedGranular.Load(accepetKey)
 	require.True(t, ok)
 
-	_, ok = m.filterNotAcceptedGranular[notAcceptKey]
+	_, ok = m.filterNotAcceptedGranular.Load(notAcceptKey)
 	require.True(t, ok)
 
 	gotAcceptedValue := false

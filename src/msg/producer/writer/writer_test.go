@@ -895,10 +895,10 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 			topicUpdate1: testTopicUpdate{
 				dynamicFilterConfig: testDynamicFilterConfig,
 				expectedDataFilters: []producer.FilterFuncMetadata{
-					{FilterType: producer.PercentageFilter, SourceType: producer.DynamicConfig},
-					{FilterType: producer.ShardSetFilter, SourceType: producer.DynamicConfig},
-					{FilterType: producer.StoragePolicyFilter, SourceType: producer.DynamicConfig},
-					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+					testNewFilterMetadata(producer.PercentageFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.ShardSetFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.StoragePolicyFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.AcceptAllFilter, producer.StaticConfig),
 				},
 				expectedCswCount: 1,
 			},
@@ -915,10 +915,10 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 			topicUpdate1: testTopicUpdate{
 				dynamicFilterConfig: testDynamicFilterConfig,
 				expectedDataFilters: []producer.FilterFuncMetadata{
-					{FilterType: producer.PercentageFilter, SourceType: producer.DynamicConfig},
-					{FilterType: producer.ShardSetFilter, SourceType: producer.DynamicConfig},
-					{FilterType: producer.StoragePolicyFilter, SourceType: producer.DynamicConfig},
-					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+					testNewFilterMetadata(producer.PercentageFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.ShardSetFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.StoragePolicyFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.AcceptAllFilter, producer.StaticConfig),
 				},
 				expectedCswCount: 1,
 			},
@@ -934,20 +934,20 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 			topicUpdate1: testTopicUpdate{
 				dynamicFilterConfig: nil,
 				expectedDataFilters: []producer.FilterFuncMetadata{
-					{FilterType: producer.PercentageFilter, SourceType: producer.StaticConfig},
-					{FilterType: producer.ShardSetFilter, SourceType: producer.StaticConfig},
-					{FilterType: producer.StoragePolicyFilter, SourceType: producer.StaticConfig},
-					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+					testNewFilterMetadata(producer.PercentageFilter, producer.StaticConfig),
+					testNewFilterMetadata(producer.ShardSetFilter, producer.StaticConfig),
+					testNewFilterMetadata(producer.StoragePolicyFilter, producer.StaticConfig),
+					testNewFilterMetadata(producer.AcceptAllFilter, producer.StaticConfig),
 				},
 				expectedCswCount: 1,
 			},
 			topicUpdate2: &testTopicUpdate{
 				dynamicFilterConfig: nil,
 				expectedDataFilters: []producer.FilterFuncMetadata{
-					{FilterType: producer.PercentageFilter, SourceType: producer.StaticConfig},
-					{FilterType: producer.ShardSetFilter, SourceType: producer.StaticConfig},
-					{FilterType: producer.StoragePolicyFilter, SourceType: producer.StaticConfig},
-					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+					testNewFilterMetadata(producer.PercentageFilter, producer.StaticConfig),
+					testNewFilterMetadata(producer.ShardSetFilter, producer.StaticConfig),
+					testNewFilterMetadata(producer.StoragePolicyFilter, producer.StaticConfig),
+					testNewFilterMetadata(producer.AcceptAllFilter, producer.StaticConfig),
 				},
 				expectedCswCount: 1,
 			},
@@ -959,18 +959,18 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 			topicUpdate1: testTopicUpdate{
 				dynamicFilterConfig: testDynamicFilterConfig,
 				expectedDataFilters: []producer.FilterFuncMetadata{
-					{FilterType: producer.PercentageFilter, SourceType: producer.DynamicConfig},
-					{FilterType: producer.ShardSetFilter, SourceType: producer.DynamicConfig},
-					{FilterType: producer.StoragePolicyFilter, SourceType: producer.DynamicConfig},
-					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+					testNewFilterMetadata(producer.PercentageFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.ShardSetFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.StoragePolicyFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.AcceptAllFilter, producer.StaticConfig),
 				},
 				expectedCswCount: 1,
 			},
 			topicUpdate2: &testTopicUpdate{
 				dynamicFilterConfig: topic.NewFilterConfig().SetPercentageFilter(topic.NewPercentageFilter(75)),
 				expectedDataFilters: []producer.FilterFuncMetadata{
-					{FilterType: producer.PercentageFilter, SourceType: producer.DynamicConfig},
-					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+					testNewFilterMetadata(producer.PercentageFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.AcceptAllFilter, producer.StaticConfig),
 				},
 				expectedCswCount: 1,
 			},
@@ -1009,8 +1009,8 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 				dynamicFilterConfig: topic.NewFilterConfig().
 					SetStoragePolicyFilter(topic.NewStoragePolicyFilter([]string{"1m:40d"})),
 				expectedDataFilters: []producer.FilterFuncMetadata{
-					{FilterType: producer.StoragePolicyFilter, SourceType: producer.DynamicConfig},
-					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+					testNewFilterMetadata(producer.StoragePolicyFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.AcceptAllFilter, producer.StaticConfig),
 				},
 				expectedCswCount: 1,
 			},
@@ -1018,9 +1018,9 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 				dynamicFilterConfig: topic.NewFilterConfig().
 					SetShardSetFilter(topic.NewShardSetFilter("randomstringstrinxyz123abc")),
 				expectedDataFilters: []producer.FilterFuncMetadata{
-					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+					testNewFilterMetadata(producer.AcceptAllFilter, producer.StaticConfig),
 					// second update should not be applied
-					{FilterType: producer.StoragePolicyFilter, SourceType: producer.DynamicConfig},
+					testNewFilterMetadata(producer.StoragePolicyFilter, producer.DynamicConfig),
 				},
 				expectedCswCount: 1,
 			},
@@ -1033,17 +1033,17 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 			topicUpdate1: testTopicUpdate{
 				dynamicFilterConfig: testDynamicFilterConfig,
 				expectedDataFilters: []producer.FilterFuncMetadata{
-					{FilterType: producer.PercentageFilter, SourceType: producer.DynamicConfig},
-					{FilterType: producer.ShardSetFilter, SourceType: producer.DynamicConfig},
-					{FilterType: producer.StoragePolicyFilter, SourceType: producer.DynamicConfig},
-					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+					testNewFilterMetadata(producer.PercentageFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.ShardSetFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.StoragePolicyFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.AcceptAllFilter, producer.StaticConfig),
 				},
 				expectedCswCount: 1,
 			},
 			topicUpdate2: &testTopicUpdate{
 				dynamicFilterConfig: nil,
 				expectedDataFilters: []producer.FilterFuncMetadata{
-					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+					testNewFilterMetadata(producer.AcceptAllFilter, producer.StaticConfig),
 				},
 				expectedCswCount: 1,
 			},
@@ -1056,18 +1056,18 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 			topicUpdate1: testTopicUpdate{
 				dynamicFilterConfig: testDynamicFilterConfig,
 				expectedDataFilters: []producer.FilterFuncMetadata{
-					{FilterType: producer.PercentageFilter, SourceType: producer.DynamicConfig},
-					{FilterType: producer.ShardSetFilter, SourceType: producer.DynamicConfig},
-					{FilterType: producer.StoragePolicyFilter, SourceType: producer.DynamicConfig},
-					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+					testNewFilterMetadata(producer.PercentageFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.ShardSetFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.StoragePolicyFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.AcceptAllFilter, producer.StaticConfig),
 				},
 				expectedCswCount: 1,
 			},
 			topicUpdate2: &testTopicUpdate{
 				dynamicFilterConfig: nil,
 				expectedDataFilters: []producer.FilterFuncMetadata{
-					{FilterType: producer.StoragePolicyFilter, SourceType: producer.StaticConfig},
-					{FilterType: producer.AcceptAllFilter, SourceType: producer.StaticConfig},
+					testNewFilterMetadata(producer.StoragePolicyFilter, producer.StaticConfig),
+					testNewFilterMetadata(producer.AcceptAllFilter, producer.StaticConfig),
 				},
 				expectedCswCount: 1,
 			},
@@ -1236,6 +1236,14 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 			w.Close()
 		})
 	}
+}
+
+// testNewFilterMetadata is a helper for creating FilterFuncMetadata in tests
+func testNewFilterMetadata(
+	filterType producer.FilterFuncType,
+	sourceType producer.FilterFuncConfigSourceType,
+) producer.FilterFuncMetadata {
+	return producer.NewFilterFuncMetadata(filterType, sourceType)
 }
 
 func testAreFilterFuncMetadataSlicesEqual(slice1, slice2 []producer.FilterFuncMetadata) bool {
