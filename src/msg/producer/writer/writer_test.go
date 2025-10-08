@@ -1239,7 +1239,10 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 }
 
 // testNewFilterMetadata is a helper for creating FilterFuncMetadata in tests
-func testNewFilterMetadata(filterType producer.FilterFuncType, sourceType producer.FilterFuncConfigSourceType) producer.FilterFuncMetadata {
+func testNewFilterMetadata(
+	filterType producer.FilterFuncType,
+	sourceType producer.FilterFuncConfigSourceType,
+) producer.FilterFuncMetadata {
 	return producer.NewFilterFuncMetadata(filterType, sourceType)
 }
 

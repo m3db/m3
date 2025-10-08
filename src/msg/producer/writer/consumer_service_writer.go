@@ -92,14 +92,14 @@ type consumerServiceWriter interface {
 }
 
 type consumerServiceWriterMetrics struct {
-	placementError         tally.Counter
-	placementUpdate        tally.Counter
-	queueSize              tally.Gauge
-	filterAccepted         tally.Counter
-	filterNotAccepted      tally.Counter
-	filterAcceptedGranular sync.Map // map[string]tally.Counter, lock-free for read-heavy workload
+	placementError            tally.Counter
+	placementUpdate           tally.Counter
+	queueSize                 tally.Gauge
+	filterAccepted            tally.Counter
+	filterNotAccepted         tally.Counter
+	filterAcceptedGranular    sync.Map // map[string]tally.Counter, lock-free for read-heavy workload
 	filterNotAcceptedGranular sync.Map // map[string]tally.Counter, lock-free for read-heavy workload
-	scope                  tally.Scope
+	scope                     tally.Scope
 }
 
 func (cswm *consumerServiceWriterMetrics) getGranularFilterCounterMapKey(metadata producer.FilterFuncMetadata) string {
