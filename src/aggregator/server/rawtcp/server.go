@@ -65,6 +65,7 @@ type handlerMetrics struct {
 	unknownErrorTypeErrors   tally.Counter
 	decodeErrors             tally.Counter
 	errLogRateLimited        tally.Counter
+	timerBatchSizes          tally.Histogram
 }
 
 func newHandlerMetrics(scope tally.Scope) handlerMetrics {
@@ -77,6 +78,10 @@ func newHandlerMetrics(scope tally.Scope) handlerMetrics {
 		unknownErrorTypeErrors:   scope.Counter("unknown-error-type-errors"),
 		decodeErrors:             scope.Counter("decode-errors"),
 		errLogRateLimited:        scope.Counter("error-log-rate-limited"),
+		timerBatchSizes:          scope.Histogram(
+			"timer-batch-sizes",
+			tally.MustMakeLinearValueBuckets(0, 1000, 50),
+		),
 	}
 }
 
@@ -150,6 +155,9 @@ func (s *handler) Handle(conn net.Conn) {
 			untimedMetric.Annotation = current.BatchTimerWithMetadatas.Annotation
 			stagedMetadatas = current.BatchTimerWithMetadatas.StagedMetadatas
 			err = s.aggregator.AddUntimed(untimedMetric, stagedMetadatas)
+			s.metrics.timerBatchSizes.RecordValue(float64(
+				len(current.BatchTimerWithMetadatas.BatchTimer.Values),
+			))
 		case encoding.GaugeWithMetadatasType:
 			untimedMetric = current.GaugeWithMetadatas.Gauge.ToUnion()
 			untimedMetric.Annotation = current.GaugeWithMetadatas.Annotation
