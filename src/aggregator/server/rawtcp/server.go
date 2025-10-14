@@ -85,7 +85,7 @@ func newHandlerMetrics(scope tally.Scope) handlerMetrics {
 		unknownErrorTypeErrors:   scope.Counter("unknown-error-type-errors"),
 		decodeErrors:             scope.Counter("decode-errors"),
 		errLogRateLimited:        scope.Counter("error-log-rate-limited"),
-		timerBatchSizes:          scope.Tagged(map[string]string{
+		timerBatchSizes: scope.Tagged(map[string]string{
 			"bucket-version": "v2",
 		}).Histogram("timer-batch-sizes", timerBatchSizesBuckets),
 	}
