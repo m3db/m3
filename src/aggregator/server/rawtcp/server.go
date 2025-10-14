@@ -48,6 +48,13 @@ const (
 	unknownRemoteHostAddress = "<unknown>"
 )
 
+var (
+	timerBatchSizesBuckets = append(
+		tally.MustMakeLinearValueBuckets(0, 1000, 50),
+		tally.MustMakeExponentialValueBuckets(50000, 2, 6)...,
+	)
+)
+
 // NewServer creates a new raw TCP server.
 func NewServer(address string, aggregator aggregator.Aggregator, opts Options) xserver.Server {
 	iOpts := opts.InstrumentOptions()
@@ -78,10 +85,9 @@ func newHandlerMetrics(scope tally.Scope) handlerMetrics {
 		unknownErrorTypeErrors:   scope.Counter("unknown-error-type-errors"),
 		decodeErrors:             scope.Counter("decode-errors"),
 		errLogRateLimited:        scope.Counter("error-log-rate-limited"),
-		timerBatchSizes: scope.Histogram(
-			"timer-batch-sizes",
-			tally.MustMakeLinearValueBuckets(0, 1000, 50),
-		),
+		timerBatchSizes:          scope.Tagged(map[string]string{
+			"bucket-version": "v2",
+		}).Histogram("timer-batch-sizes", timerBatchSizesBuckets),
 	}
 }
 
