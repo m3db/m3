@@ -152,7 +152,7 @@ func (m PipelineMetadata) Clone() PipelineMetadata {
 		StoragePolicies: m.StoragePolicies.Clone(),
 		Pipeline:        m.Pipeline.Clone(),
 		ResendEnabled:   m.ResendEnabled,
-		RoutingPolicy:  m.RoutingPolicy.Clone(),
+		RoutingPolicy:   m.RoutingPolicy.Clone(),
 	}
 }
 
