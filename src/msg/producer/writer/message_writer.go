@@ -551,12 +551,12 @@ func (w *messageWriter) Close() {
 		w.Unlock()
 		return
 	}
-	w.isClosed = true
 	w.Unlock()
 	// NB: Wait until all messages cleaned up then close.
 	w.waitUntilAllMessageRemoved()
 	close(w.doneCh)
 	w.wg.Wait()
+	w.isClosed = true
 }
 
 func (w *messageWriter) waitUntilAllMessageRemoved() {
