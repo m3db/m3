@@ -353,7 +353,9 @@ func (w *writer) SetRoutingPolicyHandler(policyHandler routing.PolicyHandler) {
 }
 
 // ParseDynamicFilters parses the dynamic filters for a consumer service from a topic update.
-func ParseDynamicFilters(csw consumerServiceWriter, rph routing.PolicyHandler, filterConfig topic.FilterConfig) ([]producer.FilterFunc, error) {
+func ParseDynamicFilters(
+	csw consumerServiceWriter, rph routing.PolicyHandler, filterConfig topic.FilterConfig,
+) ([]producer.FilterFunc, error) {
 	filterFuncs := []producer.FilterFunc{}
 
 	if filterConfig == nil {
@@ -391,7 +393,8 @@ func ParseDynamicFilters(csw consumerServiceWriter, rph routing.PolicyHandler, f
 	}
 
 	if filterConfig.RoutingPolicyFilter() != nil {
-		routingPolicyFilterFunc, err := ParseRoutingPolicyFilterFromFromTopicUpdate(csw, rph, filterConfig.RoutingPolicyFilter())
+		routingPolicyFilterFunc, err := ParseRoutingPolicyFilterFromFromTopicUpdate(
+			csw, rph, filterConfig.RoutingPolicyFilter())
 
 		if err != nil {
 			return filterFuncs, fmt.Errorf("Error registering routing policy filter: %w", err)

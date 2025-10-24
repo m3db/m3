@@ -368,7 +368,8 @@ func (filter *routingPolicyFilter) AllowedTrafficTypes() []string {
 	return filter.allowedTrafficTypes
 }
 
-// IsDefault determines the behavior of the filter when no traffic type is specified. If true, the filter will return true.
+// IsDefault determines the behavior of the filter when no traffic type is
+// specified. If true, the filter will return true.
 func (filter *routingPolicyFilter) IsDefault() bool {
 	return filter.isDefault
 }
@@ -479,8 +480,10 @@ func (cs *consumerService) String() string {
 				fmt.Sprintf(", storage policy filter: %v", cs.filterConfigs.storagePolicyFilterConfig.storagePolicies))
 		}
 		if cs.filterConfigs.routingPolicyFilterConfig != nil {
-			buf.WriteString(fmt.Sprintf(", routing policy filter allowed traffic types: %v", cs.filterConfigs.routingPolicyFilterConfig.allowedTrafficTypes))
-			buf.WriteString(fmt.Sprintf(", routing policy filter is default: %v", cs.filterConfigs.routingPolicyFilterConfig.isDefault))
+			buf.WriteString(fmt.Sprintf(", routing policy filter allowed traffic types: %v",
+				cs.filterConfigs.routingPolicyFilterConfig.allowedTrafficTypes))
+			buf.WriteString(fmt.Sprintf(", routing policy filter is default: %v",
+				cs.filterConfigs.routingPolicyFilterConfig.isDefault))
 		}
 	}
 	buf.WriteString("}")

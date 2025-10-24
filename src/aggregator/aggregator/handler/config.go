@@ -257,7 +257,9 @@ type routingPolicyFilterConfiguration struct {
 	AllowedTrafficTypes []string                        `yaml:"allowedTrafficTypes" validate:"nonzero"`
 }
 
-func (c routingPolicyFilterConfiguration) NewConsumerServiceFilter(rph routing.PolicyHandler) (services.ServiceID, producer.FilterFunc) {
+func (c routingPolicyFilterConfiguration) NewConsumerServiceFilter(
+	rph routing.PolicyHandler,
+) (services.ServiceID, producer.FilterFunc) {
 	p := writer.RoutingPolicyFilterParams{
 		RoutingPolicyHandler: rph,
 		IsDefault:            c.IsDefault,

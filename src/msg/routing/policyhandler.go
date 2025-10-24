@@ -8,6 +8,7 @@ import (
 	"github.com/m3db/m3/src/x/watch"
 )
 
+// PolicyHandler handles dynamic routing policy updates from a KV store.
 type PolicyHandler interface {
 	// Close closes the policy watcher.
 	Close()
@@ -25,6 +26,7 @@ type routingPolicyHandler struct {
 	isWatchingValue  bool
 }
 
+// NewRoutingPolicyHandler creates a new routing policy handler.
 func NewRoutingPolicyHandler(opts PolicyHandlerOptions) (PolicyHandler, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
@@ -78,7 +80,8 @@ func (p *routingPolicyHandler) initWatch(opts PolicyHandlerOptions) error {
 		// If the error is an InitValueError (e.g., timeout), we can continue
 		// since the watch is still running in the background and will update
 		// when the key becomes available.
-		if _, ok := err.(watch.InitValueError); !ok {
+		var initValueError watch.InitValueError
+		if !errors.As(err, &initValueError) {
 			return err
 		}
 	}

@@ -29,7 +29,8 @@ func NewPolicyConfig(trafficTypes map[string]uint64) PolicyConfig {
 	}
 }
 
-// NewPolicyConfigFromValue creates a new policy from a value, where the value is a protobuf message of RoutingPolicyConfig.
+// NewPolicyConfigFromValue creates a new policy from a value, where the value
+// is a protobuf message of RoutingPolicyConfig.
 func NewPolicyConfigFromValue(v kv.Value) (PolicyConfig, error) {
 	var protoPolicy routingpolicypb.RoutingPolicyConfig
 	if err := v.Unmarshal(&protoPolicy); err != nil {

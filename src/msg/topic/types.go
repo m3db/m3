@@ -141,7 +141,8 @@ type ShardSetFilter interface {
 	ShardSet() string
 }
 
-// RoutingPolicyFilter is the route policy filter for a consumer service, filters metrics based on specified route policies.
+// RoutingPolicyFilter is the route policy filter for a consumer service,
+// filters metrics based on specified route policies.
 type RoutingPolicyFilter interface {
 	AllowedTrafficTypes() []string
 	IsDefault() bool

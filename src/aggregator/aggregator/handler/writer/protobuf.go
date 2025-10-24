@@ -200,7 +200,7 @@ func (f storagePolicyFilter) Filter(m producer.Message) bool {
 	return false
 }
 
-// RoutingPolicyFilter is a filter for routing policy.
+// RoutingPolicyFilterParams provides parameters for creating a routing policy filter.
 type RoutingPolicyFilterParams struct {
 	RoutingPolicyHandler routing.PolicyHandler
 	IsDefault            bool
@@ -208,7 +208,9 @@ type RoutingPolicyFilterParams struct {
 }
 
 // NewRoutingPolicyFilter creates a new routing policy based filter.
-func NewRoutingPolicyFilter(p RoutingPolicyFilterParams, configSource producer.FilterFuncConfigSourceType) producer.FilterFunc {
+func NewRoutingPolicyFilter(
+	p RoutingPolicyFilterParams, configSource producer.FilterFuncConfigSourceType,
+) producer.FilterFunc {
 	cfg := routingPolicyFilter{
 		rph:                 p.RoutingPolicyHandler,
 		isDefault:           p.IsDefault,

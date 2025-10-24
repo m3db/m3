@@ -8,6 +8,7 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 )
 
+// PolicyHandlerOptions provides options for creating a PolicyHandler.
 type PolicyHandlerOptions interface {
 	WithKVClient(kvClient client.Client) PolicyHandlerOptions
 	KVClient() client.Client
@@ -24,6 +25,7 @@ type PolicyHandlerOptions interface {
 	Validate() error
 }
 
+// NewPolicyHandlerOptions creates a new PolicyHandlerOptions.
 func NewPolicyHandlerOptions() PolicyHandlerOptions {
 	return &policyHandlerOptions{}
 }

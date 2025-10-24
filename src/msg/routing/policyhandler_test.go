@@ -20,7 +20,9 @@ func setupTestHandler(ctrl *gomock.Controller, staticTypes map[string]uint64) (P
 }
 
 // Test helper to setup a policy handler with a specific key for watch tests
-func setupTestHandlerWithKey(ctrl *gomock.Controller, key string, staticTypes map[string]uint64) (PolicyHandler, kv.Store) {
+func setupTestHandlerWithKey(
+	ctrl *gomock.Controller, key string, staticTypes map[string]uint64,
+) (PolicyHandler, kv.Store) {
 	kvClient := client.NewMockClient(ctrl)
 	store := mem.NewStore()
 	kvOpts := kv.NewOverrideOptions().SetZone("test-zone").SetEnvironment("test-env").SetNamespace("test-ns")
@@ -101,9 +103,13 @@ func TestRoutingPolicyHandler_NewRoutingPolicyHandler(t *testing.T) {
 			name: "missing static traffic types",
 			setupOpts: func() PolicyHandlerOptions {
 				kvClient := client.NewMockClient(ctrl)
+				kvOpts := kv.NewOverrideOptions().
+					SetZone("test-zone").
+					SetEnvironment("test-env").
+					SetNamespace("test-ns")
 				return NewPolicyHandlerOptions().
 					WithKVClient(kvClient).
-					WithKVOverrideOptions(kv.NewOverrideOptions().SetZone("test-zone").SetEnvironment("test-env").SetNamespace("test-ns")).
+					WithKVOverrideOptions(kvOpts).
 					WithKVKey("test-key")
 			},
 			expectError: true,
