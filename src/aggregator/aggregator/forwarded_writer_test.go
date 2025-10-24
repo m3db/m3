@@ -105,12 +105,12 @@ func TestForwardedWriterRegisterNewAggregation(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		c      = client.NewMockAdminClient(ctrl)
-		opts   = NewOptions(clock.NewOptions()).SetAdminClient(c)
-		w      = newForwardedWriter(0, opts)
-		mt     = metric.GaugeType
-		mid    = id.RawID("foo")
-		aggKey = testForwardedWriterAggregationKey
+		c           = client.NewMockAdminClient(ctrl)
+		opts        = NewOptions(clock.NewOptions()).SetAdminClient(c)
+		w           = newForwardedWriter(0, opts)
+		mt          = metric.GaugeType
+		mid         = id.RawID("foo")
+		aggKey      = testForwardedWriterAggregationKey
 		routePolicy = policy.RoutingPolicy{
 			TrafficTypes: 1,
 		}
@@ -118,9 +118,9 @@ func TestForwardedWriterRegisterNewAggregation(t *testing.T) {
 
 	// Validate that no error is returned.
 	writeFn, onDoneFn, err := w.Register(testRegisterable{
-		metricType: mt,
-		id:         mid,
-		key:        aggKey,
+		metricType:  mt,
+		id:          mid,
+		key:         aggKey,
 		routePolicy: routePolicy,
 	})
 	require.NoError(t, err)
@@ -353,13 +353,13 @@ func TestForwardedWriterPrepare(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		c      = client.NewMockAdminClient(ctrl)
-		opts   = NewOptions(clock.NewOptions()).SetAdminClient(c)
-		w      = newForwardedWriter(0, opts)
-		mt     = metric.GaugeType
-		mid    = id.RawID("foo")
-		mid2   = id.RawID("bar")
-		aggKey = testForwardedWriterAggregationKey
+		c           = client.NewMockAdminClient(ctrl)
+		opts        = NewOptions(clock.NewOptions()).SetAdminClient(c)
+		w           = newForwardedWriter(0, opts)
+		mt          = metric.GaugeType
+		mid         = id.RawID("foo")
+		mid2        = id.RawID("bar")
+		aggKey      = testForwardedWriterAggregationKey
 		routePolicy = policy.RoutingPolicy{
 			TrafficTypes: 1,
 		}
@@ -367,9 +367,9 @@ func TestForwardedWriterPrepare(t *testing.T) {
 
 	// Register an aggregation.
 	writeFn, onDoneFn, err := w.Register(testRegisterable{
-		metricType: mt,
-		id:         mid,
-		key:        aggKey,
+		metricType:  mt,
+		id:          mid,
+		key:         aggKey,
 		routePolicy: routePolicy,
 	})
 	require.NoError(t, err)
@@ -381,9 +381,9 @@ func TestForwardedWriterPrepare(t *testing.T) {
 
 	// Register another aggregation.
 	writeFn2, onDoneFn2, err := w.Register(testRegisterable{
-		metricType: mt,
-		id:         mid2,
-		key:        aggKey,
+		metricType:  mt,
+		id:          mid2,
+		key:         aggKey,
 		routePolicy: routePolicy,
 	})
 	require.NoError(t, err)
@@ -497,11 +497,11 @@ func TestForwardedWriterResend(t *testing.T) {
 			SetBufferForPastTimedMetricFn(func(resolution time.Duration) time.Duration {
 				return resolution
 			})
-		w      = newForwardedWriter(0, opts)
-		mt     = metric.GaugeType
-		mid    = id.RawID("foo")
-		mid2   = id.RawID("bar")
-		aggKey = testForwardedWriterAggregationKey
+		w           = newForwardedWriter(0, opts)
+		mt          = metric.GaugeType
+		mid         = id.RawID("foo")
+		mid2        = id.RawID("bar")
+		aggKey      = testForwardedWriterAggregationKey
 		routePolicy = policy.RoutingPolicy{
 			TrafficTypes: 1,
 		}
@@ -513,7 +513,7 @@ func TestForwardedWriterResend(t *testing.T) {
 		id:            mid,
 		key:           aggKey,
 		resendEnabled: true,
-		routePolicy: routePolicy,
+		routePolicy:   routePolicy,
 	})
 	require.NoError(t, err)
 
@@ -528,7 +528,7 @@ func TestForwardedWriterResend(t *testing.T) {
 		id:            mid2,
 		key:           aggKey,
 		resendEnabled: true,
-		routePolicy: routePolicy,
+		routePolicy:   routePolicy,
 	})
 	require.NoError(t, err)
 
@@ -683,7 +683,7 @@ type testRegisterable struct {
 	id            id.RawID
 	key           aggregationKey
 	resendEnabled bool
-	routePolicy policy.RoutingPolicy
+	routePolicy   policy.RoutingPolicy
 }
 
 func (t testRegisterable) Type() metric.Type {

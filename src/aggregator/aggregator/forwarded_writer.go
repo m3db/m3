@@ -282,7 +282,7 @@ type forwardedAggregationBucket struct {
 	prevValues    []float64
 	annotation    []byte
 	resendEnabled bool
-	routePolicy policy.RoutingPolicy
+	routePolicy   policy.RoutingPolicy
 }
 
 type forwardedAggregationWithKey struct {
