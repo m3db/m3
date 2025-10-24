@@ -19,11 +19,10 @@ type PolicyHandler interface {
 type routingPolicyHandler struct {
 	sync.RWMutex
 
-	store        kv.Store
-	policyConfig PolicyConfig
-
-	value            watch.Value
-	isWatchingValue  bool
+	store           kv.Store
+	policyConfig    PolicyConfig
+	value           watch.Value
+	isWatchingValue bool
 }
 
 // NewRoutingPolicyHandler creates a new routing policy handler.

@@ -38,9 +38,9 @@ func TestRoutePolicyFilter_Filter_ZeroTrafficTypes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			params := RoutingPolicyFilterParams{
-				RoutingPolicyHandler:  rph,
-				IsDefault:           tt.isDefault,
-				AllowedTrafficTypes: []string{"type1"},
+				RoutingPolicyHandler: rph,
+				IsDefault:            tt.isDefault,
+				AllowedTrafficTypes:  []string{"type1"},
 			}
 
 			filter := NewRoutingPolicyFilter(params, producer.StaticConfig)
@@ -144,9 +144,9 @@ func TestRoutePolicyFilter_Filter_WithTrafficTypes(t *testing.T) {
 			rph.EXPECT().GetTrafficTypes().Return(tt.trafficTypes).AnyTimes()
 
 			params := RoutingPolicyFilterParams{
-				RoutingPolicyHandler:  rph,
-				IsDefault:           false,
-				AllowedTrafficTypes: tt.allowedTypes,
+				RoutingPolicyHandler: rph,
+				IsDefault:            false,
+				AllowedTrafficTypes:  tt.allowedTypes,
 			}
 
 			filter := NewRoutingPolicyFilter(params, producer.StaticConfig)
@@ -215,9 +215,9 @@ func TestRoutePolicyFilter_EdgeCases(t *testing.T) {
 				rph.EXPECT().GetTrafficTypes().Return(map[string]uint64{"type1": 0}).AnyTimes()
 
 				params := RoutingPolicyFilterParams{
-					RoutingPolicyHandler:  rph,
-					IsDefault:           false,
-					AllowedTrafficTypes: []string{}, // empty
+					RoutingPolicyHandler: rph,
+					IsDefault:            false,
+					AllowedTrafficTypes:  []string{}, // empty
 				}
 				return NewRoutingPolicyFilter(params, producer.StaticConfig)
 			},
@@ -234,9 +234,9 @@ func TestRoutePolicyFilter_EdgeCases(t *testing.T) {
 				rph.EXPECT().GetTrafficTypes().Return(nil).AnyTimes()
 
 				params := RoutingPolicyFilterParams{
-					RoutingPolicyHandler:  rph,
-					IsDefault:           true,
-					AllowedTrafficTypes: []string{"type1"},
+					RoutingPolicyHandler: rph,
+					IsDefault:            true,
+					AllowedTrafficTypes:  []string{"type1"},
 				}
 				return NewRoutingPolicyFilter(params, producer.StaticConfig)
 			},
@@ -255,9 +255,9 @@ func TestRoutePolicyFilter_EdgeCases(t *testing.T) {
 				}).AnyTimes()
 
 				params := RoutingPolicyFilterParams{
-					RoutingPolicyHandler:  rph,
-					IsDefault:           false,
-					AllowedTrafficTypes: []string{"all"},
+					RoutingPolicyHandler: rph,
+					IsDefault:            false,
+					AllowedTrafficTypes:  []string{"all"},
 				}
 				return NewRoutingPolicyFilter(params, producer.StaticConfig)
 			},
@@ -348,9 +348,9 @@ func TestRoutePolicyFilter_BitMaskingEdgeCases(t *testing.T) {
 			rph.EXPECT().GetTrafficTypes().Return(tt.trafficTypes).AnyTimes()
 
 			params := RoutingPolicyFilterParams{
-				RoutingPolicyHandler:  rph,
-				IsDefault:           false,
-				AllowedTrafficTypes: tt.allowedTypes,
+				RoutingPolicyHandler: rph,
+				IsDefault:            false,
+				AllowedTrafficTypes:  tt.allowedTypes,
 			}
 
 			filter := NewRoutingPolicyFilter(params, producer.StaticConfig)

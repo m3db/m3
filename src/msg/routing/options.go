@@ -31,10 +31,10 @@ func NewPolicyHandlerOptions() PolicyHandlerOptions {
 }
 
 type policyHandlerOptions struct {
-	kvClient                 client.Client
-	kvOverrideOptions        kv.OverrideOptions
-	kvKey                    string
-	policyConfig             PolicyConfig
+	kvClient          client.Client
+	kvOverrideOptions kv.OverrideOptions
+	kvKey             string
+	policyConfig      PolicyConfig
 }
 
 func (o *policyHandlerOptions) WithKVClient(kvClient client.Client) PolicyHandlerOptions {
