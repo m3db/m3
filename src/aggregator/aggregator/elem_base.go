@@ -116,6 +116,9 @@ type metricElem interface {
 	// ResetSetData resets the element and sets data.
 	ResetSetData(data ElemData) error
 
+	// SetRoutingPolicy updates the routing policy for this element.
+	SetRoutingPolicy(rp policy.RoutingPolicy)
+
 	// SetForwardedCallbacks sets the callback functions to write forwarded
 	// metrics for elements producing such forwarded metrics.
 	SetForwardedCallbacks(
@@ -166,6 +169,7 @@ type ElemData struct {
 	NumForwardedTimes  int
 	IDPrefixSuffixType IDPrefixSuffixType
 	ListType           metricListType
+	RoutingPolicy      policy.RoutingPolicy
 }
 
 // nolint: maligned
@@ -177,6 +181,7 @@ type elemBase struct {
 	aggTypesOpts                    maggregation.TypesOptions
 	id                              id.RawID
 	sp                              policy.StoragePolicy
+	routePolicy                     policy.RoutingPolicy
 	aggTypes                        maggregation.Types
 	aggOpts                         raggregation.Options
 	parsedPipeline                  parsedPipeline
@@ -457,6 +462,7 @@ func (e *elemBase) resetSetData(data ElemData, useDefaultAggregation bool) error
 	}
 	e.id = data.ID
 	e.sp = data.StoragePolicy
+	e.routePolicy = data.RoutingPolicy
 	e.aggTypes = data.AggTypes
 	e.useDefaultAggregation = useDefaultAggregation
 	e.aggOpts.ResetSetData(data.AggTypes)
@@ -479,6 +485,11 @@ func (e *elemBase) SetForwardedCallbacks(
 }
 
 func (e *elemBase) ID() id.RawID { return e.id }
+
+// SetRoutingPolicy sets the routing policy for the element.
+func (e *elemBase) SetRoutingPolicy(rp policy.RoutingPolicy) {
+	e.routePolicy = rp
+}
 
 func (e *elemBase) ForwardedID() (id.RawID, bool) {
 	if !e.parsedPipeline.HasRollup {

@@ -580,6 +580,9 @@ func (e *Entry) shouldUpdateStagedMetadatasWithLock(sm metadata.StagedMetadata) 
 				// the resendEnabled state on the aggregations.
 				return true
 			}
+			if !val.routePolicy.Equal(&sm.Pipelines[i].RoutingPolicy) {
+				return true
+			}
 			bs.Set(uint(idx))
 		}
 	}
@@ -614,6 +617,7 @@ func (e *Entry) addNewAggregationKeyWithLock(
 	listID metricListID,
 	newAggregations aggregationValues,
 	resendEnabled bool,
+	routePolicy policy.RoutingPolicy,
 ) (aggregationValues, error) {
 	// Remove duplicate aggregation pipelines.
 	if newAggregations.contains(key) {
@@ -624,6 +628,8 @@ func (e *Entry) addNewAggregationKeyWithLock(
 		// resendEnabled state changed, which we update below.
 		a := e.aggregations[idx]
 		a.resendEnabled = resendEnabled
+		a.routePolicy = routePolicy
+		a.elem.Value.(metricElem).SetRoutingPolicy(routePolicy)
 		newAggregations = append(newAggregations, a)
 		return newAggregations, nil
 	}
@@ -652,6 +658,7 @@ func (e *Entry) addNewAggregationKeyWithLock(
 		NumForwardedTimes:  key.numForwardedTimes,
 		IDPrefixSuffixType: key.idPrefixSuffixType,
 		ListType:           listID.listType,
+		RoutingPolicy:      routePolicy,
 	}); err != nil {
 		return nil, err
 	}
@@ -667,6 +674,7 @@ func (e *Entry) addNewAggregationKeyWithLock(
 		key:           key,
 		elem:          newListElem,
 		resendEnabled: resendEnabled,
+		routePolicy:   routePolicy,
 	})
 	return newAggregations, nil
 }
@@ -716,7 +724,7 @@ func (e *Entry) updateStagedMetadatasWithLock(
 			}
 			var err error
 			newAggregations, err = e.addNewAggregationKeyWithLock(metricType, elemID, key, listID, newAggregations,
-				resendEnabled)
+				resendEnabled, sm.Pipelines[i].RoutingPolicy)
 			if err != nil {
 				return err
 			}
@@ -975,7 +983,9 @@ func (e *Entry) updateTimedMetadataWithLock(
 	listID := timedMetricListID{
 		resolution: metadata.StoragePolicy.Resolution().Window,
 	}.toMetricListID()
-	newAggregations, err := e.addNewAggregationKeyWithLock(metric.Type, elemID, key, listID, e.aggregations, false)
+	newAggregations, err := e.addNewAggregationKeyWithLock(
+		metric.Type, elemID, key, listID, e.aggregations, false, metadata.RoutingPolicy,
+	)
 	if err != nil {
 		return err
 	}
@@ -1151,8 +1161,10 @@ func (e *Entry) updateForwardMetadataWithLock(
 		resolution:        metadata.StoragePolicy.Resolution().Window,
 		numForwardedTimes: metadata.NumForwardedTimes,
 	}.toMetricListID()
-	newAggregations, err := e.addNewAggregationKeyWithLock(metric.Type, elemID, key, listID, e.aggregations,
-		metadata.ResendEnabled)
+	newAggregations, err := e.addNewAggregationKeyWithLock(
+		metric.Type, elemID, key, listID, e.aggregations,
+		metadata.ResendEnabled, metadata.RoutingPolicy,
+	)
 	if err != nil {
 		return err
 	}
@@ -1215,6 +1227,9 @@ type aggregationValue struct {
 	// This allows changing the resendEnabled bit without creating a new aggregation. This allows seamlessly
 	// transitioning to resendEnabled without a gap in the aggregation.
 	resendEnabled bool
+
+	// RoutingPolicy is the route policy to apply to the metric.
+	routePolicy policy.RoutingPolicy
 }
 
 // TODO(xichen): benchmark the performance of using a single slice
