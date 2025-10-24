@@ -483,7 +483,7 @@ func (l *baseMetricList) consumeForwardedMetric(
 	resendEnabled bool,
 	routePolicy policy.RoutingPolicy,
 ) {
-	writeFn(aggregationKey, timeNanos, value, prevValue, annotation, resendEnabled)
+	writeFn(aggregationKey, timeNanos, value, prevValue, annotation, resendEnabled, routePolicy)
 	l.metrics.flushForwarded.metricConsumed.Inc(1)
 }
 

@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/id"
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -52,6 +53,7 @@ type writeForwardedMetricFn func(
 	prevValue float64,
 	annotation []byte,
 	resendEnabled bool,
+	routePolicy policy.RoutingPolicy,
 )
 
 type onForwardedAggregationDoneFn func(key aggregationKey, expiredTimes []xtime.UnixNano) error
@@ -280,6 +282,7 @@ type forwardedAggregationBucket struct {
 	prevValues    []float64
 	annotation    []byte
 	resendEnabled bool
+	routePolicy policy.RoutingPolicy
 }
 
 type forwardedAggregationWithKey struct {
@@ -315,7 +318,7 @@ func (agg *forwardedAggregationWithKey) reset() {
 }
 
 func (agg *forwardedAggregationWithKey) add(timeNanos xtime.UnixNano, value float64, prevValue float64,
-	annotation []byte, resendEnabled bool) {
+	annotation []byte, resendEnabled bool, routePolicy policy.RoutingPolicy) {
 	var idx int
 	for idx = 0; idx < len(agg.buckets); idx++ {
 		if agg.buckets[idx].timeNanos == timeNanos {
@@ -331,6 +334,7 @@ func (agg *forwardedAggregationWithKey) add(timeNanos xtime.UnixNano, value floa
 	bucket.prevValues = append(bucket.prevValues, prevValue)
 	bucket.annotation = aggregation.MaybeReplaceAnnotation(bucket.annotation, annotation)
 	bucket.resendEnabled = resendEnabled
+	bucket.routePolicy = routePolicy
 	agg.buckets[idx] = bucket
 }
 
@@ -450,9 +454,10 @@ func (agg *forwardedAggregation) write(
 	prevValue float64,
 	annotation []byte,
 	resendEnabled bool,
+	routePolicy policy.RoutingPolicy,
 ) {
 	idx := agg.index(key)
-	agg.byKey[idx].add(xtime.UnixNano(timeNanos), value, prevValue, annotation, resendEnabled)
+	agg.byKey[idx].add(xtime.UnixNano(timeNanos), value, prevValue, annotation, resendEnabled, routePolicy)
 	agg.metrics.write.Inc(1)
 }
 
@@ -485,6 +490,7 @@ func (agg *forwardedAggregation) onDone(key aggregationKey, expiredTimes []xtime
 				SourceID:          agg.shard,
 				NumForwardedTimes: key.numForwardedTimes,
 				ResendEnabled:     b.resendEnabled,
+				RoutingPolicy:     b.routePolicy,
 			}
 
 			var version uint32
