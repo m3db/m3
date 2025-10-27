@@ -553,20 +553,39 @@ func (w *messageWriter) Close() {
 		return
 	}
 
-	if !w.gracefulClose {
+	queueLen := w.queue.Len()
+	gracefulClose := w.gracefulClose
+
+	if !gracefulClose {
 		// Fast shutdown: mark as closed immediately so messages get auto-acked
 		w.isClosed = true
+		w.opts.InstrumentOptions().Logger().Info("message writer closing with fast shutdown",
+			zap.Uint64("shard", w.replicatedShardID),
+			zap.Int("queued_messages", queueLen),
+			zap.Bool("graceful_close", false))
+	} else {
+		w.opts.InstrumentOptions().Logger().Info("message writer closing with graceful shutdown",
+			zap.Uint64("shard", w.replicatedShardID),
+			zap.Int("queued_messages", queueLen),
+			zap.Bool("graceful_close", true))
 	}
 	w.Unlock()
 
 	// NB: Wait until all messages cleaned up then close.
 	w.waitUntilAllMessageRemoved()
 
-	if w.gracefulClose {
+	if gracefulClose {
 		// Now mark as closed after all messages are processed
 		w.Lock()
 		w.isClosed = true
 		w.Unlock()
+		w.opts.InstrumentOptions().Logger().Info("message writer graceful shutdown complete",
+			zap.Uint64("shard", w.replicatedShardID),
+			zap.Int("initial_queued_messages", queueLen))
+	} else {
+		w.opts.InstrumentOptions().Logger().Info("message writer fast shutdown complete",
+			zap.Uint64("shard", w.replicatedShardID),
+			zap.Int("auto_acked_messages", queueLen))
 	}
 
 	close(w.doneCh)
@@ -643,8 +662,15 @@ func (w *messageWriter) SetMessageTTLNanos(nanos int64) {
 // SetGracefulClose sets the graceful close behavior.
 func (w *messageWriter) SetGracefulClose(enabled bool) {
 	w.Lock()
+	oldValue := w.gracefulClose
 	w.gracefulClose = enabled
 	w.Unlock()
+
+	if oldValue != enabled {
+		w.opts.InstrumentOptions().Logger().Info("message writer graceful close setting updated",
+			zap.Uint64("shard", w.replicatedShardID),
+			zap.Bool("graceful_close", enabled))
+	}
 }
 
 // AddConsumerWriter adds a consumer writer.
