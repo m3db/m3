@@ -198,6 +198,7 @@ type messageWriter struct {
 	cutOffNanos      int64
 	cutOverNanos     int64
 	messageTTLNanos  int64
+	gracefulClose    bool
 	msgsToWrite      []*message
 	isClosed         bool
 	doneCh           chan struct{}
@@ -551,10 +552,23 @@ func (w *messageWriter) Close() {
 		w.Unlock()
 		return
 	}
-	w.isClosed = true
+
+	if !w.gracefulClose {
+		// Fast shutdown: mark as closed immediately so messages get auto-acked
+		w.isClosed = true
+	}
 	w.Unlock()
+
 	// NB: Wait until all messages cleaned up then close.
 	w.waitUntilAllMessageRemoved()
+
+	if w.gracefulClose {
+		// Now mark as closed after all messages are processed
+		w.Lock()
+		w.isClosed = true
+		w.Unlock()
+	}
+
 	close(w.doneCh)
 	w.wg.Wait()
 }
@@ -623,6 +637,13 @@ func (w *messageWriter) MessageTTLNanos() int64 {
 func (w *messageWriter) SetMessageTTLNanos(nanos int64) {
 	w.Lock()
 	w.messageTTLNanos = nanos
+	w.Unlock()
+}
+
+// SetGracefulClose sets the graceful close behavior.
+func (w *messageWriter) SetGracefulClose(enabled bool) {
+	w.Lock()
+	w.gracefulClose = enabled
 	w.Unlock()
 }
 

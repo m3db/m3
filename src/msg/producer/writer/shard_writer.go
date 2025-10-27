@@ -43,6 +43,9 @@ type shardWriter interface {
 	// SetMessageTTLNanos sets the message ttl nanoseconds.
 	SetMessageTTLNanos(value int64)
 
+	// SetGracefulClose sets the graceful close behavior for all message writers.
+	SetGracefulClose(enabled bool)
+
 	// Close closes the shard writer.
 	Close()
 
@@ -116,6 +119,10 @@ func (w *sharedShardWriter) QueueSize() int {
 
 func (w *sharedShardWriter) SetMessageTTLNanos(value int64) {
 	w.mw.SetMessageTTLNanos(value)
+}
+
+func (w *sharedShardWriter) SetGracefulClose(enabled bool) {
+	w.mw.SetGracefulClose(enabled)
 }
 
 // nolint: maligned
@@ -300,6 +307,15 @@ func (w *replicatedShardWriter) SetMessageTTLNanos(value int64) {
 func (w *replicatedShardWriter) setMessageTTLNanosWithLock(value int64) {
 	for _, mw := range w.messageWriters {
 		mw.SetMessageTTLNanos(value)
+	}
+}
+
+func (w *replicatedShardWriter) SetGracefulClose(enabled bool) {
+	w.Lock()
+	defer w.Unlock()
+
+	for _, mw := range w.messageWriters {
+		mw.SetGracefulClose(enabled)
 	}
 }
 

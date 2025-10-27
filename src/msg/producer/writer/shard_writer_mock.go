@@ -82,6 +82,18 @@ func (mr *MockshardWriterMockRecorder) QueueSize() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueueSize", reflect.TypeOf((*MockshardWriter)(nil).QueueSize))
 }
 
+// SetGracefulClose mocks base method.
+func (m *MockshardWriter) SetGracefulClose(enabled bool) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetGracefulClose", enabled)
+}
+
+// SetGracefulClose indicates an expected call of SetGracefulClose.
+func (mr *MockshardWriterMockRecorder) SetGracefulClose(enabled interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetGracefulClose", reflect.TypeOf((*MockshardWriter)(nil).SetGracefulClose), enabled)
+}
+
 // SetMessageTTLNanos mocks base method.
 func (m *MockshardWriter) SetMessageTTLNanos(value int64) {
 	m.ctrl.T.Helper()

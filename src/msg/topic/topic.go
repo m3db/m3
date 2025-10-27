@@ -346,6 +346,7 @@ type consumerService struct {
 	ct            ConsumptionType
 	ttlNanos      int64
 	filterConfigs *filterConfig
+	gracefulClose bool
 }
 
 // NewConsumerService creates a ConsumerService.
@@ -363,7 +364,8 @@ func NewConsumerServiceFromProto(cs *topicpb.ConsumerService) (ConsumerService, 
 		SetServiceID(NewServiceIDFromProto(cs.ServiceId)).
 		SetConsumptionType(ct).
 		SetMessageTTLNanos(cs.MessageTtlNanos).
-		SetDynamicFilterConfigs(NewDynamicFilterConfigFromProto(cs.Filters)), nil
+		SetDynamicFilterConfigs(NewDynamicFilterConfigFromProto(cs.Filters)).
+		SetGracefulClose(cs.GracefulClose), nil
 }
 
 // ConsumerServiceToProto creates proto from a ConsumerService.
@@ -377,6 +379,7 @@ func ConsumerServiceToProto(cs ConsumerService) (*topicpb.ConsumerService, error
 		ServiceId:       ServiceIDToProto(cs.ServiceID()),
 		MessageTtlNanos: cs.MessageTTLNanos(),
 		Filters:         DynamicFilterConfigToProto(cs.DynamicFilterConfigs()),
+		GracefulClose:   cs.GracefulClose(),
 	}, nil
 }
 
@@ -425,6 +428,16 @@ func (cs *consumerService) SetDynamicFilterConfigs(value FilterConfig) ConsumerS
 	} else {
 		newcs.filterConfigs = nil
 	}
+	return &newcs
+}
+
+func (cs *consumerService) GracefulClose() bool {
+	return cs.gracefulClose
+}
+
+func (cs *consumerService) SetGracefulClose(value bool) ConsumerService {
+	newcs := *cs
+	newcs.gracefulClose = value
 	return &newcs
 }
 

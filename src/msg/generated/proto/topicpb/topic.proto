@@ -12,6 +12,7 @@ message ConsumerService {
   ConsumptionType consumption_type = 2;
   int64 message_ttl_nanos = 3;
   Filters filters = 4;
+  bool graceful_close = 5;
 }
 
 message Filters {

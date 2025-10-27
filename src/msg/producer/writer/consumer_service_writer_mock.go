@@ -105,11 +105,23 @@ func (mr *MockconsumerServiceWriterMockRecorder) SetMessageTTLNanos(value interf
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMessageTTLNanos", reflect.TypeOf((*MockconsumerServiceWriter)(nil).SetMessageTTLNanos), value)
 }
 
+// SetGracefulClose mocks base method.
+func (m *MockconsumerServiceWriter) SetGracefulClose(enabled bool) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetGracefulClose", enabled)
+}
+
+// SetGracefulClose indicates an expected call of SetGracefulClose.
+func (mr *MockconsumerServiceWriterMockRecorder) SetGracefulClose(enabled interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetGracefulClose", reflect.TypeOf((*MockconsumerServiceWriter)(nil).SetGracefulClose), enabled)
+}
+
 // GetDataFilter mocks base method.
 func (m *MockconsumerServiceWriter) GetDataFilters() []producer.FilterFunc {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetDataFilters")
-	
+
 	ret0, _ := ret[0].([]producer.FilterFunc)
 	return ret0
 }

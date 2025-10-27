@@ -245,6 +245,7 @@ func TestWriterRegisterFilter(t *testing.T) {
 
 	csw1.EXPECT().SetFilters(gomock.Any())
 	csw1.EXPECT().SetMessageTTLNanos(int64(0))
+	csw1.EXPECT().SetGracefulClose(false)
 	testTopic := topic.NewTopic().
 		SetName(opts.TopicName()).
 		SetNumberOfShards(6).
@@ -465,7 +466,9 @@ func TestTopicUpdateWithSameConsumerServicesButDifferentOrder(t *testing.T) {
 	cswMock2.EXPECT().SetFilters(gomock.Any())
 
 	cswMock1.EXPECT().SetMessageTTLNanos(int64(0))
+	cswMock1.EXPECT().SetGracefulClose(false)
 	cswMock2.EXPECT().SetMessageTTLNanos(int64(500))
+	cswMock2.EXPECT().SetGracefulClose(false)
 	testTopic = testTopic.
 		SetConsumerServices([]topic.ConsumerService{cs2, cs1}).
 		SetVersion(1)

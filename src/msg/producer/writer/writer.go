@@ -184,6 +184,7 @@ func (w *writer) process(update interface{}) error {
 			// update existing consumer service writer
 
 			csw.SetMessageTTLNanos(cs.MessageTTLNanos())
+			csw.SetGracefulClose(cs.GracefulClose())
 
 			if cs.DynamicFilterConfigs() != nil {
 				dynamicFilters, err := ParseDynamicFilters(csw, cs.DynamicFilterConfigs())
@@ -265,6 +266,7 @@ func (w *writer) process(update interface{}) error {
 			continue
 		}
 		csw.SetMessageTTLNanos(cs.MessageTTLNanos())
+		csw.SetGracefulClose(cs.GracefulClose())
 		newConsumerServiceWriters[key] = csw
 		w.logger.Info("initialized consumer service writer", zap.String("writer", cs.String()))
 	}

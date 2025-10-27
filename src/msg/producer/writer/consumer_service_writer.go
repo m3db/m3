@@ -78,6 +78,9 @@ type consumerServiceWriter interface {
 	// SetMessageTTLNanos sets the message ttl nanoseconds.
 	SetMessageTTLNanos(value int64)
 
+	// SetGracefulClose sets the graceful close behavior for all message writers.
+	SetGracefulClose(enabled bool)
+
 	// RegisterFilter registers a filter for the consumer service.
 	RegisterFilter(fn producer.FilterFunc)
 
@@ -397,6 +400,12 @@ func (w *consumerServiceWriterImpl) Close() {
 func (w *consumerServiceWriterImpl) SetMessageTTLNanos(value int64) {
 	for _, sw := range w.shardWriters {
 		sw.SetMessageTTLNanos(value)
+	}
+}
+
+func (w *consumerServiceWriterImpl) SetGracefulClose(enabled bool) {
+	for _, sw := range w.shardWriters {
+		sw.SetGracefulClose(enabled)
 	}
 }
 

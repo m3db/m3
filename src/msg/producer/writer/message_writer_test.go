@@ -32,6 +32,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
 
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/producer"
@@ -1014,4 +1015,150 @@ func validateMessages(t *testing.T, msgs []*producer.RefCountedMessage, w *messa
 	}
 	w.RUnlock()
 	require.Equal(t, idx, len(msgs))
+}
+
+func TestMessageWriterCloseWithQueuedMessages(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	numMessages := 10
+
+	t.Run("fast_shutdown_auto_acks_all_messages", func(t *testing.T) {
+		opts := testOptions()
+		scope := tally.NewTestScope("", nil)
+		metrics := newMessageWriterMetrics(scope, instrument.TimerOptions{}, false)
+		w := newMessageWriter(200, newMessagePool(), opts, metrics)
+
+		// Write 10 messages without any consumer writers (so they stay queued)
+		for i := 0; i < numMessages; i++ {
+			mm := producer.NewMockMessage(ctrl)
+			mm.EXPECT().Size().Return(3)
+			mm.EXPECT().Bytes().Return([]byte(fmt.Sprintf("msg-%d", i)))
+			// All messages should be finalized as Consumed (auto-acked)
+			mm.EXPECT().Finalize(producer.Consumed)
+
+			w.Write(producer.NewRefCountedMessage(mm, nil))
+		}
+
+		require.Equal(t, numMessages, w.queue.Len())
+		require.Equal(t, numMessages, w.acks.size())
+
+		// Ensure graceful close is disabled (default fast shutdown)
+		w.SetGracefulClose(false)
+
+		// Start the writer
+		w.Init()
+
+		// Close should auto-ack all messages immediately
+		w.Close()
+
+		// All messages should be removed from queue and acks
+		require.Equal(t, 0, w.queue.Len())
+		require.Equal(t, 0, w.acks.size())
+
+		// Validate metrics - messages should be counted as closed (auto-acked)
+		snapshot := scope.Snapshot()
+		counters := snapshot.Counters()
+		require.Equal(t, int64(numMessages), counters["message-closed+consumer=unknown"].Value())
+		require.Equal(t, int64(numMessages), counters["message-processed+consumer=unknown,result=closed"].Value())
+	})
+
+	t.Run("graceful_shutdown_sends_all_messages", func(t *testing.T) {
+		lis, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		defer lis.Close()
+
+		addr := lis.Addr().String()
+		opts := testOptions()
+		scope := tally.NewTestScope("", nil)
+		metrics := newMessageWriterMetrics(scope, instrument.TimerOptions{}, false)
+
+		var wg sync.WaitGroup
+		defer wg.Wait()
+
+		// Track how many messages were actually sent to the server
+		var messagesSent atomic.Int32
+
+		// Start server that counts and acks messages
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			conn, err := lis.Accept()
+			if err != nil {
+				return
+			}
+			defer conn.Close()
+
+			serverDecoder := proto.NewDecoder(conn, opts.DecoderOptions(), 10)
+			serverEncoder := proto.NewEncoder(opts.EncoderOptions())
+
+			for {
+				var msg msgpb.Message
+				err := serverDecoder.Decode(&msg)
+				if err != nil {
+					return
+				}
+
+				messagesSent.Inc()
+
+				// Send ack
+				err = serverEncoder.Encode(&msgpb.Ack{
+					Metadata: []msgpb.Metadata{msg.Metadata},
+				})
+				if err != nil {
+					return
+				}
+				_, err = conn.Write(serverEncoder.Bytes())
+				if err != nil {
+					return
+				}
+			}
+		}()
+
+		w := newMessageWriter(200, newMessagePool(), opts, metrics)
+		w.Init()
+
+		a := newAckRouter(1)
+		a.Register(200, w)
+
+		cw := newConsumerWriter(addr, a, opts, testConsumerWriterMetrics())
+		cw.Init()
+		defer cw.Close()
+
+		w.AddConsumerWriter(cw)
+
+		// Write 10 messages
+		for i := 0; i < numMessages; i++ {
+			mm := producer.NewMockMessage(ctrl)
+			mm.EXPECT().Bytes().Return([]byte(fmt.Sprintf("msg-%d", i))).AnyTimes()
+			mm.EXPECT().Size().Return(3)
+			// All messages should be finalized as Consumed (properly sent and acked)
+			mm.EXPECT().Finalize(producer.Consumed)
+
+			w.Write(producer.NewRefCountedMessage(mm, nil))
+		}
+
+		// Enable graceful close
+		w.SetGracefulClose(true)
+
+		// Close should wait for all messages to be sent and acked
+		w.Close()
+
+		// All messages should be removed from queue
+		require.Equal(t, 0, w.queue.Len())
+		require.Equal(t, 0, w.acks.size())
+
+		// Verify all messages were actually sent to the server
+		require.Equal(t, int32(numMessages), messagesSent.Load())
+
+		// Validate metrics - messages should be counted as acked (properly sent)
+		snapshot := scope.Snapshot()
+		counters := snapshot.Counters()
+		require.Equal(t, int64(numMessages), counters["message-acked+consumer=unknown"].Value())
+		require.Equal(t, int64(numMessages), counters["write-success+consumer=unknown"].Value())
+		// In graceful close, messages should NOT be counted as closed (auto-acked)
+		require.Equal(t, int64(0), counters["message-closed+consumer=unknown"].Value())
+	})
 }

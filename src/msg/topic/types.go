@@ -94,6 +94,12 @@ type ConsumerService interface {
 	// SetDynamicFilterConfigs sets the dynamic filters for the consumer service.
 	SetDynamicFilterConfigs(value FilterConfig) ConsumerService
 
+	// GracefulClose returns whether graceful close is enabled for message writers.
+	GracefulClose() bool
+
+	// SetGracefulClose sets whether graceful close is enabled for message writers.
+	SetGracefulClose(value bool) ConsumerService
+
 	// String returns the string representation of the consumer service.
 	String() string
 }
