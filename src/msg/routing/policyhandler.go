@@ -43,7 +43,7 @@ func NewRoutingPolicyHandler(opts PolicyHandlerOptions) (PolicyHandler, error) {
 	}
 	p := &routingPolicyHandler{
 		store:        nil,
-		policyConfig: opts.PolicyConfig(),
+		policyConfig: NewPolicyConfig(nil),
 		listeners:    make(map[int]PolicyUpdateListener),
 	}
 
@@ -55,11 +55,6 @@ func NewRoutingPolicyHandler(opts PolicyHandlerOptions) (PolicyHandler, error) {
 
 // initWatch starts the watch for the policy config if configured
 func (p *routingPolicyHandler) initWatch(opts PolicyHandlerOptions) error {
-	// if no kv client is set, we don't need to watch for dynamic kv updates
-	if opts.KVClient() == nil {
-		return nil
-	}
-
 	var err error
 	p.store, err = opts.KVClient().Store(opts.KVOverrideOptions())
 	if err != nil {

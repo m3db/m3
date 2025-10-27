@@ -279,42 +279,26 @@ func (c ConsumerServiceFilterConfiguration) NewConsumerServiceFilter() (services
 	return c.ServiceID.NewServiceID(), filter.NewShardSetFilter(c.ShardSet, producer.StaticConfig)
 }
 
+// routingPolicyConfiguration configures a routing policy that is configured via kv(etcd)
 type routingPolicyConfiguration struct {
-	StaticConfig  staticRoutingPolicyConfiguration  `yaml:"staticConfig" validate:"nonzero"`
-	DynamicConfig dynamicRoutingPolicyConfiguration `yaml:"dynamicConfig" validate:"nonzero"`
-}
-
-// staticRoutingPolicyConfiguration configures a routing policy that is configured on startup
-type staticRoutingPolicyConfiguration struct {
-	TrafficTypes map[string]uint64 `yaml:"trafficTypes" validate:"nonzero"`
-}
-
-// dynamicRoutingPolicyConfiguration configures a routing policy that is configured via kv(etcd)
-type dynamicRoutingPolicyConfiguration struct {
 	KvConfig kv.OverrideConfiguration `yaml:"kvConfig" validate:"nonzero"`
 	KVKey    string                   `yaml:"kvKey" validate:"nonzero"`
 }
 
-func (c dynamicRoutingPolicyConfiguration) isEnabled() bool {
-	return c.KVKey != ""
-}
-
 func (c routingPolicyConfiguration) NewRoutingPolicyHandler(kvClient client.Client) (routing.PolicyHandler, error) {
-	pc := routing.NewPolicyConfig(c.StaticConfig.TrafficTypes)
-	opts := routing.NewPolicyHandlerOptions().WithPolicyConfig(pc)
+	opts := routing.NewPolicyHandlerOptions()
 
-	// if dynamic config is enabled, setup kv settings
-	if c.DynamicConfig.isEnabled() {
-		dc := c.DynamicConfig
-		kvOverrideOpts, err := dc.KvConfig.NewOverrideOptions()
-		if err != nil {
-			return nil, err
-		}
-		opts = opts.WithKVOverrideOptions(kvOverrideOpts)
-		opts = opts.WithKVKey(dc.KVKey)
-		opts = opts.WithKVClient(kvClient)
+	kvOverrideOpts, err := c.KvConfig.NewOverrideOptions()
+	if err != nil {
+		return nil, err
 	}
 
+	opts = opts.WithKVOverrideOptions(kvOverrideOpts)
+	opts = opts.WithKVKey(c.KVKey)
+	opts = opts.WithKVClient(kvClient)
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
 	return routing.NewRoutingPolicyHandler(opts)
 }
 

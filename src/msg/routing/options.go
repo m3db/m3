@@ -16,9 +16,6 @@ type PolicyHandlerOptions interface {
 	WithKVOverrideOptions(kvOverrideOptions kv.OverrideOptions) PolicyHandlerOptions
 	KVOverrideOptions() kv.OverrideOptions
 
-	WithPolicyConfig(policyConfig PolicyConfig) PolicyHandlerOptions
-	PolicyConfig() PolicyConfig
-
 	WithKVKey(kvKey string) PolicyHandlerOptions
 	KVKey() string
 
@@ -55,15 +52,6 @@ func (o *policyHandlerOptions) KVOverrideOptions() kv.OverrideOptions {
 	return o.kvOverrideOptions
 }
 
-func (o *policyHandlerOptions) WithPolicyConfig(policyConfig PolicyConfig) PolicyHandlerOptions {
-	o.policyConfig = policyConfig
-	return o
-}
-
-func (o *policyHandlerOptions) PolicyConfig() PolicyConfig {
-	return o.policyConfig
-}
-
 func (o *policyHandlerOptions) WithKVKey(kvKey string) PolicyHandlerOptions {
 	o.kvKey = kvKey
 	return o
@@ -74,16 +62,14 @@ func (o *policyHandlerOptions) KVKey() string {
 }
 
 func (o *policyHandlerOptions) Validate() error {
-	if o.kvKey != "" {
-		if o.kvClient == nil {
-			return errors.New("kvClient is required if kvKey is set")
-		}
-		if err := o.kvOverrideOptions.Validate(); err != nil {
-			return fmt.Errorf("kvOverride options is invalid: %w", err)
-		}
+	if o.kvKey == "" {
+		return errors.New("kvKey is required")
 	}
-	if o.policyConfig == nil {
-		return errors.New("policyConfig is required")
+	if o.kvClient == nil {
+		return errors.New("kvClient is required")
+	}
+	if err := o.kvOverrideOptions.Validate(); err != nil {
+		return fmt.Errorf("kvOverride options is invalid: %w", err)
 	}
 	return nil
 }

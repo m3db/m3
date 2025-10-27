@@ -74,13 +74,7 @@ func TestRoutingPolicyConfiguration(t *testing.T) {
 	str := `
 name: test
 routingPolicyConfig:
-  staticConfig:
-    trafficTypes:
-      m3: 0
-      os: 1
-      pikachu: 2
-  dynamicConfig:
-    kvConfig:
+	kvConfig:
       zone: test-zone
       environment: test-env
       namespace: test-ns
@@ -88,12 +82,8 @@ routingPolicyConfig:
 `
 	require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
 	require.NotNil(t, cfg.RoutingPolicyConfig)
-	require.Equal(t, 3, len(cfg.RoutingPolicyConfig.StaticConfig.TrafficTypes))
-	require.Equal(t, uint64(0), cfg.RoutingPolicyConfig.StaticConfig.TrafficTypes["m3"])
-	require.Equal(t, uint64(1), cfg.RoutingPolicyConfig.StaticConfig.TrafficTypes["os"])
-	require.Equal(t, uint64(2), cfg.RoutingPolicyConfig.StaticConfig.TrafficTypes["pikachu"])
-	require.Equal(t, "test-zone", cfg.RoutingPolicyConfig.DynamicConfig.KvConfig.Zone)
-	require.Equal(t, "test-env", cfg.RoutingPolicyConfig.DynamicConfig.KvConfig.Environment)
-	require.Equal(t, "test-ns", cfg.RoutingPolicyConfig.DynamicConfig.KvConfig.Namespace)
-	require.Equal(t, "routing-policy-key", cfg.RoutingPolicyConfig.DynamicConfig.KVKey)
+	require.Equal(t, "test-zone", cfg.RoutingPolicyConfig.KvConfig.Zone)
+	require.Equal(t, "test-env", cfg.RoutingPolicyConfig.KvConfig.Environment)
+	require.Equal(t, "test-ns", cfg.RoutingPolicyConfig.KvConfig.Namespace)
+	require.Equal(t, "routing-policy-key", cfg.RoutingPolicyConfig.KVKey)
 }
