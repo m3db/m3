@@ -8,12 +8,20 @@ import (
 	"github.com/m3db/m3/src/x/watch"
 )
 
+// PolicyUpdateListener is called when the policy configuration changes.
+type PolicyUpdateListener func(PolicyConfig)
+
 // PolicyHandler handles dynamic routing policy updates from a KV store.
 type PolicyHandler interface {
 	// Close closes the policy watcher.
 	Close()
 	// GetTrafficTypes returns the traffic types.
 	GetTrafficTypes() map[string]uint64
+	// Subscribe adds a listener that will be called when the policy updates.
+	// Returns a subscription ID that can be used to unsubscribe.
+	Subscribe(listener PolicyUpdateListener) int
+	// Unsubscribe removes a listener by its subscription ID.
+	Unsubscribe(id int)
 }
 
 type routingPolicyHandler struct {
@@ -23,6 +31,9 @@ type routingPolicyHandler struct {
 	policyConfig    PolicyConfig
 	value           watch.Value
 	isWatchingValue bool
+
+	listeners      map[int]PolicyUpdateListener
+	nextListenerID int
 }
 
 // NewRoutingPolicyHandler creates a new routing policy handler.
@@ -33,6 +44,7 @@ func NewRoutingPolicyHandler(opts PolicyHandlerOptions) (PolicyHandler, error) {
 	p := &routingPolicyHandler{
 		store:        nil,
 		policyConfig: opts.PolicyConfig(),
+		listeners:    make(map[int]PolicyUpdateListener),
 	}
 
 	if err := p.initWatch(opts); err != nil {
@@ -89,15 +101,29 @@ func (p *routingPolicyHandler) initWatch(opts PolicyHandlerOptions) error {
 
 func (p *routingPolicyHandler) processUpdate(update interface{}) error {
 	p.Lock()
-	defer p.Unlock()
 	if !p.isWatchingValue {
+		p.Unlock()
 		return nil
 	}
 	v, ok := update.(PolicyConfig)
 	if !ok {
+		p.Unlock()
 		return errors.New("incoming update is not a PolicyConfig")
 	}
 	p.policyConfig = v
+
+	// Copy listeners to avoid holding lock during callbacks
+	listeners := make([]PolicyUpdateListener, 0, len(p.listeners))
+	for _, listener := range p.listeners {
+		listeners = append(listeners, listener)
+	}
+	p.Unlock()
+
+	// Call listeners asynchronously to avoid blocking
+	for _, listener := range listeners {
+		go listener(v)
+	}
+
 	return nil
 }
 
@@ -108,6 +134,8 @@ func (p *routingPolicyHandler) Close() {
 		return
 	}
 	p.isWatchingValue = false
+	// Clear all listeners
+	p.listeners = make(map[int]PolicyUpdateListener)
 	p.Unlock()
 	if p.value != nil {
 		p.value.Unwatch()
@@ -119,4 +147,31 @@ func (p *routingPolicyHandler) GetTrafficTypes() map[string]uint64 {
 	p.RLock()
 	defer p.RUnlock()
 	return p.policyConfig.TrafficTypes()
+}
+
+// Subscribe adds a listener that will be called when the policy updates.
+// Returns a subscription ID that can be used to unsubscribe.
+// The listener will be called immediately with the current policy config if available.
+func (p *routingPolicyHandler) Subscribe(listener PolicyUpdateListener) int {
+	p.Lock()
+	defer p.Unlock()
+
+	id := p.nextListenerID
+	p.nextListenerID++
+	p.listeners[id] = listener
+
+	// Notify immediately with current config if available
+	if listener != nil && p.policyConfig != nil {
+		currentConfig := p.policyConfig
+		go listener(currentConfig)
+	}
+
+	return id
+}
+
+// Unsubscribe removes a listener by its subscription ID.
+func (p *routingPolicyHandler) Unsubscribe(id int) {
+	p.Lock()
+	defer p.Unlock()
+	delete(p.listeners, id)
 }

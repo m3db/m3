@@ -16,8 +16,6 @@ func TestRoutePolicyFilter_Filter_ZeroTrafficTypes(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	rph := routing.NewMockPolicyHandler(ctrl)
-
 	tests := []struct {
 		name      string
 		isDefault bool
@@ -37,6 +35,9 @@ func TestRoutePolicyFilter_Filter_ZeroTrafficTypes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			rph := routing.NewMockPolicyHandler(ctrl)
+			rph.EXPECT().Subscribe(gomock.Any()).Times(1)
+
 			params := RoutingPolicyFilterParams{
 				RoutingPolicyHandler: rph,
 				IsDefault:            tt.isDefault,
@@ -141,7 +142,12 @@ func TestRoutePolicyFilter_Filter_WithTrafficTypes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rph := routing.NewMockPolicyHandler(ctrl)
-			rph.EXPECT().GetTrafficTypes().Return(tt.trafficTypes).AnyTimes()
+
+			var subscriberCallback routing.PolicyUpdateListener
+			rph.EXPECT().Subscribe(gomock.Any()).DoAndReturn(func(listener routing.PolicyUpdateListener) int {
+				subscriberCallback = listener
+				return 0
+			}).Times(1)
 
 			params := RoutingPolicyFilterParams{
 				RoutingPolicyHandler: rph,
@@ -151,6 +157,13 @@ func TestRoutePolicyFilter_Filter_WithTrafficTypes(t *testing.T) {
 
 			filter := NewRoutingPolicyFilter(params, producer.StaticConfig)
 
+			// Invoke the subscription callback with the policy config
+			if subscriberCallback != nil {
+				policyConfig := routing.NewMockPolicyConfig(ctrl)
+				policyConfig.EXPECT().TrafficTypes().Return(tt.trafficTypes).Times(1)
+				subscriberCallback(policyConfig)
+			}
+
 			msg := createTestMessage(tt.messageTrafficTypes)
 			result := filter.Function(msg)
 			assert.Equal(t, tt.expected, result, tt.description)
@@ -158,41 +171,85 @@ func TestRoutePolicyFilter_Filter_WithTrafficTypes(t *testing.T) {
 	}
 }
 
-func TestRoutePolicyFilter_resolveTrafficTypeToBitPosition(t *testing.T) {
+func TestRoutePolicyFilter_ZeroMaskBehavior(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	rph := routing.NewMockPolicyHandler(ctrl)
-	trafficTypes := map[string]uint64{
-		"type1": 0,
-		"type2": 5,
-		"type3": 31,
-		"type4": 63,
-	}
-	rph.EXPECT().GetTrafficTypes().Return(trafficTypes).AnyTimes()
-
-	filter := routingPolicyFilter{
-		rph:                 rph,
-		isDefault:           false,
-		allowedTrafficTypes: []string{"type1", "type2", "type3", "type4", "nonexistent"},
-	}
-
 	tests := []struct {
-		trafficType string
-		expected    int
+		name                string
+		allowedTypes        []string
+		trafficTypes        map[string]uint64
+		messageTrafficTypes uint64
+		isDefault           bool
+		expected            bool
+		description         string
 	}{
-		{"type1", 0},
-		{"type2", 5},
-		{"type3", 31},
-		{"type4", 63},
-		{"nonexistent", -1},
-		{"", -1},
+		{
+			name:                "zero mask with isDefault true",
+			allowedTypes:        []string{"nonexistent"},
+			trafficTypes:        map[string]uint64{"type1": 0},
+			messageTrafficTypes: 1,
+			isDefault:           true,
+			expected:            true,
+			description:         "should return isDefault when mask is 0",
+		},
+		{
+			name:                "zero mask with isDefault false",
+			allowedTypes:        []string{"nonexistent"},
+			trafficTypes:        map[string]uint64{"type1": 0},
+			messageTrafficTypes: 1,
+			isDefault:           false,
+			expected:            false,
+			description:         "should return isDefault when mask is 0",
+		},
+		{
+			name:                "zero mask with empty allowed types and isDefault true",
+			allowedTypes:        []string{},
+			trafficTypes:        map[string]uint64{"type1": 0},
+			messageTrafficTypes: 1,
+			isDefault:           true,
+			expected:            true,
+			description:         "should return isDefault when no types allowed",
+		},
+		{
+			name:                "zero mask with empty allowed types and isDefault false",
+			allowedTypes:        []string{},
+			trafficTypes:        map[string]uint64{"type1": 0},
+			messageTrafficTypes: 1,
+			isDefault:           false,
+			expected:            false,
+			description:         "should return isDefault when no types allowed",
+		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.trafficType, func(t *testing.T) {
-			result := filter.resolveTrafficTypeToBitPosition(tt.trafficType)
-			assert.Equal(t, tt.expected, result)
+		t.Run(tt.name, func(t *testing.T) {
+			rph := routing.NewMockPolicyHandler(ctrl)
+
+			var subscriberCallback routing.PolicyUpdateListener
+			rph.EXPECT().Subscribe(gomock.Any()).DoAndReturn(func(listener routing.PolicyUpdateListener) int {
+				subscriberCallback = listener
+				return 0
+			}).Times(1)
+
+			params := RoutingPolicyFilterParams{
+				RoutingPolicyHandler: rph,
+				IsDefault:            tt.isDefault,
+				AllowedTrafficTypes:  tt.allowedTypes,
+			}
+
+			filter := NewRoutingPolicyFilter(params, producer.StaticConfig)
+
+			// Trigger the update to set the mask
+			if subscriberCallback != nil {
+				policyConfig := routing.NewMockPolicyConfig(ctrl)
+				policyConfig.EXPECT().TrafficTypes().Return(tt.trafficTypes).Times(1)
+				subscriberCallback(policyConfig)
+			}
+
+			msg := createTestMessage(tt.messageTrafficTypes)
+			result := filter.Function(msg)
+			assert.Equal(t, tt.expected, result, tt.description)
 		})
 	}
 }
@@ -203,76 +260,71 @@ func TestRoutePolicyFilter_EdgeCases(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		setupFilter  func() producer.FilterFunc
-		setupMessage func() producer.Message
+		trafficTypes map[string]uint64
+		allowedTypes []string
+		isDefault    bool
+		messageTypes uint64
 		expected     bool
 		description  string
 	}{
 		{
-			name: "empty allowed traffic types",
-			setupFilter: func() producer.FilterFunc {
-				rph := routing.NewMockPolicyHandler(ctrl)
-				rph.EXPECT().GetTrafficTypes().Return(map[string]uint64{"type1": 0}).AnyTimes()
-
-				params := RoutingPolicyFilterParams{
-					RoutingPolicyHandler: rph,
-					IsDefault:            false,
-					AllowedTrafficTypes:  []string{}, // empty
-				}
-				return NewRoutingPolicyFilter(params, producer.StaticConfig)
-			},
-			setupMessage: func() producer.Message {
-				return createTestMessage(1) // has traffic types
-			},
-			expected:    false,
-			description: "should reject when no traffic types are allowed",
+			name:         "empty allowed traffic types",
+			trafficTypes: map[string]uint64{"type1": 0},
+			allowedTypes: []string{}, // empty
+			isDefault:    false,
+			messageTypes: 1, // has traffic types
+			expected:     false,
+			description:  "should reject when no traffic types are allowed",
 		},
 		{
-			name: "nil traffic types from handler",
-			setupFilter: func() producer.FilterFunc {
-				rph := routing.NewMockPolicyHandler(ctrl)
-				rph.EXPECT().GetTrafficTypes().Return(nil).AnyTimes()
-
-				params := RoutingPolicyFilterParams{
-					RoutingPolicyHandler: rph,
-					IsDefault:            true,
-					AllowedTrafficTypes:  []string{"type1"},
-				}
-				return NewRoutingPolicyFilter(params, producer.StaticConfig)
-			},
-			setupMessage: func() producer.Message {
-				return createTestMessage(1)
-			},
-			expected:    false,
-			description: "should reject when traffic types map is nil",
+			name:         "nil traffic types from handler",
+			trafficTypes: nil,
+			allowedTypes: []string{"type1"},
+			isDefault:    true,
+			messageTypes: 1,
+			expected:     true,
+			description:  "should use isDefault when traffic types map is nil",
 		},
 		{
 			name: "max uint64 traffic types",
-			setupFilter: func() producer.FilterFunc {
-				rph := routing.NewMockPolicyHandler(ctrl)
-				rph.EXPECT().GetTrafficTypes().Return(map[string]uint64{
-					"all": 0,
-				}).AnyTimes()
-
-				params := RoutingPolicyFilterParams{
-					RoutingPolicyHandler: rph,
-					IsDefault:            false,
-					AllowedTrafficTypes:  []string{"all"},
-				}
-				return NewRoutingPolicyFilter(params, producer.StaticConfig)
+			trafficTypes: map[string]uint64{
+				"all": 0,
 			},
-			setupMessage: func() producer.Message {
-				return createTestMessage(^uint64(0)) // all bits set
-			},
-			expected:    true,
-			description: "should handle max uint64 value correctly",
+			allowedTypes: []string{"all"},
+			isDefault:    false,
+			messageTypes: ^uint64(0), // all bits set
+			expected:     true,
+			description:  "should handle max uint64 value correctly",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			filter := tt.setupFilter()
-			msg := tt.setupMessage()
+			rph := routing.NewMockPolicyHandler(ctrl)
+
+			var subscriberCallback routing.PolicyUpdateListener
+			rph.EXPECT().Subscribe(gomock.Any()).DoAndReturn(func(listener routing.PolicyUpdateListener) int {
+				subscriberCallback = listener
+				return 0
+			}).Times(1)
+
+			params := RoutingPolicyFilterParams{
+				RoutingPolicyHandler: rph,
+				IsDefault:            tt.isDefault,
+				AllowedTrafficTypes:  tt.allowedTypes,
+			}
+
+			filter := NewRoutingPolicyFilter(params, producer.StaticConfig)
+
+			// Trigger the update to set the mask
+			if subscriberCallback != nil && tt.trafficTypes != nil {
+				policyConfig := routing.NewMockPolicyConfig(ctrl)
+				policyConfig.EXPECT().TrafficTypes().Return(tt.trafficTypes).Times(1)
+				subscriberCallback(policyConfig)
+			}
+
+			msg := createTestMessage(tt.messageTypes)
+
 			result := filter.Function(msg)
 			assert.Equal(t, tt.expected, result, tt.description)
 		})
@@ -287,6 +339,80 @@ func createTestMessage(trafficTypes uint64) message {
 		rp:    policy.NewRoutingPolicy(trafficTypes),
 		data:  protobuf.Buffer{},
 	}
+}
+
+func TestRoutePolicyFilter_DynamicPolicyUpdate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	rph := routing.NewMockPolicyHandler(ctrl)
+
+	var subscriberCallback routing.PolicyUpdateListener
+	rph.EXPECT().Subscribe(gomock.Any()).DoAndReturn(func(listener routing.PolicyUpdateListener) int {
+		subscriberCallback = listener
+		return 0
+	}).Times(1)
+
+	params := RoutingPolicyFilterParams{
+		RoutingPolicyHandler: rph,
+		IsDefault:            false,
+		AllowedTrafficTypes:  []string{"type1", "type2"},
+	}
+
+	filter := NewRoutingPolicyFilter(params, producer.StaticConfig)
+
+	// Initially, with no policy update, mask should be 0, so isDefault is used
+	msg := createTestMessage(1)
+	result := filter.Function(msg)
+	assert.False(t, result, "should reject when mask is 0 and isDefault is false")
+
+	// Now trigger a policy update with initial traffic types
+	policyConfig1 := routing.NewMockPolicyConfig(ctrl)
+	policyConfig1.EXPECT().TrafficTypes().Return(map[string]uint64{
+		"type1": 0,
+		"type2": 1,
+	}).Times(1)
+	subscriberCallback(policyConfig1)
+
+	// Message with type1 should now pass
+	msg = createTestMessage(1) // bit 0 set (type1)
+	result = filter.Function(msg)
+	assert.True(t, result, "should pass when message has type1")
+
+	// Message with type3 should fail
+	msg = createTestMessage(4) // bit 2 set (type3, not allowed)
+	result = filter.Function(msg)
+	assert.False(t, result, "should reject when message has non-allowed type")
+
+	// Now trigger another policy update with different traffic types
+	policyConfig2 := routing.NewMockPolicyConfig(ctrl)
+	policyConfig2.EXPECT().TrafficTypes().Return(map[string]uint64{
+		"type1": 2, // type1 now at bit position 2
+		"type2": 3, // type2 now at bit position 3
+	}).Times(1)
+	subscriberCallback(policyConfig2)
+
+	// The old message (bit 0) should now fail
+	msg = createTestMessage(1) // bit 0 set
+	result = filter.Function(msg)
+	assert.False(t, result, "should reject after policy update changes bit positions")
+
+	// New message with updated bit positions should pass
+	msg = createTestMessage(4) // bit 2 set (type1 at new position)
+	result = filter.Function(msg)
+	assert.True(t, result, "should pass when message matches new bit position for type1")
+
+	// Trigger a policy update where allowed types don't exist
+	policyConfig3 := routing.NewMockPolicyConfig(ctrl)
+	policyConfig3.EXPECT().TrafficTypes().Return(map[string]uint64{
+		"type3": 0, // Only type3, but we allow type1 and type2
+	}).Times(1)
+	subscriberCallback(policyConfig3)
+
+	// Mask should now be 0, so isDefault is used
+	msg = createTestMessage(1)
+	result = filter.Function(msg)
+	assert.False(t, result, "should use isDefault when allowed types not found in policy")
 }
 
 func TestRoutePolicyFilter_BitMaskingEdgeCases(t *testing.T) {
@@ -345,7 +471,12 @@ func TestRoutePolicyFilter_BitMaskingEdgeCases(t *testing.T) {
 			defer ctrl.Finish()
 
 			rph := routing.NewMockPolicyHandler(ctrl)
-			rph.EXPECT().GetTrafficTypes().Return(tt.trafficTypes).AnyTimes()
+
+			var subscriberCallback routing.PolicyUpdateListener
+			rph.EXPECT().Subscribe(gomock.Any()).DoAndReturn(func(listener routing.PolicyUpdateListener) int {
+				subscriberCallback = listener
+				return 0
+			}).Times(1)
 
 			params := RoutingPolicyFilterParams{
 				RoutingPolicyHandler: rph,
@@ -354,6 +485,14 @@ func TestRoutePolicyFilter_BitMaskingEdgeCases(t *testing.T) {
 			}
 
 			filter := NewRoutingPolicyFilter(params, producer.StaticConfig)
+
+			// Trigger the update to set the mask
+			if subscriberCallback != nil {
+				policyConfig := routing.NewMockPolicyConfig(ctrl)
+				policyConfig.EXPECT().TrafficTypes().Return(tt.trafficTypes).Times(1)
+				subscriberCallback(policyConfig)
+			}
+
 			msg := createTestMessage(tt.messageTypes)
 			result := filter.Function(msg)
 			assert.Equal(t, tt.expected, result)

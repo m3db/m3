@@ -211,43 +211,50 @@ type RoutingPolicyFilterParams struct {
 func NewRoutingPolicyFilter(
 	p RoutingPolicyFilterParams, configSource producer.FilterFuncConfigSourceType,
 ) producer.FilterFunc {
-	cfg := routingPolicyFilter{
-		rph:                 p.RoutingPolicyHandler,
-		isDefault:           p.IsDefault,
-		allowedTrafficTypes: p.AllowedTrafficTypes,
+	cfg := &routingPolicyFilter{
+		isDefault:              p.IsDefault,
+		allowedTrafficTypes:    p.AllowedTrafficTypes,
+		allowedTrafficTypeMask: 0,
 	}
+	p.RoutingPolicyHandler.Subscribe(cfg.updateAllowedTrafficTypes)
 	return producer.NewFilterFunc(cfg.Filter, producer.RoutingPolicyFilter, configSource)
 }
 
 type routingPolicyFilter struct {
-	rph                 routing.PolicyHandler
-	isDefault           bool
-	allowedTrafficTypes []string
+	isDefault              bool
+	allowedTrafficTypes    []string
+	allowedTrafficTypeMask uint64
 }
 
-func (f routingPolicyFilter) Filter(m producer.Message) bool {
+func (f *routingPolicyFilter) Filter(m producer.Message) bool {
 	msg, ok := m.(message)
-	if !ok {
-		return true
-	}
-	if msg.rp.TrafficTypes == 0 {
+	if !ok || msg.rp.TrafficTypes == 0 || f.allowedTrafficTypeMask == 0 {
 		return f.isDefault
 	}
-	for _, trafficType := range f.allowedTrafficTypes {
-		bitPosition := f.resolveTrafficTypeToBitPosition(trafficType)
-		if bitPosition == -1 {
-			continue
-		}
-		if msg.rp.TrafficTypes&(1<<bitPosition) != 0 {
-			return true
-		}
+	if msg.rp.TrafficTypes&f.allowedTrafficTypeMask != 0 {
+		return true
 	}
 	return false
 }
 
-func (f routingPolicyFilter) resolveTrafficTypeToBitPosition(trafficType string) int {
-	tt := f.rph.GetTrafficTypes()
-	bitPosition, ok := tt[trafficType]
+func (f *routingPolicyFilter) updateAllowedTrafficTypes(policyConfig routing.PolicyConfig) {
+	trafficTypes := policyConfig.TrafficTypes()
+	mask := uint64(0)
+	for _, trafficType := range f.allowedTrafficTypes {
+		bitPosition := f.resolveTrafficTypeToBitPosition(trafficTypes, trafficType)
+		// in the case where we cannot find the traffic type, we will default it to 0
+		// this will serve as the fallback logic, and isDefault will be used to determine if the message should be accepted
+		if bitPosition == -1 {
+			mask = 0
+			break
+		}
+		mask |= 1 << bitPosition
+	}
+	f.allowedTrafficTypeMask = mask
+}
+
+func (f *routingPolicyFilter) resolveTrafficTypeToBitPosition(trafficTypeMap map[string]uint64, trafficType string) int {
+	bitPosition, ok := trafficTypeMap[trafficType]
 	if !ok {
 		return -1
 	}
