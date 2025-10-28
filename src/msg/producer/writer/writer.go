@@ -393,6 +393,9 @@ func ParseDynamicFilters(
 	}
 
 	if filterConfig.RoutingPolicyFilter() != nil {
+		if rph == nil {
+			return filterFuncs, errors.New("routing policy handler is not set, but routing policy filter is configured")
+		}
 		routingPolicyFilterFunc, err := ParseRoutingPolicyFilterFromFromTopicUpdate(
 			csw, rph, filterConfig.RoutingPolicyFilter())
 

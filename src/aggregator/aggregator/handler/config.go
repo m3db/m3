@@ -221,6 +221,10 @@ func (c *DynamicBackendConfiguration) newProtobufHandler(
 			zap.Stringer("service", sid))
 	}
 	for _, filter := range c.RoutingPolicyFilters {
+		if rph == nil {
+			logger.Info("routing policy handler is not enabled, skipping routing policy filter registration")
+			continue
+		}
 		sid, f := filter.NewConsumerServiceFilter(rph)
 		p.RegisterFilter(sid, f)
 		logger.Info("registered routing policy filter for consumer service",
@@ -286,6 +290,10 @@ type routingPolicyConfiguration struct {
 }
 
 func (c routingPolicyConfiguration) NewRoutingPolicyHandler(kvClient client.Client) (routing.PolicyHandler, error) {
+	if c.KVKey == "" {
+		return nil, nil
+	}
+
 	opts := routing.NewPolicyHandlerOptions()
 
 	kvOverrideOpts, err := c.KvConfig.NewOverrideOptions()

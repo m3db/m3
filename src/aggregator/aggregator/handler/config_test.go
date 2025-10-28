@@ -87,3 +87,14 @@ routingPolicyConfig:
 	require.Equal(t, "test-ns", cfg.RoutingPolicyConfig.KvConfig.Namespace)
 	require.Equal(t, "routing-policy-key", cfg.RoutingPolicyConfig.KVKey)
 }
+
+func TestRoutingPolicyConfigurationEmptyKVKey(t *testing.T) {
+	// Test that when KVKey is empty, NewRoutingPolicyHandler returns nil (not enabled)
+	cfg := routingPolicyConfiguration{
+		KVKey: "",
+	}
+
+	handler, err := cfg.NewRoutingPolicyHandler(nil)
+	require.NoError(t, err)
+	require.Nil(t, handler, "handler should be nil when KVKey is empty")
+}
