@@ -429,6 +429,12 @@ type Options interface {
 
 	// SetWithoutConsumerScope sets the value for WithoutConsumerScope.
 	SetWithoutConsumerScope(value bool) Options
+
+	// GracefulClose returns whether graceful close is enabled.
+	GracefulClose() bool
+
+	// SetGracefulClose sets the graceful close setting pointer.
+	SetGracefulClose(value *bool) Options
 }
 
 type writerOptions struct {
@@ -451,6 +457,7 @@ type writerOptions struct {
 	iOpts                             instrument.Options
 	ignoreCutoffCutover               bool
 	withoutConsumerScope              bool
+	gracefulClose                     *bool
 }
 
 // NewOptions creates Options.
@@ -662,5 +669,18 @@ func (opts *writerOptions) WithoutConsumerScope() bool {
 func (opts *writerOptions) SetWithoutConsumerScope(value bool) Options {
 	o := *opts
 	o.withoutConsumerScope = value
+	return &o
+}
+
+func (opts *writerOptions) GracefulClose() bool {
+	if opts.gracefulClose == nil {
+		return false
+	}
+	return *opts.gracefulClose
+}
+
+func (opts *writerOptions) SetGracefulClose(value *bool) Options {
+	o := *opts
+	o.gracefulClose = value
 	return &o
 }

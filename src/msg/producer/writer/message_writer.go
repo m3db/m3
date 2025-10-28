@@ -551,10 +551,29 @@ func (w *messageWriter) Close() {
 		w.Unlock()
 		return
 	}
-	w.isClosed = true
+
+	// Check if graceful close is enabled
+	gracefulClose := w.opts.GracefulClose()
+
+	if !gracefulClose {
+		// Fast shutdown: mark as closed immediately so messages get auto-acked
+		w.isClosed = true
+		w.opts.InstrumentOptions().Logger().Info("message writer closing with fast shutdown", zap.Bool("graceful_close", gracefulClose))
+	}
 	w.Unlock()
+
 	// NB: Wait until all messages cleaned up then close.
 	w.waitUntilAllMessageRemoved()
+
+	// After waiting, check if we need to mark as closed
+	// (either graceful close was enabled, or it was disabled during the wait)
+	w.Lock()
+	if !w.isClosed {
+		w.isClosed = true
+		w.opts.InstrumentOptions().Logger().Info("message writer marked as closed after graceful shutdown", zap.Bool("graceful_close", gracefulClose))
+	}
+	w.Unlock()
+
 	close(w.doneCh)
 	w.wg.Wait()
 }
@@ -570,6 +589,11 @@ func (w *messageWriter) waitUntilAllMessageRemoved() {
 
 	for range ticker.C {
 		if w.isEmpty() {
+			return
+		}
+		// Check if graceful close was disabled during the wait
+		if !w.opts.GracefulClose() {
+			w.opts.InstrumentOptions().Logger().Info("graceful close disabled during wait, switching to fast shutdown")
 			return
 		}
 	}
