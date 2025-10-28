@@ -74,7 +74,7 @@ func TestRoutingPolicyConfiguration(t *testing.T) {
 	str := `
 name: test
 routingPolicyConfig:
-	kvConfig:
+    kvConfig:
       zone: test-zone
       environment: test-env
       namespace: test-ns

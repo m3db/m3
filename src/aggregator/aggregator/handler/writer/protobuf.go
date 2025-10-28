@@ -253,7 +253,9 @@ func (f *routingPolicyFilter) updateAllowedTrafficTypes(policyConfig routing.Pol
 	f.allowedTrafficTypeMask = mask
 }
 
-func (f *routingPolicyFilter) resolveTrafficTypeToBitPosition(trafficTypeMap map[string]uint64, trafficType string) int {
+func (f *routingPolicyFilter) resolveTrafficTypeToBitPosition(
+	trafficTypeMap map[string]uint64, trafficType string,
+) int {
 	bitPosition, ok := trafficTypeMap[trafficType]
 	if !ok {
 		return -1

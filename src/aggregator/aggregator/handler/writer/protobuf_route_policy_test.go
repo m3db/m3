@@ -260,12 +260,12 @@ func TestRoutePolicyFilter_EdgeCases(t *testing.T) {
 
 	tests := []struct {
 		name         string
+		description  string
 		trafficTypes map[string]uint64
 		allowedTypes []string
-		isDefault    bool
 		messageTypes uint64
+		isDefault    bool
 		expected     bool
-		description  string
 	}{
 		{
 			name:         "empty allowed traffic types",
