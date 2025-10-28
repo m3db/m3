@@ -315,6 +315,11 @@ func (w *writer) Close() {
 	w.isClosed = true
 	w.Unlock()
 
+	// Close the graceful close KV watch to stop the background goroutine
+	if gracefulCloseWatch := w.opts.GracefulCloseWatch(); gracefulCloseWatch != nil {
+		gracefulCloseWatch.Close()
+	}
+
 	w.value.Unwatch()
 	for _, csw := range w.consumerServiceWriters {
 		csw.Close()

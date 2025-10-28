@@ -22,12 +22,15 @@ package config
 
 import (
 	"errors"
+	"sync/atomic"
 	"time"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
+	kvutil "github.com/m3db/m3/src/cluster/kv/util"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/msg/producer/writer"
@@ -132,6 +135,13 @@ type WriterConfiguration struct {
 	// WithoutConsumerScope drops the consumer tag from the metrics. For large m3msg deployments the consumer tag can
 	// add a lot of cardinality to the metrics.
 	WithoutConsumerScope bool `yaml:"withoutConsumerScope"`
+
+	// MessageWriterGracefulCloseKVOverride configures KV override for the graceful close key.
+	MessageWriterGracefulCloseKVOverride kv.OverrideConfiguration `yaml:"messageWriterGracefulCloseKVOverride"`
+	// MessageWriterGracefulCloseKey is the KV key for message writer graceful close setting.
+	// When false (default), writers will auto-ack messages on close for fast shutdown.
+	// When true, writers will wait for messages to be sent and acknowledged before closing.
+	MessageWriterGracefulCloseKey string `yaml:"messageWriterGracefulCloseKey"`
 }
 
 // StaticMessageRetryConfiguration configs the static message retry policy.
@@ -146,11 +156,21 @@ func (c *WriterConfiguration) NewOptions(
 	iOpts instrument.Options,
 	rwOptions xio.Options,
 ) (writer.Options, error) {
+	// Create graceful close setting - defaults to false
+	gracefulClose := &atomic.Bool{}
+	gracefulClose.Store(false)
+
+	// Initialize and start watching for KV updates (initial read is blocking)
+	// Store the watch so it can be closed on shutdown
+	gracefulCloseWatch := c.WatchGracefulClose(cs, gracefulClose, iOpts.Logger())
+
 	opts := writer.NewOptions().
 		SetTopicName(c.TopicName).
 		SetPlacementOptions(c.PlacementOptions.NewOptions()).
 		SetInstrumentOptions(iOpts).
-		SetWithoutConsumerScope(c.WithoutConsumerScope)
+		SetWithoutConsumerScope(c.WithoutConsumerScope).
+		SetGracefulClose(gracefulClose).
+		SetGracefulCloseWatch(gracefulCloseWatch)
 
 	kvOpts, err := c.TopicServiceOverride.NewOverrideOptions()
 	if err != nil {
@@ -238,4 +258,84 @@ func (c *WriterConfiguration) setRetryOptions(
 		return opts.SetMessageRetryNanosFn(fn), nil
 	}
 	return opts, nil
+}
+
+// WatchGracefulClose watches for graceful close setting updates from KV.
+// Returns a ValueWatch that must be closed to stop the background goroutine.
+func (c *WriterConfiguration) WatchGracefulClose(
+	cs client.Client,
+	gracefulClose *atomic.Bool,
+	logger *zap.Logger,
+) kv.ValueWatch {
+	const defaultGracefulClose = false
+
+	// If no key is configured, skip watching and use default
+	if c.MessageWriterGracefulCloseKey == "" {
+		logger.Info("message writer graceful close key not configured, using default value",
+			zap.Bool("defaultGracefulClose", defaultGracefulClose))
+		return nil
+	}
+
+	kvOpts, err := c.MessageWriterGracefulCloseKVOverride.NewOverrideOptions()
+	if err != nil {
+		logger.Error("unable to create kv config options for graceful close", zap.Error(err))
+		return nil
+	}
+
+	store, err := cs.Store(kvOpts)
+	if err != nil {
+		logger.Error("unable to create kv store for graceful close", zap.Error(err))
+		return nil
+	}
+
+	var (
+		gracefulCloseKey = c.MessageWriterGracefulCloseKey
+		gracefulCloseCh  <-chan struct{}
+	)
+
+	utilOpts := kvutil.NewOptions().SetLogger(logger)
+
+	// Retrieve initial value from KV
+	initialValue := defaultGracefulClose
+	value, err := store.Get(gracefulCloseKey)
+	if err == nil {
+		initialValue, err = kvutil.BoolFromValue(value, gracefulCloseKey, defaultGracefulClose, utilOpts)
+	}
+	if err != nil {
+		logger.Error("unable to retrieve graceful close setting from kv", zap.Error(err))
+	}
+	logger.Info("current message writer graceful close setting", zap.Bool("gracefulClose", initialValue))
+	gracefulClose.Store(initialValue)
+
+	// Set up watch
+	gracefulCloseWatch, err := store.Watch(gracefulCloseKey)
+	if err != nil {
+		logger.Error("unable to watch message writer graceful close setting", zap.Error(err))
+		return nil
+	}
+	gracefulCloseCh = gracefulCloseWatch.C()
+
+	// Watch for updates
+	go func() {
+		for range gracefulCloseCh {
+			gracefulCloseVal := gracefulCloseWatch.Get()
+			newGracefulClose, err := kvutil.BoolFromValue(gracefulCloseVal, gracefulCloseKey, defaultGracefulClose, utilOpts)
+			if err != nil {
+				logger.Error("unable to determine graceful close setting", zap.Error(err))
+				continue
+			}
+			currGracefulClose := gracefulClose.Load()
+			if newGracefulClose == currGracefulClose {
+				logger.Info("message writer graceful close setting is unchanged, skipping",
+					zap.Bool("gracefulClose", newGracefulClose))
+				continue
+			}
+			logger.Info("updating message writer graceful close setting",
+				zap.Bool("current", currGracefulClose),
+				zap.Bool("new", newGracefulClose))
+			gracefulClose.Store(newGracefulClose)
+		}
+	}()
+
+	return gracefulCloseWatch
 }
