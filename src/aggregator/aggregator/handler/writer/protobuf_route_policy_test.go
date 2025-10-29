@@ -5,12 +5,12 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/routing"
-	"go.uber.org/zap"
 )
 
 func TestRoutePolicyFilter_Filter_ZeroTrafficTypes(t *testing.T) {

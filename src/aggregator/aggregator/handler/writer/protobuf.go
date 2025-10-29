@@ -240,10 +240,7 @@ func (f *routingPolicyFilter) Filter(m producer.Message) bool {
 		return f.isDefault
 	}
 	mask := atomic.LoadUint64(&f.allowedTrafficTypeMask)
-	if msg.rp.TrafficTypes&mask != 0 {
-		return true
-	}
-	return false
+	return msg.rp.TrafficTypes&mask != 0
 }
 
 func (f *routingPolicyFilter) onRoutingPolicyConfigUpdate(policyConfig routing.PolicyConfig) {
