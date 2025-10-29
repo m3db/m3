@@ -30,7 +30,9 @@ import (
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 	"go.uber.org/atomic"
+	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
@@ -38,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
+	"github.com/m3db/m3/src/msg/generated/proto/topicpb"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/topic"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -1270,4 +1273,28 @@ func testAreFilterFuncMetadataSlicesEqual(slice1, slice2 []producer.FilterFuncMe
 	}
 
 	return true
+}
+
+func TestParseDynamicFilters_RoutingPolicyFilterWithoutHandler(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	csw := NewMockconsumerServiceWriter(ctrl)
+
+	// Create a filter config with routing policy filter
+	filterConfig := topic.NewDynamicFilterConfigFromProto(&topicpb.Filters{
+		RoutingPolicyFilter: &topicpb.RoutingPolicyFilter{
+			AllowedTrafficTypes: []string{"read", "write"},
+			IsDefault:           false,
+		},
+	})
+
+	// Call ParseDynamicFilters with nil routing policy handler
+	_, err := ParseDynamicFilters(zap.NewNop(), tally.NoopScope, csw, nil, filterConfig)
+
+	// Should return error because routing policy handler is nil but filter is configured
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "routing policy handler is not set")
 }

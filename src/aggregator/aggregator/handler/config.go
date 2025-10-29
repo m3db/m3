@@ -24,16 +24,19 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/aggregator/aggregator/handler/filter"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/producer/config"
+	"github.com/m3db/m3/src/msg/routing"
 	"github.com/m3db/m3/src/x/instrument"
 	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/pool"
@@ -164,6 +167,12 @@ type DynamicBackendConfiguration struct {
 	// PercentageFilters configs the percentage filter for consumer services.
 	PercentageFilters []percentageFilterConfiguration `yaml:"percentageFilters"`
 
+	// RoutingPolicyFilters configs the routing policy filter for consumer services.
+	RoutingPolicyFilters []routingPolicyFilterConfiguration `yaml:"routingPolicyFilters"`
+
+	// RoutingPolicyConfig configs the routing policy options for the topic.
+	RoutingPolicyConfig routingPolicyConfiguration `yaml:"routingPolicyConfig"`
+
 	// Writer configs the writer options.
 	Writer writerConfiguration `yaml:"writer"`
 }
@@ -186,6 +195,13 @@ func (c *DynamicBackendConfiguration) newProtobufHandler(
 		return nil, err
 	}
 	logger := instrumentOpts.Logger()
+
+	rph, err := c.RoutingPolicyConfig.NewRoutingPolicyHandler(cs)
+	if err != nil {
+		return nil, err
+	}
+	p.SetRoutingPolicyHandler(rph)
+
 	for _, filter := range c.ShardSetFilters {
 		sid, f := filter.NewConsumerServiceFilter()
 		p.RegisterFilter(sid, f)
@@ -203,6 +219,18 @@ func (c *DynamicBackendConfiguration) newProtobufHandler(
 		p.RegisterFilter(sid, f)
 		logger.Info("registered percentage filter for consumer service",
 			zap.Any("percentage", filter.Percentage),
+			zap.Stringer("service", sid))
+	}
+	for _, filter := range c.RoutingPolicyFilters {
+		if rph == nil {
+			logger.Info("routing policy handler is not enabled, skipping routing policy filter registration")
+			continue
+		}
+		sid, f := filter.NewConsumerServiceFilter(logger, scope, rph)
+		p.RegisterFilter(sid, f)
+		logger.Info("registered routing policy filter for consumer service",
+			zap.Any("isDefault", filter.IsDefault),
+			zap.Any("allowedTrafficTypes", filter.AllowedTrafficTypes),
 			zap.Stringer("service", sid))
 	}
 	wOpts := c.Writer.NewWriterOptions(instrumentOpts)
@@ -228,6 +256,33 @@ func (c percentageFilterConfiguration) NewConsumerServiceFilter() (services.Serv
 	return c.ServiceID.NewServiceID(), filter.NewPercentageFilter(c.Percentage, producer.StaticConfig)
 }
 
+type routingPolicyFilterConfiguration struct {
+	ServiceID           services.ServiceIDConfiguration `yaml:"serviceID" validate:"nonzero"`
+	IsDefault           bool                            `yaml:"isDefault"`
+	AllowedTrafficTypes []string                        `yaml:"allowedTrafficTypes" validate:"nonzero"`
+}
+
+func (c routingPolicyFilterConfiguration) NewConsumerServiceFilter(
+	logger *zap.Logger,
+	scope tally.Scope,
+	rph routing.PolicyHandler,
+) (services.ServiceID, producer.FilterFunc) {
+	serviceID := c.ServiceID.NewServiceID()
+	serviceScope := scope.Tagged(map[string]string{
+		"consumer-service-name": serviceID.Name(),
+		"consumer-service-zone": serviceID.Zone(),
+		"consumer-service-env":  serviceID.Environment(),
+	})
+	p := writer.RoutingPolicyFilterParams{
+		Scope:                serviceScope,
+		Logger:               logger,
+		RoutingPolicyHandler: rph,
+		IsDefault:            c.IsDefault,
+		AllowedTrafficTypes:  c.AllowedTrafficTypes,
+	}
+	return serviceID, writer.NewRoutingPolicyFilter(p, producer.StaticConfig)
+}
+
 // ConsumerServiceFilterConfiguration - exported to be able to write unit tests
 type ConsumerServiceFilterConfiguration struct {
 	ServiceID services.ServiceIDConfiguration `yaml:"serviceID" validate:"nonzero"`
@@ -237,6 +292,33 @@ type ConsumerServiceFilterConfiguration struct {
 // NewConsumerServiceFilter - exported to be able to write unit tests
 func (c ConsumerServiceFilterConfiguration) NewConsumerServiceFilter() (services.ServiceID, producer.FilterFunc) {
 	return c.ServiceID.NewServiceID(), filter.NewShardSetFilter(c.ShardSet, producer.StaticConfig)
+}
+
+// routingPolicyConfiguration configures a routing policy that is configured via kv(etcd)
+type routingPolicyConfiguration struct {
+	KvConfig kv.OverrideConfiguration `yaml:"kvConfig" validate:"nonzero"`
+	KVKey    string                   `yaml:"kvKey" validate:"nonzero"`
+}
+
+func (c routingPolicyConfiguration) NewRoutingPolicyHandler(kvClient client.Client) (routing.PolicyHandler, error) {
+	if c.KVKey == "" {
+		return nil, nil
+	}
+
+	opts := routing.NewPolicyHandlerOptions()
+
+	kvOverrideOpts, err := c.KvConfig.NewOverrideOptions()
+	if err != nil {
+		return nil, err
+	}
+
+	opts = opts.WithKVOverrideOptions(kvOverrideOpts)
+	opts = opts.WithKVKey(c.KVKey)
+	opts = opts.WithKVClient(kvClient)
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+	return routing.NewRoutingPolicyHandler(opts)
 }
 
 // StaticBackendConfiguration configures a static backend as a flush handler.

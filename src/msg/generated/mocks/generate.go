@@ -23,6 +23,7 @@
 //go:generate sh -c "mockgen -package=consumer github.com/m3db/m3/src/msg/consumer Message,MessageProcessor | genclean -pkg github.com/m3db/m3/src/msg/consumer -out ../../consumer/consumer_mock.go"
 //go:generate sh -c "mockgen -package=proto github.com/m3db/m3/src/msg/protocol/proto Encoder,Decoder | genclean -pkg github.com/m3db/m3/src/msg/protocol/proto -out ../../protocol/proto/proto_mock.go"
 //go:generate sh -c "mockgen -package=topic github.com/m3db/m3/src/msg/topic Service | genclean -pkg github.com/m3db/m3/src/msg/topic -out ../../topic/topic_mock.go"
+//go:generate sh -c "mockgen -package=routing github.com/m3db/m3/src/msg/routing PolicyHandler | genclean -pkg github.com/m3db/m3/src/msg/routing -out ../../routing/policyhandler_mock.go"
 
 // mockgen rules for generating mocks for unexported interfaces (file mode).
 //go:generate sh -c "mockgen -package=writer -destination=../../producer/writer/consumer_service_writer_mock.go -source=../../producer/writer/consumer_service_writer.go"

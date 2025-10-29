@@ -247,6 +247,7 @@ type filterConfig struct {
 	shardSetFilterConfig      *shardSetFilter
 	percentageFilterConfig    *percentageFilter
 	storagePolicyFilterConfig *storagePolicyFilter
+	routingPolicyFilterConfig *routingPolicyFilter
 }
 
 // NewFilterConfig creates a new filter config.
@@ -302,6 +303,22 @@ func (fc *filterConfig) SetStoragePolicyFilter(value StoragePolicyFilter) Filter
 	return &newfc
 }
 
+func (fc *filterConfig) RoutingPolicyFilter() RoutingPolicyFilter {
+	if fc.routingPolicyFilterConfig == nil {
+		return nil
+	}
+
+	return fc.routingPolicyFilterConfig
+}
+
+func (fc *filterConfig) SetRoutingPolicyFilter(value RoutingPolicyFilter) FilterConfig {
+	newfc := *fc
+	if value != nil {
+		newfc.routingPolicyFilterConfig = value.(*routingPolicyFilter)
+	}
+	return &newfc
+}
+
 type shardSetFilter struct {
 	shardSet string
 }
@@ -339,6 +356,22 @@ func NewStoragePolicyFilter(storagePolicies []string) StoragePolicyFilter {
 
 func (filter *storagePolicyFilter) StoragePolicies() []string {
 	return filter.storagePolicies
+}
+
+type routingPolicyFilter struct {
+	allowedTrafficTypes []string
+	isDefault           bool
+}
+
+// AllowedTrafficTypes returns the traffic types that the filter will return true for.
+func (filter *routingPolicyFilter) AllowedTrafficTypes() []string {
+	return filter.allowedTrafficTypes
+}
+
+// IsDefault determines the behavior of the filter when no traffic type is
+// specified. If true, the filter will return true.
+func (filter *routingPolicyFilter) IsDefault() bool {
+	return filter.isDefault
 }
 
 type consumerService struct {
@@ -446,6 +479,12 @@ func (cs *consumerService) String() string {
 			buf.WriteString(
 				fmt.Sprintf(", storage policy filter: %v", cs.filterConfigs.storagePolicyFilterConfig.storagePolicies))
 		}
+		if cs.filterConfigs.routingPolicyFilterConfig != nil {
+			buf.WriteString(fmt.Sprintf(", routing policy filter allowed traffic types: %v",
+				cs.filterConfigs.routingPolicyFilterConfig.allowedTrafficTypes))
+			buf.WriteString(fmt.Sprintf(", routing policy filter is default: %v",
+				cs.filterConfigs.routingPolicyFilterConfig.isDefault))
+		}
 	}
 	buf.WriteString("}")
 	return buf.String()
@@ -482,6 +521,12 @@ func NewDynamicFilterConfigFromProto(filterProto *topicpb.Filters) FilterConfig 
 		filter.storagePolicyFilterConfig = &storagePolicyFilter{
 			storagePolicies: filterProto.StoragePolicyFilter.StoragePolicies}
 	}
+	if filterProto.RoutingPolicyFilter != nil {
+		filter.routingPolicyFilterConfig = &routingPolicyFilter{
+			allowedTrafficTypes: filterProto.RoutingPolicyFilter.AllowedTrafficTypes,
+			isDefault:           filterProto.RoutingPolicyFilter.IsDefault,
+		}
+	}
 
 	return &filter
 }
@@ -496,6 +541,7 @@ func DynamicFilterConfigToProto(filter FilterConfig) *topicpb.Filters {
 		ShardSetFilter:      ShardSetFilterToProto(filter.ShardSetFilter()),
 		PercentageFilter:    PercentageFilterToProto(filter.PercentageFilter()),
 		StoragePolicyFilter: StoragePolicyFilterToProto(filter.StoragePolicyFilter()),
+		RoutingPolicyFilter: RoutingPolicyFilterToProto(filter.RoutingPolicyFilter()),
 	}
 }
 
@@ -524,4 +570,13 @@ func StoragePolicyFilterToProto(filter StoragePolicyFilter) *topicpb.StoragePoli
 	}
 
 	return &topicpb.StoragePolicyFilter{StoragePolicies: filter.StoragePolicies()}
+}
+
+// RoutingPolicyFilterToProto creates proto from a routing policy filter.
+func RoutingPolicyFilterToProto(filter RoutingPolicyFilter) *topicpb.RoutingPolicyFilter {
+	if filter == nil {
+		return nil
+	}
+
+	return &topicpb.RoutingPolicyFilter{AllowedTrafficTypes: filter.AllowedTrafficTypes(), IsDefault: filter.IsDefault()}
 }

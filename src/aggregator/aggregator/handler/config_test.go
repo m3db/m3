@@ -67,3 +67,34 @@ dynamicBackend:
 	require.Error(t, err)
 	require.Equal(t, errBothDynamicAndStaticBackendConfiguration, err)
 }
+
+func TestRoutingPolicyConfiguration(t *testing.T) {
+	var cfg DynamicBackendConfiguration
+
+	str := `
+name: test
+routingPolicyConfig:
+    kvConfig:
+      zone: test-zone
+      environment: test-env
+      namespace: test-ns
+    kvKey: routing-policy-key
+`
+	require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
+	require.NotNil(t, cfg.RoutingPolicyConfig)
+	require.Equal(t, "test-zone", cfg.RoutingPolicyConfig.KvConfig.Zone)
+	require.Equal(t, "test-env", cfg.RoutingPolicyConfig.KvConfig.Environment)
+	require.Equal(t, "test-ns", cfg.RoutingPolicyConfig.KvConfig.Namespace)
+	require.Equal(t, "routing-policy-key", cfg.RoutingPolicyConfig.KVKey)
+}
+
+func TestRoutingPolicyConfigurationEmptyKVKey(t *testing.T) {
+	// Test that when KVKey is empty, NewRoutingPolicyHandler returns nil (not enabled)
+	cfg := routingPolicyConfiguration{
+		KVKey: "",
+	}
+
+	handler, err := cfg.NewRoutingPolicyHandler(nil)
+	require.NoError(t, err)
+	require.Nil(t, handler, "handler should be nil when KVKey is empty")
+}
