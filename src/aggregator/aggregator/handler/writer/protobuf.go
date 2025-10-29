@@ -22,7 +22,7 @@ package writer
 
 import (
 	"errors"
-	"sync"
+	"sync/atomic"
 
 	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
@@ -232,25 +232,21 @@ type routingPolicyFilter struct {
 	isDefault              bool
 	allowedTrafficTypes    []string
 	allowedTrafficTypeMask uint64
-	mu                     sync.RWMutex
 }
 
 func (f *routingPolicyFilter) Filter(m producer.Message) bool {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
 	msg, ok := m.(message)
 	if !ok || msg.rp.TrafficTypes == 0 {
 		return f.isDefault
 	}
-	if msg.rp.TrafficTypes&f.allowedTrafficTypeMask != 0 {
+	mask := atomic.LoadUint64(&f.allowedTrafficTypeMask)
+	if msg.rp.TrafficTypes&mask != 0 {
 		return true
 	}
 	return false
 }
 
 func (f *routingPolicyFilter) onRoutingPolicyConfigUpdate(policyConfig routing.PolicyConfig) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
 	trafficTypes := policyConfig.TrafficTypes()
 	mask := uint64(0)
 	for _, trafficType := range f.allowedTrafficTypes {
@@ -261,7 +257,7 @@ func (f *routingPolicyFilter) onRoutingPolicyConfigUpdate(policyConfig routing.P
 		}
 		mask |= 1 << bitPosition
 	}
-	f.allowedTrafficTypeMask = mask
+	atomic.StoreUint64(&f.allowedTrafficTypeMask, mask)
 }
 
 func (f *routingPolicyFilter) resolveTrafficTypeToBitPosition(
