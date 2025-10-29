@@ -30,6 +30,7 @@ import (
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 
@@ -1291,7 +1292,7 @@ func TestParseDynamicFilters_RoutingPolicyFilterWithoutHandler(t *testing.T) {
 	})
 
 	// Call ParseDynamicFilters with nil routing policy handler
-	_, err := ParseDynamicFilters(zap.NewNop(), csw, nil, filterConfig)
+	_, err := ParseDynamicFilters(zap.NewNop(), tally.NoopScope, csw, nil, filterConfig)
 
 	// Should return error because routing policy handler is nil but filter is configured
 	require.Error(t, err)

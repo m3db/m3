@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/aggregator/aggregator/handler/filter"
@@ -225,7 +226,7 @@ func (c *DynamicBackendConfiguration) newProtobufHandler(
 			logger.Info("routing policy handler is not enabled, skipping routing policy filter registration")
 			continue
 		}
-		sid, f := filter.NewConsumerServiceFilter(logger, rph)
+		sid, f := filter.NewConsumerServiceFilter(logger, scope, rph)
 		p.RegisterFilter(sid, f)
 		logger.Info("registered routing policy filter for consumer service",
 			zap.Any("isDefault", filter.IsDefault),
@@ -263,15 +264,23 @@ type routingPolicyFilterConfiguration struct {
 
 func (c routingPolicyFilterConfiguration) NewConsumerServiceFilter(
 	logger *zap.Logger,
+	scope tally.Scope,
 	rph routing.PolicyHandler,
 ) (services.ServiceID, producer.FilterFunc) {
+	serviceID := c.ServiceID.NewServiceID()
+	serviceScope := scope.Tagged(map[string]string{
+		"consumer-service-name": serviceID.Name(),
+		"consumer-service-zone": serviceID.Zone(),
+		"consumer-service-env":  serviceID.Environment(),
+	})
 	p := writer.RoutingPolicyFilterParams{
+		Scope:                serviceScope,
 		Logger:               logger,
 		RoutingPolicyHandler: rph,
 		IsDefault:            c.IsDefault,
 		AllowedTrafficTypes:  c.AllowedTrafficTypes,
 	}
-	return c.ServiceID.NewServiceID(), writer.NewRoutingPolicyFilter(p, producer.StaticConfig)
+	return serviceID, writer.NewRoutingPolicyFilter(p, producer.StaticConfig)
 }
 
 // ConsumerServiceFilterConfiguration - exported to be able to write unit tests

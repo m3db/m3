@@ -22,6 +22,7 @@ package writer
 
 import (
 	"errors"
+	"strconv"
 	"sync/atomic"
 
 	"github.com/m3db/m3/src/aggregator/sharding"
@@ -204,6 +205,7 @@ func (f storagePolicyFilter) Filter(m producer.Message) bool {
 // RoutingPolicyFilterParams provides parameters for creating a routing policy filter.
 type RoutingPolicyFilterParams struct {
 	Logger               *zap.Logger
+	Scope                tally.Scope
 	RoutingPolicyHandler routing.PolicyHandler
 	IsDefault            bool
 	AllowedTrafficTypes  []string
@@ -219,6 +221,7 @@ func NewRoutingPolicyFilter(
 	}
 	cfg := &routingPolicyFilter{
 		logger:                 logger,
+		scope:                  p.Scope.SubScope("routing-policy-filter"),
 		isDefault:              p.IsDefault,
 		allowedTrafficTypes:    p.AllowedTrafficTypes,
 		allowedTrafficTypeMask: 0,
@@ -229,6 +232,7 @@ func NewRoutingPolicyFilter(
 
 type routingPolicyFilter struct {
 	logger                 *zap.Logger
+	scope                  tally.Scope
 	isDefault              bool
 	allowedTrafficTypes    []string
 	allowedTrafficTypeMask uint64
@@ -245,13 +249,18 @@ func (f *routingPolicyFilter) Filter(m producer.Message) bool {
 
 func (f *routingPolicyFilter) onRoutingPolicyConfigUpdate(policyConfig routing.PolicyConfig) {
 	trafficTypes := policyConfig.TrafficTypes()
+	f.logger.Info("updating routing policy config",
+		zap.Any("received-traffic-types", trafficTypes))
 	mask := uint64(0)
 	for _, trafficType := range f.allowedTrafficTypes {
 		bitPosition := f.resolveTrafficTypeToBitPosition(trafficTypes, trafficType)
 		if bitPosition == -1 {
-			f.logger.Warn("traffic type not found in routing policy config", zap.String("missing_traffic_type", trafficType))
+			f.logger.Warn("traffic type not found in routing policy config",
+				zap.String("missing_traffic_type", trafficType))
+			f.emitAllowedTrafficType(trafficType, true)
 			continue
 		}
+		f.emitAllowedTrafficType(trafficType, false)
 		mask |= 1 << bitPosition
 	}
 	atomic.StoreUint64(&f.allowedTrafficTypeMask, mask)
@@ -265,4 +274,12 @@ func (f *routingPolicyFilter) resolveTrafficTypeToBitPosition(
 		return -1
 	}
 	return int(bitPosition)
+}
+
+func (f *routingPolicyFilter) emitAllowedTrafficType(
+	trafficType string, missingFromRoutingPolicy bool) {
+	f.scope.Tagged(map[string]string{
+		"traffic-type":                trafficType,
+		"missing-from-routing-policy": strconv.FormatBool(missingFromRoutingPolicy),
+	}).Counter("allowed-traffic-type").Inc(1)
 }

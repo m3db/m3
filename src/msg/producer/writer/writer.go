@@ -67,11 +67,10 @@ func newWriterMetrics(scope tally.Scope) writerMetrics {
 type writer struct {
 	sync.RWMutex
 
-	topic  string
-	ts     topic.Service
-	opts   Options
-	logger *zap.Logger
-
+	topic                  string
+	ts                     topic.Service
+	opts                   Options
+	logger                 *zap.Logger
 	value                  watch.Value
 	initType               initType
 	numShards              uint32
@@ -181,6 +180,12 @@ func (w *writer) process(update interface{}) error {
 	for _, cs := range t.ConsumerServices() {
 		key := cs.ServiceID().String()
 		csw, ok := w.consumerServiceWriters[key]
+		scope := iOpts.MetricsScope().Tagged(map[string]string{
+			"consumer-service-name": cs.ServiceID().Name(),
+			"consumer-service-zone": cs.ServiceID().Zone(),
+			"consumer-service-env":  cs.ServiceID().Environment(),
+			"consumption-type":      cs.ConsumptionType().String(),
+		})
 
 		if ok {
 			// update existing consumer service writer
@@ -188,7 +193,8 @@ func (w *writer) process(update interface{}) error {
 			csw.SetMessageTTLNanos(cs.MessageTTLNanos())
 
 			if cs.DynamicFilterConfigs() != nil {
-				dynamicFilters, err := ParseDynamicFilters(w.logger, csw, w.routingPolicyHandler, cs.DynamicFilterConfigs())
+				dynamicFilters, err := ParseDynamicFilters(
+					w.logger, scope, csw, w.routingPolicyHandler, cs.DynamicFilterConfigs())
 
 				if err != nil {
 					w.logger.Error("could not update dynamic filters on consumer service writer, error registering dynamic filters",
@@ -217,12 +223,6 @@ func (w *writer) process(update interface{}) error {
 
 			continue
 		}
-		scope := iOpts.MetricsScope().Tagged(map[string]string{
-			"consumer-service-name": cs.ServiceID().Name(),
-			"consumer-service-zone": cs.ServiceID().Zone(),
-			"consumer-service-env":  cs.ServiceID().Environment(),
-			"consumption-type":      cs.ConsumptionType().String(),
-		})
 
 		// create new consumer service writer
 		csw, err := newConsumerServiceWriter(cs, t.NumberOfShards(), w.opts.SetInstrumentOptions(iOpts.SetMetricsScope(scope)))
@@ -236,7 +236,8 @@ func (w *writer) process(update interface{}) error {
 
 		// if there are dynamicly configured filters, they are the source of truth
 		if cs.DynamicFilterConfigs() != nil {
-			dynamicFilters, err := ParseDynamicFilters(w.logger, csw, w.routingPolicyHandler, cs.DynamicFilterConfigs())
+			dynamicFilters, err := ParseDynamicFilters(
+				w.logger, scope, csw, w.routingPolicyHandler, cs.DynamicFilterConfigs())
 
 			if err != nil {
 				w.logger.Error("could not create consumer service writer, error registering dynamic filters",
@@ -254,7 +255,6 @@ func (w *writer) process(update interface{}) error {
 			w.RUnlock()
 
 			// if there are no dynamicly configured filters, static filters are the source of truth
-
 			csw.SetFilters(staticFilters)
 		}
 
@@ -355,6 +355,7 @@ func (w *writer) SetRoutingPolicyHandler(policyHandler routing.PolicyHandler) {
 // ParseDynamicFilters parses the dynamic filters for a consumer service from a topic update.
 func ParseDynamicFilters(
 	logger *zap.Logger,
+	scope tally.Scope,
 	csw consumerServiceWriter,
 	rph routing.PolicyHandler,
 	filterConfig topic.FilterConfig,
@@ -400,7 +401,7 @@ func ParseDynamicFilters(
 			return filterFuncs, errors.New("routing policy handler is not set, but routing policy filter is configured")
 		}
 		routingPolicyFilterFunc, err := ParseRoutingPolicyFilterFromFromTopicUpdate(
-			logger, rph, filterConfig.RoutingPolicyFilter())
+			logger, scope, rph, filterConfig.RoutingPolicyFilter())
 
 		if err != nil {
 			return filterFuncs, fmt.Errorf("Error registering routing policy filter: %w", err)
@@ -471,9 +472,11 @@ func ParsePercentageFilterFromFromTopicUpdate(
 // ParseRoutingPolicyFilterFromFromTopicUpdate parses a routing policy filter from a topic update.
 func ParseRoutingPolicyFilterFromFromTopicUpdate(
 	logger *zap.Logger,
+	scope tally.Scope,
 	rph routing.PolicyHandler,
 	rpf topic.RoutingPolicyFilter) (producer.FilterFunc, error) {
 	params := handlerWriter.RoutingPolicyFilterParams{
+		Scope:                scope,
 		Logger:               logger,
 		RoutingPolicyHandler: rph,
 		IsDefault:            rpf.IsDefault(),

@@ -5,6 +5,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
@@ -41,6 +42,7 @@ func TestRoutePolicyFilter_Filter_ZeroTrafficTypes(t *testing.T) {
 
 			params := RoutingPolicyFilterParams{
 				Logger:               zap.NewNop(),
+				Scope:                tally.NoopScope,
 				RoutingPolicyHandler: rph,
 				IsDefault:            tt.isDefault,
 				AllowedTrafficTypes:  []string{"type1"},
@@ -177,6 +179,7 @@ func TestRoutePolicyFilter_Filter_WithTrafficTypes(t *testing.T) {
 
 			params := RoutingPolicyFilterParams{
 				Logger:               zap.NewNop(),
+				Scope:                tally.NoopScope,
 				RoutingPolicyHandler: rph,
 				IsDefault:            false,
 				AllowedTrafficTypes:  tt.allowedTypes,
@@ -261,6 +264,7 @@ func TestRoutePolicyFilter_ZeroMaskBehavior(t *testing.T) {
 
 			params := RoutingPolicyFilterParams{
 				Logger:               zap.NewNop(),
+				Scope:                tally.NoopScope,
 				RoutingPolicyHandler: rph,
 				IsDefault:            tt.isDefault,
 				AllowedTrafficTypes:  tt.allowedTypes,
@@ -338,6 +342,7 @@ func TestRoutePolicyFilter_EdgeCases(t *testing.T) {
 
 			params := RoutingPolicyFilterParams{
 				Logger:               zap.NewNop(),
+				Scope:                tally.NoopScope,
 				RoutingPolicyHandler: rph,
 				IsDefault:            tt.isDefault,
 				AllowedTrafficTypes:  tt.allowedTypes,
@@ -384,6 +389,7 @@ func TestRoutePolicyFilter_DynamicPolicyUpdate(t *testing.T) {
 
 	params := RoutingPolicyFilterParams{
 		Logger:               zap.NewNop(),
+		Scope:                tally.NoopScope,
 		RoutingPolicyHandler: rph,
 		IsDefault:            false,
 		AllowedTrafficTypes:  []string{"type1", "type2"},
@@ -510,6 +516,7 @@ func TestRoutePolicyFilter_BitMaskingEdgeCases(t *testing.T) {
 
 			params := RoutingPolicyFilterParams{
 				Logger:               zap.NewNop(),
+				Scope:                tally.NoopScope,
 				RoutingPolicyHandler: rph,
 				IsDefault:            false,
 				AllowedTrafficTypes:  tt.allowedTypes,
