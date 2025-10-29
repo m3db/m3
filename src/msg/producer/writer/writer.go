@@ -188,7 +188,7 @@ func (w *writer) process(update interface{}) error {
 			csw.SetMessageTTLNanos(cs.MessageTTLNanos())
 
 			if cs.DynamicFilterConfigs() != nil {
-				dynamicFilters, err := ParseDynamicFilters(csw, w.routingPolicyHandler, cs.DynamicFilterConfigs())
+				dynamicFilters, err := ParseDynamicFilters(w.logger, csw, w.routingPolicyHandler, cs.DynamicFilterConfigs())
 
 				if err != nil {
 					w.logger.Error("could not update dynamic filters on consumer service writer, error registering dynamic filters",
@@ -236,7 +236,7 @@ func (w *writer) process(update interface{}) error {
 
 		// if there are dynamicly configured filters, they are the source of truth
 		if cs.DynamicFilterConfigs() != nil {
-			dynamicFilters, err := ParseDynamicFilters(csw, w.routingPolicyHandler, cs.DynamicFilterConfigs())
+			dynamicFilters, err := ParseDynamicFilters(w.logger, csw, w.routingPolicyHandler, cs.DynamicFilterConfigs())
 
 			if err != nil {
 				w.logger.Error("could not create consumer service writer, error registering dynamic filters",
@@ -354,7 +354,10 @@ func (w *writer) SetRoutingPolicyHandler(policyHandler routing.PolicyHandler) {
 
 // ParseDynamicFilters parses the dynamic filters for a consumer service from a topic update.
 func ParseDynamicFilters(
-	csw consumerServiceWriter, rph routing.PolicyHandler, filterConfig topic.FilterConfig,
+	logger *zap.Logger,
+	csw consumerServiceWriter,
+	rph routing.PolicyHandler,
+	filterConfig topic.FilterConfig,
 ) ([]producer.FilterFunc, error) {
 	filterFuncs := []producer.FilterFunc{}
 
@@ -397,7 +400,7 @@ func ParseDynamicFilters(
 			return filterFuncs, errors.New("routing policy handler is not set, but routing policy filter is configured")
 		}
 		routingPolicyFilterFunc, err := ParseRoutingPolicyFilterFromFromTopicUpdate(
-			csw, rph, filterConfig.RoutingPolicyFilter())
+			logger, rph, filterConfig.RoutingPolicyFilter())
 
 		if err != nil {
 			return filterFuncs, fmt.Errorf("Error registering routing policy filter: %w", err)
@@ -467,10 +470,11 @@ func ParsePercentageFilterFromFromTopicUpdate(
 
 // ParseRoutingPolicyFilterFromFromTopicUpdate parses a routing policy filter from a topic update.
 func ParseRoutingPolicyFilterFromFromTopicUpdate(
-	csw consumerServiceWriter,
+	logger *zap.Logger,
 	rph routing.PolicyHandler,
 	rpf topic.RoutingPolicyFilter) (producer.FilterFunc, error) {
 	params := handlerWriter.RoutingPolicyFilterParams{
+		Logger:               logger,
 		RoutingPolicyHandler: rph,
 		IsDefault:            rpf.IsDefault(),
 		AllowedTrafficTypes:  rpf.AllowedTrafficTypes(),

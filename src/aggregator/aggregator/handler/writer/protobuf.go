@@ -22,8 +22,7 @@ package writer
 
 import (
 	"errors"
-
-	"github.com/uber-go/tally"
+	"sync"
 
 	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
@@ -31,6 +30,8 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/routing"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 var (
@@ -202,6 +203,7 @@ func (f storagePolicyFilter) Filter(m producer.Message) bool {
 
 // RoutingPolicyFilterParams provides parameters for creating a routing policy filter.
 type RoutingPolicyFilterParams struct {
+	Logger               *zap.Logger
 	RoutingPolicyHandler routing.PolicyHandler
 	IsDefault            bool
 	AllowedTrafficTypes  []string
@@ -211,24 +213,33 @@ type RoutingPolicyFilterParams struct {
 func NewRoutingPolicyFilter(
 	p RoutingPolicyFilterParams, configSource producer.FilterFuncConfigSourceType,
 ) producer.FilterFunc {
+	logger := p.Logger
+	if logger == nil {
+		logger = zap.NewNop()
+	}
 	cfg := &routingPolicyFilter{
+		logger:                 logger,
 		isDefault:              p.IsDefault,
 		allowedTrafficTypes:    p.AllowedTrafficTypes,
 		allowedTrafficTypeMask: 0,
 	}
-	p.RoutingPolicyHandler.Subscribe(cfg.updateAllowedTrafficTypes)
+	p.RoutingPolicyHandler.Subscribe(cfg.onRoutingPolicyConfigUpdate)
 	return producer.NewFilterFunc(cfg.Filter, producer.RoutingPolicyFilter, configSource)
 }
 
 type routingPolicyFilter struct {
+	logger                 *zap.Logger
 	isDefault              bool
 	allowedTrafficTypes    []string
 	allowedTrafficTypeMask uint64
+	mu                     sync.RWMutex
 }
 
 func (f *routingPolicyFilter) Filter(m producer.Message) bool {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
 	msg, ok := m.(message)
-	if !ok || msg.rp.TrafficTypes == 0 || f.allowedTrafficTypeMask == 0 {
+	if !ok || msg.rp.TrafficTypes == 0 {
 		return f.isDefault
 	}
 	if msg.rp.TrafficTypes&f.allowedTrafficTypeMask != 0 {
@@ -237,16 +248,16 @@ func (f *routingPolicyFilter) Filter(m producer.Message) bool {
 	return false
 }
 
-func (f *routingPolicyFilter) updateAllowedTrafficTypes(policyConfig routing.PolicyConfig) {
+func (f *routingPolicyFilter) onRoutingPolicyConfigUpdate(policyConfig routing.PolicyConfig) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	trafficTypes := policyConfig.TrafficTypes()
 	mask := uint64(0)
 	for _, trafficType := range f.allowedTrafficTypes {
 		bitPosition := f.resolveTrafficTypeToBitPosition(trafficTypes, trafficType)
-		// in the case where we cannot find the traffic type, we will default it to 0
-		// this will serve as the fallback logic, and isDefault will be used to determine if the message should be accepted
 		if bitPosition == -1 {
-			mask = 0
-			break
+			f.logger.Warn("traffic type not found in routing policy config", zap.String("missing_traffic_type", trafficType))
+			continue
 		}
 		mask |= 1 << bitPosition
 	}

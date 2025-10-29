@@ -114,9 +114,8 @@ func (p *routingPolicyHandler) processUpdate(update interface{}) error {
 	}
 	p.Unlock()
 
-	// Call listeners asynchronously to avoid blocking
 	for _, listener := range listeners {
-		go listener(v)
+		listener(v)
 	}
 
 	return nil
@@ -158,7 +157,7 @@ func (p *routingPolicyHandler) Subscribe(listener PolicyUpdateListener) int {
 	// Notify immediately with current config if available
 	if listener != nil && p.policyConfig != nil {
 		currentConfig := p.policyConfig
-		go listener(currentConfig)
+		listener(currentConfig)
 	}
 
 	return id

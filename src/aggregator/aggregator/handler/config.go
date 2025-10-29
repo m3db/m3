@@ -225,7 +225,7 @@ func (c *DynamicBackendConfiguration) newProtobufHandler(
 			logger.Info("routing policy handler is not enabled, skipping routing policy filter registration")
 			continue
 		}
-		sid, f := filter.NewConsumerServiceFilter(rph)
+		sid, f := filter.NewConsumerServiceFilter(logger, rph)
 		p.RegisterFilter(sid, f)
 		logger.Info("registered routing policy filter for consumer service",
 			zap.Any("isDefault", filter.IsDefault),
@@ -262,9 +262,11 @@ type routingPolicyFilterConfiguration struct {
 }
 
 func (c routingPolicyFilterConfiguration) NewConsumerServiceFilter(
+	logger *zap.Logger,
 	rph routing.PolicyHandler,
 ) (services.ServiceID, producer.FilterFunc) {
 	p := writer.RoutingPolicyFilterParams{
+		Logger:               logger,
 		RoutingPolicyHandler: rph,
 		IsDefault:            c.IsDefault,
 		AllowedTrafficTypes:  c.AllowedTrafficTypes,

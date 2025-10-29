@@ -10,6 +10,7 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/routing"
+	"go.uber.org/zap"
 )
 
 func TestRoutePolicyFilter_Filter_ZeroTrafficTypes(t *testing.T) {
@@ -39,6 +40,7 @@ func TestRoutePolicyFilter_Filter_ZeroTrafficTypes(t *testing.T) {
 			rph.EXPECT().Subscribe(gomock.Any()).Times(1)
 
 			params := RoutingPolicyFilterParams{
+				Logger:               zap.NewNop(),
 				RoutingPolicyHandler: rph,
 				IsDefault:            tt.isDefault,
 				AllowedTrafficTypes:  []string{"type1"},
@@ -124,6 +126,30 @@ func TestRoutePolicyFilter_Filter_WithTrafficTypes(t *testing.T) {
 			description:         "should reject when allowed type doesn't exist in traffic types",
 		},
 		{
+			name: "partial matching - some allowed types missing from config",
+			trafficTypes: map[string]uint64{
+				"type1": 0, // bit position 0
+				"type2": 1, // bit position 1
+				// type3 is missing from config
+			},
+			allowedTypes:        []string{"type1", "type2", "type3"}, // type3 not in traffic types
+			messageTrafficTypes: 1,                                   // bit 0 set (type1)
+			expected:            true,
+			description:         "should pass when message has type1, even though type3 is missing from config",
+		},
+		{
+			name: "partial matching - message with only missing type should fail",
+			trafficTypes: map[string]uint64{
+				"type1": 0, // bit position 0
+				"type2": 1, // bit position 1
+				// type3 and type4 are missing
+			},
+			allowedTypes:        []string{"type1", "type2", "type3"},
+			messageTrafficTypes: 4, // bit 2 set (would be type3, but not in config)
+			expected:            false,
+			description:         "should reject when message has traffic type not in allowed mask",
+		},
+		{
 			name: "complex bit pattern",
 			trafficTypes: map[string]uint64{
 				"read":    0, // bit 0
@@ -150,6 +176,7 @@ func TestRoutePolicyFilter_Filter_WithTrafficTypes(t *testing.T) {
 			}).Times(1)
 
 			params := RoutingPolicyFilterParams{
+				Logger:               zap.NewNop(),
 				RoutingPolicyHandler: rph,
 				IsDefault:            false,
 				AllowedTrafficTypes:  tt.allowedTypes,
@@ -190,8 +217,8 @@ func TestRoutePolicyFilter_ZeroMaskBehavior(t *testing.T) {
 			trafficTypes:        map[string]uint64{"type1": 0},
 			messageTrafficTypes: 1,
 			isDefault:           true,
-			expected:            true,
-			description:         "should return isDefault when mask is 0",
+			expected:            false,
+			description:         "should return false when mask is 0 but message has traffic types",
 		},
 		{
 			name:                "zero mask with isDefault false",
@@ -200,7 +227,7 @@ func TestRoutePolicyFilter_ZeroMaskBehavior(t *testing.T) {
 			messageTrafficTypes: 1,
 			isDefault:           false,
 			expected:            false,
-			description:         "should return isDefault when mask is 0",
+			description:         "should return false when mask is 0 but message has traffic types",
 		},
 		{
 			name:                "zero mask with empty allowed types and isDefault true",
@@ -208,8 +235,8 @@ func TestRoutePolicyFilter_ZeroMaskBehavior(t *testing.T) {
 			trafficTypes:        map[string]uint64{"type1": 0},
 			messageTrafficTypes: 1,
 			isDefault:           true,
-			expected:            true,
-			description:         "should return isDefault when no types allowed",
+			expected:            false,
+			description:         "should return false when no types allowed but message has traffic types",
 		},
 		{
 			name:                "zero mask with empty allowed types and isDefault false",
@@ -218,7 +245,7 @@ func TestRoutePolicyFilter_ZeroMaskBehavior(t *testing.T) {
 			messageTrafficTypes: 1,
 			isDefault:           false,
 			expected:            false,
-			description:         "should return isDefault when no types allowed",
+			description:         "should return false when no types allowed but message has traffic types",
 		},
 	}
 
@@ -233,6 +260,7 @@ func TestRoutePolicyFilter_ZeroMaskBehavior(t *testing.T) {
 			}).Times(1)
 
 			params := RoutingPolicyFilterParams{
+				Logger:               zap.NewNop(),
 				RoutingPolicyHandler: rph,
 				IsDefault:            tt.isDefault,
 				AllowedTrafficTypes:  tt.allowedTypes,
@@ -282,8 +310,8 @@ func TestRoutePolicyFilter_EdgeCases(t *testing.T) {
 			allowedTypes: []string{"type1"},
 			isDefault:    true,
 			messageTypes: 1,
-			expected:     true,
-			description:  "should use isDefault when traffic types map is nil",
+			expected:     false,
+			description:  "should return false when mask is 0 (due to nil traffic types) but message has traffic types",
 		},
 		{
 			name: "max uint64 traffic types",
@@ -309,6 +337,7 @@ func TestRoutePolicyFilter_EdgeCases(t *testing.T) {
 			}).Times(1)
 
 			params := RoutingPolicyFilterParams{
+				Logger:               zap.NewNop(),
 				RoutingPolicyHandler: rph,
 				IsDefault:            tt.isDefault,
 				AllowedTrafficTypes:  tt.allowedTypes,
@@ -354,6 +383,7 @@ func TestRoutePolicyFilter_DynamicPolicyUpdate(t *testing.T) {
 	}).Times(1)
 
 	params := RoutingPolicyFilterParams{
+		Logger:               zap.NewNop(),
 		RoutingPolicyHandler: rph,
 		IsDefault:            false,
 		AllowedTrafficTypes:  []string{"type1", "type2"},
@@ -479,6 +509,7 @@ func TestRoutePolicyFilter_BitMaskingEdgeCases(t *testing.T) {
 			}).Times(1)
 
 			params := RoutingPolicyFilterParams{
+				Logger:               zap.NewNop(),
 				RoutingPolicyHandler: rph,
 				IsDefault:            false,
 				AllowedTrafficTypes:  tt.allowedTypes,
