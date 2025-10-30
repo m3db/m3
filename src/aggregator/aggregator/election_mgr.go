@@ -348,12 +348,13 @@ func (mgr *electionManager) Open(shardSetID uint32) error {
 	}
 	mgr.state = electionManagerOpen
 
-	mgr.Add(5)
+	mgr.Add(6)
 	go mgr.watchGoalStateChanges(stateChangeWatch)
 	go mgr.verifyPendingFollower(verifyWatch)
 	go mgr.checkCampaignStateLoop()
 	go mgr.campaignLoop(campaignStateWatch)
 	go mgr.reportMetrics()
+	go mgr.validateLeaderInPlacementLoop()
 
 	mgr.logger.Info("election manager opened successfully")
 	return nil
@@ -889,4 +890,68 @@ func (mgr *electionManager) logError(desc string, err error) {
 		zap.String("leaderValue", mgr.campaignOpts.LeaderValue()),
 		zap.Error(err),
 	)
+}
+
+// validateLeaderInPlacementLoop periodically checks if the current leader is still in placement.
+// If the leader is not in placement, it resigns from leadership to trigger re-election.
+func (mgr *electionManager) validateLeaderInPlacementLoop() {
+	defer mgr.Done()
+
+	ticker := time.NewTicker(mgr.campaignStateCheckInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			if err := mgr.validateAndResignIfNeeded(); err != nil {
+				mgr.logError("error validating leader placement", err)
+			}
+		case <-mgr.doneCh:
+			return
+		}
+	}
+}
+
+func (mgr *electionManager) validateAndResignIfNeeded() error {
+	// Only validate if we are currently the leader
+	if mgr.ElectionState() != LeaderState {
+		return nil
+	}
+
+	// Get current leader from leader service
+	leader, err := mgr.leaderService.Leader(mgr.electionKey)
+	if err != nil {
+		return fmt.Errorf("error getting current leader: %v", err)
+	}
+
+	// If we're not the leader anymore, no need to validate
+	if leader != mgr.leaderValue {
+		return nil
+	}
+
+	// Get current placement
+	placement, err := mgr.placementManager.Placement()
+	if err != nil {
+		return fmt.Errorf("error getting placement: %v", err)
+	}
+
+	// Check if leader exists in placement
+	_, exists := placement.Instance(leader)
+	if !exists {
+		mgr.logger.Warn("current leader is not in placement, resigning",
+			zap.String("leader", leader),
+			zap.String("electionKey", mgr.electionKey))
+
+		// Resign leadership since leader is not in placement
+		ctx, cancel := context.WithTimeout(context.Background(), mgr.electionOpts.ResignTimeout())
+		defer cancel()
+
+		if err := mgr.Resign(ctx); err != nil {
+			return fmt.Errorf("error resigning leadership: %v", err)
+		}
+
+		mgr.logger.Info("successfully resigned leadership due to leader not in placement")
+	}
+
+	return nil
 }
