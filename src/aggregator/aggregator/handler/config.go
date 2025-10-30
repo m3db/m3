@@ -296,8 +296,8 @@ func (c ConsumerServiceFilterConfiguration) NewConsumerServiceFilter() (services
 
 // routingPolicyConfiguration configures a routing policy that is configured via kv(etcd)
 type routingPolicyConfiguration struct {
-	KvConfig kv.OverrideConfiguration `yaml:"kvConfig" validate:"nonzero"`
-	KVKey    string                   `yaml:"kvKey" validate:"nonzero"`
+	KvConfig kv.OverrideConfiguration `yaml:"kvConfig"`
+	KVKey    string                   `yaml:"kvKey"`
 }
 
 func (c routingPolicyConfiguration) NewRoutingPolicyHandler(kvClient client.Client) (routing.PolicyHandler, error) {
