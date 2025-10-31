@@ -40,7 +40,7 @@ func (c *ProducerConfiguration) newOptions(
 	iOpts instrument.Options,
 	rwOpts xio.Options,
 ) (producer.Options, error) {
-	wOpts, err := c.Writer.NewOptions(cs, iOpts, rwOpts)
+	wOpts, gracefulCloseWatch, err := c.Writer.NewOptions(cs, iOpts, rwOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func (c *ProducerConfiguration) newOptions(
 	}
 	return producer.NewOptions().
 		SetBuffer(b).
-		SetWriter(writer.NewWriter(wOpts)), nil
+		SetWriter(writer.NewWriter(wOpts, gracefulCloseWatch)), nil
 }
 
 // NewProducer creates new producer.

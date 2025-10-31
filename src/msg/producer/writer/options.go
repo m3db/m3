@@ -24,7 +24,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/msg/protocol/proto"
@@ -437,12 +436,6 @@ type Options interface {
 
 	// SetGracefulClose sets the graceful close setting.
 	SetGracefulClose(value *atomic.Bool) Options
-
-	// GracefulCloseWatch returns the KV watch for graceful close setting.
-	GracefulCloseWatch() kv.ValueWatch
-
-	// SetGracefulCloseWatch sets the KV watch for graceful close setting.
-	SetGracefulCloseWatch(value kv.ValueWatch) Options
 }
 
 type writerOptions struct {
@@ -466,7 +459,6 @@ type writerOptions struct {
 	ignoreCutoffCutover               bool
 	withoutConsumerScope              bool
 	gracefulClose                     *atomic.Bool
-	gracefulCloseWatch                kv.ValueWatch
 }
 
 // NewOptions creates Options.
@@ -691,15 +683,5 @@ func (opts *writerOptions) GracefulClose() bool {
 func (opts *writerOptions) SetGracefulClose(value *atomic.Bool) Options {
 	o := *opts
 	o.gracefulClose = value
-	return &o
-}
-
-func (opts *writerOptions) GracefulCloseWatch() kv.ValueWatch {
-	return opts.gracefulCloseWatch
-}
-
-func (opts *writerOptions) SetGracefulCloseWatch(value kv.ValueWatch) Options {
-	o := *opts
-	o.gracefulCloseWatch = value
 	return &o
 }
