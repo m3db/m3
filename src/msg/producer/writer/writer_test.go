@@ -57,7 +57,7 @@ func TestWriterInitErrorNoTopic(t *testing.T) {
 	require.NoError(t, err)
 
 	opts := testOptions().SetTopicService(ts)
-	w := NewWriter(opts)
+	w := NewWriter(opts, nil)
 	require.Error(t, w.Init())
 	w.Close()
 }
@@ -75,8 +75,11 @@ func TestWriterWriteAfterClosed(t *testing.T) {
 	ts, err := topic.NewService(topic.NewServiceOptions().SetConfigService(cs))
 	require.NoError(t, err)
 
+	mockWatch := kv.NewMockValueWatch(ctrl)
+	mockWatch.EXPECT().Close().Times(1)
+
 	opts := testOptions().SetTopicService(ts)
-	w := NewWriter(opts)
+	w := NewWriter(opts, mockWatch)
 	w.Init()
 	w.Close()
 
@@ -103,7 +106,7 @@ func TestWriterWriteWithInvalidShard(t *testing.T) {
 	require.NoError(t, err)
 
 	opts := testOptions().SetTopicService(ts)
-	w := NewWriter(opts).(*writer)
+	w := NewWriter(opts, nil).(*writer)
 	w.numShards = 2
 
 	mm := producer.NewMockMessage(ctrl)
@@ -166,7 +169,7 @@ func TestWriterInvalidTopicUpdate(t *testing.T) {
 	_, err = ps1.Set(p1)
 	require.NoError(t, err)
 
-	w := NewWriter(opts).(*writer)
+	w := NewWriter(opts, nil).(*writer)
 	var wg sync.WaitGroup
 	w.processFn = func(i interface{}) error {
 		defer wg.Done()
@@ -221,7 +224,7 @@ func TestWriterRegisterFilter(t *testing.T) {
 		producer.UnspecifiedFilter,
 		producer.StaticConfig)
 
-	w := NewWriter(opts).(*writer)
+	w := NewWriter(opts, nil).(*writer)
 	w.consumerServiceWriters[cs1.ServiceID().String()] = csw1
 
 	csw1.EXPECT().UnregisterFilters()
@@ -303,7 +306,7 @@ func TestWriterTopicUpdate(t *testing.T) {
 	_, err = ps1.Set(p1)
 	require.NoError(t, err)
 
-	w := NewWriter(opts).(*writer)
+	w := NewWriter(opts, nil).(*writer)
 	require.NoError(t, w.Init())
 	defer w.Close()
 
@@ -439,7 +442,7 @@ func TestTopicUpdateWithSameConsumerServicesButDifferentOrder(t *testing.T) {
 	_, err = ps2.Set(p2)
 	require.NoError(t, err)
 
-	w := NewWriter(opts).(*writer)
+	w := NewWriter(opts, nil).(*writer)
 
 	called := atomic.NewInt32(0)
 	w.processFn = func(update interface{}) error {
@@ -568,7 +571,7 @@ func TestWriterWrite(t *testing.T) {
 	_, err = ps2.Set(p2)
 	require.NoError(t, err)
 
-	w := NewWriter(opts).(*writer)
+	w := NewWriter(opts, nil).(*writer)
 	require.NoError(t, w.Init())
 	defer w.Close()
 
@@ -650,7 +653,7 @@ func TestWriterCloseBlocking(t *testing.T) {
 	_, err = ps1.Set(p1)
 	require.NoError(t, err)
 
-	w := NewWriter(opts).(*writer)
+	w := NewWriter(opts, nil).(*writer)
 	require.NoError(t, w.Init())
 	require.Equal(t, 1, len(w.consumerServiceWriters))
 
@@ -745,7 +748,7 @@ func TestWriterSetMessageTTLNanosDropMetric(t *testing.T) {
 	_, err = ps2.Set(p2)
 	require.NoError(t, err)
 
-	w := NewWriter(opts).(*writer)
+	w := NewWriter(opts, nil).(*writer)
 	require.NoError(t, w.Init())
 	defer w.Close()
 
@@ -852,7 +855,7 @@ func TestWriterNumShards(t *testing.T) {
 	_, err = ts.CheckAndSet(testTopic, kv.UninitializedVersion)
 	require.NoError(t, err)
 
-	w := NewWriter(opts).(*writer)
+	w := NewWriter(opts, nil).(*writer)
 	defer w.Close()
 
 	require.Equal(t, 0, int(w.NumShards()))
@@ -1130,7 +1133,7 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 			_, err = ps1.Set(p1)
 			require.NoError(t, err, "expect no error after setting placement")
 
-			w := NewWriter(opts).(*writer)
+			w := NewWriter(opts, nil).(*writer)
 
 			for _, filterType := range test.staticFilters {
 				w.RegisterFilter(

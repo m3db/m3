@@ -1086,7 +1086,7 @@ func TestMessageWriterGracefulCloseTrue(t *testing.T) {
 
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer lis.Close()
+	defer lis.Close() // nolint: errcheck
 
 	addr := lis.Addr().String()
 	opts := testOptions()

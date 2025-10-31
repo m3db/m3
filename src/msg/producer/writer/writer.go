@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 
@@ -78,12 +79,13 @@ type writer struct {
 	filterRegistry         map[string][]producer.FilterFunc
 	isClosed               bool
 	m                      writerMetrics
+	gracefulCloseWatch     kv.ValueWatch
 
 	processFn watch.ProcessFn
 }
 
 // NewWriter creates a new writer.
-func NewWriter(opts Options) producer.Writer {
+func NewWriter(opts Options, gracefulCloseWatch kv.ValueWatch) producer.Writer {
 	w := &writer{
 		topic:                  opts.TopicName(),
 		ts:                     opts.TopicService(),
@@ -93,6 +95,7 @@ func NewWriter(opts Options) producer.Writer {
 		consumerServiceWriters: make(map[string]consumerServiceWriter),
 		filterRegistry:         make(map[string][]producer.FilterFunc),
 		isClosed:               false,
+		gracefulCloseWatch:     gracefulCloseWatch,
 		m:                      newWriterMetrics(opts.InstrumentOptions().MetricsScope()),
 	}
 	w.processFn = w.process
@@ -314,8 +317,8 @@ func (w *writer) Close() {
 	w.Unlock()
 
 	// Close the graceful close KV watch to stop the background goroutine
-	if gracefulCloseWatch := w.opts.GracefulCloseWatch(); gracefulCloseWatch != nil {
-		gracefulCloseWatch.Close()
+	if w.gracefulCloseWatch != nil {
+		w.gracefulCloseWatch.Close()
 	}
 
 	w.value.Unwatch()

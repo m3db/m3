@@ -155,7 +155,7 @@ func (c *WriterConfiguration) NewOptions(
 	cs client.Client,
 	iOpts instrument.Options,
 	rwOptions xio.Options,
-) (writer.Options, error) {
+) (writer.Options, kv.ValueWatch, error) {
 	// Create graceful close setting - defaults to false
 	gracefulClose := &atomic.Bool{}
 	gracefulClose.Store(false)
@@ -169,12 +169,11 @@ func (c *WriterConfiguration) NewOptions(
 		SetPlacementOptions(c.PlacementOptions.NewOptions()).
 		SetInstrumentOptions(iOpts).
 		SetWithoutConsumerScope(c.WithoutConsumerScope).
-		SetGracefulClose(gracefulClose).
-		SetGracefulCloseWatch(gracefulCloseWatch)
+		SetGracefulClose(gracefulClose)
 
 	kvOpts, err := c.TopicServiceOverride.NewOverrideOptions()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	topicServiceOpts := topic.NewServiceOptions().
@@ -182,7 +181,7 @@ func (c *WriterConfiguration) NewOptions(
 		SetKVOverrideOptions(kvOpts)
 	ts, err := topic.NewService(topicServiceOpts)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	opts = opts.SetTopicService(ts)
@@ -192,7 +191,7 @@ func (c *WriterConfiguration) NewOptions(
 	}
 	sd, err := cs.Services(c.PlacementServiceOverride.NewOptions())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	opts = opts.SetServiceDiscovery(sd)
@@ -202,7 +201,7 @@ func (c *WriterConfiguration) NewOptions(
 	}
 	opts, err = c.setRetryOptions(opts, iOpts)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if c.MessageQueueNewWritesScanInterval != nil {
 		opts = opts.SetMessageQueueNewWritesScanInterval(*c.MessageQueueNewWritesScanInterval)
@@ -235,7 +234,7 @@ func (c *WriterConfiguration) NewOptions(
 	opts = opts.SetIgnoreCutoffCutover(c.IgnoreCutoffCutover)
 
 	opts = opts.SetDecoderOptions(opts.DecoderOptions().SetRWOptions(rwOptions))
-	return opts, nil
+	return opts, gracefulCloseWatch, nil
 }
 
 func (c *WriterConfiguration) setRetryOptions(
