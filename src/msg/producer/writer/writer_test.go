@@ -35,6 +35,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/cluster/placement"
@@ -60,7 +61,7 @@ func TestWriterInitErrorNoTopic(t *testing.T) {
 	require.NoError(t, err)
 
 	opts := testOptions().SetTopicService(ts)
-	w := NewWriter(opts)
+	w := NewWriter(opts, nil, "")
 	require.Error(t, w.Init())
 	w.Close()
 }
@@ -79,7 +80,7 @@ func TestWriterWriteAfterClosed(t *testing.T) {
 	require.NoError(t, err)
 
 	opts := testOptions().SetTopicService(ts)
-	w := NewWriter(opts)
+	w := NewWriter(opts, nil, "")
 	w.Init()
 	w.Close()
 
@@ -106,7 +107,7 @@ func TestWriterWriteWithInvalidShard(t *testing.T) {
 	require.NoError(t, err)
 
 	opts := testOptions().SetTopicService(ts)
-	w := NewWriter(opts).(*writer)
+	w := NewWriter(opts, nil, "").(*writer)
 	w.numShards = 2
 
 	mm := producer.NewMockMessage(ctrl)
@@ -169,7 +170,7 @@ func TestWriterInvalidTopicUpdate(t *testing.T) {
 	_, err = ps1.Set(p1)
 	require.NoError(t, err)
 
-	w := NewWriter(opts).(*writer)
+	w := NewWriter(opts, nil, "").(*writer)
 	var wg sync.WaitGroup
 	w.processFn = func(i interface{}) error {
 		defer wg.Done()
@@ -224,7 +225,7 @@ func TestWriterRegisterFilter(t *testing.T) {
 		producer.UnspecifiedFilter,
 		producer.StaticConfig)
 
-	w := NewWriter(opts).(*writer)
+	w := NewWriter(opts, nil, "").(*writer)
 	w.consumerServiceWriters[cs1.ServiceID().String()] = csw1
 
 	csw1.EXPECT().UnregisterFilters()
@@ -306,7 +307,7 @@ func TestWriterTopicUpdate(t *testing.T) {
 	_, err = ps1.Set(p1)
 	require.NoError(t, err)
 
-	w := NewWriter(opts).(*writer)
+	w := NewWriter(opts, nil, "").(*writer)
 	require.NoError(t, w.Init())
 	defer w.Close()
 
@@ -442,7 +443,7 @@ func TestTopicUpdateWithSameConsumerServicesButDifferentOrder(t *testing.T) {
 	_, err = ps2.Set(p2)
 	require.NoError(t, err)
 
-	w := NewWriter(opts).(*writer)
+	w := NewWriter(opts, nil, "").(*writer)
 
 	called := atomic.NewInt32(0)
 	w.processFn = func(update interface{}) error {
@@ -571,7 +572,7 @@ func TestWriterWrite(t *testing.T) {
 	_, err = ps2.Set(p2)
 	require.NoError(t, err)
 
-	w := NewWriter(opts).(*writer)
+	w := NewWriter(opts, nil, "").(*writer)
 	require.NoError(t, w.Init())
 	defer w.Close()
 
@@ -653,7 +654,7 @@ func TestWriterCloseBlocking(t *testing.T) {
 	_, err = ps1.Set(p1)
 	require.NoError(t, err)
 
-	w := NewWriter(opts).(*writer)
+	w := NewWriter(opts, nil, "").(*writer)
 	require.NoError(t, w.Init())
 	require.Equal(t, 1, len(w.consumerServiceWriters))
 
@@ -748,7 +749,7 @@ func TestWriterSetMessageTTLNanosDropMetric(t *testing.T) {
 	_, err = ps2.Set(p2)
 	require.NoError(t, err)
 
-	w := NewWriter(opts).(*writer)
+	w := NewWriter(opts, nil, "").(*writer)
 	require.NoError(t, w.Init())
 	defer w.Close()
 
@@ -855,7 +856,7 @@ func TestWriterNumShards(t *testing.T) {
 	_, err = ts.CheckAndSet(testTopic, kv.UninitializedVersion)
 	require.NoError(t, err)
 
-	w := NewWriter(opts).(*writer)
+	w := NewWriter(opts, nil, "").(*writer)
 	defer w.Close()
 
 	require.Equal(t, 0, int(w.NumShards()))
@@ -1133,7 +1134,7 @@ func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
 			_, err = ps1.Set(p1)
 			require.NoError(t, err, "expect no error after setting placement")
 
-			w := NewWriter(opts).(*writer)
+			w := NewWriter(opts, nil, "").(*writer)
 
 			for _, filterType := range test.staticFilters {
 				w.RegisterFilter(
@@ -1297,4 +1298,137 @@ func TestParseDynamicFilters_RoutingPolicyFilterWithoutHandler(t *testing.T) {
 	// Should return error because routing policy handler is nil but filter is configured
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "routing policy handler is not set")
+}
+
+// TestWriterGracefulCloseKVWatch tests that the writer correctly initializes
+// a KV watch and updates the graceful close setting dynamically, similar to
+// TestRuntimeOptionsConfigurationNewRuntimeOptionsManager.
+func TestWriterGracefulCloseKVWatch(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	// Create in-memory KV store
+	memStore := mem.NewStore()
+	gracefulCloseKey := "graceful-close-key"
+
+	// Set initial value to false
+	proto := &commonpb.BoolProto{Value: false}
+	_, err := memStore.Set(gracefulCloseKey, proto)
+	require.NoError(t, err)
+
+	mockClient := client.NewMockClient(ctrl)
+	mockClient.EXPECT().Store(gomock.Any()).Return(memStore, nil).AnyTimes()
+
+	store := mem.NewStore()
+	cs := client.NewMockClient(ctrl)
+	cs.EXPECT().Store(gomock.Any()).Return(store, nil)
+
+	ts, err := topic.NewService(topic.NewServiceOptions().SetConfigService(cs))
+	require.NoError(t, err)
+	opts := testOptions().SetTopicService(ts)
+
+	w := NewWriter(opts, mockClient, gracefulCloseKey).(*writer)
+	require.NotNil(t, w.gracefulCloseWatch)
+	defer w.gracefulCloseWatch.Close()
+
+	// Verify initial value is false
+	require.False(t, w.gracefulClose.Load())
+	require.False(t, w.opts.GracefulClose())
+
+	// Set graceful close to true
+	proto.Value = true
+	_, err = memStore.Set(gracefulCloseKey, proto)
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+	require.True(t, w.gracefulClose.Load())
+	require.True(t, w.opts.GracefulClose())
+
+	// Revert graceful close to false
+	proto.Value = false
+	_, err = memStore.Set(gracefulCloseKey, proto)
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+	require.False(t, w.gracefulClose.Load())
+	require.False(t, w.opts.GracefulClose())
+
+	// Set graceful close to true again
+	proto.Value = true
+	_, err = memStore.Set(gracefulCloseKey, proto)
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+	require.True(t, w.gracefulClose.Load())
+	require.True(t, w.opts.GracefulClose())
+
+	// Revert to initial value
+	proto.Value = false
+	_, err = memStore.Set(gracefulCloseKey, proto)
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+	require.False(t, w.gracefulClose.Load())
+	require.False(t, w.opts.GracefulClose())
+}
+
+// TestWriterGracefulCloseKVWatchPropagation tests that KV changes propagate
+// all the way down to messageWriter instances through the shared *atomic.Bool.
+func TestWriterGracefulCloseKVWatchPropagation(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	// Create in-memory KV store for graceful close
+	memStore := mem.NewStore()
+	gracefulCloseKey := "graceful-close-key"
+	proto := &commonpb.BoolProto{Value: false}
+	_, err := memStore.Set(gracefulCloseKey, proto)
+	require.NoError(t, err)
+
+	mockClient := client.NewMockClient(ctrl)
+	mockClient.EXPECT().Store(gomock.Any()).Return(memStore, nil).AnyTimes()
+
+	store := mem.NewStore()
+	cs := client.NewMockClient(ctrl)
+	cs.EXPECT().Store(gomock.Any()).Return(store, nil)
+
+	ts, err := topic.NewService(topic.NewServiceOptions().SetConfigService(cs))
+	require.NoError(t, err)
+
+	opts := testOptions().SetTopicService(ts)
+
+	w := NewWriter(opts, mockClient, gracefulCloseKey).(*writer)
+	require.NotNil(t, w.gracefulCloseWatch)
+	defer w.gracefulCloseWatch.Close()
+
+	// Create a messageWriter directly with the writer's options
+	// This simulates what happens when consumerServiceWriter creates messageWriters
+	mw := newMessageWriter(0, newMessagePool(), w.opts, testMessageWriterMetrics())
+	mw.Init()
+	defer mw.Close()
+
+	// Verify initial value is false at all levels
+	require.False(t, w.gracefulClose.Load())
+	require.False(t, w.opts.GracefulClose())
+	require.False(t, mw.opts.GracefulClose())
+
+	// Update KV to true
+	proto.Value = true
+	_, err = memStore.Set(gracefulCloseKey, proto)
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+	require.True(t, w.gracefulClose.Load())
+	require.True(t, w.opts.GracefulClose())
+	// messageWriter sees the updated value through the shared *atomic.Bool
+	require.True(t, mw.opts.GracefulClose())
+
+	// Update KV back to false
+	proto.Value = false
+	_, err = memStore.Set(gracefulCloseKey, proto)
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+	require.False(t, w.gracefulClose.Load())
+	require.False(t, w.opts.GracefulClose())
+	// messageWriter sees the updated value through the shared *atomic.Bool
+	require.False(t, mw.opts.GracefulClose())
 }

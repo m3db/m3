@@ -23,6 +23,8 @@ package writer
 import (
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/msg/protocol/proto"
@@ -429,6 +431,12 @@ type Options interface {
 
 	// SetWithoutConsumerScope sets the value for WithoutConsumerScope.
 	SetWithoutConsumerScope(value bool) Options
+
+	// GracefulClose returns whether graceful close is enabled.
+	GracefulClose() bool
+
+	// SetGracefulClose sets the graceful close setting.
+	SetGracefulClose(value *atomic.Bool) Options
 }
 
 type writerOptions struct {
@@ -451,6 +459,7 @@ type writerOptions struct {
 	iOpts                             instrument.Options
 	ignoreCutoffCutover               bool
 	withoutConsumerScope              bool
+	gracefulClose                     *atomic.Bool
 }
 
 // NewOptions creates Options.
@@ -662,5 +671,18 @@ func (opts *writerOptions) WithoutConsumerScope() bool {
 func (opts *writerOptions) SetWithoutConsumerScope(value bool) Options {
 	o := *opts
 	o.withoutConsumerScope = value
+	return &o
+}
+
+func (opts *writerOptions) GracefulClose() bool {
+	if opts.gracefulClose == nil {
+		return false
+	}
+	return opts.gracefulClose.Load()
+}
+
+func (opts *writerOptions) SetGracefulClose(value *atomic.Bool) Options {
+	o := *opts
+	o.gracefulClose = value
 	return &o
 }

@@ -32,6 +32,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
 
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/producer"
@@ -1014,4 +1015,216 @@ func validateMessages(t *testing.T, msgs []*producer.RefCountedMessage, w *messa
 	}
 	w.RUnlock()
 	require.Equal(t, idx, len(msgs))
+}
+
+// TestMessageWriterGracefulCloseFalse tests that with graceful close disabled,
+// isClosed is set immediately and messages are auto-acked (verified via metrics).
+func TestMessageWriterGracefulCloseFalse(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testOptions()
+	gracefulClose := &atomic.Bool{}
+	gracefulClose.Store(false)
+	opts = opts.SetGracefulClose(gracefulClose)
+	opts = opts.SetCloseCheckInterval(50 * time.Millisecond)
+	opts = opts.SetMessageQueueNewWritesScanInterval(10 * time.Millisecond)
+
+	scope := tally.NewTestScope("", nil)
+	metrics := newMessageWriterMetrics(scope, instrument.TimerOptions{}, true)
+
+	w := newMessageWriter(200, newMessagePool(), opts, metrics)
+	w.Init()
+
+	// Write a message - with graceful close this would block, but with fast shutdown it won't
+	mm := producer.NewMockMessage(ctrl)
+	mm.EXPECT().Bytes().Return([]byte("test"))
+	mm.EXPECT().Size().Return(4)
+	mm.EXPECT().Finalize(producer.Consumed) // Message will be auto-acked and finalized
+	rm := producer.NewRefCountedMessage(mm, nil)
+	w.Write(rm)
+
+	require.Equal(t, 1, w.QueueSize())
+
+	// Close the writer
+	closeDone := make(chan struct{})
+	go func() {
+		w.Close()
+		close(closeDone)
+	}()
+	time.Sleep(20 * time.Millisecond)
+
+	// Verify isClosed was set immediately (fast shutdown)
+	w.RLock()
+	isClosedValue := w.isClosed
+	w.RUnlock()
+	require.True(t, isClosedValue, "isClosed should be true immediately with graceful close disabled")
+
+	// Close should complete quickly because:
+	// 1. isClosed is set immediately (fast shutdown)
+	// 2. Scan goroutine auto-acks the message
+	// 3. waitUntilAllMessageRemoved() detects empty queue on next tick
+	select {
+	case <-closeDone:
+		// Success - fast shutdown completed quickly
+	case <-time.After(300 * time.Millisecond):
+		t.Fatal("Close() did not complete quickly with fast shutdown")
+	}
+
+	snapshot := scope.Snapshot()
+	counters := snapshot.Counters()
+
+	// The "message-closed" counter should be incremented when message is auto-acked
+	require.Equal(t, int64(1), counters["message-closed+"].Value())
+	require.Equal(t, 0, w.QueueSize())
+}
+
+// TestMessageWriterGracefulCloseTrue tests that with graceful close enabled,
+// isClosed is NOT set immediately and messages are processed normally.
+func TestMessageWriterGracefulCloseTrue(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer lis.Close() // nolint: errcheck
+
+	addr := lis.Addr().String()
+	opts := testOptions()
+	gracefulClose := &atomic.Bool{}
+	gracefulClose.Store(true)
+	opts = opts.SetGracefulClose(gracefulClose)
+	opts = opts.SetCloseCheckInterval(50 * time.Millisecond)
+
+	scope := tally.NewTestScope("", nil)
+	metrics := newMessageWriterMetrics(scope, instrument.TimerOptions{}, true)
+
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	wg.Add(1)
+	go func() {
+		testConsumeAndAckOnConnectionListener(t, lis, opts.EncoderOptions(), opts.DecoderOptions())
+		wg.Done()
+	}()
+
+	w := newMessageWriter(200, newMessagePool(), opts, metrics)
+	w.Init()
+
+	a := newAckRouter(1)
+	a.Register(200, w)
+
+	cw := newConsumerWriter(addr, a, opts, testConsumerWriterMetrics())
+	cw.Init()
+	defer cw.Close()
+
+	w.AddConsumerWriter(cw)
+
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	// Write a message that will be sent and acked normally
+	mm := producer.NewMockMessage(ctrl)
+	mm.EXPECT().Bytes().Return([]byte("test"))
+	mm.EXPECT().Size().Return(4)
+	mm.EXPECT().Finalize(producer.Consumed) // Message will be finalized when acked
+	rm := producer.NewRefCountedMessage(mm, nil)
+	w.Write(rm)
+
+	closeDone := make(chan struct{})
+	go func() {
+		w.Close()
+		close(closeDone)
+	}()
+
+	time.Sleep(30 * time.Millisecond)
+
+	w.RLock()
+	isClosedValue := w.isClosed
+	w.RUnlock()
+
+	// With graceful close, isClosed should still be false because we're waiting
+	require.False(t, isClosedValue)
+
+	select {
+	case <-closeDone:
+	case <-time.After(300 * time.Millisecond):
+		t.Fatal("Close() did not complete after message was acked")
+	}
+
+	snapshot := scope.Snapshot()
+	counters := snapshot.Counters()
+	require.Equal(t, int64(0), counters["message-closed+"].Value())
+	require.Equal(t, int64(1), counters["message-acked+"].Value())
+}
+
+// TestMessageWriterGracefulCloseDynamicDisable tests that the graceful close
+// setting can be changed dynamically and affects subsequent Close() calls.
+func TestMessageWriterGracefulCloseDynamicDisable(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testOptions()
+	gracefulClose := &atomic.Bool{}
+	gracefulClose.Store(true)
+	opts = opts.SetGracefulClose(gracefulClose)
+	opts = opts.SetCloseCheckInterval(50 * time.Millisecond)
+	opts = opts.SetMessageQueueNewWritesScanInterval(1 * time.Millisecond)
+
+	scope := tally.NewTestScope("", nil)
+	metrics := newMessageWriterMetrics(scope, instrument.TimerOptions{}, true)
+
+	w := newMessageWriter(200, newMessagePool(), opts, metrics)
+	w.Init()
+
+	// Write a message - it won't be sent since there's no consumer
+	mm1 := producer.NewMockMessage(ctrl)
+	mm1.EXPECT().Bytes().Return([]byte("test1"))
+	mm1.EXPECT().Size().Return(5)
+	mm1.EXPECT().Finalize(producer.Consumed).AnyTimes()
+	rm1 := producer.NewRefCountedMessage(mm1, nil)
+	w.Write(rm1)
+
+	require.Equal(t, 1, w.QueueSize(), "message should be in queue")
+
+	// Start close - it will wait because graceful=true and no consumer
+	closeDone := make(chan struct{})
+	go func() {
+		w.Close()
+		close(closeDone)
+	}()
+
+	time.Sleep(30 * time.Millisecond)
+
+	// Verify isClosed is false (graceful close is waiting)
+	w.RLock()
+	isClosedWithGraceful := w.isClosed
+	w.RUnlock()
+	require.False(t, isClosedWithGraceful)
+
+	// Verify no auto-acking happened yet (graceful close prevents it)
+	snapshot := scope.Snapshot()
+	counters := snapshot.Counters()
+	require.Equal(t, int64(0), counters["message-closed+"].Value())
+
+	// Disable graceful close
+	gracefulClose.Store(false)
+
+	select {
+	case <-closeDone:
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("Close() did not complete after disabling graceful close")
+	}
+
+	w.RLock()
+	isClosedAfter := w.isClosed
+	w.RUnlock()
+	require.True(t, isClosedAfter, "isClosed should be true after Close() completes")
+
+	// Verify metrics: The message may or may not be auto-acked depending on timing. There's a race between:
+	// 1. Close() setting isClosed=true (enables auto-ack)
+	// 2. Close() closing doneCh (stops scan goroutine)
+	snapshot = scope.Snapshot()
+	counters = snapshot.Counters()
+	messageClosedCount := counters["message-closed+"].Value()
+	require.True(t, messageClosedCount == 0 || messageClosedCount == 1)
 }
