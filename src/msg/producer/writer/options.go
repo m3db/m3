@@ -21,8 +21,9 @@
 package writer
 
 import (
-	"sync/atomic"
 	"time"
+
+	"go.uber.org/atomic"
 
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
