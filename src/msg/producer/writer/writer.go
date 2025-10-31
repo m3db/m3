@@ -25,13 +25,16 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/aggregator/aggregator/handler/filter"
 	handlerWriter "github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3/src/aggregator/sharding"
+	"github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/kv"
+	kvutil "github.com/m3db/m3/src/cluster/kv/util"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/producer"
@@ -79,13 +82,17 @@ type writer struct {
 	filterRegistry         map[string][]producer.FilterFunc
 	isClosed               bool
 	m                      writerMetrics
+	gracefulClose          *atomic.Bool
 	gracefulCloseWatch     kv.ValueWatch
 
 	processFn watch.ProcessFn
 }
 
 // NewWriter creates a new writer.
-func NewWriter(opts Options, gracefulCloseWatch kv.ValueWatch) producer.Writer {
+func NewWriter(opts Options, kvClient client.Client, gracefulCloseKey string) producer.Writer {
+	gracefulClose := &atomic.Bool{}
+	gracefulClose.Store(false)
+
 	w := &writer{
 		topic:                  opts.TopicName(),
 		ts:                     opts.TopicService(),
@@ -95,9 +102,18 @@ func NewWriter(opts Options, gracefulCloseWatch kv.ValueWatch) producer.Writer {
 		consumerServiceWriters: make(map[string]consumerServiceWriter),
 		filterRegistry:         make(map[string][]producer.FilterFunc),
 		isClosed:               false,
-		gracefulCloseWatch:     gracefulCloseWatch,
+		gracefulClose:          gracefulClose,
 		m:                      newWriterMetrics(opts.InstrumentOptions().MetricsScope()),
 	}
+
+	// Set graceful close in options so messageWriters can access it
+	w.opts = opts.SetGracefulClose(gracefulClose)
+
+	// Initialize graceful close watch if KV store and key are configured
+	if kvClient != nil && gracefulCloseKey != "" {
+		w.gracefulCloseWatch = w.watchGracefulClose(kvClient, gracefulCloseKey)
+	}
+
 	w.processFn = w.process
 	return w
 }
@@ -325,6 +341,67 @@ func (w *writer) Close() {
 	for _, csw := range w.consumerServiceWriters {
 		csw.Close()
 	}
+}
+
+// watchGracefulClose watches for graceful close setting updates from KV.
+// Returns a ValueWatch that must be closed to stop the background goroutine.
+func (w *writer) watchGracefulClose(kvClient client.Client, gracefulCloseKey string) kv.ValueWatch {
+	const defaultGracefulClose = false
+
+	logger := w.logger
+
+	// Get the KV store
+	kvStore, err := kvClient.Store(kv.NewOverrideOptions())
+	if err != nil {
+		logger.Error("unable to create kv store for graceful close", zap.Error(err))
+		return nil
+	}
+
+	utilOpts := kvutil.NewOptions().SetLogger(logger)
+
+	// Retrieve initial value from KV
+	initialValue := defaultGracefulClose
+	value, err := kvStore.Get(gracefulCloseKey)
+	if err == nil {
+		initialValue, err = kvutil.BoolFromValue(value, gracefulCloseKey, defaultGracefulClose, utilOpts)
+	}
+	if err != nil {
+		logger.Error("unable to retrieve graceful close setting from kv", zap.Error(err))
+	}
+	logger.Info("current message writer graceful close setting", zap.Bool("gracefulClose", initialValue))
+	w.gracefulClose.Store(initialValue)
+
+	// Set up watch
+	gracefulCloseWatch, err := kvStore.Watch(gracefulCloseKey)
+	if err != nil {
+		logger.Error("unable to watch message writer graceful close setting", zap.Error(err))
+		return nil
+	}
+	gracefulCloseCh := gracefulCloseWatch.C()
+
+	// Watch for updates
+	go func() {
+		for range gracefulCloseCh {
+			gracefulCloseVal := gracefulCloseWatch.Get()
+			newGracefulClose, err := kvutil.BoolFromValue(gracefulCloseVal, gracefulCloseKey, defaultGracefulClose, utilOpts)
+			if err != nil {
+				logger.Error("unable to determine graceful close setting", zap.Error(err))
+				continue
+			}
+			currGracefulClose := w.gracefulClose.Load()
+			if newGracefulClose == currGracefulClose {
+				logger.Info("message writer graceful close setting is unchanged, skipping",
+					zap.Bool("gracefulClose", newGracefulClose))
+				continue
+			}
+			logger.Info("updating message writer graceful close setting",
+				zap.Bool("current", currGracefulClose),
+				zap.Bool("new", newGracefulClose))
+			w.gracefulClose.Store(newGracefulClose)
+		}
+	}()
+
+	return gracefulCloseWatch
 }
 
 func (w *writer) RegisterFilter(sid services.ServiceID, filter producer.FilterFunc) {
