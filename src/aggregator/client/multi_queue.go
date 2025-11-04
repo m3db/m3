@@ -50,8 +50,6 @@ type multiQueue struct {
 }
 
 // newInstanceMultiQueue creates a multi-queue with N independent queues/connections.
-// This encapsulates the logic for managing multiple connections, making it easier
-// to add dynamic scaling in the future.
 func newInstanceMultiQueue(instance placement.Instance, opts Options) instanceQueue {
 	num := opts.ConnectionsPerInstance()
 	if num < 1 {
