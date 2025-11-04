@@ -182,25 +182,34 @@ func (c *DynamicBackendConfiguration) newProtobufHandler(
 	instrumentOpts instrument.Options,
 	rwOpts xio.Options,
 ) (Handler, error) {
+	logger := instrumentOpts.Logger()
+
 	scope := instrumentOpts.MetricsScope().Tagged(map[string]string{
 		"backend":   c.Name,
 		"component": "producer",
 	})
 	instrumentOpts = instrumentOpts.SetMetricsScope(scope)
+
+	rph, err := c.RoutingPolicyConfig.NewRoutingPolicyHandler(cs, logger)
+	if err != nil {
+		return nil, err
+	}
+
 	p, err := c.Producer.NewProducer(cs, instrumentOpts, rwOpts)
 	if err != nil {
 		return nil, err
 	}
+
+	p.SetRoutingPolicyHandler(rph)
+	logger.Info(
+		"registered routing policy handler",
+		zap.Any("routingPolicyConfig", c.RoutingPolicyConfig),
+		zap.Bool("handlerIsNotNil", rph != nil),
+	)
+
 	if err := p.Init(); err != nil {
 		return nil, err
 	}
-	logger := instrumentOpts.Logger()
-
-	rph, err := c.RoutingPolicyConfig.NewRoutingPolicyHandler(cs)
-	if err != nil {
-		return nil, err
-	}
-	p.SetRoutingPolicyHandler(rph)
 
 	for _, filter := range c.ShardSetFilters {
 		sid, f := filter.NewConsumerServiceFilter()
@@ -300,8 +309,9 @@ type routingPolicyConfiguration struct {
 	KVKey    string                   `yaml:"kvKey"`
 }
 
-func (c routingPolicyConfiguration) NewRoutingPolicyHandler(kvClient client.Client) (routing.PolicyHandler, error) {
+func (c routingPolicyConfiguration) NewRoutingPolicyHandler(kvClient client.Client, logger *zap.Logger) (routing.PolicyHandler, error) {
 	if c.KVKey == "" {
+		logger.Info("kvKey is not set, skipping routing policy handler registration")
 		return nil, nil
 	}
 

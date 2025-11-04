@@ -94,7 +94,7 @@ func TestRoutingPolicyConfigurationEmptyKVKey(t *testing.T) {
 		KVKey: "",
 	}
 
-	handler, err := cfg.NewRoutingPolicyHandler(nil)
+	handler, err := cfg.NewRoutingPolicyHandler(nil, nil)
 	require.NoError(t, err)
 	require.Nil(t, handler, "handler should be nil when KVKey is empty")
 }
