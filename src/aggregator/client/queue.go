@@ -138,36 +138,47 @@ type queue struct {
 }
 
 func newInstanceQueue(instance placement.Instance, opts Options) instanceQueue {
-	var (
-		instrumentOpts     = opts.InstrumentOptions()
-		scope              = instrumentOpts.MetricsScope()
-		connInstrumentOpts = instrumentOpts.SetMetricsScope(scope.SubScope("connection"))
-		connOpts           = opts.ConnectionOptions().
-					SetInstrumentOptions(connInstrumentOpts).
-					SetRWOptions(opts.RWOptions())
-		conn      = newConnection(instance.Endpoint(), connOpts)
-		iOpts     = opts.InstrumentOptions()
-		queueSize = opts.InstanceQueueSize()
-	)
-
-	// Round up queue size to power of 2.
-	// buf is a ring buffer of byte buffers, so it should definitely be many orders of magnitude
-	// below max uint32.
-	qsize := uint32(roundUpToPowerOfTwo(queueSize))
-
-	q := &queue{
-		dropType: opts.QueueDropType(),
-		log:      iOpts.Logger(),
-		metrics:  newQueueMetrics(iOpts.MetricsScope()),
-		instance: instance,
-		conn:     conn,
-		buf: qbuf{
-			b: make([]protobuf.Buffer, int(qsize)),
-		},
+	// If only a single connection per instance is configured, construct a single queue.
+	if opts.ConnectionsPerInstance() <= 1 {
+		return newSingleInstanceQueue(instance, opts)
 	}
-	q.writeFn = q.conn.Write
 
-	return q
+	// Otherwise, construct a multi-queue with N independent queues/connections.
+	return newInstanceMultiQueue(instance, opts)
+}
+
+// newSingleInstanceQueue creates a single-connection queue.
+func newSingleInstanceQueue(instance placement.Instance, opts Options) instanceQueue {
+    var (
+        instrumentOpts     = opts.InstrumentOptions()
+        scope              = instrumentOpts.MetricsScope()
+        connInstrumentOpts = instrumentOpts.SetMetricsScope(scope.SubScope("connection"))
+        connOpts           = opts.ConnectionOptions().
+                    SetInstrumentOptions(connInstrumentOpts).
+                    SetRWOptions(opts.RWOptions())
+        conn      = newConnection(instance.Endpoint(), connOpts)
+        iOpts     = opts.InstrumentOptions()
+        queueSize = opts.InstanceQueueSize()
+    )
+
+    // Round up queue size to power of 2.
+    // buf is a ring buffer of byte buffers, so it should definitely be many orders of magnitude
+    // below max uint32.
+    qsize := uint32(roundUpToPowerOfTwo(queueSize))
+
+    q := &queue{
+        dropType: opts.QueueDropType(),
+        log:      iOpts.Logger(),
+        metrics:  newQueueMetrics(iOpts.MetricsScope()),
+        instance: instance,
+        conn:     conn,
+        buf: qbuf{
+            b: make([]protobuf.Buffer, int(qsize)),
+        },
+    }
+    q.writeFn = q.conn.Write
+
+    return q
 }
 
 func (q *queue) Enqueue(buf protobuf.Buffer) error {

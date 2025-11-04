@@ -72,10 +72,14 @@ const (
 
 	// By default set maximum batch size to 8mb.
 	defaultMaxBatchSize = 2 << 22
+
+    // defaultConnectionsPerInstance determines how many TCP connections
+    // are established per aggregator instance when using the TCP client.
+    defaultConnectionsPerInstance = 1
 )
 
 var (
-	validAggregatorClientTypes = []AggregatorClientType{
+    validAggregatorClientTypes = []AggregatorClientType{
 		LegacyAggregatorClient,
 		M3MsgAggregatorClient,
 		TCPAggregatorClient,
@@ -231,6 +235,14 @@ type Options interface {
 
 	// RWOptions returns the RW options.
 	RWOptions() xio.Options
+
+	// SetConnectionsPerInstance sets the number of TCP connections to open per
+	// aggregator instance. A value of 1 preserves existing behavior.
+	SetConnectionsPerInstance(value int) Options
+
+	// ConnectionsPerInstance returns the number of TCP connections to open per
+	// aggregator instance.
+	ConnectionsPerInstance() int
 }
 
 type options struct {
@@ -251,6 +263,7 @@ type options struct {
 	maxBatchSize               int
 	flushWorkerCount           int
 	aggregatorClientType       AggregatorClientType
+	connectionsPerInstance     int
 }
 
 // NewOptions creates a new set of client options.
@@ -270,6 +283,7 @@ func NewOptions() Options {
 		dropType:                   defaultDropType,
 		maxBatchSize:               defaultMaxBatchSize,
 		rwOpts:                     xio.NewOptions(),
+		connectionsPerInstance:     defaultConnectionsPerInstance,
 	}
 }
 
@@ -468,4 +482,17 @@ func (o *options) SetRWOptions(value xio.Options) Options {
 
 func (o *options) RWOptions() xio.Options {
 	return o.rwOpts
+}
+
+func (o *options) SetConnectionsPerInstance(value int) Options {
+    opts := *o
+    if value < 1 {
+        value = defaultConnectionsPerInstance
+    }
+    opts.connectionsPerInstance = value
+    return &opts
+}
+
+func (o *options) ConnectionsPerInstance() int {
+    return o.connectionsPerInstance
 }
