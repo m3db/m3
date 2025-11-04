@@ -182,25 +182,33 @@ func (c *DynamicBackendConfiguration) newProtobufHandler(
 	instrumentOpts instrument.Options,
 	rwOpts xio.Options,
 ) (Handler, error) {
+	logger := instrumentOpts.Logger()
 	scope := instrumentOpts.MetricsScope().Tagged(map[string]string{
 		"backend":   c.Name,
 		"component": "producer",
 	})
 	instrumentOpts = instrumentOpts.SetMetricsScope(scope)
-	p, err := c.Producer.NewProducer(cs, instrumentOpts, rwOpts)
-	if err != nil {
-		return nil, err
-	}
-	if err := p.Init(); err != nil {
-		return nil, err
-	}
-	logger := instrumentOpts.Logger()
 
 	rph, err := c.RoutingPolicyConfig.NewRoutingPolicyHandler(cs)
 	if err != nil {
 		return nil, err
 	}
+
+	p, err := c.Producer.NewProducer(cs, instrumentOpts, rwOpts)
+	if err != nil {
+		return nil, err
+	}
+
 	p.SetRoutingPolicyHandler(rph)
+	logger.Info(
+		"registered routing policy handler",
+		zap.Any("kvKey", c.RoutingPolicyConfig),
+		zap.Bool("rph", rph != nil),
+	)
+
+	if err := p.Init(); err != nil {
+		return nil, err
+	}
 
 	for _, filter := range c.ShardSetFilters {
 		sid, f := filter.NewConsumerServiceFilter()
