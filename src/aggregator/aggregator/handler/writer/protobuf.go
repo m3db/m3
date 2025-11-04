@@ -240,11 +240,27 @@ type routingPolicyFilter struct {
 
 func (f *routingPolicyFilter) Filter(m producer.Message) bool {
 	msg, ok := m.(message)
+	mask := atomic.LoadUint64(&f.allowedTrafficTypeMask)
 	if !ok || msg.rp.TrafficTypes == 0 {
+		if f.isDefault {
+			f.logger.Info(
+				"message accepted by filter (isDefault)",
+				zap.ByteString("message-bytes", msg.data.Bytes()),
+				zap.Uint64("traffic-types", msg.rp.TrafficTypes),
+				zap.Uint64("allowed-traffic-type-mask", mask),
+			)
+		}
 		return f.isDefault
 	}
-	mask := atomic.LoadUint64(&f.allowedTrafficTypeMask)
-	return msg.rp.TrafficTypes&mask != 0
+	allowed := msg.rp.TrafficTypes&mask != 0
+	if allowed {
+		f.logger.Info("message accepted by filter",
+			zap.ByteString("message-bytes", msg.data.Bytes()),
+			zap.Uint64("traffic-types", msg.rp.TrafficTypes),
+			zap.Uint64("allowed-traffic-type-mask", mask),
+		)
+	}
+	return allowed
 }
 
 func (f *routingPolicyFilter) onRoutingPolicyConfigUpdate(policyConfig routing.PolicyConfig) {
