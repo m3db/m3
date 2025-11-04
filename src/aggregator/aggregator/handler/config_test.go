@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -94,7 +95,7 @@ func TestRoutingPolicyConfigurationEmptyKVKey(t *testing.T) {
 		KVKey: "",
 	}
 
-	handler, err := cfg.NewRoutingPolicyHandler(nil, nil)
+	handler, err := cfg.NewRoutingPolicyHandler(nil, zap.NewNop())
 	require.NoError(t, err)
 	require.Nil(t, handler, "handler should be nil when KVKey is empty")
 }
