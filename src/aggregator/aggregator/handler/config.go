@@ -309,7 +309,10 @@ type routingPolicyConfiguration struct {
 	KVKey    string                   `yaml:"kvKey"`
 }
 
-func (c routingPolicyConfiguration) NewRoutingPolicyHandler(kvClient client.Client, logger *zap.Logger) (routing.PolicyHandler, error) {
+func (c routingPolicyConfiguration) NewRoutingPolicyHandler(
+	kvClient client.Client,
+	logger *zap.Logger,
+) (routing.PolicyHandler, error) {
 	if c.KVKey == "" {
 		logger.Info("kvKey is not set, skipping routing policy handler registration")
 		return nil, nil
