@@ -535,6 +535,7 @@ func (e *CounterElem) Close() {
 	}
 	e.closed = true
 	e.id = nil
+	e.routePolicy.TrafficTypes = 0
 	e.parsedPipeline = parsedPipeline{}
 	e.writeForwardedMetricFn = nil
 	e.onForwardedAggregationWrittenFn = nil
