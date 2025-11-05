@@ -196,6 +196,7 @@ func (m *PipelineMetadata) Unmarshal(dAtA []byte) error {
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field RoutingPolicy", wireType)
 			}
+			m.RoutingPolicy = policypb.RoutingPolicy{}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
