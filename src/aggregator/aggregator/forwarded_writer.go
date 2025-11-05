@@ -313,6 +313,8 @@ func (agg *forwardedAggregationWithKey) reset() {
 		agg.buckets[i].values = agg.buckets[i].values[:0]
 		agg.buckets[i].prevValues = agg.buckets[i].prevValues[:0]
 		agg.buckets[i].annotation = agg.buckets[i].annotation[:0]
+		// Note: Should we reset resendEnabled here as well??
+		agg.buckets[i].routePolicy.TrafficTypes = 0
 	}
 	agg.buckets = agg.buckets[:0]
 }
