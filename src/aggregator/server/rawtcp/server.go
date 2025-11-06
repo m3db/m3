@@ -156,6 +156,18 @@ func (s *handler) Handle(conn net.Conn) {
 			untimedMetric.Annotation = current.CounterWithMetadatas.Annotation
 			stagedMetadatas = current.CounterWithMetadatas.StagedMetadatas
 			err = s.aggregator.AddUntimed(untimedMetric, stagedMetadatas)
+			for _, sm := range stagedMetadatas {
+				for _, pipeline := range sm.Pipelines {
+					if pipeline.RoutingPolicy.TrafficTypes != 0 {
+						s.log.Info("input staged metadata has routePolicy",
+							zap.String("metric-id", untimedMetric.ID.String()),
+							zap.Uint64("routePolicy", pipeline.RoutingPolicy.TrafficTypes),
+							zap.Any("storagePolicies", pipeline.StoragePolicies),
+							zap.String("pipeline", pipeline.Pipeline.String()),
+						)
+					}
+				}
+			}
 		case encoding.BatchTimerWithMetadatasType:
 			untimedMetric = current.BatchTimerWithMetadatas.BatchTimer.ToUnion()
 			untimedMetric.Annotation = current.BatchTimerWithMetadatas.Annotation
