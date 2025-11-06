@@ -233,14 +233,14 @@ var (
 		SourceID:          67890,
 		NumForwardedTimes: 4,
 	}
-	testDefaultAggregationKeys         = aggregationKeys(testDefaultPipelines)
-	testAggregationKeys                = aggregationKeys(testPipelines)
-	testNewAggregationKeys             = aggregationKeys(testNewPipelines)
-	testNewAggregationKeys2            = aggregationKeys(testNewPipelines2)
-	testNewAggregationKeys3            = aggregationKeys(testNewPipelines3)
-	testNewAggregationKeysWithRoutingPolicy            = aggregationKeys(testNewPipelinesWithRoutingPolicy)
-	testDefaultAggregationKeysWithRoutingPolicy            = aggregationKeys(testDefaultPipelinesWithRoutingPolicy)
-	testWithDuplicates2AggregationKeys = aggregationKeys(testPipelinesWithDuplicates2)
+	testDefaultAggregationKeys                  = aggregationKeys(testDefaultPipelines)
+	testAggregationKeys                         = aggregationKeys(testPipelines)
+	testNewAggregationKeys                      = aggregationKeys(testNewPipelines)
+	testNewAggregationKeys2                     = aggregationKeys(testNewPipelines2)
+	testNewAggregationKeys3                     = aggregationKeys(testNewPipelines3)
+	testNewAggregationKeysWithRoutingPolicy     = aggregationKeys(testNewPipelinesWithRoutingPolicy)
+	testDefaultAggregationKeysWithRoutingPolicy = aggregationKeys(testDefaultPipelinesWithRoutingPolicy)
+	testWithDuplicates2AggregationKeys          = aggregationKeys(testPipelinesWithDuplicates2)
 )
 
 func TestEntryIncDecWriter(t *testing.T) {
@@ -1441,7 +1441,7 @@ func TestShouldUpdateStagedMetadataWithLock(t *testing.T) {
 		e, _, _ := testEntry(ctrl, testEntryOptions{})
 		e.cutoverNanos = input.cutoverNanos
 		populateTestUntimedAggregations(t, e, input.aggregationKeys,
-				metric.CounterType, input.routingPolicy)
+			metric.CounterType, input.routingPolicy)
 		e.mtx.Lock()
 		require.Equal(t, input.expected, e.shouldUpdateStagedMetadatasWithLock(input.metadata))
 		e.mtx.Unlock()
