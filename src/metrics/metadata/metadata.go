@@ -554,7 +554,8 @@ func (sms StagedMetadatas) IsDefault() bool {
 		sms[0].Pipelines[0].AggregationID == aggregation.DefaultID &&
 		len(sms[0].Pipelines[0].StoragePolicies) == 0 &&
 		sms[0].Pipelines[0].Pipeline.IsEmpty() &&
-		sms[0].Pipelines[0].DropPolicy == policy.DefaultDropPolicy
+		sms[0].Pipelines[0].DropPolicy == policy.DefaultDropPolicy &&
+		sms[0].Pipelines[0].RoutingPolicy.TrafficTypes == 0
 }
 
 // IsDropPolicyApplied returns whether the list of staged metadata is the

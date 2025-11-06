@@ -122,6 +122,28 @@ var (
 			}),
 		},
 	}
+	testNewPipelinesWithRoutingPolicy = []metadata.PipelineMetadata{
+		{
+			AggregationID:   aggregation.DefaultID,
+			StoragePolicies: testDefaultStoragePolicies,
+			RoutingPolicy: policy.RoutingPolicy{
+				TrafficTypes: 1,
+			},
+			Pipeline: applied.NewPipeline([]applied.OpUnion{
+				{
+					Type:           pipeline.TransformationOpType,
+					Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
+				},
+				{
+					Type: pipeline.RollupOpType,
+					Rollup: applied.RollupOp{
+						ID:            []byte("foo.baz"),
+						AggregationID: aggregation.DefaultID,
+					},
+				},
+			}),
+		},
+	}
 	testPipelinesWithDuplicates = []metadata.PipelineMetadata{
 		{
 			AggregationID:   aggregation.DefaultID,
@@ -130,6 +152,15 @@ var (
 		{
 			AggregationID:   aggregation.DefaultID,
 			StoragePolicies: testDefaultStoragePolicies,
+		},
+	}
+	testDefaultPipelinesWithRoutingPolicy = []metadata.PipelineMetadata{
+		{
+			AggregationID:   aggregation.DefaultID,
+			StoragePolicies: testDefaultStoragePolicies,
+			RoutingPolicy: policy.RoutingPolicy{
+				TrafficTypes: 1,
+			},
 		},
 	}
 	testPipelinesWithDuplicates2 = []metadata.PipelineMetadata{
@@ -207,6 +238,8 @@ var (
 	testNewAggregationKeys             = aggregationKeys(testNewPipelines)
 	testNewAggregationKeys2            = aggregationKeys(testNewPipelines2)
 	testNewAggregationKeys3            = aggregationKeys(testNewPipelines3)
+	testNewAggregationKeysWithRoutingPolicy            = aggregationKeys(testNewPipelinesWithRoutingPolicy)
+	testDefaultAggregationKeysWithRoutingPolicy            = aggregationKeys(testDefaultPipelinesWithRoutingPolicy)
 	testWithDuplicates2AggregationKeys = aggregationKeys(testPipelinesWithDuplicates2)
 )
 
@@ -1259,6 +1292,7 @@ func TestShouldUpdateStagedMetadataWithLock(t *testing.T) {
 		cutoverNanos    int64
 		aggregationKeys []aggregationKey
 		metadata        metadata.StagedMetadata
+		routingPolicy   policy.RoutingPolicy
 		expected        bool
 	}{
 		{
@@ -1380,12 +1414,34 @@ func TestShouldUpdateStagedMetadataWithLock(t *testing.T) {
 			},
 			expected: false,
 		},
+		{
+			// Same cutover time with custom aggregations containing pipelines and
+			// custom metadata containing pipelines with custom routing policy.
+			cutoverNanos:    currTimeNanos,
+			aggregationKeys: testNewAggregationKeysWithRoutingPolicy,
+			metadata: metadata.StagedMetadata{
+				CutoverNanos: currTimeNanos,
+				Metadata:     metadata.Metadata{Pipelines: testNewPipelinesWithRoutingPolicy},
+			},
+			expected: true,
+		},
+		{
+			// Same cutover time with default aggregations and with custom routing policy.
+			cutoverNanos:    currTimeNanos,
+			aggregationKeys: testDefaultAggregationKeysWithRoutingPolicy,
+			metadata: metadata.StagedMetadata{
+				CutoverNanos: currTimeNanos,
+				Metadata:     metadata.Metadata{Pipelines: testDefaultPipelinesWithRoutingPolicy},
+			},
+			expected: true,
+		},
 	}
 
 	for _, input := range inputs {
 		e, _, _ := testEntry(ctrl, testEntryOptions{})
 		e.cutoverNanos = input.cutoverNanos
-		populateTestUntimedAggregations(t, e, input.aggregationKeys, metric.CounterType)
+		populateTestUntimedAggregations(t, e, input.aggregationKeys,
+				metric.CounterType, input.routingPolicy)
 		e.mtx.Lock()
 		require.Equal(t, input.expected, e.shouldUpdateStagedMetadatasWithLock(input.metadata))
 		e.mtx.Unlock()
@@ -2061,7 +2117,8 @@ func TestEntryMaybeExpireWithExpiry(t *testing.T) {
 	defer ctrl.Finish()
 
 	e, _, now := testEntry(ctrl, testEntryOptions{})
-	populateTestUntimedAggregations(t, e, testAggregationKeys, metric.CounterType)
+	populateTestUntimedAggregations(t, e, testAggregationKeys,
+		metric.CounterType, policy.NewRoutingPolicy(0))
 
 	var elems []*CounterElem
 	for _, agg := range e.aggregations {
@@ -2212,6 +2269,7 @@ func populateTestUntimedAggregations(
 	e *Entry,
 	aggregationKeys []aggregationKey,
 	typ metric.Type,
+	routingPolicy policy.RoutingPolicy,
 ) {
 	for _, aggKey := range aggregationKeys {
 		var (
@@ -2237,6 +2295,7 @@ func populateTestUntimedAggregations(
 			StoragePolicy: aggKey.storagePolicy,
 			AggTypes:      aggTypes,
 			Pipeline:      aggKey.pipeline,
+			RoutingPolicy: routingPolicy,
 		}))
 		listID := standardMetricListID{
 			resolution: aggKey.storagePolicy.Resolution().Window,
@@ -2346,7 +2405,8 @@ func testEntryAddUntimed(
 	for _, input := range inputs {
 		e, _, now := testEntry(ctrl, testEntryOptions{})
 		if withPrePopulation {
-			populateTestUntimedAggregations(t, e, prePopulateData, input.mu.Type)
+			populateTestUntimedAggregations(t, e, prePopulateData,
+				input.mu.Type, policy.NewRoutingPolicy(0))
 		}
 
 		preAddFn(e, now)
