@@ -43,6 +43,7 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xtime "github.com/m3db/m3/src/x/time"
+	"go.uber.org/zap"
 )
 
 const (
@@ -468,6 +469,19 @@ func (e *Entry) addUntimed(
 	}
 
 	sm, err := e.activeStagedMetadataWithLock(currTime, metadatas)
+	for _, pipeline := range sm.Pipelines {
+		if pipeline.RoutingPolicy.TrafficTypes != 0 {
+				e.opts.InstrumentOptions().Logger().Info("staged metadata has routePolicy",
+					zap.String("metric-id", metric.ID.String()),
+					zap.Uint64("routePolicy", pipeline.RoutingPolicy.TrafficTypes),
+					zap.Any("storagePolicies", pipeline.StoragePolicies),
+					zap.Any("pipeline", pipeline.Pipeline),
+					zap.Any("dropPolicy", pipeline.DropPolicy),
+					zap.Any("resendEnabled", pipeline.ResendEnabled),
+					zap.Any("aggregationID", pipeline.AggregationID),
+				)
+		}
+	}
 	if err != nil {
 		e.mtx.RUnlock()
 		return err
