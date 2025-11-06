@@ -45,6 +45,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
+	"go.uber.org/zap"
 )
 
 func TestWriterWriteClosed(t *testing.T) {
@@ -1018,7 +1019,7 @@ func testWriterConcurrentWriteStress(
 	)
 	for i := 0; i < len(results); i++ {
 		buf := bytes.NewBuffer(results[i])
-		iter := protobuf.NewUnaggregatedIterator(buf, protobuf.NewUnaggregatedOptions())
+		iter := protobuf.NewUnaggregatedIterator(buf, protobuf.NewUnaggregatedOptions(), zap.NewNop())
 		for iter.Next() {
 			msgResult := iter.Current()
 			switch msgResult.Type {

@@ -28,6 +28,8 @@ import (
 	"github.com/m3db/m3/src/metrics/encoding"
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/metrics/metric/unaggregated"
+	"go.uber.org/zap"
 )
 
 // UnaggregatedIterator decodes unaggregated metrics.
@@ -40,12 +42,14 @@ type UnaggregatedIterator struct {
 	msg            encoding.UnaggregatedMessageUnion
 	maxMessageSize int
 	closed         bool
+	log            *zap.Logger
 }
 
 // NewUnaggregatedIterator creates a new unaggregated iterator.
 func NewUnaggregatedIterator(
 	reader encoding.ByteReadScanner,
 	opts UnaggregatedOptions,
+	log *zap.Logger,
 ) *UnaggregatedIterator {
 	bytesPool := opts.BytesPool()
 	return &UnaggregatedIterator{
@@ -53,6 +57,7 @@ func NewUnaggregatedIterator(
 		bytesPool:      bytesPool,
 		maxMessageSize: opts.MaxMessageSize(),
 		buf:            allocate(bytesPool, opts.InitBufferSize()),
+		log:            log,
 	}
 }
 
@@ -123,6 +128,33 @@ func (it *UnaggregatedIterator) decodeMessage(size int) error {
 		it.err = err
 		return err
 	}
+
+	var tempMsg metricpb.MetricWithMetadatas
+	var tempMetric unaggregated.GaugeWithMetadatas
+	if err := tempMsg.Unmarshal(it.buf[:size]); err == nil {
+		if tempMsg.Type == metricpb.MetricWithMetadatas_GAUGE_WITH_METADATAS {
+			err = tempMetric.FromProto(tempMsg.GaugeWithMetadatas)
+			if err == nil {
+				for _, sm := range tempMetric.StagedMetadatas {
+					if sm.Metadata.Pipelines != nil {
+						for _, pipeline := range sm.Pipelines {
+							if pipeline.RoutingPolicy.TrafficTypes != 0 {
+								it.log.Info("before decodeMessage staged metadata has routePolicy",
+									zap.String("metric", tempMetric.ID.String()),
+									zap.String("metadata", sm.String()),
+									zap.Uint64("routePolicy", pipeline.RoutingPolicy.TrafficTypes),
+									zap.Any("storagePolicies", pipeline.StoragePolicies),
+									zap.String("pipeline", pipeline.Pipeline.String()),
+							)}
+						}
+					}
+				}
+			}
+		}
+	}
+	if err != nil {
+		it.log.Error("error decoding gauge with metadatas before decodeMessage", zap.Error(err))
+	}
 	ReuseMetricWithMetadatasProto(&it.pb)
 	if err := it.pb.Unmarshal(it.buf[:size]); err != nil {
 		it.err = err
@@ -138,6 +170,20 @@ func (it *UnaggregatedIterator) decodeMessage(size int) error {
 	case metricpb.MetricWithMetadatas_GAUGE_WITH_METADATAS:
 		it.msg.Type = encoding.GaugeWithMetadatasType
 		it.err = it.msg.GaugeWithMetadatas.FromProto(it.pb.GaugeWithMetadatas)
+		for _, sm := range it.msg.GaugeWithMetadatas.StagedMetadatas {
+			for _, pipeline := range sm.Pipelines {
+				if pipeline.RoutingPolicy.TrafficTypes != 0 {
+					it.log.Info("after decodeMessage staged metadata has routePolicy",
+						zap.String("metric", it.msg.GaugeWithMetadatas.ID.String()),
+						zap.Uint64("routePolicy", pipeline.RoutingPolicy.TrafficTypes),
+						zap.Any("storagePolicies", pipeline.StoragePolicies),
+						zap.String("metadata", sm.String()),
+						zap.ByteString("counter-bytes", it.buf[:size]),
+						zap.Int("buf-size", size),
+					)
+				}
+			}
+		}
 	case metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA:
 		it.msg.Type = encoding.ForwardedMetricWithMetadataType
 		it.err = it.msg.ForwardedMetricWithMetadata.FromProto(it.pb.ForwardedMetricWithMetadata)

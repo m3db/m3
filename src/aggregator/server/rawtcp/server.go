@@ -133,7 +133,7 @@ func (s *handler) Handle(conn net.Conn) {
 	rOpts := xio.ResettableReaderOptions{ReadBufferSize: s.readBufferSize}
 	read := s.opts.RWOptions().ResettableReaderFn()(conn, rOpts)
 	reader := bufio.NewReaderSize(read, s.readBufferSize)
-	it := protobuf.NewUnaggregatedIterator(reader, s.protobufItOpts)
+	it := protobuf.NewUnaggregatedIterator(reader, s.protobufItOpts, s.log)
 	defer it.Close()
 
 	// Iterate over the incoming metrics stream and queue up metrics.
@@ -155,32 +155,7 @@ func (s *handler) Handle(conn net.Conn) {
 			untimedMetric = current.CounterWithMetadatas.Counter.ToUnion()
 			untimedMetric.Annotation = current.CounterWithMetadatas.Annotation
 			stagedMetadatas = current.CounterWithMetadatas.StagedMetadatas
-			for _, sm := range stagedMetadatas {
-				for _, pipeline := range sm.Pipelines {
-					if pipeline.RoutingPolicy.TrafficTypes != 0 {
-						s.log.Info("before input staged metadata has routePolicy",
-							zap.String("metric-id", untimedMetric.ID.String()),
-							zap.Uint64("routePolicy", pipeline.RoutingPolicy.TrafficTypes),
-							zap.Any("storagePolicies", pipeline.StoragePolicies),
-							zap.String("pipeline", pipeline.Pipeline.String()),
-						)
-					}
-				}
-			}
 			err = s.aggregator.AddUntimed(untimedMetric, stagedMetadatas)
-			for _, sm := range stagedMetadatas {
-				for _, pipeline := range sm.Pipelines {
-					if pipeline.RoutingPolicy.TrafficTypes != 0 {
-						s.log.Info("after input staged metadata has routePolicy",
-							zap.String("metric-id", untimedMetric.ID.String()),
-							zap.Uint64("routePolicy", pipeline.RoutingPolicy.TrafficTypes),
-							zap.Any("storagePolicies", pipeline.StoragePolicies),
-							zap.String("pipeline", pipeline.Pipeline.String()),
-						)
-					}
-				}
-			}
-
 		case encoding.BatchTimerWithMetadatasType:
 			untimedMetric = current.BatchTimerWithMetadatas.BatchTimer.ToUnion()
 			untimedMetric.Annotation = current.BatchTimerWithMetadatas.Annotation
@@ -194,6 +169,18 @@ func (s *handler) Handle(conn net.Conn) {
 			untimedMetric.Annotation = current.GaugeWithMetadatas.Annotation
 			stagedMetadatas = current.GaugeWithMetadatas.StagedMetadatas
 			err = s.aggregator.AddUntimed(untimedMetric, stagedMetadatas)
+			for _, sm := range stagedMetadatas {
+				for _, pipeline := range sm.Pipelines {
+					if pipeline.RoutingPolicy.TrafficTypes != 0 {
+						s.log.Info("after input staged metadata has routePolicy",
+							zap.String("metric-id", untimedMetric.ID.String()),
+							zap.Uint64("routePolicy", pipeline.RoutingPolicy.TrafficTypes),
+							zap.Any("storagePolicies", pipeline.StoragePolicies),
+							zap.String("pipeline", pipeline.Pipeline.String()),
+						)
+					}
+				}
+			}
 		case encoding.ForwardedMetricWithMetadataType:
 			forwardedMetric = current.ForwardedMetricWithMetadata.ForwardedMetric
 			untimedMetric.Annotation = current.ForwardedMetricWithMetadata.Annotation

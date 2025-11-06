@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/metrics/encoding"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
+	"go.uber.org/zap"
 )
 
 func TestUnaggregatedIteratorDecodeCounterWithMetadatas(t *testing.T) {
@@ -69,7 +70,7 @@ func TestUnaggregatedIteratorDecodeCounterWithMetadatas(t *testing.T) {
 		i      int
 		stream = bytes.NewReader(dataBuf.Bytes())
 	)
-	it := NewUnaggregatedIterator(stream, NewUnaggregatedOptions())
+	it := NewUnaggregatedIterator(stream, NewUnaggregatedOptions(), zap.NewNop())
 	defer it.Close()
 	for it.Next() {
 		res := it.Current()
@@ -115,7 +116,7 @@ func TestUnaggregatedIteratorDecodeBatchTimerWithMetadatas(t *testing.T) {
 		i      int
 		stream = bytes.NewReader(dataBuf.Bytes())
 	)
-	it := NewUnaggregatedIterator(stream, NewUnaggregatedOptions())
+	it := NewUnaggregatedIterator(stream, NewUnaggregatedOptions(), zap.NewNop())
 	defer it.Close()
 	for it.Next() {
 		res := it.Current()
@@ -161,7 +162,7 @@ func TestUnaggregatedIteratorDecodeGaugeWithMetadatas(t *testing.T) {
 		i      int
 		stream = bytes.NewReader(dataBuf.Bytes())
 	)
-	it := NewUnaggregatedIterator(stream, NewUnaggregatedOptions())
+	it := NewUnaggregatedIterator(stream, NewUnaggregatedOptions(), zap.NewNop())
 	defer it.Close()
 	for it.Next() {
 		res := it.Current()
@@ -207,7 +208,7 @@ func TestUnaggregatedIteratorDecodeForwardedMetricWithMetadata(t *testing.T) {
 		i      int
 		stream = bytes.NewReader(dataBuf.Bytes())
 	)
-	it := NewUnaggregatedIterator(stream, NewUnaggregatedOptions())
+	it := NewUnaggregatedIterator(stream, NewUnaggregatedOptions(), zap.NewNop())
 	defer it.Close()
 	for it.Next() {
 		res := it.Current()
@@ -252,7 +253,7 @@ func TestUnaggregatedIteratorDecodePassthroughMetricWithMetadata(t *testing.T) {
 		i      int
 		stream = bytes.NewReader(dataBuf.Bytes())
 	)
-	it := NewUnaggregatedIterator(stream, NewUnaggregatedOptions())
+	it := NewUnaggregatedIterator(stream, NewUnaggregatedOptions(), zap.NewNop())
 	defer it.Close()
 	for it.Next() {
 		res := it.Current()
@@ -298,7 +299,7 @@ func TestUnaggregatedIteratorDecodeTimedMetricWithMetadata(t *testing.T) {
 		i      int
 		stream = bytes.NewReader(dataBuf.Bytes())
 	)
-	it := NewUnaggregatedIterator(stream, NewUnaggregatedOptions())
+	it := NewUnaggregatedIterator(stream, NewUnaggregatedOptions(), zap.NewNop())
 	defer it.Close()
 	for it.Next() {
 		res := it.Current()
@@ -443,7 +444,7 @@ func TestUnaggregatedIteratorDecodeStress(t *testing.T) {
 		i      int
 		stream = bytes.NewReader(dataBuf.Bytes())
 	)
-	it := NewUnaggregatedIterator(stream, NewUnaggregatedOptions())
+	it := NewUnaggregatedIterator(stream, NewUnaggregatedOptions(), zap.NewNop())
 	defer it.Close()
 	for it.Next() {
 		res := it.Current()
@@ -493,7 +494,7 @@ func TestUnaggregatedIteratorMessageTooLarge(t *testing.T) {
 		i      int
 		stream = bytes.NewReader(dataBuf.Bytes())
 	)
-	it := NewUnaggregatedIterator(stream, NewUnaggregatedOptions().SetMaxMessageSize(1))
+	it := NewUnaggregatedIterator(stream, NewUnaggregatedOptions().SetMaxMessageSize(1), zap.NewNop())
 	defer it.Close()
 	for it.Next() {
 		i++
@@ -518,7 +519,7 @@ func TestUnaggregatedIteratorNextOnError(t *testing.T) {
 	defer dataBuf.Close()
 
 	stream := bytes.NewReader(dataBuf.Bytes())
-	it := NewUnaggregatedIterator(stream, NewUnaggregatedOptions().SetMaxMessageSize(1))
+	it := NewUnaggregatedIterator(stream, NewUnaggregatedOptions().SetMaxMessageSize(1), zap.NewNop())
 	require.False(t, it.Next())
 	require.False(t, it.Next())
 }
@@ -537,7 +538,7 @@ func TestUnaggregatedIteratorNextOnClose(t *testing.T) {
 	defer dataBuf.Close()
 
 	stream := bytes.NewReader(dataBuf.Bytes())
-	it := NewUnaggregatedIterator(stream, NewUnaggregatedOptions())
+	it := NewUnaggregatedIterator(stream, NewUnaggregatedOptions(), zap.NewNop())
 	require.False(t, it.closed)
 	require.NotNil(t, it.buf)
 	require.Nil(t, it.Err())
@@ -560,14 +561,14 @@ func TestUnaggregatedIteratorNextOnInvalid(t *testing.T) {
 	binary.PutVarint(buf, 0)
 	stream := bytes.NewReader(buf)
 
-	it := NewUnaggregatedIterator(stream, NewUnaggregatedOptions())
+	it := NewUnaggregatedIterator(stream, NewUnaggregatedOptions(), zap.NewNop())
 	require.False(t, it.Next())
 	require.False(t, it.Next())
 
 	buf = make([]byte, 32)
 	binary.PutVarint(buf, -1234)
 	stream = bytes.NewReader(buf)
-	it = NewUnaggregatedIterator(stream, NewUnaggregatedOptions())
+	it = NewUnaggregatedIterator(stream, NewUnaggregatedOptions(), zap.NewNop())
 	require.False(t, it.Next())
 	require.False(t, it.Next())
 }
