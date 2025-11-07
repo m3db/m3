@@ -620,6 +620,22 @@ func TestStagedMetadatasIsDefault(t *testing.T) {
 			expected: true,
 		},
 		{
+			metadatas: StagedMetadatas{
+				{
+					Metadata: Metadata{
+						Pipelines: []PipelineMetadata{
+							{
+								RoutingPolicy: policy.RoutingPolicy{
+									TrafficTypes: 0,
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
 			metadatas: DefaultStagedMetadatas,
 			expected:  true,
 		},
@@ -660,6 +676,22 @@ func TestStagedMetadatasIsDefault(t *testing.T) {
 						Pipelines: []PipelineMetadata{
 							{
 								AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+							},
+						},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			metadatas: StagedMetadatas{
+				{
+					Metadata: Metadata{
+						Pipelines: []PipelineMetadata{
+							{
+								RoutingPolicy: policy.RoutingPolicy{
+									TrafficTypes: 1,
+								},
 							},
 						},
 					},
