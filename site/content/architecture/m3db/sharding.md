@@ -3,7 +3,7 @@ title: "Sharding"
 weight: 2
 ---
 
-Timeseries keys are hashed to a fixed set of virtual shards. Virtual shards are then assigned to physical nodes. M3DB can be configured to use any hashing function and a configured number of shards. By default [murmur3](https://en.wikipedia.org/wiki/MurmurHash) is used as the hashing function and 4096 virtual shards are configured.
+Timeseries keys are hashed to a fixed set of virtual shards. Virtual shards are then assigned to physical nodes. M3DB can be configured to use any hashing function and a configured number of shards. By default, [murmur3](https://en.wikipedia.org/wiki/MurmurHash) is used as the hashing function and 4096 virtual shards are configured.
 
 ## Benefits
 
@@ -23,7 +23,7 @@ Replication is synchronization during a write and depending on the consistency l
 
 Each replica has its own assignment of a single logical shard per virtual shard.
 
-Conceptually it can be defined as:
+Conceptually, it can be defined as:
 
 ```golang
 Replica {
@@ -58,7 +58,7 @@ enum ShardState {
 
 The assignment of shards is stored in etcd. When adding, removing or replacing a node shard goal states are assigned for each shard assigned.
 
-For a write to appear as successful for a given replica it must succeed against all assigned hosts for that shard.  That means if there is a given shard with a host assigned as _LEAVING_ and another host assigned as _INITIALIZING_ for a given replica writes to both these hosts must appear as successful to return success for a write to that given replica.  Currently however only _AVAILABLE_ shards count towards consistency, the work to group the _LEAVING_ and _INITIALIZING_ shards together when calculating a write success/error is not complete, see [issue 417](https://github.com/m3db/m3/issues/417).
+For a write to appear as successful for a given replica it must succeed against all assigned hosts for that shard.  That means if there is a given shard with a host assigned as _LEAVING_ and another host assigned as _INITIALIZING_ for a given replica writes to both these hosts must appear as successful to return success for a write to that given replica. Currently however only _AVAILABLE_ shards count towards consistency, the work to group the _LEAVING_ and _INITIALIZING_ shards together when calculating a write success/error is not complete, see [issue 417](https://github.com/m3db/m3/issues/417).
 
 It is up to the nodes themselves to bootstrap shards when the assignment of new shards to it are discovered in the _INITIALIZING_ state and to transition the state to _AVAILABLE_ once bootstrapped by calling the cluster management APIs when done.  Using a compare and set this atomically removes the _LEAVING_ shard still assigned to the node that previously owned it and transitions the shard state on the new node from _INITIALIZING_ state to _AVAILABLE_.
 
@@ -72,8 +72,8 @@ When a node is added to the cluster it is assigned shards that relieves load fai
 
 ### Node down
 
-A node needs to be explicitly taken out of the cluster.  If a node goes down and is unavailable the clients performing reads will be served an error from the replica for the shard range that the node owns.  During this time it will rely on reads from other replicas to continue uninterrupted operation.
+A node needs to be explicitly taken out of the cluster. If a node goes down and is unavailable the clients performing reads will be served an error from the replica for the shard range that the node owns. During this time it will rely on reads from other replicas to continue uninterrupted operation.
 
 ### Node remove
 
-When a node is removed the shards it owns are assigned to existing nodes in the cluster.  Remaining servers discover they are now in possession of shards that are _INITIALIZING_ and need to be bootstrapped and will begin bootstrapping the data using all replicas available.
+When a node is removed the shards it owns are assigned to existing nodes in the cluster. Remaining servers discover they are now in possession of shards that are _INITIALIZING_ and need to be bootstrapped and will begin bootstrapping the data using all replicas available.
