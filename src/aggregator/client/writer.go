@@ -113,7 +113,7 @@ func (w *writer) Write(shard uint32, payload payloadUnion) (int, error) {
 
 	if exists {
 		// If the encoder exists, encode without acquiring the write lock.
-		bytesAdded, err := w.encodeWithLock(encoder, payload, shard)
+		bytesAdded, err := w.encodeWithLock(encoder, shard, payload)
 		w.RUnlock()
 		return bytesAdded, err
 	}
