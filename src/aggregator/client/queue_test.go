@@ -36,7 +36,7 @@ func TestInstanceQueueEnqueueClosed(t *testing.T) {
 	queue.writeFn = func([]byte) error { return nil }
 	queue.closed.Store(true)
 
-	require.Equal(t, errInstanceQueueClosed, queue.Enqueue(testNewBuffer(nil)))
+	require.Equal(t, errInstanceQueueClosed, queue.Enqueue(testNewBuffer(nil), 0))
 }
 
 func TestInstanceQueueEnqueueQueueFullDropCurrent(t *testing.T) {
@@ -50,9 +50,9 @@ func TestInstanceQueueEnqueueQueueFullDropCurrent(t *testing.T) {
 		result = payload
 		return nil
 	}
-	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42, 43, 44})))
-	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{45, 46, 47})))
-	require.Equal(t, errWriterQueueFull, queue.Enqueue(testNewBuffer([]byte{42})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42, 43, 44}), 0))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{45, 46, 47}), 0))
+	require.Equal(t, errWriterQueueFull, queue.Enqueue(testNewBuffer([]byte{42}), 0))
 	queue.Flush()
 	require.EqualValues(t, []byte{42, 43, 44, 45, 46, 47}, result)
 }
@@ -68,24 +68,24 @@ func TestInstanceQueueEnqueueQueueFullDropOldest(t *testing.T) {
 		return nil
 	}
 
-	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42})))
-	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42, 43, 44})))
-	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{45, 46, 47})))
-	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{1, 2, 3})))
-	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{1})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42}), 0))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42, 43, 44}), 0))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{45, 46, 47}), 0))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{1, 2, 3}), 0))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{1}), 0))
 
 	queue.Flush()
 	require.EqualValues(t, []byte{
 		42, 43, 44, 45, 46, 47, 1, 2, 3, 1,
 	}, result)
 
-	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{})))
-	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{1, 2, 3})))
-	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42})))
-	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{})))
-	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42, 43, 44})))
-	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{45, 46, 47})))
-	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{1})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{}), 0))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{1, 2, 3}), 0))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42}), 0))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{}), 0))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42, 43, 44}), 0))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{45, 46, 47}), 0))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{1}), 0))
 
 	queue.Flush()
 
@@ -110,16 +110,16 @@ func TestInstanceQueueEnqueueLargeBuffers(t *testing.T) {
 		return nil
 	}
 
-	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42})))
-	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42})))
-	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42})))
-	require.NoError(t, queue.Enqueue(testNewBuffer(largeBuf[:])))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42}), 0))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42}), 0))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42}), 0))
+	require.NoError(t, queue.Enqueue(testNewBuffer(largeBuf[:]), 0))
 	queue.Flush()
 	require.Equal(t, len(largeBuf)+3, bytesWritten)
 	require.Equal(t, 2, timesWritten)
 
 	timesWritten, bytesWritten = 0, 0
-	require.NoError(t, queue.Enqueue(testNewBuffer(largeBuf[:])))
+	require.NoError(t, queue.Enqueue(testNewBuffer(largeBuf[:]), 0))
 	queue.Flush()
 	require.Equal(t, len(largeBuf), bytesWritten)
 	require.Equal(t, 1, timesWritten)
@@ -142,7 +142,7 @@ func TestInstanceQueueEnqueueSuccessDrainSuccess(t *testing.T) {
 	}
 
 	data := []byte("foobar")
-	require.NoError(t, queue.Enqueue(testNewBuffer(data)))
+	require.NoError(t, queue.Enqueue(testNewBuffer(data), 0))
 
 	queue.Flush()
 	<-ready
@@ -161,7 +161,7 @@ func TestInstanceQueueEnqueueSuccessDrainError(t *testing.T) {
 		return errTestWrite
 	}
 
-	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{42}), 0))
 	queue.Flush()
 	// Wait for the queue to be drained.
 	<-drained
@@ -177,7 +177,7 @@ func TestInstanceQueueEnqueueSuccessWriteError(t *testing.T) {
 		return err
 	}
 
-	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{0x1, 0x2})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{0x1, 0x2}), 0))
 	queue.Flush()
 	// Wait for the queue to be drained.
 	<-done
@@ -196,7 +196,7 @@ func TestInstanceQueueCloseSuccess(t *testing.T) {
 	queue := newInstanceQueue(testPlacementInstance, opts).(*queue)
 	require.NoError(t, queue.Close())
 	require.True(t, queue.closed.Load())
-	require.Error(t, queue.Enqueue(testNewBuffer([]byte("foo"))))
+	require.Error(t, queue.Enqueue(testNewBuffer([]byte("foo"), 0)))
 }
 
 func TestInstanceQueueSizeIsPowerOfTwo(t *testing.T) {

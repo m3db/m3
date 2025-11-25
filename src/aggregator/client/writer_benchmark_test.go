@@ -146,10 +146,10 @@ func BenchmarkSerialWriter(b *testing.B) {
 
 type testNoOpQueue struct{}
 
-func (q testNoOpQueue) Enqueue(protobuf.Buffer) error { return nil }
-func (q testNoOpQueue) Close() error                  { return nil }
-func (q testNoOpQueue) Size() int                     { return 0 }
-func (q testNoOpQueue) Flush()                        {}
+func (q testNoOpQueue) Enqueue(protobuf.Buffer, uint32) error { return nil }
+func (q testNoOpQueue) Close() error                          { return nil }
+func (q testNoOpQueue) Size() int                             { return 0 }
+func (q testNoOpQueue) Flush()                                {}
 
 type testSerialWriter struct {
 	*writer
@@ -158,8 +158,8 @@ type testSerialWriter struct {
 }
 
 func (mw *testSerialWriter) Write(
-	_ uint32,
+	shard uint32,
 	payload payloadUnion,
 ) (int, error) {
-	return mw.encodeWithLock(mw.encoder, payload)
+	return mw.encodeWithLock(mw.encoder, shard, payload)
 }

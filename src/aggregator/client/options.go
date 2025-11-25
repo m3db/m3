@@ -231,6 +231,12 @@ type Options interface {
 
 	// RWOptions returns the RW options.
 	RWOptions() xio.Options
+
+	// SetInstanceMultiQueueOptions sets the instance multi-queue options.
+	SetInstanceMultiQueueOptions(value InstanceMultiQueueOptions) Options
+
+	// InstanceMultiQueueOptions returns the instance multi-queue options.
+	InstanceMultiQueueOptions() InstanceMultiQueueOptions
 }
 
 type options struct {
@@ -251,6 +257,7 @@ type options struct {
 	maxBatchSize               int
 	flushWorkerCount           int
 	aggregatorClientType       AggregatorClientType
+	instanceMultiQueueOpts     InstanceMultiQueueOptions
 }
 
 // NewOptions creates a new set of client options.
@@ -270,6 +277,7 @@ func NewOptions() Options {
 		dropType:                   defaultDropType,
 		maxBatchSize:               defaultMaxBatchSize,
 		rwOpts:                     xio.NewOptions(),
+		instanceMultiQueueOpts:     NewInstanceMultiQueueOptions(),
 	}
 }
 
@@ -468,4 +476,14 @@ func (o *options) SetRWOptions(value xio.Options) Options {
 
 func (o *options) RWOptions() xio.Options {
 	return o.rwOpts
+}
+
+func (o *options) SetInstanceMultiQueueOptions(value InstanceMultiQueueOptions) Options {
+	opts := *o
+	opts.instanceMultiQueueOpts = value
+	return &opts
+}
+
+func (o *options) InstanceMultiQueueOptions() InstanceMultiQueueOptions {
+	return o.instanceMultiQueueOpts
 }

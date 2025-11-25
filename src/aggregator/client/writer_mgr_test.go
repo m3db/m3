@@ -126,7 +126,7 @@ func TestWriterManagerRemoveInstancesNonBlocking(t *testing.T) {
 
 	data := []byte("foo")
 	for i := 0; i < opts.InstanceQueueSize(); i++ {
-		require.NoError(t, w.queue.Enqueue(testNewBuffer(data)))
+		require.NoError(t, w.queue.Enqueue(testNewBuffer(data), 0))
 	}
 
 	go mgr.RemoveInstances([]placement.Instance{testPlacementInstance})

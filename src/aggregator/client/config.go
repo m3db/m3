@@ -46,22 +46,23 @@ var errNoM3MsgOptions = errors.New("m3msg aggregator client: missing m3msg optio
 
 // Configuration contains client configuration.
 type Configuration struct {
-	Type                       AggregatorClientType            `yaml:"type"`
-	M3Msg                      *M3MsgConfiguration             `yaml:"m3msg"`
-	PlacementKV                *kv.OverrideConfiguration       `yaml:"placementKV"`
-	Watcher                    *placement.WatcherConfiguration `yaml:"placementWatcher"`
-	HashType                   *sharding.HashType              `yaml:"hashType"`
-	ShardCutoverWarmupDuration *time.Duration                  `yaml:"shardCutoverWarmupDuration"`
-	ShardCutoffLingerDuration  *time.Duration                  `yaml:"shardCutoffLingerDuration"`
-	Encoder                    EncoderConfiguration            `yaml:"encoder"`
-	FlushSize                  int                             `yaml:"flushSize,omitempty"` // FlushSize is deprecated
-	FlushWorkerCount           int                             `yaml:"flushWorkerCount"`
-	ForceFlushEvery            time.Duration                   `yaml:"forceFlushEvery"`
-	MaxBatchSize               int                             `yaml:"maxBatchSize"`
-	MaxTimerBatchSize          int                             `yaml:"maxTimerBatchSize"`
-	QueueSize                  int                             `yaml:"queueSize"`
-	QueueDropType              *DropType                       `yaml:"queueDropType"`
-	Connection                 ConnectionConfiguration         `yaml:"connection"`
+	Type                       AggregatorClientType             `yaml:"type"`
+	M3Msg                      *M3MsgConfiguration              `yaml:"m3msg"`
+	PlacementKV                *kv.OverrideConfiguration        `yaml:"placementKV"`
+	Watcher                    *placement.WatcherConfiguration  `yaml:"placementWatcher"`
+	HashType                   *sharding.HashType               `yaml:"hashType"`
+	ShardCutoverWarmupDuration *time.Duration                   `yaml:"shardCutoverWarmupDuration"`
+	ShardCutoffLingerDuration  *time.Duration                   `yaml:"shardCutoffLingerDuration"`
+	Encoder                    EncoderConfiguration             `yaml:"encoder"`
+	FlushSize                  int                              `yaml:"flushSize,omitempty"` // FlushSize is deprecated
+	FlushWorkerCount           int                              `yaml:"flushWorkerCount"`
+	ForceFlushEvery            time.Duration                    `yaml:"forceFlushEvery"`
+	MaxBatchSize               int                              `yaml:"maxBatchSize"`
+	MaxTimerBatchSize          int                              `yaml:"maxTimerBatchSize"`
+	QueueSize                  int                              `yaml:"queueSize"`
+	QueueDropType              *DropType                        `yaml:"queueDropType"`
+	Connection                 ConnectionConfiguration          `yaml:"connection"`
+	InstanceMultiQueue         *InstanceMultiQueueConfiguration `yaml:"instanceMultiQueue"`
 }
 
 // NewAdminClient creates a new admin client.
@@ -198,6 +199,9 @@ func (c *Configuration) NewClientOptions(
 		if c.QueueDropType != nil {
 			opts = opts.SetQueueDropType(*c.QueueDropType)
 		}
+		if c.InstanceMultiQueue != nil {
+			opts = opts.SetInstanceMultiQueueOptions(c.InstanceMultiQueue.NewInstanceMultiQueueOptions())
+		}
 	default:
 		return nil, fmt.Errorf("unknown client type: %v", c.Type)
 	}
@@ -313,6 +317,24 @@ func (c *EncoderConfiguration) NewEncoderOptions(
 		opts = opts.SetBytesPool(bytesPool)
 		bytesPool.Init()
 	}
+	return opts
+}
+
+// InstanceMultiQueueConfiguration provides YAML configuration for instance multi-queue.
+type InstanceMultiQueueConfiguration struct {
+	Enabled  bool                   `yaml:"enabled"`
+	PoolSize int                    `yaml:"poolSize"`
+	Strategy QueueSelectionStrategy `yaml:"strategy"`
+}
+
+// NewInstanceMultiQueueOptions creates InstanceMultiQueueOptions from configuration.
+func (c *InstanceMultiQueueConfiguration) NewInstanceMultiQueueOptions() InstanceMultiQueueOptions {
+	opts := NewInstanceMultiQueueOptions()
+	opts = opts.SetEnabled(c.Enabled)
+	if c.PoolSize > 0 {
+		opts = opts.SetPoolSize(c.PoolSize)
+	}
+	opts = opts.SetQueueSelectionStrategy(c.Strategy)
 	return opts
 }
 

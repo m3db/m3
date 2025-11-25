@@ -67,6 +67,10 @@ maxBatchSize: 42
 maxTimerBatchSize: 140
 queueSize: 1000
 queueDropType: oldest
+instanceMultiQueue:
+  enabled: true
+  poolSize: 4
+  strategy: round-robin
 connection:
   connectionTimeout: 1s
   connectionKeepAlive: true
@@ -116,6 +120,10 @@ func TestConfigUnmarshal(t *testing.T) {
 	require.Equal(t, 42, cfg.MaxBatchSize)
 	require.Equal(t, 1000, cfg.QueueSize)
 	require.Equal(t, DropOldest, *cfg.QueueDropType)
+	require.NotNil(t, cfg.InstanceMultiQueue)
+	require.Equal(t, true, cfg.InstanceMultiQueue.Enabled)
+	require.Equal(t, 4, cfg.InstanceMultiQueue.PoolSize)
+	require.Equal(t, QueueSelectionStrategyRoundRobin, cfg.InstanceMultiQueue.Strategy)
 	require.Equal(t, time.Second, cfg.Connection.ConnectionTimeout)
 	require.Equal(t, true, *cfg.Connection.ConnectionKeepAlive)
 	require.Equal(t, time.Second, cfg.Connection.ReadTimeout)
@@ -173,6 +181,9 @@ func TestNewClientOptions(t *testing.T) {
 	require.Equal(t, 140, opts.MaxTimerBatchSize())
 	require.Equal(t, 42, opts.MaxBatchSize())
 	require.Equal(t, DropOldest, opts.QueueDropType())
+	require.Equal(t, true, opts.InstanceMultiQueueOptions().Enabled())
+	require.Equal(t, 4, opts.InstanceMultiQueueOptions().PoolSize())
+	require.Equal(t, QueueSelectionStrategyRoundRobin, opts.InstanceMultiQueueOptions().QueueSelectionStrategy())
 	require.Equal(t, time.Second, opts.ConnectionOptions().ConnectionTimeout())
 	require.Equal(t, true, opts.ConnectionOptions().ConnectionKeepAlive())
 	require.Equal(t, time.Second, opts.ConnectionOptions().WriteTimeout())

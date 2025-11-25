@@ -70,17 +70,17 @@ func (mr *MockinstanceQueueMockRecorder) Close() *gomock.Call {
 }
 
 // Enqueue mocks base method.
-func (m *MockinstanceQueue) Enqueue(buf protobuf.Buffer) error {
+func (m *MockinstanceQueue) Enqueue(buf protobuf.Buffer, shard uint32) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Enqueue", buf)
+	ret := m.ctrl.Call(m, "Enqueue", buf, shard)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Enqueue indicates an expected call of Enqueue.
-func (mr *MockinstanceQueueMockRecorder) Enqueue(buf interface{}) *gomock.Call {
+func (mr *MockinstanceQueueMockRecorder) Enqueue(buf, shard interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Enqueue", reflect.TypeOf((*MockinstanceQueue)(nil).Enqueue), buf)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Enqueue", reflect.TypeOf((*MockinstanceQueue)(nil).Enqueue), buf, shard)
 }
 
 // Flush mocks base method.

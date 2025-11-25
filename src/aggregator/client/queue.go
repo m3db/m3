@@ -111,7 +111,7 @@ func (t *DropType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // instanceQueue processes write requests for given instance.
 type instanceQueue interface {
 	// Enqueue enqueues a data buffer.
-	Enqueue(buf protobuf.Buffer) error
+	Enqueue(buf protobuf.Buffer, shard uint32) error
 
 	// Size returns the number of items in the queue.
 	Size() int
@@ -170,7 +170,7 @@ func newInstanceQueue(instance placement.Instance, opts Options) instanceQueue {
 	return q
 }
 
-func (q *queue) Enqueue(buf protobuf.Buffer) error {
+func (q *queue) Enqueue(buf protobuf.Buffer, shard uint32) error {
 	if q.closed.Load() {
 		q.metrics.enqueueClosedErrors.Inc(1)
 		return errInstanceQueueClosed

@@ -80,13 +80,21 @@ func newInstanceWriter(instance placement.Instance, opts Options) instanceWriter
 		scope     = iOpts.MetricsScope()
 		queueOpts = opts.SetInstrumentOptions(iOpts.SetMetricsScope(scope.SubScope("queue")))
 	)
+
+	var queue instanceQueue
+	if opts.InstanceMultiQueueOptions().Enabled() {
+		queue = newInstanceMultiQueue(instance, queueOpts)
+	} else {
+		queue = newInstanceQueue(instance, queueOpts)
+	}
+
 	w := &writer{
 		log:               iOpts.Logger(),
 		metrics:           newWriterMetrics(scope),
 		maxBatchSize:      opts.MaxBatchSize(),
 		maxTimerBatchSize: opts.MaxTimerBatchSize(),
 		encoderOpts:       opts.EncoderOptions(),
-		queue:             newInstanceQueue(instance, queueOpts),
+		queue:             queue,
 		encodersByShard:   make(map[uint32]*lockedEncoder),
 	}
 	w.newLockedEncoderFn = newLockedEncoder
@@ -105,7 +113,7 @@ func (w *writer) Write(shard uint32, payload payloadUnion) (int, error) {
 
 	if exists {
 		// If the encoder exists, encode without acquiring the write lock.
-		bytesAdded, err := w.encodeWithLock(encoder, payload)
+		bytesAdded, err := w.encodeWithLock(encoder, payload, shard)
 		w.RUnlock()
 		return bytesAdded, err
 	}
@@ -126,7 +134,7 @@ func (w *writer) Write(shard uint32, payload payloadUnion) (int, error) {
 		w.encodersByShard[shard] = encoder
 	}
 
-	result, err := w.encodeWithLock(encoder, payload)
+	result, err := w.encodeWithLock(encoder, shard, payload)
 
 	// Unlock the write lock after encoding
 	w.Unlock()
@@ -170,6 +178,7 @@ func (w *writer) QueueSize() int {
 
 func (w *writer) encodeWithLock(
 	encoder *lockedEncoder,
+	shard uint32,
 	payload payloadUnion,
 ) (int, error) {
 	encoder.Lock()
@@ -220,7 +229,7 @@ func (w *writer) encodeWithLock(
 	// Relinquish the buffer and enqueue it if the batch size exceeds the limit.
 	buffer := encoder.Relinquish()
 	encoder.Unlock()
-	return bytesAdded, w.enqueueBuffer(buffer)
+	return bytesAdded, w.enqueueBuffer(buffer, shard)
 }
 
 func (w *writer) encodeUntimedWithLock(
@@ -365,7 +374,7 @@ func (w *writer) encodePassthroughWithLock(
 
 func (w *writer) flushWithLock() error {
 	multiErr := xerrors.NewMultiError()
-	for _, encoder := range w.encodersByShard {
+	for shard, encoder := range w.encodersByShard {
 		encoder.Lock()
 		if encoder.Len() == 0 {
 			encoder.Unlock()
@@ -373,7 +382,7 @@ func (w *writer) flushWithLock() error {
 		}
 		buffer := encoder.Relinquish()
 		encoder.Unlock()
-		if err := w.enqueueBuffer(buffer); err != nil {
+		if err := w.enqueueBuffer(buffer, shard); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
@@ -383,8 +392,8 @@ func (w *writer) flushWithLock() error {
 	return multiErr.FinalError()
 }
 
-func (w *writer) enqueueBuffer(buf protobuf.Buffer) error {
-	if err := w.queue.Enqueue(buf); err != nil {
+func (w *writer) enqueueBuffer(buf protobuf.Buffer, shard uint32) error {
+	if err := w.queue.Enqueue(buf, shard); err != nil {
 		w.metrics.enqueueErrors.Inc(1)
 		return err
 	}

@@ -182,8 +182,8 @@ func TestWriterWriteUntimedCounterWithFlushingZeroSizeBefore(t *testing.T) {
 	)
 	queue := NewMockinstanceQueue(ctrl)
 	queue.EXPECT().
-		Enqueue(gomock.Any()).
-		DoAndReturn(func(buf protobuf.Buffer) error {
+		Enqueue(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(buf protobuf.Buffer, shard uint32) error {
 			enqueuedBuf = buf
 			return nil
 		})
@@ -233,8 +233,8 @@ func TestWriterWriteUntimedCounterWithFlushingPositiveSizeBefore(t *testing.T) {
 	)
 	queue := NewMockinstanceQueue(ctrl)
 	queue.EXPECT().
-		Enqueue(gomock.Any()).
-		DoAndReturn(func(buf protobuf.Buffer) error {
+		Enqueue(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(buf protobuf.Buffer, shard uint32) error {
 			enqueuedBuf = buf
 			return nil
 		})
@@ -523,7 +523,7 @@ func TestWriterWriteUntimedBatchTimerEnqueueError(t *testing.T) {
 
 	errTestEnqueue := errors.New("test enqueue error")
 	queue := NewMockinstanceQueue(ctrl)
-	queue.EXPECT().Enqueue(gomock.Any()).Return(errTestEnqueue)
+	queue.EXPECT().Enqueue(gomock.Any(), gomock.Any()).Return(errTestEnqueue)
 	opts := testOptions().
 		SetMaxTimerBatchSize(1).
 		SetMaxBatchSize(1)
@@ -596,8 +596,8 @@ func TestWriterWriteForwardedWithFlushingZeroSizeBefore(t *testing.T) {
 	)
 	queue := NewMockinstanceQueue(ctrl)
 	queue.EXPECT().
-		Enqueue(gomock.Any()).
-		DoAndReturn(func(buf protobuf.Buffer) error {
+		Enqueue(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(buf protobuf.Buffer, shard uint32) error {
 			enqueuedBuf = buf
 			return nil
 		})
@@ -647,8 +647,8 @@ func TestWriterWriteForwardedWithFlushingPositiveSizeBefore(t *testing.T) {
 	)
 	queue := NewMockinstanceQueue(ctrl)
 	queue.EXPECT().
-		Enqueue(gomock.Any()).
-		DoAndReturn(func(buf protobuf.Buffer) error {
+		Enqueue(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(buf protobuf.Buffer, shard uint32) error {
 			enqueuedBuf = buf
 			return nil
 		})
@@ -712,7 +712,7 @@ func TestWriterWriteForwardedEnqueueError(t *testing.T) {
 
 	errTestEnqueue := errors.New("test enqueue error")
 	queue := NewMockinstanceQueue(ctrl)
-	queue.EXPECT().Enqueue(gomock.Any()).Return(errTestEnqueue)
+	queue.EXPECT().Enqueue(gomock.Any(), gomock.Any()).Return(errTestEnqueue)
 	opts := testOptions().
 		SetMaxTimerBatchSize(1).
 		SetMaxBatchSize(1)
@@ -747,8 +747,8 @@ func TestWriterFlushPartialError(t *testing.T) {
 	)
 	queue := NewMockinstanceQueue(ctrl)
 	queue.EXPECT().
-		Enqueue(gomock.Any()).
-		DoAndReturn(func(buf protobuf.Buffer) error {
+		Enqueue(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(buf protobuf.Buffer, shard uint32) error {
 			enqueued = append(enqueued, buf.Bytes()...)
 			enqueueIdx++
 			if enqueueIdx == 1 {
@@ -890,8 +890,8 @@ func testWriterConcurrentWriteStress(
 
 	queue := NewMockinstanceQueue(ctrl)
 	queue.EXPECT().
-		Enqueue(gomock.Any()).
-		DoAndReturn(func(buf protobuf.Buffer) error {
+		Enqueue(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(buf protobuf.Buffer, shard uint32) error {
 			bytes := buf.Bytes()
 			cloned := make([]byte, len(bytes))
 			copy(cloned, bytes)
