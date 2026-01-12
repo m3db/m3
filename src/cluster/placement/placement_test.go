@@ -1128,6 +1128,7 @@ func TestValidateSubclusteredPlacementEdgeCases(t *testing.T) {
 			shards:      []uint32{1, 2},
 			expectError: false,
 		},
+		// nolint: dupl
 		{
 			name:                   "multiple isolation groups per shard",
 			instancesPerSubcluster: 6,
@@ -1147,6 +1148,7 @@ func TestValidateSubclusteredPlacementEdgeCases(t *testing.T) {
 			shards:      []uint32{1},
 			expectError: false,
 		},
+		// nolint: dupl
 		{
 			name:                   "shard with insufficient isolation groups",
 			instancesPerSubcluster: 6,
@@ -1338,6 +1340,7 @@ func TestValidateSubclusteredPlacementEdgeCases(t *testing.T) {
 			expectError:  true,
 			errorMessage: "invalid placement, more than one partial subcluster found: 3",
 		},
+		// nolint: dupl
 		{
 			name:                   "one full and one partial subcluster is valid",
 			instancesPerSubcluster: 2,
