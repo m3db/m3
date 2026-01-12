@@ -154,12 +154,12 @@ steps:
                   make clean install-vendor-m3 docker-integration-test
     <<: *common
   - label: "M3 Cluster Integration Tests"
-    env:
-      CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.22.x
     plugins:
       gopath-checkout#v1.0.1:
         import: github.com/m3db/m3
+      docker-compose#v2.5.1:
+        run: app
+        workdir: /go/src/github.com/m3db/m3
       kubernetes:
         <<: *kubernetes
         podSpec:
