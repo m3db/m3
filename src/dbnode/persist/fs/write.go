@@ -38,8 +38,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
-	xresource "github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -61,6 +61,7 @@ type writer struct {
 	summariesPercent                float64
 	bloomFilterFalsePositivePercent float64
 	bufferSize                      int
+	syncBeforeClose                 bool
 
 	infoFdWithDigest           digest.FdWithDigestWriter
 	indexFdWithDigest          digest.FdWithDigestWriter
@@ -228,6 +229,7 @@ func (w *writer) Open(opts DataWriterOpenOptions) error {
 	w.bloomFilterFdWithDigest.Reset(bloomFilterFd)
 	w.dataFdWithDigest.Reset(dataFd)
 	w.digestFdWithDigestContents.Reset(digestFd)
+	w.syncBeforeClose = opts.SyncBeforeClose
 
 	return nil
 }
@@ -341,6 +343,7 @@ func (w *writer) Close() error {
 		w.digestFdWithDigestContents.Digest().Sum32(),
 		w.digestBuf,
 		w.newFileMode,
+		w.syncBeforeClose,
 	); err != nil {
 		w.err = err
 		return err
@@ -357,15 +360,21 @@ func (w *writer) DeferClose() (persist.DataCloser, error) {
 		w.err = err
 		return nil, err
 	}
-	checkpointFilePath := w.checkpointFilePath
-	digestChecksum := w.digestFdWithDigestContents.Digest().Sum32()
-	newFileMode := w.newFileMode
+
+	var (
+		checkpointFilePath = w.checkpointFilePath
+		digestChecksum     = w.digestFdWithDigestContents.Digest().Sum32()
+		newFileMode        = w.newFileMode
+		syncBeforeClose    = w.syncBeforeClose
+	)
+
 	return func() error {
 		return writeCheckpointFile(
 			checkpointFilePath,
 			digestChecksum,
 			digest.NewBuffer(),
 			newFileMode,
+			syncBeforeClose,
 		)
 	}, nil
 }
@@ -389,14 +398,23 @@ func (w *writer) closeWOIndex() error {
 		return err
 	}
 
-	return xresource.CloseAll(
+	fds := []digest.FdWithDigestWriter{
 		w.infoFdWithDigest,
 		w.indexFdWithDigest,
 		w.summariesFdWithDigest,
 		w.bloomFilterFdWithDigest,
 		w.dataFdWithDigest,
 		w.digestFdWithDigestContents,
-	)
+	}
+
+	var multiErr xerrors.MultiError
+	if w.syncBeforeClose {
+		multiErr = multiErr.Add(digest.SyncAll(fds...))
+	}
+
+	multiErr = multiErr.Add(digest.CloseAll(fds...))
+
+	return multiErr.FinalError()
 }
 
 func (w *writer) openWritable(filePath string) (*os.File, error) {
@@ -640,16 +658,26 @@ func writeCheckpointFile(
 	digestChecksum uint32,
 	digestBuf digest.Buffer,
 	newFileMode os.FileMode,
+	syncBeforeClose bool,
 ) error {
 	fd, err := OpenWritable(checkpointFilePath, newFileMode)
 	if err != nil {
 		return err
 	}
+
+	var multiErr xerrors.MultiError
 	if err := digestBuf.WriteDigestToFile(fd, digestChecksum); err != nil {
-		// NB(prateek): intentionally skipping fd.Close() error, as failure
-		// to write takes precedence over failure to close the file
-		fd.Close()
-		return err
+		multiErr = multiErr.Add(err)
+		multiErr = multiErr.Add(fd.Close())
+
+		return multiErr.FinalError()
 	}
-	return fd.Close()
+
+	if syncBeforeClose {
+		multiErr = multiErr.Add(fd.Sync())
+	}
+
+	multiErr = multiErr.Add(fd.Close())
+
+	return multiErr.FinalError()
 }
