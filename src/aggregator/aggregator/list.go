@@ -300,17 +300,23 @@ func (l *baseMetricList) Flush(req flushRequest) {
 	nowNanos := l.nowFn().UnixNano()
 	l.timeLock.Unlock()
 	targetNanos := l.targetNanosFn(nowNanos)
+	lastPersistedNanos := req.LatestPersistedFlush // l.targetNanosFn(req.LatestPersistedFlush)
+
+	discardBeforeNanos := req.CutoverNanos
+	if discardBeforeNanos < lastPersistedNanos {
+		discardBeforeNanos = lastPersistedNanos
+	}
 
 	// Metrics before shard cutover are discarded.
-	if targetNanos <= req.CutoverNanos {
+	if targetNanos <= discardBeforeNanos {
 		l.flushBeforeFn(targetNanos, req.Jitter, discardType)
 		l.metrics.flushBeforeCutover.Inc(1)
 		return
 	}
 
 	// Metrics between shard cutover and shard cutoff are consumed.
-	if req.CutoverNanos > 0 {
-		l.flushBeforeFn(req.CutoverNanos, req.Jitter, discardType)
+	if discardBeforeNanos > 0 {
+		l.flushBeforeFn(discardBeforeNanos, req.Jitter, discardType)
 	}
 	if targetNanos <= req.CutoffNanos {
 		l.flushBeforeFn(targetNanos, req.Jitter, consumeType)

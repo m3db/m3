@@ -67,6 +67,9 @@ type flushRequest struct {
 
 	// Jitter is the jitter for the flush request.
 	Jitter time.Duration
+
+	// LatestPersistedFlush is the latest persisted flush for this data.
+	LatestPersistedFlush int64
 }
 
 type flushType int
