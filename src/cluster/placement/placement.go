@@ -519,7 +519,7 @@ func validateSubclusteredPlacement(p Placement) error {
 						shard, shardSubclusterID, currSubclusterID)
 				}
 				// Note: The case where both subclusters are partial is already caught by
-				// the "more than one partial subcluster" check above (line 489-491).
+				// the "more than one partial subcluster".
 			}
 		}
 
