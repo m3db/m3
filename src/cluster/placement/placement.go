@@ -474,11 +474,20 @@ func validateSubclusteredPlacement(p Placement) error {
 		}
 	}
 
+	partialSubclusters := 0
+
 	for subclusterID, instances := range subClusterToInstanceMap {
 		if len(instances) > instancesPerSubCluster {
 			return fmt.Errorf("invalid subcluster %d, expected at most %d instances, actual %d",
 				subclusterID, instancesPerSubCluster, len(instances))
 		}
+		if len(instances) < instancesPerSubCluster {
+			partialSubclusters++
+		}
+	}
+
+	if partialSubclusters > 1 {
+		return fmt.Errorf("invalid placement, more than one partial subcluster found: %d", partialSubclusters)
 	}
 
 	for shard, subclusters := range shardToSubclusterMap {
@@ -502,11 +511,15 @@ func validateSubclusteredPlacement(p Placement) error {
 					continue
 				}
 				currSubclusterID := subcluster
-				if len(subClusterToInstanceMap[shardSubclusterID]) == instancesPerSubCluster &&
-					len(subClusterToInstanceMap[currSubclusterID]) == instancesPerSubCluster {
+				shardSubclusterInstances := subClusterToInstanceMap[shardSubclusterID]
+				currSubclusterInstances := subClusterToInstanceMap[currSubclusterID]
+				if len(shardSubclusterInstances) == instancesPerSubCluster &&
+					len(currSubclusterInstances) == instancesPerSubCluster {
 					return fmt.Errorf("invalid shard %d, expected subcluster id %d, actual %d",
 						shard, shardSubclusterID, currSubclusterID)
 				}
+				// Note: The case where both subclusters are partial is already caught by
+				// the "more than one partial subcluster".
 			}
 		}
 
