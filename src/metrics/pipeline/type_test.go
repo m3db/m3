@@ -153,7 +153,7 @@ func TestPipelineString(t *testing.T) {
 	}{
 		{
 			p: Pipeline{
-				operations: []OpUnion{
+				Operations: []OpUnion{
 					{
 						Type:        AggregationOpType,
 						Aggregation: AggregationOp{Type: aggregation.Last},
@@ -177,7 +177,7 @@ func TestPipelineString(t *testing.T) {
 		},
 		{
 			p: Pipeline{
-				operations: []OpUnion{
+				Operations: []OpUnion{
 					{
 						Type: OpType(10),
 					},
