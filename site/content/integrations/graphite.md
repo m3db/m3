@@ -142,7 +142,7 @@ This will make the carbon ingestion emit logs for every step that is taking. *No
 
 ## Querying
 
-M3 supports the the majority of [graphite query functions](https://graphite.readthedocs.io/en/latest/functions.html) and can be used to query metrics that were ingested via the ingestion pathway described above.
+M3 supports the majority of [graphite query functions](https://graphite.readthedocs.io/en/latest/functions.html) and can be used to query metrics that were ingested via the ingestion pathway described above.
 
 ### Grafana
 
