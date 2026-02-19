@@ -16,7 +16,7 @@ To run some tests and test the production build steps (this doesn't run M3 itsel
 
 ## Folder Structure
 
-Hugo hosts the M3 documentation, website, and Open API spec.
+Hugo hosts the M3 documentation, website, and Open API spec
 
 ### Website
 
