@@ -119,8 +119,8 @@ type Configuration struct {
 	// from the remote peer. Defaults to 4096.
 	FetchSeriesBlocksBatchSize *int `yaml:"fetchSeriesBlocksBatchSize"`
 
-	// WriteShardsInitializing sets whether or not writes to leaving shards
-	// count towards consistency, by default they do not.
+	// WriteShardsInitializing sets whether or not to write to shards that are initializing.
+	// Defaults to true.
 	WriteShardsInitializing *bool `yaml:"writeShardsInitializing"`
 
 	// ShardsLeavingCountTowardsConsistency sets whether or not writes to leaving shards
