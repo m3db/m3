@@ -65,6 +65,11 @@ var (
 	// are issues with the instances taking over the shards and as such we need to switch
 	// the traffic back to the previous owner of the shards immediately.
 	defaultBufferDurationAfterShardCutoff = time.Hour
+
+	// By default the cardinality metrics are disabled.
+	defaultCardinalityMetricsEnabled = false
+	// By default the source tag is "service".
+	defaultSourceTag = "service"
 )
 
 // MaxAllowedForwardingDelayFn returns the maximum allowed forwarding delay given
@@ -347,6 +352,18 @@ type Options interface {
 	// SetWritesIgnoreCutoffCutover sets a flag controlling whether cutoff/cutover timestamps
 	// are ignored for incoming writes.
 	SetWritesIgnoreCutoffCutover(value bool) Options
+
+	// CardinalityMetricsEnabled enables the emission of cardinality metrics.
+	CardinalityMetricsEnabled() bool
+
+	// SetCardinalityMetricsEnabled sets the cardinality metrics enabled.
+	SetCardinalityMetricsEnabled(value bool) Options
+
+	// SourceTag returns the source tag.
+	SourceTag() string
+
+	// SetSourceTag sets the source tag.
+	SetSourceTag(value string) Options
 }
 
 type options struct {
@@ -392,6 +409,8 @@ type options struct {
 	timedMetricsFlushOffsetEnabled   bool
 	featureFlagBundlesParsed         []FeatureFlagBundleParsed
 	writesIgnoreCutoffCutover        bool
+	cardinalityMetricsEnabled        bool
+	sourceTag                        string
 
 	// Derived options.
 	fullCounterPrefix []byte
@@ -434,6 +453,8 @@ func NewOptions(clockOpts clock.Options) Options {
 		maxNumCachedSourceSets:           defaultMaxNumCachedSourceSets,
 		discardNaNAggregatedValues:       defaultDiscardNaNAggregatedValues,
 		verboseErrors:                    defaultVerboseErrors,
+		cardinalityMetricsEnabled:        defaultCardinalityMetricsEnabled,
+		sourceTag:                        defaultSourceTag,
 	}
 
 	// Initialize pools.
@@ -928,6 +949,26 @@ func (o *options) WritesIgnoreCutoffCutover() bool {
 func (o *options) SetWritesIgnoreCutoffCutover(value bool) Options {
 	opts := *o
 	opts.writesIgnoreCutoffCutover = value
+	return &opts
+}
+
+func (o *options) CardinalityMetricsEnabled() bool {
+	return o.cardinalityMetricsEnabled
+}
+
+func (o *options) SetCardinalityMetricsEnabled(value bool) Options {
+	opts := *o
+	opts.cardinalityMetricsEnabled = value
+	return &opts
+}
+
+func (o *options) SourceTag() string {
+	return o.sourceTag
+}
+
+func (o *options) SetSourceTag(value string) Options {
+	opts := *o
+	opts.sourceTag = value
 	return &opts
 }
 
