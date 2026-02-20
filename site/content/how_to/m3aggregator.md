@@ -72,15 +72,6 @@ curl -vvvsSf -H "Cluster-Environment-Name: namespace/m3db-cluster-name" -H "Topi
 
 **Note:** 300000000000 nanoseconds is a TTL of 5 minutes for messages to rebuffer for retry.
 
-#### Initializing m3msg topic for m3coordinator to receive from m3aggregator to write to M3DB
-
-Now we must setup a topic for the `m3coordinator` to receive aggregated metrics from `m3aggregator` instances to write to M3DB:
-```shell
-curl -vvvsSf -H "Cluster-Environment-Name: namespace/m3db-cluster-name" -H "Topic-Name: aggregated_metrics" -X POST http://m3dbnode-with-embedded-coordinator:7201/api/v1/topic/init -d '{
-    "numberOfShards": 64
-}'
-```
-
 #### Initializing m3coordinator topology
 
 Then `m3coordinator` instances need to be configured to receive traffic for this topic (note ingest at port 7507 must match the configured port for your `m3coordinator` ingest server, see config at bottom of this guide):
@@ -99,6 +90,16 @@ curl -vvvsSf -H "Cluster-Environment-Name: namespace/m3db-cluster-name" -X POST 
 ```
 
 **Note:** When you add or remove `m3coordinator` instances they must be added to this placement.
+
+#### Initializing m3msg topic for m3coordinator to receive from m3aggregator to write to M3DB
+
+Now we must setup a topic for the `m3coordinator` to receive aggregated metrics from `m3aggregator` instances to write to M3DB:
+```shell
+curl -vvvsSf -H "Cluster-Environment-Name: namespace/m3db-cluster-name" -H "Topic-Name: aggregated_metrics" -X POST http://m3dbnode-with-embedded-coordinator:7201/api/v1/topic/init -d '{
+    "numberOfShards": 64
+}'
+```
+**Note:** Do this after initializing m3coordinator topology.
 
 #### Add m3coordinator consumer group to outbound topic
 
