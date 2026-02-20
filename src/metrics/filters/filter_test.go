@@ -234,6 +234,39 @@ func TestRangeFilters(t *testing.T) {
 	}
 }
 
+func TestCombinedFilter(t *testing.T) {
+	t.Run("range_filter_at_the_end", func(t *testing.T) {
+		filter, err := NewFilter([]byte("ending.{bar,foobar}"))
+		require.NoError(t, err)
+		expectedFilterStr := "Equals(\"ending.\") then Range(\"bar,foobar\")"
+		require.Equal(t, expectedFilterStr, filter.String())
+
+		require.True(t, filter.Matches([]byte("ending.bar")))
+		require.True(t, filter.Matches([]byte("ending.foobar")))
+	})
+	t.Run("wildcard_with_range_filter_at_the_end_flipped", func(t *testing.T) {
+		filter, err := NewFilter([]byte("*ending.{bar,foobar}"))
+		require.NoError(t, err)
+		expectedFilterStr := "EndsWith(Equals(\"ending.\") then Range(\"bar,foobar\"))"
+		require.Equal(t, expectedFilterStr, filter.String())
+
+		require.True(t, filter.Matches([]byte("some_ending.bar")))
+		// TODO: This fails
+		require.True(t, filter.Matches([]byte("some_ending.foobar")))
+	})
+	t.Run("wildcard_with_range_filter_at_the_end", func(t *testing.T) {
+
+		filter, err := NewFilter([]byte("*ending.{foobar,bar}"))
+		require.NoError(t, err)
+		expectedFilterStr := "EndsWith(Equals(\"ending.\") then Range(\"foobar,bar\"))"
+		require.Equal(t, expectedFilterStr, filter.String())
+
+		require.True(t, filter.Matches([]byte("some_ending.bar")))
+		// Unlike above test - this one succeeds
+		require.True(t, filter.Matches([]byte("some_ending.foobar")))
+	})
+
+}
 func TestMultiFilter(t *testing.T) {
 	cf, _ := newContainsFilter([]byte("bar"))
 	filters := []Filter{
