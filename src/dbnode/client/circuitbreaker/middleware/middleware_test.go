@@ -361,3 +361,157 @@ func TestClient_NilProvider(t *testing.T) {
 	err = node.WriteBatchRaw(ctx, &rpc.WriteBatchRawRequest{})
 	assert.NoError(t, err, "Should not panic with nil provider")
 }
+
+func TestClient_ErrorFilter(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	timeoutErr := errors.New("timeout error")
+	nonTimeoutErr := errors.New("bad request error")
+
+	// Filter that only considers timeout errors as CB failures
+	timeoutFilter := func(err error) bool {
+		return err != nil && err.Error() == "timeout error"
+	}
+
+	tests := []struct {
+		name           string
+		errorFilter    func(error) bool
+		mockError      error
+		expectCBTrip   bool
+		expectFiltered bool
+	}{
+		{
+			name:           "nil filter - all errors trip CB",
+			errorFilter:    nil,
+			mockError:      nonTimeoutErr,
+			expectCBTrip:   true,
+			expectFiltered: false,
+		},
+		{
+			name:           "with filter - timeout error trips CB",
+			errorFilter:    timeoutFilter,
+			mockError:      timeoutErr,
+			expectCBTrip:   true,
+			expectFiltered: true,
+		},
+		{
+			name:           "with filter - non-timeout error does NOT trip CB",
+			errorFilter:    timeoutFilter,
+			mockError:      nonTimeoutErr,
+			expectCBTrip:   false,
+			expectFiltered: true,
+		},
+		{
+			name:           "with filter - success does not trip CB",
+			errorFilter:    timeoutFilter,
+			mockError:      nil,
+			expectCBTrip:   false,
+			expectFiltered: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			params := Params{
+				Config:         newTestConfig(),
+				Logger:         zap.NewNop(),
+				Scope:          tally.NoopScope,
+				Host:           "test-host",
+				EnableProvider: newTestEnableProvider(true, false),
+				ErrorFilter:    tt.errorFilter,
+			}
+
+			middlewareFn, err := New(params)
+			require.NoError(t, err)
+
+			mockNode := rpc.NewMockTChanNode(ctrl)
+			// First call returns the configured error
+			mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(tt.mockError)
+			if !tt.expectCBTrip {
+				// If CB should NOT trip, second call should also go through
+				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(nil)
+			}
+
+			clientInterface := middlewareFn(mockNode)
+			ctx, cancel := thrift.NewContext(time.Second)
+			defer cancel()
+
+			node, ok := clientInterface.(rpc.TChanNode)
+			require.True(t, ok)
+
+			// First request
+			err = node.WriteBatchRaw(ctx, &rpc.WriteBatchRawRequest{})
+			if tt.mockError != nil {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			// Check circuit breaker state
+			clientImpl, ok := clientInterface.(*client)
+			require.True(t, ok)
+
+			if tt.expectCBTrip {
+				assert.Equal(t, circuitbreaker.Unhealthy, clientImpl.circuit.Status().State(),
+					"circuit breaker should be in unhealthy state")
+			} else {
+				assert.Equal(t, circuitbreaker.Healthy, clientImpl.circuit.Status().State(),
+					"circuit breaker should remain healthy")
+				// Verify second request goes through
+				err = node.WriteBatchRaw(ctx, &rpc.WriteBatchRawRequest{})
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestClient_ErrorFilter_LastErrorOnlyStoredForFilteredErrors(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	timeoutErr := errors.New("timeout error")
+	nonTimeoutErr := errors.New("bad request error")
+
+	timeoutFilter := func(err error) bool {
+		return err != nil && err.Error() == "timeout error"
+	}
+
+	params := Params{
+		Config:         newTestConfig(),
+		Logger:         zap.NewNop(),
+		Scope:          tally.NoopScope,
+		Host:           "test-host",
+		EnableProvider: newTestEnableProvider(true, false),
+		ErrorFilter:    timeoutFilter,
+	}
+
+	// Use high minimum requests so CB doesn't trip on a single error
+	params.Config.CircuitBreakerConfig.MinimumRequests = 1000
+
+	middlewareFn, err := New(params)
+	require.NoError(t, err)
+
+	mockNode := rpc.NewMockTChanNode(ctrl)
+	// First call: non-timeout error (should NOT update lastError)
+	mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(nonTimeoutErr)
+	// Second call: timeout error (should update lastError)
+	mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(timeoutErr)
+
+	clientInterface := middlewareFn(mockNode)
+	ctx, cancel := thrift.NewContext(time.Second)
+	defer cancel()
+
+	node := clientInterface.(rpc.TChanNode)
+	clientImpl := clientInterface.(*client)
+
+	// First request: non-timeout error — lastError should NOT be set
+	_ = node.WriteBatchRaw(ctx, &rpc.WriteBatchRawRequest{})
+	assert.Nil(t, clientImpl.lastError.Load(), "lastError should not be set for non-timeout errors")
+
+	// Second request: timeout error — lastError should be set
+	_ = node.WriteBatchRaw(ctx, &rpc.WriteBatchRawRequest{})
+	assert.NotNil(t, clientImpl.lastError.Load(), "lastError should be set for timeout errors")
+	storedErr := clientImpl.lastError.Load().(*error)
+	assert.Equal(t, "timeout error", (*storedErr).Error())
+}
