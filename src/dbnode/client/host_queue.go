@@ -105,6 +105,7 @@ func newHostQueue(
 		Scope:          scope,
 		Host:           host.ID(),
 		EnableProvider: provider,
+		ErrorFilter:    IsTimeoutError,
 	}
 
 	middlewareFn, err := middleware.New(params)
