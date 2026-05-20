@@ -14,13 +14,14 @@ import (
 
 // client is a client that wraps a TChannel client with a circuit breaker.
 type client struct {
-	logger    *zap.Logger
-	circuit   *circuitbreaker.Circuit
-	metrics   *circuitBreakerMetrics
-	host      string
-	next      rpc.TChanNode
-	provider  EnableProvider
-	lastError atomic.Value // stores *error atomically
+	logger      *zap.Logger
+	circuit     *circuitbreaker.Circuit
+	metrics     *circuitBreakerMetrics
+	host        string
+	next        rpc.TChanNode
+	provider    EnableProvider
+	errorFilter func(error) bool // returns true if the error should trip the circuit breaker
+	lastError   atomic.Value     // stores *error atomically
 }
 
 // M3DBMiddleware is a function that takes a TChannel client and returns a circuit breaker client interface.
@@ -45,6 +46,9 @@ type Params struct {
 	Scope          tally.Scope
 	Host           string
 	EnableProvider EnableProvider
+	// ErrorFilter returns true if the error should be considered a circuit breaker
+	// failure. If nil, all errors are considered failures (backward-compatible default).
+	ErrorFilter func(error) bool
 }
 
 // New creates a new circuit breaker middleware.
@@ -58,12 +62,13 @@ func New(params Params) (M3DBMiddleware, error) {
 
 	return func(next rpc.TChanNode) Client {
 		return &client{
-			next:     next,
-			logger:   params.Logger,
-			host:     params.Host,
-			metrics:  newMetrics(params.Scope, params.Host),
-			circuit:  c,
-			provider: params.EnableProvider,
+			next:        next,
+			logger:      params.Logger,
+			host:        params.Host,
+			metrics:     newMetrics(params.Scope, params.Host),
+			circuit:     c,
+			provider:    params.EnableProvider,
+			errorFilter: params.ErrorFilter,
 		}
 	}, nil
 }
@@ -96,17 +101,24 @@ func withBreaker[T any](c *client, ctx thrift.Context, req T, call func(thrift.C
 
 	// Execute the request and update metrics
 	err := call(ctx, req)
+	isCBFailure := err != nil
+	if isCBFailure && c.errorFilter != nil {
+		isCBFailure = c.errorFilter(err)
+	}
+
 	if err == nil {
 		c.metrics.successes.Inc(1)
 	} else {
 		c.metrics.failures.Inc(1)
-		// Store the last error for potential use when circuit breaker is open
-		c.lastError.Store(&err)
+		if isCBFailure {
+			c.lastError.Store(&err)
+			c.metrics.filteredFailures.Inc(1)
+		}
 	}
 
 	// Report request status to circuit breaker
 	if isAllowed {
-		c.circuit.ReportRequestStatus(err == nil)
+		c.circuit.ReportRequestStatus(!isCBFailure)
 	}
 	return err
 }

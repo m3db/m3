@@ -30,6 +30,9 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+	"github.com/uber/tchannel-go"
+	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/cluster/kv"
@@ -232,6 +235,97 @@ func TestHostQueueCircuitBreakerIntegration(t *testing.T) {
 				for _, err := range actualErrs {
 					assert.NoError(t, err)
 				}
+			}
+		})
+	}
+}
+
+func TestHostQueueCircuitBreakerErrorFilter(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cbConfig := middleware.Config{
+		CircuitBreakerConfig: circuitbreaker.Config{
+			MinimumRequests:      1,
+			FailureRatio:         0.1,
+			MinimumProbeRequests: 0,
+			WindowSize:           1,
+			BucketDuration:       time.Millisecond,
+		},
+	}
+
+	tests := []struct {
+		name                    string
+		mockError               error
+		expectCBRejectOnSecond  bool
+		expectFirstWriteError   bool
+	}{
+		{
+			name:                   "timeout error trips circuit breaker - second request rejected",
+			mockError:              tchannel.ErrTimeout,
+			expectCBRejectOnSecond: true,
+			expectFirstWriteError:  true,
+		},
+		{
+			name:                   "non-timeout error does NOT trip circuit breaker - second request passes",
+			mockError:              errors.New("bad request error"),
+			expectCBRejectOnSecond: false,
+			expectFirstWriteError:  true,
+		},
+		{
+			name:                   "successful write - second request passes",
+			mockError:              nil,
+			expectCBRejectOnSecond: false,
+			expectFirstWriteError:  false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mockNode := rpc.NewMockTChanNode(ctrl)
+
+			enableProvider := &testEnableProvider{enabled: true, shadowMode: false}
+
+			// Create middleware with IsTimeoutError as the error filter
+			middlewareFn, err := middleware.New(middleware.Params{
+				Config:         cbConfig,
+				Logger:         zap.NewNop(),
+				Scope:          tally.NoopScope,
+				Host:           "test-host",
+				EnableProvider: enableProvider,
+				ErrorFilter:    IsTimeoutError,
+			})
+			require.NoError(t, err)
+
+			// First call returns the configured error
+			mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(test.mockError)
+			if !test.expectCBRejectOnSecond {
+				// If CB should NOT trip, second call should also reach the mock
+				mockNode.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Return(nil)
+			}
+
+			wrappedNode := middlewareFn(mockNode)
+			ctx, cancel := thrift.NewContext(time.Second)
+			defer cancel()
+
+			node := wrappedNode.(rpc.TChanNode)
+
+			// First request
+			err = node.WriteBatchRaw(ctx, &rpc.WriteBatchRawRequest{})
+			if test.expectFirstWriteError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			// Second request — verifies whether CB tripped or not
+			err = node.WriteBatchRaw(ctx, &rpc.WriteBatchRawRequest{})
+			if test.expectCBRejectOnSecond {
+				assert.Error(t, err)
+				assert.True(t, strings.Contains(err.Error(), circuitBreakerRejectMessage),
+					"expected circuit breaker rejection, got: %v", err)
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}
