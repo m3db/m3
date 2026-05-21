@@ -86,6 +86,7 @@ func (c metricCategory) String() string {
 
 type entryKey struct {
 	idHash         hash.Hash128
+	id             string
 	metricType     metricType
 	metricCategory metricCategory
 }
@@ -174,6 +175,7 @@ func (m *metricMap) AddUntimed(
 		metricCategory: untimedMetric,
 		metricType:     metricType(metric.Type),
 		idHash:         hash.Murmur3Hash128(metric.ID),
+		id:             string(metric.ID),
 	}
 	entry, err := m.findOrCreate(key)
 	if err != nil {
@@ -192,6 +194,7 @@ func (m *metricMap) AddTimed(
 		metricCategory: timedMetric,
 		metricType:     metricType(metric.Type),
 		idHash:         hash.Murmur3Hash128(metric.ID),
+		id:             string(metric.ID),
 	}
 	entry, err := m.findOrCreate(key)
 	if err != nil {
@@ -210,6 +213,7 @@ func (m *metricMap) AddTimedWithStagedMetadatas(
 		metricCategory: timedMetric,
 		metricType:     metricType(metric.Type),
 		idHash:         hash.Murmur3Hash128(metric.ID),
+		id:             string(metric.ID),
 	}
 	entry, err := m.findOrCreate(key)
 	if err != nil {
@@ -228,6 +232,7 @@ func (m *metricMap) AddForwarded(
 		metricCategory: forwardedMetric,
 		metricType:     metricType(metric.Type),
 		idHash:         hash.Murmur3Hash128(metric.ID),
+		id:             string(metric.ID),
 	}
 	entry, err := m.findOrCreate(key)
 	if err != nil {
@@ -244,7 +249,22 @@ func (m *metricMap) Tick(target time.Duration) tickResult {
 	mapTickRes.standard.activeElems = listsTickRes.standard
 	mapTickRes.forwarded.activeElems = listsTickRes.forwarded
 	mapTickRes.timed.activeElems = listsTickRes.timed
+	if m.opts.CardinalityMetricsEnabled() {
+		mapTickRes.cardinalityBySource = m.tickCardinalityMetrics()
+	}
 	return mapTickRes
+}
+
+func (m *metricMap) tickCardinalityMetrics() map[string]int {
+	sourceTag := m.opts.SourceTag()
+	cardinalityBySource := make(map[string]int)
+	for key := range m.entries {
+		source, ok := ExtractSourceTag(key.id, sourceTag)
+		if ok {
+			cardinalityBySource[source]++
+		}
+	}
+	return cardinalityBySource
 }
 
 func (m *metricMap) SetRuntimeOptions(opts runtime.Options) {
