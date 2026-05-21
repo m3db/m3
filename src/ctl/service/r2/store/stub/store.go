@@ -410,7 +410,7 @@ func (s *store) CreateNamespace(
 	case s.data.ErrorNamespace:
 		return view.Namespace{}, r2.NewInternalError(fmt.Sprintf("could not create namespace: %s", namespaceID))
 	case s.data.ConflictNamespace:
-		return view.Namespace{}, r2.NewVersionError(fmt.Sprintf("namespaces version mismatch"))
+		return view.Namespace{}, r2.NewVersionError("namespaces version mismatch")
 	default:
 		for _, n := range s.data.Namespaces.Namespaces {
 			if namespaceID == n.ID {

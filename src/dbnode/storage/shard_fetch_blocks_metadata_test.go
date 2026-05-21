@@ -290,7 +290,7 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T
 			if expectedBlock.Checksum == nil {
 				assert.Nil(t, actualBlock.Checksum)
 			} else if actualBlock.Checksum == nil {
-				assert.Fail(t, fmt.Sprintf("expected checksum but no actual checksum"))
+				assert.Fail(t, "expected checksum but no actual checksum")
 			} else {
 				assert.Equal(t, *expectedBlock.Checksum, *actualBlock.Checksum)
 			}
