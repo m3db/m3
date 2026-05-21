@@ -169,7 +169,7 @@ type Values []Value
 type Value []interface{}
 
 func (t *Tags) genID() string {
-	tags := make(sort.StringSlice, len(*t))
+	tags := make(sort.StringSlice, 0, len(*t))
 	for k, v := range *t {
 		tags = append(tags, fmt.Sprintf("%s:%s,", k, v))
 	}
