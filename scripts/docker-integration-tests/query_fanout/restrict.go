@@ -325,7 +325,7 @@ type values []value
 type value []interface{}
 
 func (r *result) genID() result {
-	tags := make(sort.StringSlice, len(r.Metric))
+	tags := make(sort.StringSlice, 0, len(r.Metric))
 	for k, v := range r.Metric {
 		tags = append(tags, fmt.Sprintf("%s:%s,", k, v))
 	}

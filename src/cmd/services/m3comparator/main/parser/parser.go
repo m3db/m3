@@ -112,7 +112,7 @@ func (v *Value) UnmarshalJSON(data []byte) error {
 // IDOrGenID gets the ID for this result.
 func (r *Series) IDOrGenID() string {
 	if len(r.id) == 0 {
-		tags := make(sort.StringSlice, len(r.Tags))
+		tags := make(sort.StringSlice, 0, len(r.Tags))
 		for _, v := range r.Tags {
 			tags = append(tags, fmt.Sprintf("%s:%s,", v[0], v[1]))
 		}
