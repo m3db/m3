@@ -1204,3 +1204,58 @@ type enabledRes struct {
 	result bool
 	err    error
 }
+
+func TestElectionManagerValidateLeaderInPlacementRemovedFromPlacement(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	leaderValue := "test-leader"
+	shardSetID := uint32(1)
+	electionKey := "/shardset/1/lock"
+
+	updatedPlacement := placement.NewMockPlacement(ctrl)
+	updatedPlacement.EXPECT().Instance(leaderValue).Return(nil, false).AnyTimes()
+
+	placementManager := NewMockPlacementManager(ctrl)
+	placementManager.EXPECT().Placement().Return(updatedPlacement, nil).AnyTimes()
+	placementManager.EXPECT().Shards().Return(shard.NewShards([]shard.Shard{shard.NewShard(0)}), nil).AnyTimes()
+
+	leaderService := services.NewMockLeaderService(ctrl)
+	leaderService.EXPECT().Leader(electionKey).Return(leaderValue, nil).AnyTimes()
+
+	resignCalled := make(chan struct{}, 1)
+	leaderService.EXPECT().Resign(electionKey).DoAndReturn(func(string) error {
+		select {
+		case resignCalled <- struct{}{}:
+		default:
+		}
+		return nil
+	}).AnyTimes()
+
+	leaderService.EXPECT().Campaign(gomock.Any(), gomock.Any()).DoAndReturn(func(string, services.CampaignOptions) (<-chan campaign.Status, error) {
+		return make(chan campaign.Status), nil
+	}).AnyTimes()
+
+	opts := testElectionManagerOptions(t, ctrl).
+		SetPlacementManager(placementManager).
+		SetLeaderService(leaderService).
+		SetCampaignStateCheckInterval(50 * time.Millisecond)
+
+	mgr := NewElectionManager(opts).(*electionManager)
+	mgr.leaderValue = leaderValue
+
+	err := mgr.Open(shardSetID)
+	require.NoError(t, err)
+
+	mgr.electionStateWatchable.Update(LeaderState)
+
+	select {
+	case <-resignCalled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Expected Resign() to be called")
+	}
+
+	mgr.Close()
+}
