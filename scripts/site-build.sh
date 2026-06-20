@@ -22,21 +22,3 @@ else
         hugo -e production -v
         cd ..
 fi
-
-for docVersion in $DOCS_VERSIONS
-do
-        # Add copies of all docs tags
-        IFS='/'
-        read -ra version <<< "$docVersion"
-        echo "Building $docVersion"
-        git archive --output "site/${version[1]}.zip" "$docVersion:site/" && unzip -d "site/${version[1]}" "site/${version[1]}.zip" && rm -f "site/${version[1]}.zip"
-
-        # Now run hugo
-        if [[ -n "${HUGO_DOCKER:-}" ]]; then
-                docker run -e HUGO_ENV=production -e HUGO_DESTINATION="public/${version[1]}" -it -v "$PWD/site/${version[1]}":/src "${HUGO_DOCKER_IMAGE}"
-        else
-                cd "site/${version[1]}"
-                hugo -e production -v -d "../public/${version[1]}"
-                cd ../../
-        fi        
-done
