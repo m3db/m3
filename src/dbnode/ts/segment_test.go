@@ -72,8 +72,8 @@ func testSegmentCloneWithPools(
 
 	assert.False(t, seg.Equal(&cloned))
 	assert.Equal(t, len(expected), cloned.Len())
-	assert.True(t, cloned.Flags|FinalizeHead > 0)
-	assert.True(t, cloned.Flags|FinalizeTail > 0)
+	assert.True(t, cloned.Flags&FinalizeHead > 0)
+	assert.True(t, cloned.Flags&FinalizeTail > 0)
 	assert.Equal(t, testChecksum, cloned.checksum)
 
 	cloned.Finalize()
