@@ -212,11 +212,11 @@ type Options interface {
 	// InstanceQueueSize returns the instance queue size.
 	InstanceQueueSize() int
 
-	// SetQueueDropType sets the strategy for which metrics should metrics should be dropped when
+	// SetQueueDropType sets the strategy for which metrics should be dropped when
 	// the queue is full.
 	SetQueueDropType(value DropType) Options
 
-	// QueueDropType returns sets the strategy for which metrics should metrics should be dropped
+	// QueueDropType returns sets the strategy for which metrics should be dropped
 	// when the queue is full.
 	QueueDropType() DropType
 
