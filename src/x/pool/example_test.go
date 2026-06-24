@@ -50,7 +50,6 @@ func ExampleObjectPool() {
 	o := p.Get().(*exampleObject)
 
 	fmt.Printf("Retrieved struct should have default values: %+v", o)
-	// Output: Retrieved struct should have default values: &{a:0 b:0 c:0}
 
 	// Use the exampleObject.
 	_ = o
@@ -58,4 +57,6 @@ func ExampleObjectPool() {
 	// Reset the exampleObject and return it to the pool.
 	o.reset()
 	p.Put(o)
+	
+	// Output: Retrieved struct should have default values: &{a:0 b:0 c:0}
 }
