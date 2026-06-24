@@ -1,9 +1,12 @@
 #!/bin/bash
 
 set -eo pipefail
+set -x
 
 echo "--- :git: cleaning checkout"
 if [[ -d "./_tools" ]]; then
   chmod -R +w ./_tools
 fi
+
+rm -rf vendor
 git clean -dffx
