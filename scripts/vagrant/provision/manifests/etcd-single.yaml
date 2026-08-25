@@ -47,7 +47,7 @@ spec:
     spec:
       containers:
       - name: etcd
-        image: quay.io/coreos/etcd:v3.3.10
+        image: quay.io/coreos/etcd:v3.5.33
         command:
         - "etcd"
         - "--name"
