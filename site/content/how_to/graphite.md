@@ -86,14 +86,17 @@ The third will match any metrics coming from our cloud environment. In this hypo
 
 Finally, our last rule uses a "catch-all" pattern to capture any metrics that don't match any of our other rules and aggregate them using the mean function into 1 minute tiles which we store for 48 hours.
 
-#### Debug mode
-If at any time you're not sure which metrics are being matched by which patterns, or want more visibility into how the carbon ingestion rule are being evaluated, modify the config to enable debug mode:
-carbon:
-  ingester:
-    debug: true
-    listenAddress: "0.0.0.0:7204"
+#### Debugging rule matching
+If at any time you're not sure which metrics are being matched by which patterns, or want more visibility into how the carbon ingestion rules are being evaluated, set the coordinator's log level to `debug`:
 
-This will make the carbon ingestion emit logs for every step that is taking. Note: If your coordinator is ingesting a lot of data, enabling this mode could bring the proccess to a halt due to the I/O overhead, so use this feature cautiously in production environments.
+```yaml
+logging:
+  level: debug
+```
+
+At this level M3DB Coordinator logs every carbon metric it ingests along with the number of rules it matched, and logs a message whenever a metric doesn't match any rule at all.
+
+Note that the debug level is a lot more verbose overall, not just for carbon ingestion. If your coordinator is ingesting a lot of data, running with debug logging could bring the process to a halt due to the I/O overhead, so use it cautiously in production environments.
 
 Supported Aggregation Functions
 last
