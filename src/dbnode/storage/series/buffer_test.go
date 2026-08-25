@@ -707,6 +707,42 @@ func TestBufferBucketDuplicatePointsNotWrittenButUpserted(t *testing.T) {
 	requireSegmentValuesEqual(t, expected, []xio.SegmentReader{stream}, opts, namespace.Context{})
 }
 
+func TestBufferBucketWriteDuplicateWithDifferentTimeUnit(t *testing.T) {
+	opts := newBufferTestOptions()
+	rops := opts.RetentionOptions()
+	curr := xtime.Now().Truncate(rops.BlockSize())
+
+	b := &BufferBucket{}
+	b.resetTo(curr, WarmWrite, opts)
+
+	data := []DecodedTestValue{
+		{curr, 1, xtime.Second, nil},
+		{curr, 1, xtime.Millisecond, nil},
+	}
+
+	// The second write matches the first on timestamp/value/annotation but
+	// carries a different time unit so it should still be written, superseding
+	// the previous write.
+	for _, value := range data {
+		wasWritten, err := b.write(value.Timestamp, value.Value,
+			value.Unit, value.Annotation, nil)
+		require.NoError(t, err)
+		require.True(t, wasWritten)
+	}
+
+	expected := []DecodedTestValue{
+		{curr, 1, xtime.Millisecond, nil},
+	}
+
+	ctx := context.NewBackground()
+
+	result := b.streams(ctx)
+	require.NotNil(t, result)
+
+	results := [][]xio.BlockReader{result}
+	requireReaderValuesEqual(t, expected, results, opts, namespace.Context{})
+}
+
 func TestIndexedBufferWriteOnlyWritesSinglePoint(t *testing.T) {
 	opts := newBufferTestOptions()
 	rops := opts.RetentionOptions()
@@ -1882,6 +1918,27 @@ func TestUpsertProto(t *testing.T) {
 			},
 			expectedData: []DecodedTestValue{
 				{curr, 0, xtime.Second, []byte("one")},
+			},
+		},
+		{
+			desc: "Duplicate proto different time unit",
+			writes: []writeAttempt{
+				{
+					data:          DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
+					expectWritten: true,
+					expectErr:     false,
+				},
+				{
+					data: DecodedTestValue{curr, 0, xtime.Millisecond, []byte("one")},
+					// Same timestamp/value/annotation but a different time unit
+					// is still a distinct datapoint and should be written,
+					// superseding the previous write.
+					expectWritten: true,
+					expectErr:     false,
+				},
+			},
+			expectedData: []DecodedTestValue{
+				{curr, 0, xtime.Millisecond, []byte("one")},
 			},
 		},
 		{
