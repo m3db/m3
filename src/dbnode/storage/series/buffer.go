@@ -1227,8 +1227,9 @@ type BufferBucket struct {
 }
 
 type inOrderEncoder struct {
-	encoder     encoding.Encoder
-	lastWriteAt xtime.UnixNano
+	encoder       encoding.Encoder
+	lastWriteAt   xtime.UnixNano
+	lastWriteUnit xtime.Unit
 }
 
 func (b *BufferBucket) resetTo(
@@ -1284,7 +1285,8 @@ func (b *BufferBucket) write(
 				return false, err
 			}
 
-			if lastDatapoint.Value == value && lastAnnotationChecksum == xxhash.Sum64(annotation) {
+			if lastDatapoint.Value == value && lastAnnotationChecksum == xxhash.Sum64(annotation) &&
+				unit == b.encoders[i].lastWriteUnit {
 				// No-op since matches the current value. Propagates up to callers that
 				// no value was written.
 				return false, nil
@@ -1360,6 +1362,7 @@ func (b *BufferBucket) writeToEncoderIndex(
 	}
 
 	b.encoders[idx].lastWriteAt = datapoint.TimestampNanos
+	b.encoders[idx].lastWriteUnit = unit
 	return nil
 }
 
