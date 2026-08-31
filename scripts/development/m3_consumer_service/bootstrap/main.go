@@ -12,7 +12,7 @@ import (
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/x/instrument"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 	"io"
 	"net/http"
 	"os"
