@@ -255,10 +255,10 @@ func TestHostQueueCircuitBreakerErrorFilter(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                    string
-		mockError               error
-		expectCBRejectOnSecond  bool
-		expectFirstWriteError   bool
+		name                   string
+		mockError              error
+		expectCBRejectOnSecond bool
+		expectFirstWriteError  bool
 	}{
 		{
 			name:                   "timeout error trips circuit breaker - second request rejected",
