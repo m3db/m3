@@ -250,6 +250,26 @@ func testIndexSingleNodeHighConcurrency(
 
 	// If concurrent query load enabled while writing also hit with queries.
 	queryConcDuringWritesCloseCh := make(chan struct{}, 1)
+	// Stopping the query goroutines has to survive a failed require below. A
+	// require calls runtime.Goexit, which skips straight to the deferred
+	// testSetup.Close() and tears the namespace down underneath any query
+	// goroutine still running. Deferring the stop here guarantees they are shut
+	// down first; sync.Once keeps the explicit stop further down safe.
+	//
+	// The wait matters as much as the close: signaling alone still leaves a
+	// goroutine mid-query during teardown, and leaves the query counters racy
+	// to read.
+	var (
+		queryWg         sync.WaitGroup
+		stopQueriesOnce sync.Once
+	)
+	stopQueries := func() {
+		stopQueriesOnce.Do(func() {
+			close(queryConcDuringWritesCloseCh)
+			queryWg.Wait()
+		})
+	}
+	defer stopQueries()
 	numTotalQueryMatches := atomic.NewUint32(0)
 	numTotalQueryErrors := atomic.NewUint32(0)
 	checkNumTotalQueryMatches := false
@@ -261,7 +281,10 @@ func testIndexSingleNodeHighConcurrency(
 		checkNumTotalQueryMatches = true
 		for i := 0; i < opts.concurrencyQueryDuringWrites; i++ {
 			i := i
+			queryWg.Add(1)
 			go func() {
+				defer queryWg.Done()
+
 				src := rand.NewSource(int64(i))
 				rng := rand.New(src)
 				for {
@@ -303,7 +326,16 @@ func testIndexSingleNodeHighConcurrency(
 						ctx := context.NewBackground()
 						r, err := testSetup.DB().AggregateQuery(ctx, md.ID(), q, qOpts)
 						if err != nil {
-							panic(err)
+							// Record rather than panic. This runs on a
+							// non-test goroutine, so a panic here takes down
+							// the whole test binary and buries the failure
+							// that actually caused it.
+							if n := numTotalQueryErrors.Inc(); n < 10 {
+								// Log the first 10 errors for visibility but not flood.
+								log.Error("sampled query error", zap.Error(err))
+							}
+							ctx.Close()
+							continue
 						}
 
 						tagValues := 0
@@ -370,10 +402,10 @@ func testIndexSingleNodeHighConcurrency(
 			expectNumIndex, value))
 
 	// Allow concurrent query during writes to finish.
-	close(queryConcDuringWritesCloseCh)
+	stopQueries()
 
 	// Check no query errors.
-	require.Equal(t, int(0), int(numTotalErrors.Load()))
+	require.Equal(t, int(0), int(numTotalQueryErrors.Load()))
 
 	if !opts.skipVerify {
 		log.Info("data indexing each series visible start")
