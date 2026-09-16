@@ -27,6 +27,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -161,14 +162,26 @@ func TestMultiProcessSetsProcessLabel(t *testing.T) {
 		assert.False(t, result.MultiProcessIsParentCleanExit)
 	}()
 
-	r, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/metrics", metricsPort)) //nolint
+	// Each subprocess scrapes its own reporter and asserts its own label.
+	// multi_process.go offsets the configured port by instance-1, so only
+	// instance 1 owns metricsPort. Scraping that fixed port from every
+	// instance makes instance 2 depend on instance 1 still being alive, and
+	// nothing orders their shutdowns, so instance 1 exiting first leaves
+	// instance 2 with a connection refused.
+	instance, err := strconv.Atoi(multiProcessInstance)
+	require.NoError(t, err)
+	instancePort := metricsPort + instance - 1
+
+	r, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/metrics", instancePort)) //nolint
 	require.NoError(t, err)
 	defer r.Body.Close()
 	bodyBytes, err := ioutil.ReadAll(r.Body)
 	require.NoError(t, err)
 	metricsResponse := string(bodyBytes)
-	assert.Contains(t, metricsResponse, "coordinator_runtime_memory_allocated{multiprocess_id=\"1\"}")
-	assert.Contains(t, metricsResponse, "coordinator_ingest_success{multiprocess_id=\"1\"}")
+	assert.Contains(t, metricsResponse,
+		fmt.Sprintf("coordinator_runtime_memory_allocated{multiprocess_id=%q}", multiProcessInstance))
+	assert.Contains(t, metricsResponse,
+		fmt.Sprintf("coordinator_ingest_success{multiprocess_id=%q}", multiProcessInstance))
 }
 
 func TestWriteH1(t *testing.T) {
