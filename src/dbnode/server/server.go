@@ -419,6 +419,15 @@ func Run(runOpts RunOptions) {
 	}
 	defer buildReporter.Stop()
 
+	fileSystemReporter := instrument.NewFileSystemReporter(iOpts, cfg.Filesystem.FilePathPrefixOrDefault())
+	if err := fileSystemReporter.Start(); err != nil {
+		logger.Fatal("unable to start filesystem reporter", zap.Error(err))
+	}
+	defer func() {
+		err := fileSystemReporter.Stop()
+		logger.Warn("unable to stop filesystem reporter", zap.Error(err))
+	}()
+
 	mmapCfg := cfg.Filesystem.MmapConfigurationOrDefault()
 	shouldUseHugeTLB := mmapCfg.HugeTLB.Enabled
 	if shouldUseHugeTLB {
