@@ -42,6 +42,11 @@ import (
 	"github.com/m3db/m3/src/x/retry"
 )
 
+// minHealthCheckTimeout is the floor for how long we wait for etcd to report
+// healthy, independent of how much of the caller's deadline the container pull
+// and start already consumed.
+const minHealthCheckTimeout = 30 * time.Second
+
 var (
 	etcdImage = xdockertest.Image{
 		Name: "quay.io/coreos/etcd",
@@ -210,7 +215,25 @@ func (c *EtcdNode) Setup(ctx context.Context) (closeErr error) {
 		}
 	}()
 
-	return c.waitForHealth(ctx, etcdCli)
+	// Pulling the etcd image happens above, inside the caller's deadline, and can
+	// take minutes on a host with a cold image cache. Don't let a slow pull leave
+	// the health check with an already-expired budget.
+	healthCtx, cancel := healthCheckContext(ctx)
+	defer cancel()
+
+	return c.waitForHealth(healthCtx, etcdCli)
+}
+
+// healthCheckContext guarantees the etcd health check at least
+// minHealthCheckTimeout to run in. When less than that remains on the caller's
+// deadline, the returned context keeps the parent's values but drops its
+// deadline and cancellation, so container startup overrun cannot starve the
+// check. The replacement is still bounded by minHealthCheckTimeout.
+func healthCheckContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) < minHealthCheckTimeout {
+		return context.WithTimeout(context.WithoutCancel(ctx), minHealthCheckTimeout)
+	}
+	return context.WithCancel(ctx)
 }
 
 func (c *EtcdNode) containerClientHostPort() string {
