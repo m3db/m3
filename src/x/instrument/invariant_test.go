@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 )
 
-func ExampleInvariantViolatedMetricInvocation() {
+func ExampleEmitInvariantViolation() {
 	defer instrument.SetShouldPanicEnvironmentVariable(false)()
 	testScope := tally.NewTestScope("", nil)
 	opts := instrument.NewOptions().SetMetricsScope(testScope)

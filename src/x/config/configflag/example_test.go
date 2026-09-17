@@ -42,7 +42,7 @@ func ExampleFlagStringSlice() {
 
 // Options supports registration of config related flags, followed by config
 // loading.
-func ExampleOptionsRegister() {
+func ExampleOptions_Register() {
 	var cfgOpts configflag.Options
 
 	var flags flag.FlagSet
