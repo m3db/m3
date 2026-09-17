@@ -97,7 +97,7 @@ func TestWriterManagerRemoveInstancesSuccess(t *testing.T) {
 	nonexistent := placement.NewInstance().
 		SetID("nonexistent").
 		SetEndpoint("nonexistentAddress")
-	toRemove := append([]placement.Instance{nonexistent, testPlacementInstance})
+	toRemove := []placement.Instance{nonexistent, testPlacementInstance}
 	require.NoError(t, mgr.RemoveInstances(toRemove))
 	require.Equal(t, 0, len(mgr.writers))
 	require.True(t, clock.WaitUntil(func() bool {
