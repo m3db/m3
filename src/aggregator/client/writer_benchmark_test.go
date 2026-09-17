@@ -66,7 +66,7 @@ func BenchmarkParallelWriter(b *testing.B) {
 					metadatas: testStagedMetadatas,
 				},
 			}
-			if err := writer.Write(uint32(shard), payload); err != nil {
+			if _, err := writer.Write(uint32(shard), payload); err != nil {
 				b.Fatalf("failed to successfully write metric: %v", err)
 			}
 		}
@@ -99,7 +99,7 @@ func BenchmarkSerialOneShardWriter(b *testing.B) {
 					metadatas: testStagedMetadatas,
 				},
 			}
-			if err := writer.Write(uint32(shard), payload); err != nil {
+			if _, err := writer.Write(uint32(shard), payload); err != nil {
 				b.Fatalf("failed to successfully write metric: %v", err)
 			}
 		}
@@ -137,7 +137,7 @@ func BenchmarkSerialWriter(b *testing.B) {
 					metadatas: testStagedMetadatas,
 				},
 			}
-			if err := writer.Write(uint32(shard), payload); err != nil {
+			if _, err := writer.Write(uint32(shard), payload); err != nil {
 				b.Fatalf("failed to successfully write metric: %v", err)
 			}
 		}
@@ -160,6 +160,6 @@ type testSerialWriter struct {
 func (mw *testSerialWriter) Write(
 	_ uint32,
 	payload payloadUnion,
-) error {
+) (int, error) {
 	return mw.encodeWithLock(mw.encoder, payload)
 }

@@ -37,8 +37,14 @@ import (
 
 var (
 	acceptAllFilter = producer.FilterFunc(
-		func(m producer.Message) bool {
-			return true
+		producer.FilterFunc{
+			Function: func(m producer.Message) bool {
+				return true
+			},
+			Metadata: producer.NewFilterFuncMetadata(
+				producer.AcceptAllFilter,
+				producer.StaticConfig,
+			),
 		},
 	)
 
@@ -77,14 +83,69 @@ type consumerServiceWriter interface {
 
 	// UnregisterFilters unregisters the filters for the consumer service.
 	UnregisterFilters()
+
+	// SetFilters atomically replaces all filters with the provided list.
+	SetFilters(filters []producer.FilterFunc)
+
+	// GetDataFilter returns the data filters on the consumer service writer.
+	GetDataFilters() []producer.FilterFunc
 }
 
 type consumerServiceWriterMetrics struct {
-	placementError    tally.Counter
-	placementUpdate   tally.Counter
-	filterAccepted    tally.Counter
-	filterNotAccepted tally.Counter
-	queueSize         tally.Gauge
+	placementError            tally.Counter
+	placementUpdate           tally.Counter
+	queueSize                 tally.Gauge
+	filterAccepted            tally.Counter
+	filterNotAccepted         tally.Counter
+	filterAcceptedGranular    sync.Map // map[string]tally.Counter, lock-free for read-heavy workload
+	filterNotAcceptedGranular sync.Map // map[string]tally.Counter, lock-free for read-heavy workload
+	scope                     tally.Scope
+}
+
+func (cswm *consumerServiceWriterMetrics) getGranularFilterCounterMapKey(metadata producer.FilterFuncMetadata) string {
+	return metadata.CacheKey()
+}
+
+//nolint:dupl
+func (cswm *consumerServiceWriterMetrics) getFilterAcceptedGranularCounter(
+	metadata producer.FilterFuncMetadata) tally.Counter {
+	key := cswm.getGranularFilterCounterMapKey(metadata)
+
+	// Fast path: lock-free read for existing entries
+	if val, ok := cswm.filterAcceptedGranular.Load(key); ok {
+		return val.(tally.Counter)
+	}
+
+	// Slow path: create counter (happens only ~10 times per writer lifetime)
+	val := cswm.scope.Tagged(map[string]string{
+		"config-source": metadata.SourceType.String(),
+		"filter-type":   metadata.FilterType.String(),
+	}).Counter("filter-accepted-granular")
+
+	// Store and return; if another goroutine already stored, use theirs
+	actual, _ := cswm.filterAcceptedGranular.LoadOrStore(key, val)
+	return actual.(tally.Counter)
+}
+
+//nolint:dupl
+func (cswm *consumerServiceWriterMetrics) getFilterNotAcceptedGranularCounter(
+	metadata producer.FilterFuncMetadata) tally.Counter {
+	key := cswm.getGranularFilterCounterMapKey(metadata)
+
+	// Fast path: lock-free read for existing entries
+	if val, ok := cswm.filterNotAcceptedGranular.Load(key); ok {
+		return val.(tally.Counter)
+	}
+
+	// Slow path: create counter (happens only ~10 times per writer lifetime)
+	val := cswm.scope.Tagged(map[string]string{
+		"config-source": metadata.SourceType.String(),
+		"filter-type":   metadata.FilterType.String(),
+	}).Counter("filter-not-accepted-granular")
+
+	// Store and return; if another goroutine already stored, use theirs
+	actual, _ := cswm.filterNotAcceptedGranular.LoadOrStore(key, val)
+	return actual.(tally.Counter)
 }
 
 func newConsumerServiceWriterMetrics(scope tally.Scope) consumerServiceWriterMetrics {
@@ -93,7 +154,9 @@ func newConsumerServiceWriterMetrics(scope tally.Scope) consumerServiceWriterMet
 		placementError:    scope.Counter("placement-error"),
 		filterAccepted:    scope.Counter("filter-accepted"),
 		filterNotAccepted: scope.Counter("filter-not-accepted"),
-		queueSize:         scope.Gauge("queue-size"),
+		scope:             scope,
+		// filterAcceptedGranular and filterNotAcceptedGranular use sync.Map zero value (ready to use)
+		queueSize: scope.Gauge("queue-size"),
 	}
 }
 
@@ -107,6 +170,7 @@ type consumerServiceWriterImpl struct {
 	logger       *zap.Logger
 
 	value           watch.Value
+	filterMutex     sync.RWMutex
 	dataFilters     []producer.FilterFunc
 	router          ackRouter
 	consumerWriters map[string]consumerWriter
@@ -178,8 +242,18 @@ func initShardWriters(
 	return sws
 }
 
+func (w *consumerServiceWriterImpl) GetDataFilters() []producer.FilterFunc {
+	// topic updates can change filters, so we need to lock here.
+	w.filterMutex.RLock()
+	filters := w.dataFilters
+	w.filterMutex.RUnlock()
+	return filters
+}
+
 func (w *consumerServiceWriterImpl) Write(rm *producer.RefCountedMessage) {
-	if rm.Accept(w.dataFilters) {
+	filters := w.GetDataFilters()
+
+	if rm.Accept(filters, w.m.getFilterAcceptedGranularCounter, w.m.getFilterNotAcceptedGranularCounter) {
 		w.shardWriters[rm.Shard()].Write(rm)
 		w.m.filterAccepted.Inc(1)
 		return
@@ -327,16 +401,28 @@ func (w *consumerServiceWriterImpl) SetMessageTTLNanos(value int64) {
 }
 
 func (w *consumerServiceWriterImpl) RegisterFilter(filter producer.FilterFunc) {
-	w.Lock()
+	w.filterMutex.Lock()
 	w.dataFilters = append(w.dataFilters, filter)
-	w.Unlock()
+	w.filterMutex.Unlock()
 }
 
 func (w *consumerServiceWriterImpl) UnregisterFilters() {
-	w.Lock()
+	w.filterMutex.Lock()
 	w.dataFilters[0] = acceptAllFilter
 	w.dataFilters = w.dataFilters[:1]
-	w.Unlock()
+	w.filterMutex.Unlock()
+}
+
+func (w *consumerServiceWriterImpl) SetFilters(filters []producer.FilterFunc) {
+	w.filterMutex.Lock()
+	defer w.filterMutex.Unlock()
+
+	// Always start with acceptAllFilter and provided filters
+	w.dataFilters = make([]producer.FilterFunc, 1, len(filters)+1)
+	w.dataFilters[0] = acceptAllFilter
+
+	// Add all provided filters
+	w.dataFilters = append(w.dataFilters, filters...)
 }
 
 func (w *consumerServiceWriterImpl) reportMetrics() {

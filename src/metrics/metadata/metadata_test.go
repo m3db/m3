@@ -620,6 +620,22 @@ func TestStagedMetadatasIsDefault(t *testing.T) {
 			expected: true,
 		},
 		{
+			metadatas: StagedMetadatas{
+				{
+					Metadata: Metadata{
+						Pipelines: []PipelineMetadata{
+							{
+								RoutingPolicy: policy.RoutingPolicy{
+									TrafficTypes: 0,
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
 			metadatas: DefaultStagedMetadatas,
 			expected:  true,
 		},
@@ -660,6 +676,22 @@ func TestStagedMetadatasIsDefault(t *testing.T) {
 						Pipelines: []PipelineMetadata{
 							{
 								AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+							},
+						},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			metadatas: StagedMetadatas{
+				{
+					Metadata: Metadata{
+						Pipelines: []PipelineMetadata{
+							{
+								RoutingPolicy: policy.RoutingPolicy{
+									TrafficTypes: 1,
+								},
 							},
 						},
 					},
@@ -1155,8 +1187,13 @@ func TestVersionedStagedMetadatasMarshalJSON(t *testing.T) {
 	expected := `{` +
 		`"stagedMetadatas":` +
 		`[{"metadata":{"pipelines":[` +
-		`{"storagePolicies":["1s:1h","1m:12h"],"aggregation":["Sum"],"resendEnabled":true},` +
-		`{"storagePolicies":["10s:1h"],"aggregation":null}]},` +
+		`{"storagePolicies":["1s:1h","1m:12h"],` +
+		`"aggregation":["Sum"],` +
+		`"resendEnabled":true,` +
+		`"routingPolicy":{"TrafficTypes":0}},` +
+		`{"storagePolicies":["10s:1h"],` +
+		`"aggregation":null,` +
+		`"routingPolicy":{"TrafficTypes":0}}]},` +
 		`"cutoverNanos":4567,` +
 		`"tombstoned":true}],` +
 		`"version":12` +

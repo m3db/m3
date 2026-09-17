@@ -22,10 +22,13 @@ package client
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"math"
 	"net"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -38,6 +41,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3/src/x/clock"
+	xtls "github.com/m3db/m3/src/x/tls"
 )
 
 const (
@@ -334,6 +338,7 @@ func TestConnectWithCustomDialer(t *testing.T) {
 		mockConn := NewMockConn(ctrl)
 
 		mockConn.EXPECT().Write(testData)
+		mockConn.EXPECT().SetReadDeadline(gomock.Any())
 		mockConn.EXPECT().SetWriteDeadline(gomock.Any())
 		testWithConn(t, mockConn)
 	})
@@ -343,6 +348,7 @@ func TestConnectWithCustomDialer(t *testing.T) {
 		mockConn := NewMockConn(ctrl)
 
 		mockConn.EXPECT().Write(testData)
+		mockConn.EXPECT().SetReadDeadline(gomock.Any())
 		mockConn.EXPECT().SetWriteDeadline(gomock.Any())
 
 		mockKeepAlivable := NewMockkeepAlivable(ctrl)
@@ -405,6 +411,122 @@ func TestConnectWriteToServer(t *testing.T) {
 	require.Nil(t, conn.conn)
 }
 
+func TestTLSConnectWriteToServer(t *testing.T) {
+	data := []byte("foobar")
+
+	// Start tls server.
+	var wg sync.WaitGroup
+	wg.Add(1)
+	doneCh := make(chan struct{})
+	numClients := 10
+
+	serverCert, err := tls.LoadX509KeyPair("./testdata/server.crt", "./testdata/server.key")
+	require.NoError(t, err)
+	certPool := x509.NewCertPool()
+	certs, err := os.ReadFile("./testdata/rootCA.crt")
+	require.NoError(t, err)
+	certPool.AppendCertsFromPEM(certs)
+	l, err := tls.Listen(tcpProtocol, testLocalServerAddr, &tls.Config{
+		Certificates: []tls.Certificate{serverCert},
+		ClientCAs:    certPool,
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		MinVersion:   tls.VersionTLS13,
+	})
+	t.Cleanup(func() { l.Close() }) // nolint: errcheck
+	require.NoError(t, err)
+	serverAddr := l.Addr().String()
+
+	go func(done <-chan struct{}) {
+		defer wg.Done()
+
+		// Ignore the first testing connection.
+		conn, err := l.Accept()
+		require.NoError(t, err)
+		tlsConn, ok := conn.(*tls.Conn)
+		require.True(t, ok)
+		err = tlsConn.Handshake()
+		require.NoError(t, err)
+		require.NoError(t, conn.Close())
+
+		// Read from the second connection.
+		for {
+			conn, err = l.Accept()
+			if err != nil {
+				if errors.Is(err, net.ErrClosed) {
+					break
+				}
+				require.NoError(t, err)
+			}
+			buf := make([]byte, 1024)
+			n, err := conn.Read(buf)
+			if err != nil {
+				if errors.Is(err, net.ErrClosed) {
+					break
+				}
+				require.NoError(t, err)
+			}
+			require.Equal(t, data, buf[:n])
+			conn.Close() // nolint: errcheck
+
+			select {
+			case <-done:
+				return
+			default:
+			}
+		}
+	}(doneCh)
+
+	clientCert, err := tls.LoadX509KeyPair("./testdata/client.crt", "./testdata/client.key")
+	require.NoError(t, err)
+	// Wait until the server starts up.
+	dialer := net.Dialer{Timeout: time.Minute}
+	// #nosec G402
+	testConn, err := tls.DialWithDialer(&dialer, tcpProtocol, serverAddr, &tls.Config{
+		InsecureSkipVerify: true,
+		Certificates:       []tls.Certificate{clientCert},
+		RootCAs:            certPool,
+	})
+	require.NoError(t, err)
+	require.NoError(t, testConn.Close())
+
+	for i := range numClients {
+		// Create a new connection and assert we can write successfully.
+		opts := testTLSConnectionOptions().SetInitReconnectThreshold(0)
+		opts = opts.SetTLSOptions(opts.TLSOptions().SetTLSHandshakeOnConnect(i%2 == 0))
+		conn := newConnection(serverAddr, opts)
+		require.NoError(t, conn.Write(data))
+		require.Equal(t, 0, conn.numFailures)
+		require.NotNil(t, conn.conn)
+
+		// Close the connection
+		conn.Close()
+		require.Nil(t, conn.conn)
+	}
+
+	close(doneCh)
+	wg.Wait()
+}
+
+func TestCloseConnectionAsync(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockConn := NewMockConn(ctrl)
+	closeDoneCh := make(chan bool)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	mockConn.EXPECT().Close().Do(func() error {
+		<-closeDoneCh
+		wg.Done()
+		return nil
+	})
+	conn := &connection{
+		conn: mockConn,
+	}
+	conn.closeWithLock()
+	require.Nil(t, conn.conn, "Connection should be nil after being closed")
+	closeDoneCh <- true
+	wg.Wait()
+}
+
 func testConnectionOptions() ConnectionOptions {
 	return NewConnectionOptions().
 		SetClockOptions(clock.NewOptions()).
@@ -413,7 +535,19 @@ func testConnectionOptions() ConnectionOptions {
 		SetInitReconnectThreshold(2).
 		SetMaxReconnectThreshold(6).
 		SetReconnectThresholdMultiplier(2).
-		SetWriteTimeout(100 * time.Millisecond)
+		SetWriteTimeout(100 * time.Millisecond).
+		SetReadTimeout(100 * time.Millisecond)
+}
+
+func testTLSConnectionOptions() ConnectionOptions {
+	tlsOptions := xtls.NewOptions().
+		SetClientEnabled(true).
+		SetInsecureSkipVerify(true).
+		SetCAFile("./testdata/rootCA.crt").
+		SetCertFile("./testdata/client.crt").
+		SetKeyFile("./testdata/client.key").
+		SetCertificatesTTL(time.Second)
+	return testConnectionOptions().SetTLSOptions(tlsOptions)
 }
 
 func testConnectionProperties() *gopter.Properties {

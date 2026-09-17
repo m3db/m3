@@ -1144,9 +1144,15 @@ func newClients(
 		origin             = newOrigin(id, tchannelNodeAddr)
 		verificationOrigin = newOrigin(id+"-verification", tchannelNodeAddr)
 
-		adminOpts = clientOpts.(client.AdminOptions).SetOrigin(origin).SetSchemaRegistry(schemaReg)
+		adminOpts = clientOpts.(client.AdminOptions).
+				SetOrigin(origin).
+				SetSchemaRegistry(schemaReg).
+				SetFetchSeriesBlocksBatchSize(opts.FetchSeriesBlocksBatchSize())
 
-		verificationAdminOpts = adminOpts.SetOrigin(verificationOrigin).SetSchemaRegistry(schemaReg)
+		verificationAdminOpts = adminOpts.
+					SetOrigin(verificationOrigin).
+					SetSchemaRegistry(schemaReg).
+					SetFetchSeriesBlocksBatchSize(opts.FetchSeriesBlocksBatchSize())
 	)
 
 	if opts.ProtoEncoding() {

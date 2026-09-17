@@ -48,9 +48,10 @@ func (c *ProducerConfiguration) newOptions(
 	if err != nil {
 		return nil, err
 	}
+	// Pass the KV client and graceful close key directly to NewWriter
 	return producer.NewOptions().
 		SetBuffer(b).
-		SetWriter(writer.NewWriter(wOpts)), nil
+		SetWriter(writer.NewWriter(wOpts, cs, c.Writer.MessageWriterGracefulCloseKey)), nil
 }
 
 // NewProducer creates new producer.

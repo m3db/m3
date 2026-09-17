@@ -22,11 +22,14 @@ package ts
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (
@@ -99,4 +102,47 @@ func TestPooledSegmentClone(t *testing.T) {
 	}
 
 	testSegmentCloneWithPools(t, checkd, bytesPool)
+}
+
+func TestDatapointEqual(t *testing.T) {
+	now := xtime.ToUnixNano(time.Now())
+
+	tests := []struct {
+		name     string
+		a        Datapoint
+		b        Datapoint
+		expected bool
+	}{
+		{
+			name:     "equal datapoints",
+			a:        Datapoint{TimestampNanos: now, Value: 42.0},
+			b:        Datapoint{TimestampNanos: now, Value: 42.0},
+			expected: true,
+		},
+		{
+			name:     "different timestamps",
+			a:        Datapoint{TimestampNanos: now, Value: 42.0},
+			b:        Datapoint{TimestampNanos: now + 1, Value: 42.0},
+			expected: false,
+		},
+		{
+			name:     "different values",
+			a:        Datapoint{TimestampNanos: now, Value: 42.0},
+			b:        Datapoint{TimestampNanos: now, Value: 43.0},
+			expected: false,
+		},
+		{
+			name:     "completely different",
+			a:        Datapoint{TimestampNanos: now, Value: 1.0},
+			b:        Datapoint{TimestampNanos: now + 1000, Value: 2.0},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.a.Equal(tt.b)
+			require.Equal(t, tt.expected, result)
+		})
+	}
 }

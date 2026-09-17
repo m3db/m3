@@ -57,7 +57,7 @@ type instanceWriterManager interface {
 		instance placement.Instance,
 		shardID uint32,
 		payload payloadUnion,
-	) error
+	) (int, error)
 
 	// Flush flushes buffered metrics.
 	Flush() error
@@ -188,23 +188,24 @@ func (mgr *writerManager) Write(
 	instance placement.Instance,
 	shardID uint32,
 	payload payloadUnion,
-) error {
+) (int, error) {
 	mgr.RLock()
 	if mgr.closed {
 		mgr.RUnlock()
-		return errInstanceWriterManagerClosed
+		return 0, errInstanceWriterManagerClosed
 	}
+
 	id := instance.ID()
 	writer, exists := mgr.writers[id]
 	if !exists {
 		mgr.RUnlock()
-		return fmt.Errorf("writer for instance %s is not found", id)
+		return 0, fmt.Errorf("writer for instance %s not found", id)
 	}
-	writer.dirty.Store(true)
-	err := writer.Write(shardID, payload)
-	mgr.RUnlock()
 
-	return err
+	writer.dirty.Store(true)
+	bytesAdded, err := writer.Write(shardID, payload)
+	mgr.RUnlock()
+	return bytesAdded, err
 }
 
 func (mgr *writerManager) Flush() error {

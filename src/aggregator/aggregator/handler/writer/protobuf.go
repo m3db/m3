@@ -22,14 +22,17 @@ package writer
 
 import (
 	"errors"
-
-	"github.com/uber-go/tally"
+	"strconv"
+	"sync/atomic"
 
 	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/producer"
+	"github.com/m3db/m3/src/msg/routing"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 var (
@@ -96,7 +99,7 @@ func (w *protobufWriter) Write(mp aggregated.ChunkedMetricWithStoragePolicy) err
 		return err
 	}
 
-	if err := w.p.Produce(newMessage(shard, mp.StoragePolicy, w.encoder.Buffer())); err != nil {
+	if err := w.p.Produce(newMessage(shard, mp.StoragePolicy, mp.RoutingPolicy, w.encoder.Buffer())); err != nil {
 		w.metrics.routeErrors.Inc(1)
 		return err
 	}
@@ -114,6 +117,7 @@ func (w *protobufWriter) prepare(mp aggregated.ChunkedMetricWithStoragePolicy) (
 	w.m.Metric.Value = mp.Value
 	w.m.Annotation = mp.ChunkedMetric.Annotation
 	w.m.StoragePolicy = mp.StoragePolicy
+	w.m.RoutingPolicy = mp.RoutingPolicy
 	shard := w.shardFn(w.m.ID, w.numShards)
 	return w.m, shard
 }
@@ -135,11 +139,19 @@ func (w *protobufWriter) Close() error {
 type message struct {
 	shard uint32
 	sp    policy.StoragePolicy
+	rp    policy.RoutingPolicy
 	data  protobuf.Buffer
 }
 
-func newMessage(shard uint32, sp policy.StoragePolicy, data protobuf.Buffer) producer.Message {
-	return message{shard: shard, sp: sp, data: data}
+func newMessage(
+	shard uint32,
+	sp policy.StoragePolicy,
+	rp policy.RoutingPolicy,
+	data protobuf.Buffer,
+) producer.Message {
+	return message{
+		shard: shard, sp: sp, rp: rp, data: data,
+	}
 }
 
 func (d message) Shard() uint32 {
@@ -168,8 +180,13 @@ type storagePolicyFilter struct {
 }
 
 // NewStoragePolicyFilter creates a new storage policy based filter.
-func NewStoragePolicyFilter(acceptedStoragePolicies []policy.StoragePolicy) producer.FilterFunc {
-	return storagePolicyFilter{acceptedStoragePolicies}.Filter
+func NewStoragePolicyFilter(
+	acceptedStoragePolicies []policy.StoragePolicy,
+	configSource producer.FilterFuncConfigSourceType) producer.FilterFunc {
+	return producer.NewFilterFunc(
+		storagePolicyFilter{acceptedStoragePolicies}.Filter,
+		producer.StoragePolicyFilter,
+		configSource)
 }
 
 func (f storagePolicyFilter) Filter(m producer.Message) bool {
@@ -183,4 +200,86 @@ func (f storagePolicyFilter) Filter(m producer.Message) bool {
 		}
 	}
 	return false
+}
+
+// RoutingPolicyFilterParams provides parameters for creating a routing policy filter.
+type RoutingPolicyFilterParams struct {
+	Logger               *zap.Logger
+	Scope                tally.Scope
+	RoutingPolicyHandler routing.PolicyHandler
+	IsDefault            bool
+	AllowedTrafficTypes  []string
+}
+
+// NewRoutingPolicyFilter creates a new routing policy based filter.
+func NewRoutingPolicyFilter(
+	p RoutingPolicyFilterParams, configSource producer.FilterFuncConfigSourceType,
+) producer.FilterFunc {
+	logger := p.Logger
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+	cfg := &routingPolicyFilter{
+		logger:                 logger,
+		scope:                  p.Scope.SubScope("routing-policy-filter"),
+		isDefault:              p.IsDefault,
+		allowedTrafficTypes:    p.AllowedTrafficTypes,
+		allowedTrafficTypeMask: 0,
+	}
+	p.RoutingPolicyHandler.Subscribe(cfg.onRoutingPolicyConfigUpdate)
+	return producer.NewFilterFunc(cfg.Filter, producer.RoutingPolicyFilter, configSource)
+}
+
+type routingPolicyFilter struct {
+	logger                 *zap.Logger
+	scope                  tally.Scope
+	isDefault              bool
+	allowedTrafficTypes    []string
+	allowedTrafficTypeMask uint64
+}
+
+func (f *routingPolicyFilter) Filter(m producer.Message) bool {
+	msg, ok := m.(message)
+	if !ok || msg.rp.TrafficTypes == 0 {
+		return f.isDefault
+	}
+	mask := atomic.LoadUint64(&f.allowedTrafficTypeMask)
+	return msg.rp.TrafficTypes&mask != 0
+}
+
+func (f *routingPolicyFilter) onRoutingPolicyConfigUpdate(policyConfig routing.PolicyConfig) {
+	trafficTypes := policyConfig.TrafficTypes()
+	f.logger.Info("updating routing policy config",
+		zap.Any("received-traffic-types", trafficTypes))
+	mask := uint64(0)
+	for _, trafficType := range f.allowedTrafficTypes {
+		bitPosition := f.resolveTrafficTypeToBitPosition(trafficTypes, trafficType)
+		if bitPosition == -1 {
+			f.logger.Warn("traffic type not found in routing policy config",
+				zap.String("missing_traffic_type", trafficType))
+			f.emitAllowedTrafficType(trafficType, true)
+			continue
+		}
+		f.emitAllowedTrafficType(trafficType, false)
+		mask |= 1 << bitPosition
+	}
+	atomic.StoreUint64(&f.allowedTrafficTypeMask, mask)
+}
+
+func (f *routingPolicyFilter) resolveTrafficTypeToBitPosition(
+	trafficTypeMap map[string]uint64, trafficType string,
+) int {
+	bitPosition, ok := trafficTypeMap[trafficType]
+	if !ok {
+		return -1
+	}
+	return int(bitPosition)
+}
+
+func (f *routingPolicyFilter) emitAllowedTrafficType(
+	trafficType string, missingFromRoutingPolicy bool) {
+	f.scope.Tagged(map[string]string{
+		"traffic-type":                trafficType,
+		"missing-from-routing-policy": strconv.FormatBool(missingFromRoutingPolicy),
+	}).Counter("allowed-traffic-type").Inc(1)
 }

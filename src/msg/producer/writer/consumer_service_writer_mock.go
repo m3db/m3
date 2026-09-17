@@ -105,6 +105,21 @@ func (mr *MockconsumerServiceWriterMockRecorder) SetMessageTTLNanos(value interf
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMessageTTLNanos", reflect.TypeOf((*MockconsumerServiceWriter)(nil).SetMessageTTLNanos), value)
 }
 
+// GetDataFilter mocks base method.
+func (m *MockconsumerServiceWriter) GetDataFilters() []producer.FilterFunc {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDataFilters")
+	
+	ret0, _ := ret[0].([]producer.FilterFunc)
+	return ret0
+}
+
+// GetDataFilters indicates an expected call of GetDataFilters
+func (mr *MockconsumerServiceWriterMockRecorder) GetDataFilters() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDataFilters", reflect.TypeOf((*MockconsumerServiceWriter)(nil).GetDataFilters()))
+}
+
 // UnregisterFilters mocks base method.
 func (m *MockconsumerServiceWriter) UnregisterFilters() {
 	m.ctrl.T.Helper()
@@ -115,6 +130,18 @@ func (m *MockconsumerServiceWriter) UnregisterFilters() {
 func (mr *MockconsumerServiceWriterMockRecorder) UnregisterFilters() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnregisterFilters", reflect.TypeOf((*MockconsumerServiceWriter)(nil).UnregisterFilters))
+}
+
+// SetFilters mocks base method.
+func (m *MockconsumerServiceWriter) SetFilters(filters []producer.FilterFunc) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetFilters", filters)
+}
+
+// SetFilters indicates an expected call of SetFilters.
+func (mr *MockconsumerServiceWriterMockRecorder) SetFilters(filters interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFilters", reflect.TypeOf((*MockconsumerServiceWriter)(nil).SetFilters), filters)
 }
 
 // Write mocks base method.

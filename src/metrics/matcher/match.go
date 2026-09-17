@@ -102,16 +102,27 @@ func (m *matcher) ForwardMatch(
 
 func (m *matcher) ReverseMatch(
 	id id.ID,
-	fromNanos, toNanos int64,
+	fromNanos int64,
+	toNanos int64,
 	mt metric.Type,
 	at aggregation.Type,
 	isMultiAggregationTypesAllowed bool,
 	aggTypesOpts aggregation.TypesOptions,
+	matchOpts rules.MatchOptions,
 ) (rules.MatchResult, error) {
 	sw := m.metrics.matchLatency.Start()
 	defer sw.Stop()
 	// Cache does not support reverse matching.
-	return m.namespaces.ReverseMatch(id, fromNanos, toNanos, mt, at, isMultiAggregationTypesAllowed, aggTypesOpts)
+	return m.namespaces.ReverseMatch(
+		id,
+		fromNanos,
+		toNanos,
+		mt,
+		at,
+		isMultiAggregationTypesAllowed,
+		aggTypesOpts,
+		matchOpts,
+	)
 }
 
 func (m *matcher) Close() error {
@@ -156,15 +167,26 @@ func (m *noCacheMatcher) ForwardMatch(
 
 func (m *noCacheMatcher) ReverseMatch(
 	id id.ID,
-	fromNanos, toNanos int64,
+	fromNanos int64,
+	toNanos int64,
 	mt metric.Type,
 	at aggregation.Type,
 	isMultiAggregationTypesAllowed bool,
 	aggTypesOpts aggregation.TypesOptions,
+	matchOpts rules.MatchOptions,
 ) (rules.MatchResult, error) {
 	sw := m.metrics.matchLatency.Start()
 	defer sw.Stop()
-	return m.namespaces.ReverseMatch(id, fromNanos, toNanos, mt, at, isMultiAggregationTypesAllowed, aggTypesOpts)
+	return m.namespaces.ReverseMatch(
+		id,
+		fromNanos,
+		toNanos,
+		mt,
+		at,
+		isMultiAggregationTypesAllowed,
+		aggTypesOpts,
+		matchOpts,
+	)
 }
 
 func (m *noCacheMatcher) Close() error {

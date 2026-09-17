@@ -1,0 +1,28 @@
+version: "3.5"
+services:
+  m3consumer01:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    image: m3consumer:dev
+    ports:
+      - "0.0.0.0:9000:9000"
+    networks:
+      - m3_aggregator_local_backend
+    environment:
+      - LISTEN_ADDR=0.0.0.0:9000
+
+  bootstrap:
+    image: alpine:latest
+    working_dir: /work
+    volumes:
+      - ./:/work
+    command: ["./bin/m3bootstrap", "-config", "./m3msg-bootstrap.yaml"]
+    networks:
+      - m3_aggregator_local_backend
+    depends_on:
+      - m3consumer01
+
+networks:
+  m3_aggregator_local_backend:
+    external: true

@@ -70,6 +70,9 @@ const (
 	// defaultUseTChannelClientForWriting determines whether we use the tchannel client for writing by default.
 	defaultUseTChannelClientForWriting = false
 
+	// defaultFetchSeriesBlocksBatchSize is the default fetch series blocks batch size
+	defaultFetchSeriesBlocksBatchSize = 4096
+
 	// defaultUseTChannelClientForTruncation determines whether we use the tchannel client for truncation by default.
 	defaultUseTChannelClientForTruncation = true
 
@@ -335,6 +338,12 @@ type TestOptions interface {
 
 	// CustomAdminOptions gets custom options to apply to the admin client connection.
 	CustomAdminOptions() []client.CustomAdminOption
+
+	// SetFetchSeriesBlocksBatchSize sets the batch size for fetching series blocks in batch.
+	SetFetchSeriesBlocksBatchSize(value int) TestOptions
+
+	// FetchSeriesBlocksBatchSize gets the batch size for fetching series blocks in batch.
+	FetchSeriesBlocksBatchSize() int
 }
 
 type options struct {
@@ -370,6 +379,7 @@ type options struct {
 	writeNewSeriesAsync                                bool
 	protoEncoding                                      bool
 	shardLeavingAndInitializingCountsTowardConsistency bool
+	fetchSeriesBlocksBatchSize                         int
 	assertEqual                                        assertTestDataEqual
 	nowFn                                              func() time.Time
 	reportInterval                                     time.Duration
@@ -410,6 +420,7 @@ func NewTestOptions(t *testing.T) TestOptions {
 		useTChannelClientForTruncation: defaultUseTChannelClientForTruncation,
 		writeNewSeriesAsync:            defaultWriteNewSeriesAsync,
 		reportInterval:                 defaultReportInterval,
+		fetchSeriesBlocksBatchSize:     defaultFetchSeriesBlocksBatchSize,
 	}
 }
 
@@ -784,4 +795,14 @@ func (o *options) SetCustomAdminOptions(value []client.CustomAdminOption) TestOp
 
 func (o *options) CustomAdminOptions() []client.CustomAdminOption {
 	return o.customAdminOpts
+}
+
+func (o *options) SetFetchSeriesBlocksBatchSize(value int) TestOptions {
+	opts := *o
+	opts.fetchSeriesBlocksBatchSize = value
+	return &opts
+}
+
+func (o *options) FetchSeriesBlocksBatchSize() int {
+	return o.fetchSeriesBlocksBatchSize
 }

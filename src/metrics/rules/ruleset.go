@@ -74,11 +74,13 @@ type ReverseMatcher interface {
 	// with aware of the metric type and aggregation type for the given id.
 	ReverseMatch(
 		id metricid.ID,
-		fromNanos, toNanos int64,
+		fromNanos int64,
+		toNanos int64,
 		mt metric.Type,
 		at aggregation.Type,
 		isMultiAggregationTypesAllowed bool,
 		aggTypesOpts aggregation.TypesOptions,
+		matchOpts MatchOptions,
 	) (MatchResult, error)
 }
 

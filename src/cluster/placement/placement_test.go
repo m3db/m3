@@ -160,6 +160,20 @@ func TestValidateMirrorButNotSharded(t *testing.T) {
 	assert.Equal(t, errMirrorNotSharded.Error(), err.Error())
 }
 
+func TestValidateSubclusteredButNotSharded(t *testing.T) {
+	p := NewPlacement().SetIsSubclustered(true)
+	err := Validate(p)
+	require.Error(t, err)
+	assert.Equal(t, errSubclusteredNotSharded.Error(), err.Error())
+}
+
+func TestValidateInstanceWithSubclusterIDInNonSubclusteredPlacement(t *testing.T) {
+	i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint", 1).SetSubClusterID(1)
+	p := NewPlacement().SetInstances([]Instance{i1}).SetShards([]uint32{1}).SetReplicaFactor(1)
+	err := Validate(p)
+	require.Error(t, err)
+}
+
 func TestValidateMissingShard(t *testing.T) {
 	i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
 	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
@@ -765,4 +779,613 @@ func getProtoShards(ids []uint32) []*placementpb.Shard {
 		}
 	}
 	return r
+}
+
+func TestValidateSubclusteredPlacement(t *testing.T) {
+	tests := []struct {
+		name                   string
+		instancesPerSubcluster int
+		replicaFactor          int
+		instances              []Instance
+		shards                 []uint32
+		expectError            bool
+	}{
+		{
+			name:                   "valid subclustered placement - single subcluster",
+			instancesPerSubcluster: 6,
+			replicaFactor:          2,
+			instances: func() []Instance {
+				i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1)
+				i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+				i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+				i1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+				i2 := NewEmptyInstance("i2", "r1", "z1", "endpoint2", 1).SetSubClusterID(1)
+				i2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+				i2.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+				i2.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+
+				i3 := NewEmptyInstance("i3", "r2", "z1", "endpoint3", 1).SetSubClusterID(1)
+				i3.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+				i3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+				i3.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+
+				i4 := NewEmptyInstance("i4", "r2", "z1", "endpoint4", 1).SetSubClusterID(1)
+				i4.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+				i4.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+				i4.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+
+				return []Instance{i1, i2, i3, i4}
+			}(),
+			shards:      []uint32{1, 2, 3, 4, 5, 6},
+			expectError: false,
+		},
+		{
+			name:                   "valid subclustered placement - multiple subclusters",
+			instancesPerSubcluster: 3,
+			replicaFactor:          1,
+			instances: func() []Instance {
+				i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1)
+				i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+				i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+
+				i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint2", 1).SetSubClusterID(1)
+				i2.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+				i2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+
+				i3 := NewEmptyInstance("i3", "r3", "z1", "endpoint3", 1).SetSubClusterID(1)
+				i3.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+				i3.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+
+				i4 := NewEmptyInstance("i4", "r1", "z1", "endpoint4", 1).SetSubClusterID(2)
+				i4.Shards().Add(shard.NewShard(7).SetState(shard.Available))
+				i4.Shards().Add(shard.NewShard(8).SetState(shard.Available))
+
+				i5 := NewEmptyInstance("i5", "r2", "z1", "endpoint5", 1).SetSubClusterID(2)
+				i5.Shards().Add(shard.NewShard(9).SetState(shard.Available))
+				i5.Shards().Add(shard.NewShard(10).SetState(shard.Available))
+
+				i6 := NewEmptyInstance("i6", "r3", "z1", "endpoint6", 1).SetSubClusterID(2)
+				i6.Shards().Add(shard.NewShard(11).SetState(shard.Available))
+				i6.Shards().Add(shard.NewShard(12).SetState(shard.Available))
+
+				return []Instance{i1, i2, i3, i4, i5, i6}
+			}(),
+			shards:      []uint32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12},
+			expectError: false,
+		},
+		// nolint: dupl
+		{
+			name:                   "shard with wrong isolation group count",
+			instancesPerSubcluster: 6,
+			replicaFactor:          2,
+			instances: func() []Instance {
+				i1 := NewEmptyInstance("i1", "IG1", "z1", "endpoint1", 1).SetSubClusterID(1)
+				i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+				i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+				i2 := NewEmptyInstance("i2", "IG1", "z1", "endpoint2", 1).SetSubClusterID(1)
+				i2.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+				i2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+
+				return []Instance{i1, i2}
+			}(),
+			shards:      []uint32{1, 2},
+			expectError: true,
+		},
+		{
+			name:                   "instance with uninitialized subcluster ID",
+			instancesPerSubcluster: 3,
+			replicaFactor:          1,
+			instances: func() []Instance {
+				i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1)
+				i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+
+				i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint2", 1).SetSubClusterID(1)
+				i2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+
+				// This instance has uninitialized subcluster ID
+				i3 := NewEmptyInstance("i3", "r3", "z1", "endpoint3", 1)
+				i3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+				return []Instance{i1, i2, i3}
+			}(),
+			shards:      []uint32{1, 2, 3},
+			expectError: true,
+		},
+		{
+			name:                   "valid subclustered placement with leaving instances",
+			instancesPerSubcluster: 4,
+			replicaFactor:          2,
+			instances: func() []Instance {
+				i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1)
+				i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+				i1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+				i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint2", 1).SetSubClusterID(1)
+				i2.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+				i2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+
+				// Leaving instance - should be ignored in subcluster validation
+				i3 := NewEmptyInstance("i3", "r2", "z1", "endpoint3", 1).SetSubClusterID(1)
+				i3.Shards().Add(shard.NewShard(2).SetState(shard.Leaving))
+				i3.Shards().Add(shard.NewShard(3).SetState(shard.Leaving))
+
+				i4 := NewEmptyInstance("i4", "r1", "z1", "endpoint4", 1).SetSubClusterID(1)
+				i4.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+				i4.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+
+				i5 := NewEmptyInstance("i5", "r2", "z1", "endpoint5", 1).SetSubClusterID(1)
+				i5.Shards().Add(shard.NewShard(2).SetState(shard.Initializing).SetSourceID("i3"))
+				i5.Shards().Add(shard.NewShard(3).SetState(shard.Initializing).SetSourceID("i3"))
+
+				return []Instance{i1, i2, i3, i4, i5}
+			}(),
+			shards:      []uint32{1, 2, 3, 4},
+			expectError: false,
+		},
+		{
+			name:                   "shard with leaving state ignored in validation",
+			instancesPerSubcluster: 3,
+			replicaFactor:          1,
+			instances: func() []Instance {
+				i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1)
+				i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+				i1.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+
+				i2 := NewEmptyInstance("i2", "r1", "z1", "endpoint2", 1).SetSubClusterID(1)
+				i2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+				i1.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+
+				// This shard is leaving, so it should be ignored in isolation group validation
+				i3 := NewEmptyInstance("i3", "r1", "z1", "endpoint3", 1).SetSubClusterID(1)
+				i3.Shards().Add(shard.NewShard(3).SetState(shard.Leaving))
+				i3.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+
+				i4 := NewEmptyInstance("i4", "r1", "z1", "endpoint4", 1).SetSubClusterID(2)
+				i4.Shards().Add(shard.NewShard(3).SetState(shard.Initializing).SetSourceID("i3"))
+
+				return []Instance{i1, i2, i3, i4}
+			}(),
+			shards:      []uint32{1, 2, 3, 4, 5, 6},
+			expectError: false,
+		},
+		{
+			name:                   "shards are shared among multiple complete subclusters",
+			instancesPerSubcluster: 3,
+			replicaFactor:          3,
+			instances: func() []Instance {
+				i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1)
+				i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+				i1.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+				i1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+				i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint2", 1).SetSubClusterID(1)
+				i2.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+				i2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+				i2.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+				i3 := NewEmptyInstance("i3", "r3", "z1", "endpoint3", 1).SetSubClusterID(1)
+				i3.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+				i3.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+				i3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+				i4 := NewEmptyInstance("i4", "r1", "z1", "endpoint4", 1).SetSubClusterID(2)
+				i4.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+				i4.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+				i4.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+
+				i5 := NewEmptyInstance("i5", "r2", "z1", "endpoint5", 1).SetSubClusterID(2)
+				i5.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+				i5.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+				i5.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+
+				i6 := NewEmptyInstance("i6", "r3", "z1", "endpoint6", 1).SetSubClusterID(2)
+				i6.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+				i6.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+				i6.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+
+				return []Instance{i1, i2, i3, i4, i5, i6}
+			}(),
+			shards:      []uint32{1, 2, 3, 4, 5, 6},
+			expectError: true,
+		},
+		{
+			name:                   "shards in transitionary state while moving to another subcluster",
+			instancesPerSubcluster: 3,
+			replicaFactor:          3,
+			instances: func() []Instance {
+				i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1)
+				i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+				i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+				i1.Shards().Add(shard.NewShard(3).SetState(shard.Leaving))
+
+				i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint2", 1).SetSubClusterID(1)
+				i2.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+				i2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+				i2.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+				i3 := NewEmptyInstance("i3", "r3", "z1", "endpoint3", 1).SetSubClusterID(1)
+				i3.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+				i3.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+				i3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+				i4 := NewEmptyInstance("i4", "r1", "z1", "endpoint4", 1).SetSubClusterID(2)
+				i4.Shards().Add(shard.NewShard(3).SetState(shard.Initializing).SetSourceID("i1"))
+
+				return []Instance{i1, i2, i3, i4}
+			}(),
+			shards:      []uint32{1, 2, 3},
+			expectError: false,
+		},
+		{
+			name:                   "shards in transitionary state - belongs to > 2 subclusters",
+			instancesPerSubcluster: 3,
+			replicaFactor:          3,
+			instances: func() []Instance {
+				i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1)
+				i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+
+				i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint2", 1).SetSubClusterID(1)
+				i2.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+
+				i3 := NewEmptyInstance("i3", "r3", "z1", "endpoint3", 1).SetSubClusterID(1)
+				i3.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+				i3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+				i4 := NewEmptyInstance("i4", "r1", "z1", "endpoint4", 1).SetSubClusterID(2)
+				i4.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+
+				i5 := NewEmptyInstance("i5", "r2", "z1", "endpoint5", 1).SetSubClusterID(2)
+				i5.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+				i5.Shards().Add(shard.NewShard(3).SetState(shard.Initializing).SetSourceID("i8"))
+
+				i6 := NewEmptyInstance("i6", "r3", "z1", "endpoint6", 1).SetSubClusterID(2)
+				i6.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+
+				i7 := NewEmptyInstance("i7", "r1", "z1", "endpoint7", 1).SetSubClusterID(3)
+				i7.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+				i8 := NewEmptyInstance("i8", "r2", "z1", "endpoint8", 1).SetSubClusterID(3)
+				i8.Shards().Add(shard.NewShard(3).SetState(shard.Leaving))
+
+				return []Instance{i1, i2, i3, i4, i5, i6, i7, i8}
+			}(),
+			shards:      []uint32{1, 2, 3},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := NewPlacement().
+				SetInstances(tt.instances).
+				SetShards(tt.shards).
+				SetReplicaFactor(tt.replicaFactor).
+				SetIsSharded(true).
+				SetIsSubclustered(true).
+				SetInstancesPerSubCluster(tt.instancesPerSubcluster)
+
+			err := Validate(p)
+
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestValidateSubclusteredPlacementEdgeCases(t *testing.T) {
+	tests := []struct {
+		name                   string
+		instancesPerSubcluster int
+		replicaFactor          int
+		instances              []Instance
+		shards                 []uint32
+		expectError            bool
+		errorMessage           string
+		errorContains          string
+	}{
+		{
+			name:                   "empty placement",
+			instancesPerSubcluster: 3,
+			replicaFactor:          1,
+			instances:              []Instance{},
+			shards:                 []uint32{},
+			expectError:            false,
+		},
+		{
+			name:                   "single instance placement",
+			instancesPerSubcluster: 3,
+			replicaFactor:          1,
+			instances: func() []Instance {
+				i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1)
+				i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+				return []Instance{i1}
+			}(),
+			shards:      []uint32{1},
+			expectError: false,
+		},
+		// nolint: dupl
+		{
+			name:                   "incomplete subcluster - should not fail validation",
+			instancesPerSubcluster: 4,
+			replicaFactor:          2,
+			instances: func() []Instance {
+				i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1)
+				i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+				i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+
+				i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint2", 1).SetSubClusterID(1)
+				i2.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+				i2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+
+				// Only 2 instances in subcluster, but instancesPerSubcluster is 4
+				// This should still be valid as the subcluster is not full
+				return []Instance{i1, i2}
+			}(),
+			shards:      []uint32{1, 2},
+			expectError: false,
+		},
+		// nolint: dupl
+		{
+			name:                   "multiple isolation groups per shard",
+			instancesPerSubcluster: 6,
+			replicaFactor:          3,
+			instances: func() []Instance {
+				i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1)
+				i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+
+				i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint2", 1).SetSubClusterID(1)
+				i2.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+
+				i3 := NewEmptyInstance("i3", "r3", "z1", "endpoint3", 1).SetSubClusterID(1)
+				i3.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+
+				return []Instance{i1, i2, i3}
+			}(),
+			shards:      []uint32{1},
+			expectError: false,
+		},
+		// nolint: dupl
+		{
+			name:                   "shard with insufficient isolation groups",
+			instancesPerSubcluster: 6,
+			replicaFactor:          3,
+			instances: func() []Instance {
+				i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1)
+				i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+
+				i2 := NewEmptyInstance("i2", "r1", "z1", "endpoint2", 1).SetSubClusterID(1)
+				i2.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+
+				i3 := NewEmptyInstance("i3", "r2", "z1", "endpoint3", 1).SetSubClusterID(1)
+				i3.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+
+				// Only 2 instances from same isolation group, but replica factor is 3
+				return []Instance{i1, i2, i3}
+			}(),
+			shards:       []uint32{1},
+			expectError:  true,
+			errorMessage: "invalid shard 1, expected 3 isolation groups, actual 2",
+		},
+		{
+			name:                   "subcluster with more instances than instancesPerSubcluster",
+			instancesPerSubcluster: 3,
+			replicaFactor:          3,
+			instances: func() []Instance {
+				i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1)
+				i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+				i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+				i1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+				i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint2", 1).SetSubClusterID(1)
+				i2.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+				i2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+				i2.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+				i3 := NewEmptyInstance("i3", "r3", "z1", "endpoint3", 1).SetSubClusterID(1)
+				i3.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+				i3.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+
+				i4 := NewEmptyInstance("i4", "r3", "z1", "endpoint4", 1).SetSubClusterID(1)
+				i4.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+				return []Instance{i1, i2, i3, i4}
+			}(),
+			shards:       []uint32{1, 2, 3},
+			expectError:  true,
+			errorMessage: "invalid subcluster 1, expected at most 3 instances, actual 4",
+		},
+		{
+			name:                   "more than one partial subcluster",
+			instancesPerSubcluster: 3,
+			replicaFactor:          1,
+			instances: func() []Instance {
+				// Subcluster 1: 2 instances (partial, needs 3)
+				i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1)
+				i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+
+				i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint2", 1).SetSubClusterID(1)
+				i2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+
+				// Subcluster 2: 2 instances (partial, needs 3)
+				i3 := NewEmptyInstance("i3", "r1", "z1", "endpoint3", 1).SetSubClusterID(2)
+				i3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+				i4 := NewEmptyInstance("i4", "r2", "z1", "endpoint4", 1).SetSubClusterID(2)
+				i4.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+
+				return []Instance{i1, i2, i3, i4}
+			}(),
+			shards:       []uint32{1, 2, 3, 4},
+			expectError:  true,
+			errorMessage: "invalid placement, more than one partial subcluster found: 2",
+		},
+		{
+			name:                   "valid shard movement from full to partial subcluster",
+			instancesPerSubcluster: 2,
+			replicaFactor:          2,
+			instances: func() []Instance {
+				// Subcluster 1: 2 instances (full)
+				// i1 has shard 1 Available, i2 has shard 1 Leaving
+				// i2 is NOT considered "leaving" because it still has non-leaving shards or
+				// the test needs adjustment
+				i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1)
+				i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+				i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+
+				i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint2", 1).SetSubClusterID(1)
+				i2.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+				i2.Shards().Add(shard.NewShard(2).SetState(shard.Leaving))
+
+				// Subcluster 2: 1 instance (partial) - receiving shard 2
+				i3 := NewEmptyInstance("i3", "r3", "z1", "endpoint3", 1).SetSubClusterID(2)
+				i3.Shards().Add(shard.NewShard(2).SetState(shard.Initializing).SetSourceID("i2"))
+
+				return []Instance{i1, i2, i3}
+			}(),
+			shards:      []uint32{1, 2},
+			expectError: false,
+		},
+		{
+			name:                   "valid shard movement from partial to full subcluster",
+			instancesPerSubcluster: 2,
+			replicaFactor:          2,
+			instances: func() []Instance {
+				// Subcluster 1: 1 instance (partial) - giving up shard 1
+				i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1)
+				i1.Shards().Add(shard.NewShard(1).SetState(shard.Leaving))
+
+				// Subcluster 2: 2 instances (full) - receiving shard 1
+				i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint2", 1).SetSubClusterID(2)
+				i2.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+
+				i3 := NewEmptyInstance("i3", "r3", "z1", "endpoint3", 1).SetSubClusterID(2)
+				i3.Shards().Add(shard.NewShard(1).SetState(shard.Initializing).SetSourceID("i1"))
+
+				return []Instance{i1, i2, i3}
+			}(),
+			shards:      []uint32{1},
+			expectError: false,
+		},
+		{
+			name:                   "instancesPerSubcluster equals 1 with single instance",
+			instancesPerSubcluster: 1,
+			replicaFactor:          1,
+			instances: func() []Instance {
+				i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1)
+				i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+
+				i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint2", 1).SetSubClusterID(2)
+				i2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+
+				return []Instance{i1, i2}
+			}(),
+			shards:      []uint32{1, 2},
+			expectError: false,
+		},
+		{
+			name:                   "all instances in subcluster are leaving",
+			instancesPerSubcluster: 2,
+			replicaFactor:          1,
+			instances: func() []Instance {
+				// Subcluster 1: all instances leaving
+				i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1)
+				i1.Shards().Add(shard.NewShard(1).SetState(shard.Leaving))
+
+				i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint2", 1).SetSubClusterID(1)
+				i2.Shards().Add(shard.NewShard(2).SetState(shard.Leaving))
+
+				// Subcluster 2: receiving shards
+				i3 := NewEmptyInstance("i3", "r1", "z1", "endpoint3", 1).SetSubClusterID(2)
+				i3.Shards().Add(shard.NewShard(1).SetState(shard.Initializing).SetSourceID("i1"))
+
+				i4 := NewEmptyInstance("i4", "r2", "z1", "endpoint4", 1).SetSubClusterID(2)
+				i4.Shards().Add(shard.NewShard(2).SetState(shard.Initializing).SetSourceID("i2"))
+
+				return []Instance{i1, i2, i3, i4}
+			}(),
+			shards:      []uint32{1, 2},
+			expectError: false,
+		},
+		{
+			name:                   "three partial subclusters",
+			instancesPerSubcluster: 3,
+			replicaFactor:          1,
+			instances: func() []Instance {
+				// All three subclusters are partial (2 instances each, needs 3)
+				i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1)
+				i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+
+				i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint2", 1).SetSubClusterID(1)
+				i2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+
+				i3 := NewEmptyInstance("i3", "r1", "z1", "endpoint3", 1).SetSubClusterID(2)
+				i3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+				i4 := NewEmptyInstance("i4", "r2", "z1", "endpoint4", 1).SetSubClusterID(2)
+				i4.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+
+				i5 := NewEmptyInstance("i5", "r1", "z1", "endpoint5", 1).SetSubClusterID(3)
+				i5.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+
+				i6 := NewEmptyInstance("i6", "r2", "z1", "endpoint6", 1).SetSubClusterID(3)
+				i6.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+
+				return []Instance{i1, i2, i3, i4, i5, i6}
+			}(),
+			shards:       []uint32{1, 2, 3, 4, 5, 6},
+			expectError:  true,
+			errorMessage: "invalid placement, more than one partial subcluster found: 3",
+		},
+		// nolint: dupl
+		{
+			name:                   "one full and one partial subcluster is valid",
+			instancesPerSubcluster: 2,
+			replicaFactor:          1,
+			instances: func() []Instance {
+				// Subcluster 1: 2 instances (full)
+				i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1).SetSubClusterID(1)
+				i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+
+				i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint2", 1).SetSubClusterID(1)
+				i2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+
+				// Subcluster 2: 1 instance (partial)
+				i3 := NewEmptyInstance("i3", "r1", "z1", "endpoint3", 1).SetSubClusterID(2)
+				i3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+				return []Instance{i1, i2, i3}
+			}(),
+			shards:      []uint32{1, 2, 3},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := NewPlacement().
+				SetInstances(tt.instances).
+				SetShards(tt.shards).
+				SetReplicaFactor(tt.replicaFactor).
+				SetIsSharded(true).
+				SetIsSubclustered(true).
+				SetInstancesPerSubCluster(tt.instancesPerSubcluster)
+
+			err := Validate(p)
+
+			if tt.expectError {
+				require.Error(t, err)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains)
+				} else {
+					assert.Equal(t, tt.errorMessage, err.Error())
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }

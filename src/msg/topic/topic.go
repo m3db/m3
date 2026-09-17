@@ -186,7 +186,42 @@ func (t *topic) Validate() error {
 			return fmt.Errorf("invalid topic: duplicated consumer %s", cs.ServiceID().String())
 		}
 		uniqConsumers[cs.ServiceID().String()] = struct{}{}
+
+		filterConfig := cs.DynamicFilterConfigs()
+
+		if filterConfig != nil {
+			shardSetFilter := filterConfig.ShardSetFilter()
+			if shardSetFilter != nil {
+				shardSet := shardSetFilter.ShardSet()
+				if shardSet == "" {
+					return fmt.Errorf("invalid topic: empty shard set in filter for consumer %s", cs.ServiceID().String())
+				}
+			}
+
+			percentageFilter := filterConfig.PercentageFilter()
+			if percentageFilter != nil {
+				percentage := percentageFilter.Percentage()
+				if percentage <= 0 || percentage >= 100 {
+					return fmt.Errorf("invalid topic: invalid percentage in filter for consumer %s", cs.ServiceID().String())
+				}
+			}
+
+			storagePolicyFilter := filterConfig.StoragePolicyFilter()
+			if storagePolicyFilter != nil {
+				storagePolicies := storagePolicyFilter.StoragePolicies()
+				if len(storagePolicies) == 0 {
+					return fmt.Errorf("invalid topic: empty storage policy filter for consumer %s", cs.ServiceID().String())
+				}
+
+				for _, storagePolicy := range storagePolicies {
+					if storagePolicy == "" {
+						return fmt.Errorf("invalid topic: empty storage policy in filter for consumer %s", cs.ServiceID().String())
+					}
+				}
+			}
+		}
 	}
+
 	return nil
 }
 
@@ -208,10 +243,142 @@ func ToProto(t Topic) (*topicpb.Topic, error) {
 	}, nil
 }
 
+type filterConfig struct {
+	shardSetFilterConfig      *shardSetFilter
+	percentageFilterConfig    *percentageFilter
+	storagePolicyFilterConfig *storagePolicyFilter
+	routingPolicyFilterConfig *routingPolicyFilter
+}
+
+// NewFilterConfig creates a new filter config.
+func NewFilterConfig() FilterConfig {
+	return new(filterConfig)
+}
+
+func (fc *filterConfig) ShardSetFilter() ShardSetFilter {
+	if fc.shardSetFilterConfig == nil {
+		return nil
+	}
+
+	return fc.shardSetFilterConfig
+}
+
+func (fc *filterConfig) SetShardSetFilter(value ShardSetFilter) FilterConfig {
+	newfc := *fc
+	if value != nil {
+		newfc.shardSetFilterConfig = value.(*shardSetFilter)
+	}
+	return &newfc
+}
+
+func (fc *filterConfig) PercentageFilter() PercentageFilter {
+	if fc.percentageFilterConfig == nil {
+		return nil
+	}
+
+	return fc.percentageFilterConfig
+}
+
+func (fc *filterConfig) SetPercentageFilter(value PercentageFilter) FilterConfig {
+	newfc := *fc
+	if value != nil {
+		newfc.percentageFilterConfig = value.(*percentageFilter)
+	}
+	return &newfc
+}
+
+func (fc *filterConfig) StoragePolicyFilter() StoragePolicyFilter {
+	if fc.storagePolicyFilterConfig == nil {
+		return nil
+	}
+
+	return fc.storagePolicyFilterConfig
+}
+
+func (fc *filterConfig) SetStoragePolicyFilter(value StoragePolicyFilter) FilterConfig {
+	newfc := *fc
+	if value != nil {
+		newfc.storagePolicyFilterConfig = value.(*storagePolicyFilter)
+	}
+	return &newfc
+}
+
+func (fc *filterConfig) RoutingPolicyFilter() RoutingPolicyFilter {
+	if fc.routingPolicyFilterConfig == nil {
+		return nil
+	}
+
+	return fc.routingPolicyFilterConfig
+}
+
+func (fc *filterConfig) SetRoutingPolicyFilter(value RoutingPolicyFilter) FilterConfig {
+	newfc := *fc
+	if value != nil {
+		newfc.routingPolicyFilterConfig = value.(*routingPolicyFilter)
+	}
+	return &newfc
+}
+
+type shardSetFilter struct {
+	shardSet string
+}
+
+func (filter *shardSetFilter) ShardSet() string {
+	return filter.shardSet
+}
+
+// NewShardSetFilter creates a new shard set filter.
+func NewShardSetFilter(shardSet string) ShardSetFilter {
+	return &shardSetFilter{shardSet: shardSet}
+}
+
+type percentageFilter struct {
+	percentage float64
+}
+
+// NewPercentageFilter creates a new percentage filter.
+func NewPercentageFilter(percentage float64) PercentageFilter {
+	return &percentageFilter{percentage: percentage}
+}
+
+func (filter *percentageFilter) Percentage() float64 {
+	return filter.percentage
+}
+
+type storagePolicyFilter struct {
+	storagePolicies []string
+}
+
+// NewStoragePolicyFilter creates a new storage policy filter.
+func NewStoragePolicyFilter(storagePolicies []string) StoragePolicyFilter {
+	return &storagePolicyFilter{storagePolicies: storagePolicies}
+}
+
+func (filter *storagePolicyFilter) StoragePolicies() []string {
+	return filter.storagePolicies
+}
+
+type routingPolicyFilter struct {
+	allowedTrafficTypes []string
+	isDefault           bool
+}
+
+// AllowedTrafficTypes returns the traffic types that the filter will return true for.
+func (filter *routingPolicyFilter) AllowedTrafficTypes() []string {
+	return filter.allowedTrafficTypes
+}
+
+// IsDefault determines the behavior of the filter when no traffic type is
+// specified. If true, the filter will return true.
+func (filter *routingPolicyFilter) IsDefault() bool {
+	return filter.isDefault
+}
+
 type consumerService struct {
-	sid      services.ServiceID
-	ct       ConsumptionType
-	ttlNanos int64
+	sid           services.ServiceID
+	ct            ConsumptionType
+	ttlNanos      int64
+	filterConfigs *filterConfig
 }
 
 // NewConsumerService creates a ConsumerService.
@@ -228,7 +395,8 @@ func NewConsumerServiceFromProto(cs *topicpb.ConsumerService) (ConsumerService, 
 	return NewConsumerService().
 		SetServiceID(NewServiceIDFromProto(cs.ServiceId)).
 		SetConsumptionType(ct).
-		SetMessageTTLNanos(cs.MessageTtlNanos), nil
+		SetMessageTTLNanos(cs.MessageTtlNanos).
+		SetDynamicFilterConfigs(NewDynamicFilterConfigFromProto(cs.Filters)), nil
 }
 
 // ConsumerServiceToProto creates proto from a ConsumerService.
@@ -241,6 +409,7 @@ func ConsumerServiceToProto(cs ConsumerService) (*topicpb.ConsumerService, error
 		ConsumptionType: ct,
 		ServiceId:       ServiceIDToProto(cs.ServiceID()),
 		MessageTtlNanos: cs.MessageTTLNanos(),
+		Filters:         DynamicFilterConfigToProto(cs.DynamicFilterConfigs()),
 	}, nil
 }
 
@@ -274,12 +443,48 @@ func (cs *consumerService) SetMessageTTLNanos(value int64) ConsumerService {
 	return &newcs
 }
 
+func (cs *consumerService) DynamicFilterConfigs() FilterConfig {
+	if cs.filterConfigs == nil {
+		return nil
+	}
+
+	return cs.filterConfigs
+}
+
+func (cs *consumerService) SetDynamicFilterConfigs(value FilterConfig) ConsumerService {
+	newcs := *cs
+	if value != nil {
+		newcs.filterConfigs = value.(*filterConfig)
+	} else {
+		newcs.filterConfigs = nil
+	}
+	return &newcs
+}
+
 func (cs *consumerService) String() string {
 	var buf bytes.Buffer
 	buf.WriteString("{")
 	buf.WriteString(fmt.Sprintf("service: %s, consumption type: %s", cs.sid.String(), cs.ct.String()))
 	if cs.ttlNanos != 0 {
 		buf.WriteString(fmt.Sprintf(", ttl: %v", time.Duration(cs.ttlNanos)))
+	}
+	if cs.filterConfigs != nil {
+		if cs.filterConfigs.shardSetFilterConfig != nil {
+			buf.WriteString(fmt.Sprintf(", shard set filter: %s", cs.filterConfigs.shardSetFilterConfig.shardSet))
+		}
+		if cs.filterConfigs.percentageFilterConfig != nil {
+			buf.WriteString(fmt.Sprintf(", percentage filter: %v", cs.filterConfigs.percentageFilterConfig.percentage))
+		}
+		if cs.filterConfigs.storagePolicyFilterConfig != nil {
+			buf.WriteString(
+				fmt.Sprintf(", storage policy filter: %v", cs.filterConfigs.storagePolicyFilterConfig.storagePolicies))
+		}
+		if cs.filterConfigs.routingPolicyFilterConfig != nil {
+			buf.WriteString(fmt.Sprintf(", routing policy filter allowed traffic types: %v",
+				cs.filterConfigs.routingPolicyFilterConfig.allowedTrafficTypes))
+			buf.WriteString(fmt.Sprintf(", routing policy filter is default: %v",
+				cs.filterConfigs.routingPolicyFilterConfig.isDefault))
+		}
 	}
 	buf.WriteString("}")
 	return buf.String()
@@ -297,4 +502,81 @@ func ServiceIDToProto(sid services.ServiceID) *topicpb.ServiceID {
 		Environment: sid.Environment(),
 		Zone:        sid.Zone(),
 	}
+}
+
+// NewDynamicFilterConfigFromProto creates filter config from a proto.
+func NewDynamicFilterConfigFromProto(filterProto *topicpb.Filters) FilterConfig {
+	if filterProto == nil {
+		return nil
+	}
+
+	filter := filterConfig{}
+	if filterProto.ShardSetFilter != nil {
+		filter.shardSetFilterConfig = &shardSetFilter{shardSet: filterProto.ShardSetFilter.ShardSet}
+	}
+	if filterProto.PercentageFilter != nil {
+		filter.percentageFilterConfig = &percentageFilter{percentage: filterProto.PercentageFilter.Percentage}
+	}
+	if filterProto.StoragePolicyFilter != nil {
+		filter.storagePolicyFilterConfig = &storagePolicyFilter{
+			storagePolicies: filterProto.StoragePolicyFilter.StoragePolicies}
+	}
+	if filterProto.RoutingPolicyFilter != nil {
+		filter.routingPolicyFilterConfig = &routingPolicyFilter{
+			allowedTrafficTypes: filterProto.RoutingPolicyFilter.AllowedTrafficTypes,
+			isDefault:           filterProto.RoutingPolicyFilter.IsDefault,
+		}
+	}
+
+	return &filter
+}
+
+// DynamicFilterConfigToProto creates proto from a filter config.
+func DynamicFilterConfigToProto(filter FilterConfig) *topicpb.Filters {
+	if filter == nil {
+		return nil
+	}
+
+	return &topicpb.Filters{
+		ShardSetFilter:      ShardSetFilterToProto(filter.ShardSetFilter()),
+		PercentageFilter:    PercentageFilterToProto(filter.PercentageFilter()),
+		StoragePolicyFilter: StoragePolicyFilterToProto(filter.StoragePolicyFilter()),
+		RoutingPolicyFilter: RoutingPolicyFilterToProto(filter.RoutingPolicyFilter()),
+	}
+}
+
+// ShardSetFilterToProto creates proto from a shard set filter.
+func ShardSetFilterToProto(filter ShardSetFilter) *topicpb.ShardSetFilter {
+	if filter == nil {
+		return nil
+	}
+
+	return &topicpb.ShardSetFilter{ShardSet: filter.ShardSet()}
+}
+
+// PercentageFilterToProto creates proto from a percentage filter.
+func PercentageFilterToProto(filter PercentageFilter) *topicpb.PercentageFilter {
+	if filter == nil {
+		return nil
+	}
+
+	return &topicpb.PercentageFilter{Percentage: filter.Percentage()}
+}
+
+// StoragePolicyFilterToProto creates proto from a storage policy filter.
+func StoragePolicyFilterToProto(filter StoragePolicyFilter) *topicpb.StoragePolicyFilter {
+	if filter == nil {
+		return nil
+	}
+
+	return &topicpb.StoragePolicyFilter{StoragePolicies: filter.StoragePolicies()}
+}
+
+// RoutingPolicyFilterToProto creates proto from a routing policy filter.
+func RoutingPolicyFilterToProto(filter RoutingPolicyFilter) *topicpb.RoutingPolicyFilter {
+	if filter == nil {
+		return nil
+	}
+
+	return &topicpb.RoutingPolicyFilter{AllowedTrafficTypes: filter.AllowedTrafficTypes(), IsDefault: filter.IsDefault()}
 }

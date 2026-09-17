@@ -33,7 +33,7 @@ func TestCatchNewFields(t *testing.T) {
 	verifyFields(t, &StagedMetadatas{}, 1)
 	verifyFields(t, &StagedMetadata{}, 3)
 	verifyFields(t, &Metadata{}, 1)
-	verifyFields(t, &PipelineMetadata{}, 5)
+	verifyFields(t, &PipelineMetadata{}, 6)
 	verifyFields(t, &pipelinepb.AppliedPipeline{}, 1)
 	verifyFields(t, &pipelinepb.AppliedPipelineOp{}, 3)
 	verifyFields(t, &pipelinepb.AppliedRollupOp{}, 2)

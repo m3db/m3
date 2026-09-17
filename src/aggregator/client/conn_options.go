@@ -28,11 +28,13 @@ import (
 	xio "github.com/m3db/m3/src/x/io"
 	xnet "github.com/m3db/m3/src/x/net"
 	"github.com/m3db/m3/src/x/retry"
+	xtls "github.com/m3db/m3/src/x/tls"
 )
 
 const (
 	defaultConnectionTimeout            = 1 * time.Second
 	defaultConnectionKeepAlive          = true
+	defaultReadTimeout                  = 15 * time.Second
 	defaultWriteTimeout                 = 15 * time.Second
 	defaultInitReconnectThreshold       = 1
 	defaultMaxReconnectThreshold        = 4
@@ -70,6 +72,12 @@ type ConnectionOptions interface {
 
 	// ConnectionKeepAlive returns the keepAlive for the connection.
 	ConnectionKeepAlive() bool
+
+	// SetReadTimeout sets the timeout for reading data.
+	SetReadTimeout(value time.Duration) ConnectionOptions
+
+	// ReadTimeout returns the timeout for reading data.
+	ReadTimeout() time.Duration
 
 	// SetWriteTimeout sets the timeout for writing data.
 	SetWriteTimeout(value time.Duration) ConnectionOptions
@@ -113,6 +121,12 @@ type ConnectionOptions interface {
 	// RWOptions returns the RW options.
 	RWOptions() xio.Options
 
+	// SetTLSOptions sets TLS options
+	SetTLSOptions(value xtls.Options) ConnectionOptions
+
+	// TLSOptions returns the TLS options
+	TLSOptions() xtls.Options
+
 	// ContextDialer allows customizing the way an aggregator client the aggregator, at the TCP layer.
 	// By default, this is:
 	// (&net.ContextDialer{}).DialContext. This can be used to do a variety of things, such as forwarding a connection
@@ -131,12 +145,14 @@ type connectionOptions struct {
 	writeRetryOpts retry.Options
 	rwOpts         xio.Options
 	connTimeout    time.Duration
+	readTimeout    time.Duration
 	writeTimeout   time.Duration
 	maxDuration    time.Duration
 	initThreshold  int
 	maxThreshold   int
 	multiplier     int
 	connKeepAlive  bool
+	tlsOptions     xtls.Options
 	dialer         xnet.ContextDialerFn
 }
 
@@ -153,12 +169,14 @@ func NewConnectionOptions() ConnectionOptions {
 		instrumentOpts: instrument.NewOptions(),
 		connTimeout:    defaultConnectionTimeout,
 		connKeepAlive:  defaultConnectionKeepAlive,
+		readTimeout:    defaultReadTimeout,
 		writeTimeout:   defaultWriteTimeout,
 		initThreshold:  defaultInitReconnectThreshold,
 		maxThreshold:   defaultMaxReconnectThreshold,
 		multiplier:     defaultReconnectThresholdMultiplier,
 		maxDuration:    defaultMaxReconnectDuration,
 		writeRetryOpts: defaultWriteRetryOpts,
+		tlsOptions:     xtls.NewOptions(),
 		rwOpts:         xio.NewOptions(),
 		dialer:         nil, // Will default to net.Dialer{}.DialContext
 	}
@@ -202,6 +220,16 @@ func (o *connectionOptions) SetConnectionKeepAlive(value bool) ConnectionOptions
 
 func (o *connectionOptions) ConnectionKeepAlive() bool {
 	return o.connKeepAlive
+}
+
+func (o *connectionOptions) SetReadTimeout(value time.Duration) ConnectionOptions {
+	opts := *o
+	opts.readTimeout = value
+	return &opts
+}
+
+func (o *connectionOptions) ReadTimeout() time.Duration {
+	return o.readTimeout
 }
 
 func (o *connectionOptions) SetWriteTimeout(value time.Duration) ConnectionOptions {
@@ -272,6 +300,16 @@ func (o *connectionOptions) SetRWOptions(value xio.Options) ConnectionOptions {
 
 func (o *connectionOptions) RWOptions() xio.Options {
 	return o.rwOpts
+}
+
+func (o *connectionOptions) SetTLSOptions(value xtls.Options) ConnectionOptions {
+	opts := *o
+	opts.tlsOptions = value
+	return &opts
+}
+
+func (o *connectionOptions) TLSOptions() xtls.Options {
+	return o.tlsOptions
 }
 
 func (o *connectionOptions) ContextDialer() xnet.ContextDialerFn {

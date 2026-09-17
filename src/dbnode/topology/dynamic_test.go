@@ -32,10 +32,17 @@ import (
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
+	"github.com/m3db/m3/src/dbnode/sharding"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 func testSetup(ctrl *gomock.Controller) (DynamicOptions, *testWatch) {
-	opts := NewDynamicOptions()
+	opts := NewDynamicOptions().
+		SetInstrumentOptions(instrument.NewOptions()).
+		SetServiceID(services.NewServiceID().SetName(defaultServiceName)).
+		SetServicesOverrideOptions(services.NewOverrideOptions()).
+		SetQueryOptions(services.NewQueryOptions()).
+		SetHashGen(sharding.DefaultHashFn)
 
 	watch := newTestWatch(ctrl, time.Millisecond, time.Millisecond, 100, 100)
 	mockCSServices := services.NewMockServices(ctrl)
@@ -60,7 +67,8 @@ func TestInitNoTimeout(t *testing.T) {
 	defer testFinish(ctrl, w)
 
 	go w.run()
-	topo, err := newDynamicTopology(opts)
+	initializer := NewDynamicInitializer(opts)
+	topo, err := initializer.Init()
 
 	assert.NoError(t, err)
 	assert.NotNil(t, topo)
@@ -75,7 +83,8 @@ func TestBack(t *testing.T) {
 	defer testFinish(ctrl, w)
 
 	go w.run()
-	topo, err := newDynamicTopology(opts)
+	initializer := NewDynamicInitializer(opts)
+	topo, err := initializer.Init()
 	assert.NoError(t, err)
 	mw, err := topo.Watch()
 	assert.NoError(t, err)
@@ -94,7 +103,8 @@ func TestGet(t *testing.T) {
 	defer testFinish(ctrl, w)
 
 	go w.run()
-	topo, err := newDynamicTopology(opts)
+	initializer := NewDynamicInitializer(opts)
+	topo, err := initializer.Init()
 	assert.NoError(t, err)
 
 	m := topo.Get()
@@ -107,7 +117,8 @@ func TestWatch(t *testing.T) {
 	defer testFinish(ctrl, watch)
 
 	go watch.run()
-	topo, err := newDynamicTopology(opts)
+	initializer := NewDynamicInitializer(opts)
+	topo, err := initializer.Init()
 	assert.NoError(t, err)
 
 	w, err := topo.Watch()
@@ -161,6 +172,30 @@ func TestGetUniqueShardsAndReplicas(t *testing.T) {
 	_, err = validateInstances(goodInstances, 2, 3)
 	// got h1:0, h2: 2, h3 0,2, missing 1
 	assert.Equal(t, errMissingShard, err)
+}
+
+func TestDynamicInitializerFailsToInitialize(t *testing.T) {
+	tests := []struct {
+		name string
+		opts DynamicOptions
+	}{
+		{
+			name: "nil config service client",
+			opts: NewDynamicOptions().SetConfigServiceClient(nil),
+		},
+		{
+			name: "nil hash gen function",
+			opts: NewDynamicOptions().SetHashGen(nil),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			initializer := NewDynamicInitializer(tt.opts)
+			_, err := initializer.Init()
+			assert.Error(t, err)
+		})
+	}
 }
 
 type testWatch struct {

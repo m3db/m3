@@ -506,7 +506,7 @@ func newM3MsgProducer(opts testServerOptions) (producer.Producer, error) {
 		SetMessageQueueNewWritesScanInterval(10 * time.Millisecond).
 		SetMessageQueueFullScanInterval(100 * time.Millisecond).
 		SetConnectionOptions(connectionOpts)
-	writer := msgwriter.NewWriter(writerOpts)
+	writer := msgwriter.NewWriter(writerOpts, nil, "")
 	producerOpts := producer.NewOptions().
 		SetBuffer(buffer).
 		SetWriter(writer)

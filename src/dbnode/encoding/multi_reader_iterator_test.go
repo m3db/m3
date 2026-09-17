@@ -378,8 +378,8 @@ func assertTestMultiReaderIterator(
 	iter.Close()
 
 	// Ensure all closed
-	for _, iter := range testIterators {
-		assert.Equal(t, true, iter.closed)
+	for _, testIter := range testIterators {
+		require.Equal(t, true, testIter.closed)
 	}
 	assert.Equal(t, true, slicesIter.(*testReaderSliceOfSlicesIterator).closed)
 }

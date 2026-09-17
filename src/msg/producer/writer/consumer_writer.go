@@ -21,10 +21,12 @@
 package writer
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"sync"
 	"time"
@@ -55,25 +57,45 @@ type consumerWriter interface {
 	// Write writes the bytes, it is thread safe per connection index.
 	Write(connIndex int, b []byte) error
 
+	// ForcedFlush forces a flush of the bytes in the buffer.
+	ForcedFlush(connIndex int) error
+
 	// Init initializes the consumer writer.
 	Init()
 
 	// Close closes the consumer writer.
 	Close()
+
+	// AvailableBuffer returns the available capacity in bytes in the send buffer.
+	// Note that this only accounts for the capacity in the bufio layer and not
+	// the bytes within the TCP sendbuffer.
+	AvailableBuffer(connIndex int) int
 }
 
 type consumerWriterMetrics struct {
-	writeInvalidConn        tally.Counter
-	readInvalidConn         tally.Counter
-	ackError                tally.Counter
-	decodeError             tally.Counter
-	encodeError             tally.Counter
-	resetTooSoon            tally.Counter
-	resetSuccess            tally.Counter
-	resetError              tally.Counter
-	connectError            tally.Counter
-	setKeepAliveError       tally.Counter
-	setKeepAlivePeriodError tally.Counter
+	writeInvalidConn              tally.Counter
+	readInvalidConn               tally.Counter
+	ackError                      tally.Counter
+	decodeError                   tally.Counter
+	encodeError                   tally.Counter
+	resetTooSoon                  tally.Counter
+	resetSuccess                  tally.Counter
+	resetError                    tally.Counter
+	connectError                  tally.Counter
+	setKeepAliveError             tally.Counter
+	setKeepAlivePeriodError       tally.Counter
+	cwWriteTimeoutError           tally.Counter
+	cwFlushTimeoutError           tally.Counter
+	cwFlushLatency                tally.Histogram
+	cwFlushLatencyWithLock        tally.Histogram
+	cwForcedFlushTimeoutError     tally.Counter
+	cwForcedFlushWaitTimeoutError tally.Counter
+	cwForcedFlushSkipped          tally.Counter
+	cwForcedFlushLatency          tally.Histogram
+	cwForcedFlushLatencyWithLock  tally.Histogram
+	cwWriteErrorLatency           tally.Histogram
+	cwWriteErrorLatencyWithLock   tally.Histogram
+	cwBufioWriterCastError        tally.Counter
 }
 
 func newConsumerWriterMetrics(scope tally.Scope) consumerWriterMetrics {
@@ -89,6 +111,24 @@ func newConsumerWriterMetrics(scope tally.Scope) consumerWriterMetrics {
 		connectError:            scope.Counter("connect-error"),
 		setKeepAliveError:       scope.Counter("set-keep-alive-error"),
 		setKeepAlivePeriodError: scope.Counter("set-keep-alive-period-error"),
+		cwWriteTimeoutError:     scope.Counter("cw-write-timeout-error"),
+		cwFlushTimeoutError:     scope.Counter("cw-flush-timeout-error"),
+		cwFlushLatency: scope.Histogram("cw-flush-latency",
+			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
+		cwFlushLatencyWithLock: scope.Histogram("cw-flush-latency-with-lock",
+			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
+		cwForcedFlushTimeoutError:     scope.Counter("cw-forced-flush-timeout-error"),
+		cwForcedFlushWaitTimeoutError: scope.Counter("cw-forced-flush-wait-timeout-error"),
+		cwForcedFlushSkipped:          scope.Counter("cw-forced-flush-skipped"),
+		cwForcedFlushLatency: scope.Histogram("cw-forced-flush-latency",
+			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
+		cwForcedFlushLatencyWithLock: scope.Histogram("cw-forced-flush-latency-with-lock",
+			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
+		cwWriteErrorLatency: scope.Histogram("cw-write-error-latency",
+			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
+		cwWriteErrorLatencyWithLock: scope.Histogram("cw-write-error-latency-with-lock",
+			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 15)),
+		cwBufioWriterCastError: scope.Counter("cw-bufio-writer-cast-error"),
 	}
 }
 
@@ -128,6 +168,13 @@ type consumerWriterImplWriteState struct {
 	// to reuse.
 	conns          []*connection
 	lastResetNanos int64
+	forcedFlush    forcedFlushState
+}
+
+type forcedFlushState struct {
+	mu         sync.Mutex
+	cond       *sync.Cond
+	inProgress bool
 }
 
 type connection struct {
@@ -148,6 +195,7 @@ func newConsumerWriter(
 		opts = NewOptions()
 	}
 
+	logger := opts.InstrumentOptions().Logger()
 	connOpts := opts.ConnectionOptions()
 	w := &consumerWriterImpl{
 		addr:        addr,
@@ -156,12 +204,13 @@ func newConsumerWriter(
 		connOpts:    connOpts,
 		ackRetrier:  retry.NewRetrier(opts.AckErrorRetryOptions()),
 		connRetrier: retry.NewRetrier(connOpts.RetryOptions().SetForever(defaultRetryForever)),
-		logger:      opts.InstrumentOptions().Logger(),
+		logger:      logger,
 		resetCh:     make(chan struct{}, 1),
 		doneCh:      make(chan struct{}),
 		m:           m,
 		nowFn:       time.Now,
 	}
+	w.writeState.forcedFlush.cond = sync.NewCond(&w.writeState.forcedFlush.mu)
 	w.connectFn = w.connectNoRetry
 
 	// Initialize no-op connections since it's valid even if connecting the
@@ -185,6 +234,7 @@ func newConsumerWriter(
 	if err := w.resetWithConnectFn(connectAllNoRetry); err != nil {
 		w.notifyReset(err)
 	}
+	logger.Info("consumer writer created", zap.String("address", addr))
 	return w
 }
 
@@ -209,9 +259,20 @@ func (w *consumerWriterImpl) Write(connIndex int, b []byte) error {
 	writeConn := w.writeState.conns[connIndex]
 
 	// Make sure only writer to this connection.
+	startWriteWithLockTs := w.nowFn()
 	writeConn.writeLock.Lock()
+	startWriteTs := w.nowFn()
 	_, err := writeConn.w.Write(b)
+	if err != nil {
+		var netErr *net.OpError
+		if errors.As(err, &netErr) && netErr.Timeout() {
+			w.logger.Warn("consumer writer write timeout", zap.String("address", w.addr))
+			w.m.cwWriteTimeoutError.Inc(1)
+		}
+	}
+	endWriteTs := w.nowFn()
 	writeConn.writeLock.Unlock()
+	endWriteWithLockTs := w.nowFn()
 
 	// Hold onto the write state lock until done, since
 	// closing connections are done by acquiring the write state lock.
@@ -220,6 +281,8 @@ func (w *consumerWriterImpl) Write(connIndex int, b []byte) error {
 	if err != nil {
 		w.notifyReset(err)
 		w.m.encodeError.Inc(1)
+		w.m.cwWriteErrorLatencyWithLock.RecordDuration(endWriteWithLockTs.Sub(startWriteWithLockTs))
+		w.m.cwWriteErrorLatency.RecordDuration(endWriteTs.Sub(startWriteTs))
 	}
 
 	return err
@@ -248,6 +311,117 @@ func (w *consumerWriterImpl) Init() {
 	}()
 }
 
+// ForcedFlush preemptively flushes the data for a consumer writer.
+func (w *consumerWriterImpl) ForcedFlush(connIndex int) error {
+	waited := false
+	w.writeState.forcedFlush.mu.Lock()
+	// Notice that we are not waiting continuously on the
+	// condition variable, but only if the flush is in progress.
+	// Once the active flush completes, it will wakeup all waiting
+	// goroutines and they will return for a chance to write
+	// to the newly opened up space in the flush buffer.
+	if w.writeState.forcedFlush.inProgress {
+		waited = true
+		// Wait for the in-progress flush to finish.
+		w.writeState.forcedFlush.cond.Wait()
+	}
+
+	if waited {
+		// we don't need to perform a flush as we just completed one.
+		// simply
+		// 	 release the lock
+		//   return success.
+		// Note that we don't need to do a cond.Broadcast() since
+		// we did not set inProgress to true.
+		// The in-progress flush will be set to false when the
+		// in-progress flush completes.
+		// This is important since we don't want to wake up
+		// the waiting goroutines if we are not going to
+		// perform a flush.
+		w.writeState.forcedFlush.mu.Unlock()
+		w.m.cwForcedFlushSkipped.Inc(1)
+		return nil
+	}
+
+	// we need to perform a forced flush now.
+	w.writeState.forcedFlush.inProgress = true
+	w.writeState.forcedFlush.mu.Unlock()
+	defer func() {
+		// Set flush in progress to false.
+		w.writeState.forcedFlush.mu.Lock()
+		w.writeState.forcedFlush.inProgress = false
+		w.writeState.forcedFlush.cond.Broadcast()
+		w.writeState.forcedFlush.mu.Unlock()
+		w.logger.Debug("forced flush done", zap.String("address", w.addr))
+	}()
+
+	return w.flush(connIndex)
+}
+
+func (w *consumerWriterImpl) flush(connIndex int) error {
+	w.writeState.RLock()
+	if !w.writeState.validConns || len(w.writeState.conns) == 0 {
+		w.writeState.RUnlock()
+		w.m.writeInvalidConn.Inc(1)
+		return errInvalidConnection
+	}
+	if connIndex < 0 || connIndex >= len(w.writeState.conns) {
+		w.writeState.RUnlock()
+		return fmt.Errorf("connection index out of range: %d", connIndex)
+	}
+
+	writeConn := w.writeState.conns[connIndex]
+	// Make sure this is the only writer to this connection.
+	startFlushWithLockTs := w.nowFn()
+
+	writeConn.writeLock.Lock()
+	startFlushTs := w.nowFn()
+
+	if err := writeConn.w.Flush(); err != nil {
+		var netErr *net.OpError
+		if errors.As(err, &netErr) && netErr.Timeout() {
+			w.logger.Warn("consumer writer forced flush timeout", zap.String("address", w.addr))
+			w.m.cwForcedFlushTimeoutError.Inc(1)
+		}
+		w.notifyReset(err)
+	}
+	endFlushTs := w.nowFn()
+
+	writeConn.writeLock.Unlock()
+	endFlushWithLockTs := w.nowFn()
+
+	w.writeState.RUnlock()
+
+	w.m.cwForcedFlushLatency.RecordDuration(endFlushTs.Sub(startFlushTs))
+	w.m.cwForcedFlushLatencyWithLock.RecordDuration(endFlushWithLockTs.Sub(startFlushWithLockTs))
+
+	return nil
+}
+
+func (w *consumerWriterImpl) AvailableBuffer(connIndex int) int {
+	w.writeState.RLock()
+	defer w.writeState.RUnlock()
+	if !w.writeState.validConns || len(w.writeState.conns) == 0 {
+		return 0
+	}
+
+	if connIndex < 0 || connIndex >= len(w.writeState.conns) {
+		return 0
+	}
+
+	conn := w.writeState.conns[connIndex]
+	if conn.w == nil {
+		return 0
+	}
+
+	buf, ok := conn.w.(*bufio.Writer)
+	if !ok {
+		w.m.cwBufioWriterCastError.Inc(1)
+		return math.MaxInt
+	}
+	return buf.Available()
+}
+
 func (w *consumerWriterImpl) flushUntilClose() {
 	flushTicker := time.NewTicker(w.connOpts.FlushInterval())
 	defer flushTicker.Stop()
@@ -257,11 +431,23 @@ func (w *consumerWriterImpl) flushUntilClose() {
 		case <-flushTicker.C:
 			w.writeState.RLock()
 			for _, conn := range w.writeState.conns {
+				startFlushWithLockTs := w.nowFn()
 				conn.writeLock.Lock()
+				startFlushTs := w.nowFn()
 				if err := conn.w.Flush(); err != nil {
+					var netErr *net.OpError
+					if errors.As(err, &netErr) && netErr.Timeout() {
+						w.logger.Warn("consumer writer flush timeout", zap.String("address", w.addr))
+						w.m.cwFlushTimeoutError.Inc(1)
+					}
 					w.notifyReset(err)
 				}
+				endFlushTs := w.nowFn()
 				conn.writeLock.Unlock()
+				endFlushWithLockTs := w.nowFn()
+
+				w.m.cwFlushLatency.RecordDuration(endFlushTs.Sub(startFlushTs))
+				w.m.cwFlushLatencyWithLock.RecordDuration(endFlushWithLockTs.Sub(startFlushWithLockTs))
 			}
 			// Hold onto the write state lock until done, since
 			// closing connections are done by acquiring the write state lock.
@@ -308,9 +494,23 @@ func (w *consumerWriterImpl) resetTooSoon() bool {
 }
 
 func (w *consumerWriterImpl) resetWithConnectFn(fn connectAllFn) error {
+	existingConns := []*connection{}
 	w.writeState.Lock()
-	w.writeState.validConns = false
+	if w.writeState.validConns {
+		w.writeState.validConns = false
+		existingConns = w.writeState.conns
+	}
 	w.writeState.Unlock()
+
+	// Close the existing connections.
+	for _, c := range existingConns {
+		if err := w.closeConnection(c); err != nil {
+			w.logger.Warn("close connection failed", zap.Error(err))
+		}
+	}
+
+	// Now that the existing connections have been closed,
+	// we can re-attempt connections.
 	conns, err := fn(w.addr)
 	if err != nil {
 		return err
@@ -320,6 +520,33 @@ func (w *consumerWriterImpl) resetWithConnectFn(fn connectAllFn) error {
 		at:          w.nowFn(),
 		validConns:  true,
 	})
+	return nil
+}
+
+func (w *consumerWriterImpl) closeConnection(c *connection) error {
+	if w.connOpts.AbortOnServerClose() {
+		// set linger off to abort the connection immediately.
+		rw, ok := c.conn.(readWriterWithTimeout)
+		if ok && rw.setLingerOff != nil {
+			err := rw.setLingerOff()
+			if err != nil {
+				w.logger.Warn("could not set linger", zap.Error(err))
+			}
+		} else {
+			w.logger.Warn("could not set linger, not a TCP connection")
+		}
+	}
+
+	w.logger.Info("closing connection on server reset", zap.String("address", w.addr))
+	if err := c.conn.Close(); err != nil {
+		w.logger.Warn(
+			"could not close connection",
+			zap.Error(err),
+			zap.String("address", w.addr),
+		)
+		return err
+	}
+
 	return nil
 }
 
@@ -373,6 +600,7 @@ func (w *consumerWriterImpl) readAcks(idx int) error {
 }
 
 func (w *consumerWriterImpl) Close() {
+	w.logger.Info("closing consumer writer", zap.String("address", w.addr))
 	w.writeState.Lock()
 	wasClosed := w.writeState.closed
 	w.writeState.closed = true
@@ -385,6 +613,7 @@ func (w *consumerWriterImpl) Close() {
 	close(w.doneCh)
 
 	w.wg.Wait()
+	w.logger.Info("closed consumer writer", zap.String("address", w.addr))
 }
 
 func (w *consumerWriterImpl) notifyReset(err error) {
@@ -411,14 +640,7 @@ type resetOptions struct {
 
 func (w *consumerWriterImpl) reset(opts resetOptions) {
 	w.writeState.Lock()
-	prevConns := w.writeState.conns
-	defer func() {
-		w.writeState.Unlock()
-		// Close existing connections outside of locks.
-		for _, c := range prevConns {
-			c.conn.Close()
-		}
-	}()
+	defer w.writeState.Unlock()
 
 	var (
 		wOpts = xio.ResettableWriterOptions{
@@ -463,23 +685,46 @@ func (w *consumerWriterImpl) connectNoRetryWithTimeout(addr string) (readWriterW
 		w.m.connectError.Inc(1)
 		return readWriterWithTimeout{}, err
 	}
+
+	var setLingerOffFn setLingerOffFn
+	if conn, ok := conn.(*net.TCPConn); ok {
+		setLingerOffFn = func() error {
+			return conn.SetLinger(0)
+		}
+	}
+
 	tcpConn, ok := conn.(keepAlivable)
 	if !ok {
 		// If using a custom dialer which doesn't return *net.TCPConn, users are responsible for TCP keep alive options
 		// themselves.
-		return newReadWriterWithTimeout(conn, w.connOpts.WriteTimeout(), w.nowFn), nil
+		return newReadWriterWithTimeout(
+			conn,
+			w.connOpts.WriteTimeout(),
+			setLingerOffFn,
+			w.nowFn,
+		), nil
 	}
 	if err = tcpConn.SetKeepAlive(true); err != nil {
 		w.m.setKeepAliveError.Inc(1)
 	}
 	keepAlivePeriod := w.connOpts.KeepAlivePeriod()
 	if keepAlivePeriod <= 0 {
-		return newReadWriterWithTimeout(conn, w.connOpts.WriteTimeout(), w.nowFn), nil
+		return newReadWriterWithTimeout(
+			conn,
+			w.connOpts.WriteTimeout(),
+			setLingerOffFn,
+			w.nowFn,
+		), nil
 	}
 	if err = tcpConn.SetKeepAlivePeriod(keepAlivePeriod); err != nil {
 		w.m.setKeepAlivePeriodError.Inc(1)
 	}
-	return newReadWriterWithTimeout(conn, w.connOpts.WriteTimeout(), w.nowFn), nil
+	return newReadWriterWithTimeout(
+		conn,
+		w.connOpts.WriteTimeout(),
+		setLingerOffFn,
+		w.nowFn,
+	), nil
 }
 
 // Make sure net.TCPConn implements this; otherwise bad things will happen.
@@ -533,18 +778,27 @@ func (w *consumerWriterImpl) newConnectFn(opts connectOptions) connectAllFn {
 	}
 }
 
+type setLingerOffFn func() error
+
 type readWriterWithTimeout struct {
 	net.Conn
 
-	timeout time.Duration
-	nowFn   clock.NowFn
+	setLingerOff setLingerOffFn
+	timeout      time.Duration
+	nowFn        clock.NowFn
 }
 
-func newReadWriterWithTimeout(conn net.Conn, timeout time.Duration, nowFn clock.NowFn) readWriterWithTimeout {
+func newReadWriterWithTimeout(
+	conn net.Conn,
+	timeout time.Duration,
+	setLingerOff setLingerOffFn,
+	nowFn clock.NowFn,
+) readWriterWithTimeout {
 	return readWriterWithTimeout{
-		Conn:    conn,
-		timeout: timeout,
-		nowFn:   nowFn,
+		Conn:         conn,
+		timeout:      timeout,
+		setLingerOff: setLingerOff,
+		nowFn:        nowFn,
 	}
 }
 

@@ -4202,8 +4202,16 @@ func TestActiveRuleSetReverseMatchWithMappingRulesForNonRollupID(t *testing.T) {
 	for i, input := range inputs {
 		input := input
 		t.Run(fmt.Sprintf("input %d", i), func(t *testing.T) {
-			res, err := as.ReverseMatch(input.ID(), input.matchFrom, input.matchTo,
-				input.metricType, input.aggregationType, isMultiAggregationTypesAllowed, aggTypesOpts)
+			res, err := as.ReverseMatch(
+				input.ID(),
+				input.matchFrom,
+				input.matchTo,
+				input.metricType,
+				input.aggregationType,
+				isMultiAggregationTypesAllowed,
+				aggTypesOpts,
+				testMatchOptions(),
+			)
 			require.NoError(t, err)
 			require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 			require.True(t, cmp.Equal(input.forExistingIDResult, res.ForExistingIDAt(0), testStagedMetadatasCmptOpts...))
@@ -4408,8 +4416,16 @@ func TestActiveRuleSetReverseMatchWithRollupRulesForRollupID(t *testing.T) {
 		testIncludeTagKeys(),
 	)
 	for _, input := range inputs {
-		res, err := as.ReverseMatch(input.ID(), input.matchFrom, input.matchTo, input.metricType, input.aggregationType,
-			isMultiAggregationTypesAllowed, aggTypesOpts)
+		res, err := as.ReverseMatch(
+			input.ID(),
+			input.matchFrom,
+			input.matchTo,
+			input.metricType,
+			input.aggregationType,
+			isMultiAggregationTypesAllowed,
+			aggTypesOpts,
+			testMatchOptions(),
+		)
 		require.NoError(t, err)
 		require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 		require.Equal(t, input.forExistingIDResult, res.ForExistingIDAt(0))

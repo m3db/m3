@@ -22,6 +22,7 @@ package encoding
 
 import (
 	"math"
+	"math/bits"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -34,4 +35,28 @@ func TestNumSig(t *testing.T) {
 	require.Equal(t, uint8(63), NumSig(uint64(math.MaxUint64>>1)))
 	require.Equal(t, uint8(64), NumSig(uint64(math.MaxUint64)))
 	require.Equal(t, uint8(64), NumSig(uint64(math.MaxUint64-1)))
+}
+
+func TestLeadingAndTrailingZeros(t *testing.T) {
+	tests := []struct {
+		name       string
+		input      uint64
+		expectedLZ int
+		expectedTZ int
+	}{
+		{"Zero case", 0, 64, 0},
+		{"All ones", ^uint64(0), 0, 0},
+		{"Single bit (LSB)", 1, 63, 0},
+		{"Single bit (MSB)", 1 << 63, 0, 63},
+		{"Multiple bits", 0b0000110000000000, 52, 10},
+		{"Random number", 0xF0F00000000000F, bits.LeadingZeros64(0xF0F00000000000F), bits.TrailingZeros64(0xF0F00000000000F)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			leading, trailing := LeadingAndTrailingZeros(tt.input)
+			require.Equal(t, tt.expectedLZ, leading)
+			require.Equal(t, tt.expectedTZ, trailing)
+		})
+	}
 }

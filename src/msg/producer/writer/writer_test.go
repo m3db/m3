@@ -30,14 +30,18 @@ import (
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 	"go.uber.org/atomic"
+	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
+	"github.com/m3db/m3/src/msg/generated/proto/topicpb"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/topic"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -57,7 +61,7 @@ func TestWriterInitErrorNoTopic(t *testing.T) {
 	require.NoError(t, err)
 
 	opts := testOptions().SetTopicService(ts)
-	w := NewWriter(opts)
+	w := NewWriter(opts, nil, "")
 	require.Error(t, w.Init())
 	w.Close()
 }
@@ -76,7 +80,7 @@ func TestWriterWriteAfterClosed(t *testing.T) {
 	require.NoError(t, err)
 
 	opts := testOptions().SetTopicService(ts)
-	w := NewWriter(opts)
+	w := NewWriter(opts, nil, "")
 	w.Init()
 	w.Close()
 
@@ -103,7 +107,7 @@ func TestWriterWriteWithInvalidShard(t *testing.T) {
 	require.NoError(t, err)
 
 	opts := testOptions().SetTopicService(ts)
-	w := NewWriter(opts).(*writer)
+	w := NewWriter(opts, nil, "").(*writer)
 	w.numShards = 2
 
 	mm := producer.NewMockMessage(ctrl)
@@ -166,7 +170,7 @@ func TestWriterInvalidTopicUpdate(t *testing.T) {
 	_, err = ps1.Set(p1)
 	require.NoError(t, err)
 
-	w := NewWriter(opts).(*writer)
+	w := NewWriter(opts, nil, "").(*writer)
 	var wg sync.WaitGroup
 	w.processFn = func(i interface{}) error {
 		defer wg.Done()
@@ -211,10 +215,17 @@ func TestWriterRegisterFilter(t *testing.T) {
 	csw1 := NewMockconsumerServiceWriter(ctrl)
 
 	sid2 := services.NewServiceID().SetName("s2")
-	filter := func(producer.Message) bool { return false }
-	filter2 := func(producer.Message) bool { return true }
+	filter := producer.NewFilterFunc(
+		func(producer.Message) bool { return false },
+		producer.UnspecifiedFilter,
+		producer.StaticConfig)
 
-	w := NewWriter(opts).(*writer)
+	filter2 := producer.NewFilterFunc(
+		func(producer.Message) bool { return true },
+		producer.UnspecifiedFilter,
+		producer.StaticConfig)
+
+	w := NewWriter(opts, nil, "").(*writer)
 	w.consumerServiceWriters[cs1.ServiceID().String()] = csw1
 
 	csw1.EXPECT().UnregisterFilters()
@@ -236,7 +247,7 @@ func TestWriterRegisterFilter(t *testing.T) {
 	csw1.EXPECT().RegisterFilter(gomock.Any())
 	w.RegisterFilter(sid1, filter)
 
-	csw1.EXPECT().RegisterFilter(gomock.Any())
+	csw1.EXPECT().SetFilters(gomock.Any())
 	csw1.EXPECT().SetMessageTTLNanos(int64(0))
 	testTopic := topic.NewTopic().
 		SetName(opts.TopicName()).
@@ -296,7 +307,7 @@ func TestWriterTopicUpdate(t *testing.T) {
 	_, err = ps1.Set(p1)
 	require.NoError(t, err)
 
-	w := NewWriter(opts).(*writer)
+	w := NewWriter(opts, nil, "").(*writer)
 	require.NoError(t, w.Init())
 	defer w.Close()
 
@@ -432,7 +443,7 @@ func TestTopicUpdateWithSameConsumerServicesButDifferentOrder(t *testing.T) {
 	_, err = ps2.Set(p2)
 	require.NoError(t, err)
 
-	w := NewWriter(opts).(*writer)
+	w := NewWriter(opts, nil, "").(*writer)
 
 	called := atomic.NewInt32(0)
 	w.processFn = func(update interface{}) error {
@@ -453,6 +464,9 @@ func TestTopicUpdateWithSameConsumerServicesButDifferentOrder(t *testing.T) {
 	cswMock2 := NewMockconsumerServiceWriter(ctrl)
 	w.consumerServiceWriters[cs2.ServiceID().String()] = cswMock2
 	defer csw.Close()
+
+	cswMock1.EXPECT().SetFilters(gomock.Any())
+	cswMock2.EXPECT().SetFilters(gomock.Any())
 
 	cswMock1.EXPECT().SetMessageTTLNanos(int64(0))
 	cswMock2.EXPECT().SetMessageTTLNanos(int64(500))
@@ -558,7 +572,7 @@ func TestWriterWrite(t *testing.T) {
 	_, err = ps2.Set(p2)
 	require.NoError(t, err)
 
-	w := NewWriter(opts).(*writer)
+	w := NewWriter(opts, nil, "").(*writer)
 	require.NoError(t, w.Init())
 	defer w.Close()
 
@@ -640,7 +654,7 @@ func TestWriterCloseBlocking(t *testing.T) {
 	_, err = ps1.Set(p1)
 	require.NoError(t, err)
 
-	w := NewWriter(opts).(*writer)
+	w := NewWriter(opts, nil, "").(*writer)
 	require.NoError(t, w.Init())
 	require.Equal(t, 1, len(w.consumerServiceWriters))
 
@@ -735,7 +749,7 @@ func TestWriterSetMessageTTLNanosDropMetric(t *testing.T) {
 	_, err = ps2.Set(p2)
 	require.NoError(t, err)
 
-	w := NewWriter(opts).(*writer)
+	w := NewWriter(opts, nil, "").(*writer)
 	require.NoError(t, w.Init())
 	defer w.Close()
 
@@ -842,11 +856,579 @@ func TestWriterNumShards(t *testing.T) {
 	_, err = ts.CheckAndSet(testTopic, kv.UninitializedVersion)
 	require.NoError(t, err)
 
-	w := NewWriter(opts).(*writer)
+	w := NewWriter(opts, nil, "").(*writer)
 	defer w.Close()
 
 	require.Equal(t, 0, int(w.NumShards()))
 
 	require.NoError(t, w.Init())
 	require.Equal(t, 2, int(w.NumShards()))
+}
+
+func TestDynamicConsumerServiceWriterFilters(t *testing.T) {
+	testDynamicFilterConfig := topic.NewFilterConfig().
+		SetPercentageFilter(
+			topic.NewPercentageFilter(50),
+		).
+		SetShardSetFilter(
+			topic.NewShardSetFilter("1..5"),
+		).
+		SetStoragePolicyFilter(
+			topic.NewStoragePolicyFilter([]string{"1m:40d"}),
+		)
+
+	type testTopicUpdate struct {
+		dynamicFilterConfig        topic.FilterConfig
+		expectedDataFilters        []producer.FilterFuncMetadata
+		expectTopicUpdateError     bool
+		expectTopicValidationError bool
+		expectedCswCount           int
+	}
+
+	type testCase struct {
+		name          string
+		staticFilters []producer.FilterFuncType
+		topicUpdate1  testTopicUpdate
+		topicUpdate2  *testTopicUpdate
+	}
+
+	tests := []testCase{
+		{
+			name:          "No_Static_Filters_One_Topic_Update_With_Dynamic_Filters",
+			staticFilters: []producer.FilterFuncType{},
+			topicUpdate1: testTopicUpdate{
+				dynamicFilterConfig: testDynamicFilterConfig,
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					testNewFilterMetadata(producer.PercentageFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.ShardSetFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.StoragePolicyFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.AcceptAllFilter, producer.StaticConfig),
+				},
+				expectedCswCount: 1,
+			},
+			topicUpdate2: nil,
+		},
+
+		{
+			name: "Has_Static_Filters_One_Topic_Update_With_Dynamic_Filters",
+			staticFilters: []producer.FilterFuncType{
+				producer.PercentageFilter,
+				producer.ShardSetFilter,
+				producer.StoragePolicyFilter},
+
+			topicUpdate1: testTopicUpdate{
+				dynamicFilterConfig: testDynamicFilterConfig,
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					testNewFilterMetadata(producer.PercentageFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.ShardSetFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.StoragePolicyFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.AcceptAllFilter, producer.StaticConfig),
+				},
+				expectedCswCount: 1,
+			},
+			topicUpdate2: nil,
+		},
+
+		{ // nolint:dupl
+			name: "Has_Static_Filters_Two_Topic_Updates_With_No_Dynamic_Filters",
+			staticFilters: []producer.FilterFuncType{
+				producer.PercentageFilter,
+				producer.ShardSetFilter,
+				producer.StoragePolicyFilter},
+			topicUpdate1: testTopicUpdate{
+				dynamicFilterConfig: nil,
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					testNewFilterMetadata(producer.PercentageFilter, producer.StaticConfig),
+					testNewFilterMetadata(producer.ShardSetFilter, producer.StaticConfig),
+					testNewFilterMetadata(producer.StoragePolicyFilter, producer.StaticConfig),
+					testNewFilterMetadata(producer.AcceptAllFilter, producer.StaticConfig),
+				},
+				expectedCswCount: 1,
+			},
+			topicUpdate2: &testTopicUpdate{
+				dynamicFilterConfig: nil,
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					testNewFilterMetadata(producer.PercentageFilter, producer.StaticConfig),
+					testNewFilterMetadata(producer.ShardSetFilter, producer.StaticConfig),
+					testNewFilterMetadata(producer.StoragePolicyFilter, producer.StaticConfig),
+					testNewFilterMetadata(producer.AcceptAllFilter, producer.StaticConfig),
+				},
+				expectedCswCount: 1,
+			},
+		},
+
+		{
+			name:          "No_Static_Config_Two_Topic_Updates_With_Different_Dynamic_Filters",
+			staticFilters: []producer.FilterFuncType{},
+			topicUpdate1: testTopicUpdate{
+				dynamicFilterConfig: testDynamicFilterConfig,
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					testNewFilterMetadata(producer.PercentageFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.ShardSetFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.StoragePolicyFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.AcceptAllFilter, producer.StaticConfig),
+				},
+				expectedCswCount: 1,
+			},
+			topicUpdate2: &testTopicUpdate{
+				dynamicFilterConfig: topic.NewFilterConfig().SetPercentageFilter(topic.NewPercentageFilter(75)),
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					testNewFilterMetadata(producer.PercentageFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.AcceptAllFilter, producer.StaticConfig),
+				},
+				expectedCswCount: 1,
+			},
+		},
+
+		{
+			name:          "No_Static_Config_One_Topic_Update_With_Invalid_Dynamic_Shard_Set_Filter",
+			staticFilters: []producer.FilterFuncType{},
+			topicUpdate1: testTopicUpdate{
+				dynamicFilterConfig: topic.NewFilterConfig().
+					SetShardSetFilter(topic.NewShardSetFilter("randomstringstrinxyz123abc")),
+				expectedDataFilters:    []producer.FilterFuncMetadata{},
+				expectTopicUpdateError: true,
+				expectedCswCount:       0,
+			},
+			topicUpdate2: nil,
+		},
+
+		{
+			name:          "No_Static_Config_One_Topic_Update_With_Invalid_Dynamic_Percentage_Filter",
+			staticFilters: []producer.FilterFuncType{},
+			topicUpdate1: testTopicUpdate{
+				dynamicFilterConfig:        topic.NewFilterConfig().SetPercentageFilter(topic.NewPercentageFilter(99999)),
+				expectedDataFilters:        []producer.FilterFuncMetadata{},
+				expectTopicValidationError: true,
+				expectedCswCount:           0,
+			},
+			topicUpdate2: nil,
+		},
+
+		{
+			// nolint:lll
+			name:          "No_Static_Config_First_Topic_Update_With_Dynamic_Storage_Policy_Filter_Second_Topic_Update_With_Invalid_Dynamic_Shard_Set_Filter",
+			staticFilters: []producer.FilterFuncType{},
+			topicUpdate1: testTopicUpdate{
+				dynamicFilterConfig: topic.NewFilterConfig().
+					SetStoragePolicyFilter(topic.NewStoragePolicyFilter([]string{"1m:40d"})),
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					testNewFilterMetadata(producer.StoragePolicyFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.AcceptAllFilter, producer.StaticConfig),
+				},
+				expectedCswCount: 1,
+			},
+			topicUpdate2: &testTopicUpdate{
+				dynamicFilterConfig: topic.NewFilterConfig().
+					SetShardSetFilter(topic.NewShardSetFilter("randomstringstrinxyz123abc")),
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					testNewFilterMetadata(producer.AcceptAllFilter, producer.StaticConfig),
+					// second update should not be applied
+					testNewFilterMetadata(producer.StoragePolicyFilter, producer.DynamicConfig),
+				},
+				expectedCswCount: 1,
+			},
+		},
+
+		{
+			// nolint:lll
+			name:          "No_Static_Config_Two_Topic_Updates_First_Update_Adds_Dynamic_Filters_Second_Update_Removes_Dynamic_Filters",
+			staticFilters: []producer.FilterFuncType{},
+			topicUpdate1: testTopicUpdate{
+				dynamicFilterConfig: testDynamicFilterConfig,
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					testNewFilterMetadata(producer.PercentageFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.ShardSetFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.StoragePolicyFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.AcceptAllFilter, producer.StaticConfig),
+				},
+				expectedCswCount: 1,
+			},
+			topicUpdate2: &testTopicUpdate{
+				dynamicFilterConfig: nil,
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					testNewFilterMetadata(producer.AcceptAllFilter, producer.StaticConfig),
+				},
+				expectedCswCount: 1,
+			},
+		},
+
+		{ // nolint:lll,dupl
+			name: "Existing_Static_Config_First_Update_Registers_Dynamic_Filters_Second_Update_Removes_Dynamic_Filters",
+			staticFilters: []producer.FilterFuncType{
+				producer.StoragePolicyFilter},
+			topicUpdate1: testTopicUpdate{
+				dynamicFilterConfig: testDynamicFilterConfig,
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					testNewFilterMetadata(producer.PercentageFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.ShardSetFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.StoragePolicyFilter, producer.DynamicConfig),
+					testNewFilterMetadata(producer.AcceptAllFilter, producer.StaticConfig),
+				},
+				expectedCswCount: 1,
+			},
+			topicUpdate2: &testTopicUpdate{
+				dynamicFilterConfig: nil,
+				expectedDataFilters: []producer.FilterFuncMetadata{
+					testNewFilterMetadata(producer.StoragePolicyFilter, producer.StaticConfig),
+					testNewFilterMetadata(producer.AcceptAllFilter, producer.StaticConfig),
+				},
+				expectedCswCount: 1,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			defer leaktest.Check(t)()
+
+			ctrl := xtest.NewController(t)
+			defer ctrl.Finish()
+
+			store := mem.NewStore()
+			cs := client.NewMockClient(ctrl)
+			cs.EXPECT().Store(gomock.Any()).Return(store, nil)
+
+			ts, err := topic.NewService(topic.NewServiceOptions().SetConfigService(cs))
+			require.NoError(t, err, "expect no error after reading topic service")
+
+			opts := testOptions().SetTopicService(ts)
+
+			sid1 := services.NewServiceID().SetName("s1")
+
+			cs1 := topic.NewConsumerService().SetConsumptionType(topic.Replicated).SetServiceID(sid1)
+
+			if test.topicUpdate1.dynamicFilterConfig != nil {
+				cs1 = cs1.SetDynamicFilterConfigs(test.topicUpdate1.dynamicFilterConfig)
+			}
+
+			testTopic := topic.NewTopic().
+				SetName(opts.TopicName()).
+				SetNumberOfShards(1).
+				SetConsumerServices([]topic.ConsumerService{cs1})
+			_, err = ts.CheckAndSet(testTopic, kv.UninitializedVersion)
+
+			if test.topicUpdate1.expectTopicValidationError {
+				require.Error(t, err, "expect error after setting topic")
+				return
+			}
+			require.NoError(t, err, "expect no error after setting topic")
+
+			sd := services.NewMockServices(ctrl)
+			opts = opts.SetServiceDiscovery(sd)
+			ps1 := testPlacementService(store, sid1)
+			sd.EXPECT().PlacementService(sid1, gomock.Any()).Return(ps1, nil)
+
+			p1 := placement.NewPlacement().
+				SetInstances([]placement.Instance{
+					placement.NewInstance().
+						SetID("i1").
+						SetEndpoint("i1").
+						SetShards(shard.NewShards([]shard.Shard{
+							shard.NewShard(0).SetState(shard.Available),
+						})),
+				}).
+				SetShards([]uint32{0}).
+				SetReplicaFactor(1).
+				SetIsSharded(true)
+			_, err = ps1.Set(p1)
+			require.NoError(t, err, "expect no error after setting placement")
+
+			w := NewWriter(opts, nil, "").(*writer)
+
+			for _, filterType := range test.staticFilters {
+				w.RegisterFilter(
+					sid1,
+					producer.NewFilterFunc(func(producer.Message) bool { return true }, filterType, producer.StaticConfig))
+			}
+
+			called := atomic.NewInt32(0)
+			w.processFn = func(update interface{}) error {
+				called.Inc()
+				return w.process(update)
+			}
+
+			err = w.Init()
+
+			if test.topicUpdate1.expectTopicUpdateError {
+				require.Error(t, err, "expect error after writer init")
+			} else {
+				require.NoError(t, err, "expect no error after writer init")
+			}
+
+			require.Equal(t, 1, int(called.Load()), "expect processFn to be called once")
+			require.Equal(
+				t,
+				test.topicUpdate1.expectedCswCount,
+				len(w.consumerServiceWriters),
+				"expect csw count to match after 1st topic update")
+
+			if test.topicUpdate1.expectedCswCount > 0 {
+				csw, ok := w.consumerServiceWriters[cs1.ServiceID().String()]
+				require.True(t, ok, "expect csw to exist after 1st topic update")
+
+				actualDataFilterFuncs := csw.GetDataFilters()
+				actualDataFilterMetadatas := []producer.FilterFuncMetadata{}
+				for _, filter := range actualDataFilterFuncs {
+					actualDataFilterMetadatas = append(actualDataFilterMetadatas, filter.Metadata)
+				}
+
+				require.True(t,
+					testAreFilterFuncMetadataSlicesEqual(
+						actualDataFilterMetadatas,
+						test.topicUpdate1.expectedDataFilters),
+					"expect data filters to match after 1st topic update",
+					actualDataFilterMetadatas,
+					test.topicUpdate1.expectedDataFilters)
+
+				if test.topicUpdate2 == nil {
+					csw.Close()
+				}
+			}
+
+			if test.topicUpdate2 != nil {
+				cs1 = cs1.SetDynamicFilterConfigs(nil)
+
+				if test.topicUpdate2.dynamicFilterConfig != nil {
+					cs1 = cs1.SetDynamicFilterConfigs(test.topicUpdate2.dynamicFilterConfig)
+				}
+
+				testTopic = testTopic.
+					SetConsumerServices([]topic.ConsumerService{cs1}).
+					SetVersion(1)
+				_, err = ts.CheckAndSet(testTopic, 1)
+				require.NoError(t, err, "expect no error after 2nd topic update")
+
+				for called.Load() != 2 {
+					time.Sleep(100 * time.Millisecond)
+				}
+
+				w.RLock()
+
+				require.Equal(
+					t,
+					test.topicUpdate1.expectedCswCount,
+					len(w.consumerServiceWriters),
+					"expect csw count to match after 2nd topic update")
+
+				w.RUnlock()
+
+				if test.topicUpdate2.expectedCswCount == 0 {
+					return
+				}
+
+				csw, ok := w.consumerServiceWriters[cs1.ServiceID().String()]
+				require.True(t, ok, "expect csw to exist after 2nd topic update")
+
+				actualDataFilterFuncs := csw.GetDataFilters()
+				actualDataFilterMetadatas := []producer.FilterFuncMetadata{}
+				for _, filter := range actualDataFilterFuncs {
+					actualDataFilterMetadatas = append(actualDataFilterMetadatas, filter.Metadata)
+				}
+
+				require.True(t,
+					testAreFilterFuncMetadataSlicesEqual(
+						actualDataFilterMetadatas,
+						test.topicUpdate2.expectedDataFilters),
+					"expect data filters to match after 2nd topic update",
+					actualDataFilterMetadatas,
+					test.topicUpdate2.expectedDataFilters)
+
+				csw.Close()
+			}
+
+			w.Close()
+		})
+	}
+}
+
+// testNewFilterMetadata is a helper for creating FilterFuncMetadata in tests
+func testNewFilterMetadata(
+	filterType producer.FilterFuncType,
+	sourceType producer.FilterFuncConfigSourceType,
+) producer.FilterFuncMetadata {
+	return producer.NewFilterFuncMetadata(filterType, sourceType)
+}
+
+func testAreFilterFuncMetadataSlicesEqual(slice1, slice2 []producer.FilterFuncMetadata) bool {
+	if len(slice1) != len(slice2) {
+		return false
+	}
+
+	countMap := make(map[producer.FilterFuncMetadata]int)
+	for _, item := range slice1 {
+		countMap[item]++
+	}
+
+	for _, item := range slice2 {
+		if countMap[item] == 0 {
+			return false
+		}
+		countMap[item]--
+	}
+
+	for _, count := range countMap {
+		if count != 0 {
+			return false
+		}
+	}
+
+	return true
+}
+
+func TestParseDynamicFilters_RoutingPolicyFilterWithoutHandler(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	csw := NewMockconsumerServiceWriter(ctrl)
+
+	// Create a filter config with routing policy filter
+	filterConfig := topic.NewDynamicFilterConfigFromProto(&topicpb.Filters{
+		RoutingPolicyFilter: &topicpb.RoutingPolicyFilter{
+			AllowedTrafficTypes: []string{"read", "write"},
+			IsDefault:           false,
+		},
+	})
+
+	// Call ParseDynamicFilters with nil routing policy handler
+	_, err := ParseDynamicFilters(zap.NewNop(), tally.NoopScope, csw, nil, filterConfig)
+
+	// Should return error because routing policy handler is nil but filter is configured
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "routing policy handler is not set")
+}
+
+// TestWriterGracefulCloseKVWatch tests that the writer correctly initializes
+// a KV watch and updates the graceful close setting dynamically, similar to
+// TestRuntimeOptionsConfigurationNewRuntimeOptionsManager.
+func TestWriterGracefulCloseKVWatch(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	// Create in-memory KV store
+	memStore := mem.NewStore()
+	gracefulCloseKey := "graceful-close-key"
+
+	// Set initial value to false
+	proto := &commonpb.BoolProto{Value: false}
+	_, err := memStore.Set(gracefulCloseKey, proto)
+	require.NoError(t, err)
+
+	mockClient := client.NewMockClient(ctrl)
+	mockClient.EXPECT().Store(gomock.Any()).Return(memStore, nil).AnyTimes()
+
+	store := mem.NewStore()
+	cs := client.NewMockClient(ctrl)
+	cs.EXPECT().Store(gomock.Any()).Return(store, nil)
+
+	ts, err := topic.NewService(topic.NewServiceOptions().SetConfigService(cs))
+	require.NoError(t, err)
+	opts := testOptions().SetTopicService(ts)
+
+	w := NewWriter(opts, mockClient, gracefulCloseKey).(*writer)
+	require.NotNil(t, w.gracefulCloseWatch)
+	defer w.gracefulCloseWatch.Close()
+
+	// Verify initial value is false
+	require.False(t, w.gracefulClose.Load())
+	require.False(t, w.opts.GracefulClose())
+
+	// Set graceful close to true
+	proto.Value = true
+	_, err = memStore.Set(gracefulCloseKey, proto)
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+	require.True(t, w.gracefulClose.Load())
+	require.True(t, w.opts.GracefulClose())
+
+	// Revert graceful close to false
+	proto.Value = false
+	_, err = memStore.Set(gracefulCloseKey, proto)
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+	require.False(t, w.gracefulClose.Load())
+	require.False(t, w.opts.GracefulClose())
+
+	// Set graceful close to true again
+	proto.Value = true
+	_, err = memStore.Set(gracefulCloseKey, proto)
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+	require.True(t, w.gracefulClose.Load())
+	require.True(t, w.opts.GracefulClose())
+
+	// Revert to initial value
+	proto.Value = false
+	_, err = memStore.Set(gracefulCloseKey, proto)
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+	require.False(t, w.gracefulClose.Load())
+	require.False(t, w.opts.GracefulClose())
+}
+
+// TestWriterGracefulCloseKVWatchPropagation tests that KV changes propagate
+// all the way down to messageWriter instances through the shared *atomic.Bool.
+func TestWriterGracefulCloseKVWatchPropagation(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	// Create in-memory KV store for graceful close
+	memStore := mem.NewStore()
+	gracefulCloseKey := "graceful-close-key"
+	proto := &commonpb.BoolProto{Value: false}
+	_, err := memStore.Set(gracefulCloseKey, proto)
+	require.NoError(t, err)
+
+	mockClient := client.NewMockClient(ctrl)
+	mockClient.EXPECT().Store(gomock.Any()).Return(memStore, nil).AnyTimes()
+
+	store := mem.NewStore()
+	cs := client.NewMockClient(ctrl)
+	cs.EXPECT().Store(gomock.Any()).Return(store, nil)
+
+	ts, err := topic.NewService(topic.NewServiceOptions().SetConfigService(cs))
+	require.NoError(t, err)
+
+	opts := testOptions().SetTopicService(ts)
+
+	w := NewWriter(opts, mockClient, gracefulCloseKey).(*writer)
+	require.NotNil(t, w.gracefulCloseWatch)
+	defer w.gracefulCloseWatch.Close()
+
+	// Create a messageWriter directly with the writer's options
+	// This simulates what happens when consumerServiceWriter creates messageWriters
+	mw := newMessageWriter(0, newMessagePool(), w.opts, testMessageWriterMetrics())
+	mw.Init()
+	defer mw.Close()
+
+	// Verify initial value is false at all levels
+	require.False(t, w.gracefulClose.Load())
+	require.False(t, w.opts.GracefulClose())
+	require.False(t, mw.opts.GracefulClose())
+
+	// Update KV to true
+	proto.Value = true
+	_, err = memStore.Set(gracefulCloseKey, proto)
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+	require.True(t, w.gracefulClose.Load())
+	require.True(t, w.opts.GracefulClose())
+	// messageWriter sees the updated value through the shared *atomic.Bool
+	require.True(t, mw.opts.GracefulClose())
+
+	// Update KV back to false
+	proto.Value = false
+	_, err = memStore.Set(gracefulCloseKey, proto)
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+	require.False(t, w.gracefulClose.Load())
+	require.False(t, w.opts.GracefulClose())
+	// messageWriter sees the updated value through the shared *atomic.Bool
+	require.False(t, mw.opts.GracefulClose())
 }

@@ -26,10 +26,19 @@ import (
 	"sync"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/filter"
+	handlerWriter "github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
+	"github.com/m3db/m3/src/aggregator/sharding"
+	"github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/kv"
+	kvutil "github.com/m3db/m3/src/cluster/kv/util"
 	"github.com/m3db/m3/src/cluster/services"
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/producer"
+	"github.com/m3db/m3/src/msg/routing"
 	"github.com/m3db/m3/src/msg/topic"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/watch"
@@ -62,24 +71,29 @@ func newWriterMetrics(scope tally.Scope) writerMetrics {
 type writer struct {
 	sync.RWMutex
 
-	topic  string
-	ts     topic.Service
-	opts   Options
-	logger *zap.Logger
-
+	topic                  string
+	ts                     topic.Service
+	opts                   Options
+	logger                 *zap.Logger
 	value                  watch.Value
 	initType               initType
 	numShards              uint32
 	consumerServiceWriters map[string]consumerServiceWriter
 	filterRegistry         map[string][]producer.FilterFunc
+	routingPolicyHandler   routing.PolicyHandler
 	isClosed               bool
 	m                      writerMetrics
+	gracefulClose          *atomic.Bool
+	gracefulCloseWatch     kv.ValueWatch
 
 	processFn watch.ProcessFn
 }
 
 // NewWriter creates a new writer.
-func NewWriter(opts Options) producer.Writer {
+func NewWriter(opts Options, kvClient client.Client, gracefulCloseKey string) producer.Writer {
+	gracefulClose := &atomic.Bool{}
+	gracefulClose.Store(false)
+
 	w := &writer{
 		topic:                  opts.TopicName(),
 		ts:                     opts.TopicService(),
@@ -89,8 +103,18 @@ func NewWriter(opts Options) producer.Writer {
 		consumerServiceWriters: make(map[string]consumerServiceWriter),
 		filterRegistry:         make(map[string][]producer.FilterFunc),
 		isClosed:               false,
+		gracefulClose:          gracefulClose,
 		m:                      newWriterMetrics(opts.InstrumentOptions().MetricsScope()),
 	}
+
+	// Set graceful close in options so messageWriters can access it
+	w.opts = opts.SetGracefulClose(gracefulClose)
+
+	// Initialize graceful close watch if KV store and key are configured
+	if kvClient != nil && gracefulCloseKey != "" {
+		w.gracefulCloseWatch = w.watchGracefulClose(kvClient, gracefulCloseKey)
+	}
+
 	w.processFn = w.process
 	return w
 }
@@ -158,6 +182,7 @@ func (w *writer) process(update interface{}) error {
 	if err := t.Validate(); err != nil {
 		return err
 	}
+
 	// We don't allow changing number of shards for topics, it will be
 	// prevented on topic service side, but also being defensive here as well.
 	numShards := w.NumShards()
@@ -174,24 +199,84 @@ func (w *writer) process(update interface{}) error {
 	for _, cs := range t.ConsumerServices() {
 		key := cs.ServiceID().String()
 		csw, ok := w.consumerServiceWriters[key]
-		if ok {
-			csw.SetMessageTTLNanos(cs.MessageTTLNanos())
-			newConsumerServiceWriters[key] = csw
-			continue
-		}
 		scope := iOpts.MetricsScope().Tagged(map[string]string{
 			"consumer-service-name": cs.ServiceID().Name(),
 			"consumer-service-zone": cs.ServiceID().Zone(),
 			"consumer-service-env":  cs.ServiceID().Environment(),
 			"consumption-type":      cs.ConsumptionType().String(),
 		})
+
+		if ok {
+			// update existing consumer service writer
+
+			csw.SetMessageTTLNanos(cs.MessageTTLNanos())
+
+			if cs.DynamicFilterConfigs() != nil {
+				dynamicFilters, err := ParseDynamicFilters(
+					w.logger, scope, csw, w.routingPolicyHandler, cs.DynamicFilterConfigs())
+
+				if err != nil {
+					w.logger.Error("could not update dynamic filters on consumer service writer, error registering dynamic filters",
+						zap.String("writer", cs.String()), zap.Error(err))
+
+					multiErr = multiErr.Add(err)
+				} else {
+					// atomically set the new dynamic filters
+					// and remove the old filters
+					csw.SetFilters(dynamicFilters)
+				}
+			} else {
+				// sending no dynamic filters means we should remove all filters,
+				// if there are any static filters, we need to re-add them
+
+				w.RLock()
+				staticFilters := w.filterRegistry[key]
+				w.RUnlock()
+
+				csw.SetFilters(staticFilters)
+			}
+
+			newConsumerServiceWriters[key] = csw
+
+			w.logger.Info("Updated consumer service writer", zap.String("consumer-service", cs.String()))
+
+			continue
+		}
+
+		// create new consumer service writer
 		csw, err := newConsumerServiceWriter(cs, t.NumberOfShards(), w.opts.SetInstrumentOptions(iOpts.SetMetricsScope(scope)))
+
 		if err != nil {
 			w.logger.Error("could not create consumer service writer",
 				zap.String("writer", cs.String()), zap.Error(err))
 			multiErr = multiErr.Add(err)
 			continue
 		}
+
+		// if there are dynamicly configured filters, they are the source of truth
+		if cs.DynamicFilterConfigs() != nil {
+			dynamicFilters, err := ParseDynamicFilters(
+				w.logger, scope, csw, w.routingPolicyHandler, cs.DynamicFilterConfigs())
+
+			if err != nil {
+				w.logger.Error("could not create consumer service writer, error registering dynamic filters",
+					zap.String("writer", cs.String()), zap.Error(err))
+
+				multiErr = multiErr.Add(err)
+				continue
+			} else {
+				csw.SetFilters(dynamicFilters)
+			}
+
+		} else {
+			w.RLock()
+			staticFilters := w.filterRegistry[key]
+			w.RUnlock()
+
+			// if there are no dynamicly configured filters, static filters are the source of truth
+			csw.SetFilters(staticFilters)
+		}
+
 		if err = csw.Init(w.initType); err != nil {
 			w.logger.Error("could not init consumer service writer",
 				zap.String("writer", cs.String()), zap.Error(err))
@@ -220,13 +305,7 @@ func (w *writer) process(update interface{}) error {
 
 	// Apply the new consumer service writers.
 	w.Lock()
-	for key, csw := range newConsumerServiceWriters {
-		if filters, ok := w.filterRegistry[key]; ok {
-			for _, filter := range filters {
-				csw.RegisterFilter(filter)
-			}
-		}
-	}
+
 	w.consumerServiceWriters = newConsumerServiceWriters
 	w.numShards = t.NumberOfShards()
 	w.Unlock()
@@ -255,10 +334,76 @@ func (w *writer) Close() {
 	w.isClosed = true
 	w.Unlock()
 
+	// Close the graceful close KV watch to stop the background goroutine
+	if w.gracefulCloseWatch != nil {
+		w.gracefulCloseWatch.Close()
+	}
+
 	w.value.Unwatch()
 	for _, csw := range w.consumerServiceWriters {
 		csw.Close()
 	}
+}
+
+// watchGracefulClose watches for graceful close setting updates from KV.
+// Returns a ValueWatch that must be closed to stop the background goroutine.
+func (w *writer) watchGracefulClose(kvClient client.Client, gracefulCloseKey string) kv.ValueWatch {
+	const defaultGracefulClose = false
+
+	logger := w.logger
+
+	// Get the KV store
+	kvStore, err := kvClient.Store(kv.NewOverrideOptions())
+	if err != nil {
+		logger.Error("unable to create kv store for graceful close", zap.Error(err))
+		return nil
+	}
+
+	utilOpts := kvutil.NewOptions().SetLogger(logger)
+
+	// Retrieve initial value from KV
+	initialValue := defaultGracefulClose
+	value, err := kvStore.Get(gracefulCloseKey)
+	if err == nil {
+		initialValue, err = kvutil.BoolFromValue(value, gracefulCloseKey, defaultGracefulClose, utilOpts)
+	}
+	if err != nil {
+		logger.Error("unable to retrieve graceful close setting from kv", zap.Error(err))
+	}
+	logger.Info("current message writer graceful close setting", zap.Bool("gracefulClose", initialValue))
+	w.gracefulClose.Store(initialValue)
+
+	// Set up watch
+	gracefulCloseWatch, err := kvStore.Watch(gracefulCloseKey)
+	if err != nil {
+		logger.Error("unable to watch message writer graceful close setting", zap.Error(err))
+		return nil
+	}
+	gracefulCloseCh := gracefulCloseWatch.C()
+
+	// Watch for updates
+	go func() {
+		for range gracefulCloseCh {
+			gracefulCloseVal := gracefulCloseWatch.Get()
+			newGracefulClose, err := kvutil.BoolFromValue(gracefulCloseVal, gracefulCloseKey, defaultGracefulClose, utilOpts)
+			if err != nil {
+				logger.Error("unable to determine graceful close setting", zap.Error(err))
+				continue
+			}
+			currGracefulClose := w.gracefulClose.Load()
+			if newGracefulClose == currGracefulClose {
+				logger.Info("message writer graceful close setting is unchanged, skipping",
+					zap.Bool("gracefulClose", newGracefulClose))
+				continue
+			}
+			logger.Info("updating message writer graceful close setting",
+				zap.Bool("current", currGracefulClose),
+				zap.Bool("new", newGracefulClose))
+			w.gracefulClose.Store(newGracefulClose)
+		}
+	}()
+
+	return gracefulCloseWatch
 }
 
 func (w *writer) RegisterFilter(sid services.ServiceID, filter producer.FilterFunc) {
@@ -284,4 +429,144 @@ func (w *writer) UnregisterFilters(sid services.ServiceID) {
 	if ok {
 		csw.UnregisterFilters()
 	}
+}
+
+func (w *writer) SetRoutingPolicyHandler(policyHandler routing.PolicyHandler) {
+	w.Lock()
+	defer w.Unlock()
+	w.routingPolicyHandler = policyHandler
+}
+
+// ParseDynamicFilters parses the dynamic filters for a consumer service from a topic update.
+func ParseDynamicFilters(
+	logger *zap.Logger,
+	scope tally.Scope,
+	csw consumerServiceWriter,
+	rph routing.PolicyHandler,
+	filterConfig topic.FilterConfig,
+) ([]producer.FilterFunc, error) {
+	filterFuncs := []producer.FilterFunc{}
+
+	if filterConfig == nil {
+		return filterFuncs, errors.New("nil filter config")
+	}
+
+	if filterConfig.ShardSetFilter() != nil {
+		shardSetFilterFunc, err := ParseShardSetFilterFromTopicUpdate(csw, filterConfig.ShardSetFilter())
+
+		if err != nil {
+			return filterFuncs, fmt.Errorf("Error registering shard set filter: %w", err)
+		}
+
+		filterFuncs = append(filterFuncs, shardSetFilterFunc)
+	}
+
+	if filterConfig.StoragePolicyFilter() != nil {
+		storagePolicyFilterFunc, err := ParseStoragePolicyFilterFromTopicUpdate(csw, filterConfig.StoragePolicyFilter())
+
+		if err != nil {
+			return filterFuncs, fmt.Errorf("Error registering storage policy filter: %w", err)
+		}
+
+		filterFuncs = append(filterFuncs, storagePolicyFilterFunc)
+	}
+
+	if filterConfig.PercentageFilter() != nil {
+		percentageFilterFunc, err := ParsePercentageFilterFromFromTopicUpdate(csw, filterConfig.PercentageFilter())
+
+		if err != nil {
+			return filterFuncs, fmt.Errorf("Error registering percentage filter: %w", err)
+		}
+
+		filterFuncs = append(filterFuncs, percentageFilterFunc)
+	}
+
+	if filterConfig.RoutingPolicyFilter() != nil {
+		if rph == nil {
+			return filterFuncs, errors.New("routing policy handler is not set, but routing policy filter is configured")
+		}
+		routingPolicyFilterFunc, err := ParseRoutingPolicyFilterFromFromTopicUpdate(
+			logger, scope, rph, filterConfig.RoutingPolicyFilter())
+
+		if err != nil {
+			return filterFuncs, fmt.Errorf("Error registering routing policy filter: %w", err)
+		}
+
+		filterFuncs = append(filterFuncs, routingPolicyFilterFunc)
+	}
+
+	return filterFuncs, nil
+}
+
+// ParseShardSetFilterFromTopicUpdate parses a shard set filter from a topic update.
+func ParseShardSetFilterFromTopicUpdate(
+	csw consumerServiceWriter,
+	ssf topic.ShardSetFilter) (producer.FilterFunc, error) {
+	var filterFunc producer.FilterFunc
+
+	shardSetString := ssf.ShardSet()
+
+	shardSet, err := sharding.ParseShardSet(shardSetString)
+
+	if err != nil {
+		return filterFunc, errors.New("Error parsing shard set")
+	}
+
+	filterFunc = filter.NewShardSetFilter(shardSet, producer.DynamicConfig)
+
+	return filterFunc, nil
+}
+
+// ParseStoragePolicyFilterFromTopicUpdate parses a storage policy filter from a topic update.
+func ParseStoragePolicyFilterFromTopicUpdate(
+	csw consumerServiceWriter,
+	spf topic.StoragePolicyFilter) (producer.FilterFunc, error) {
+	var filterFunc producer.FilterFunc
+
+	storagePolicies := spf.StoragePolicies()
+
+	parsedPolicies := []policy.StoragePolicy{}
+	for _, storagePolicyString := range storagePolicies {
+		parsedPolicy, err := policy.ParseStoragePolicy(storagePolicyString)
+
+		if err != nil {
+			return filterFunc, fmt.Errorf("Error parsing storage policy: %w", err)
+		}
+
+		parsedPolicies = append(parsedPolicies, parsedPolicy)
+
+		filterFunc = handlerWriter.NewStoragePolicyFilter(parsedPolicies, producer.DynamicConfig)
+	}
+
+	return filterFunc, nil
+}
+
+// ParsePercentageFilterFromFromTopicUpdate parses a percentage filter from a topic update.
+func ParsePercentageFilterFromFromTopicUpdate(
+	csw consumerServiceWriter,
+	pf topic.PercentageFilter) (producer.FilterFunc, error) {
+	var filterFunc producer.FilterFunc
+
+	percentage := pf.Percentage()
+
+	filterFunc = filter.NewPercentageFilter(percentage, producer.DynamicConfig)
+
+	return filterFunc, nil
+}
+
+// ParseRoutingPolicyFilterFromFromTopicUpdate parses a routing policy filter from a topic update.
+func ParseRoutingPolicyFilterFromFromTopicUpdate(
+	logger *zap.Logger,
+	scope tally.Scope,
+	rph routing.PolicyHandler,
+	rpf topic.RoutingPolicyFilter) (producer.FilterFunc, error) {
+	params := handlerWriter.RoutingPolicyFilterParams{
+		Scope:                scope,
+		Logger:               logger,
+		RoutingPolicyHandler: rph,
+		IsDefault:            rpf.IsDefault(),
+		AllowedTrafficTypes:  rpf.AllowedTrafficTypes(),
+	}
+	filterFunc := handlerWriter.NewRoutingPolicyFilter(params, producer.DynamicConfig)
+	return filterFunc, nil
 }

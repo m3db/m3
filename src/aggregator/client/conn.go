@@ -22,7 +22,9 @@ package client
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
+	"fmt"
 	"math/rand"
 	"net"
 	"sync"
@@ -34,6 +36,7 @@ import (
 	xio "github.com/m3db/m3/src/x/io"
 	xnet "github.com/m3db/m3/src/x/net"
 	"github.com/m3db/m3/src/x/retry"
+	xtls "github.com/m3db/m3/src/x/tls"
 )
 
 const (
@@ -71,12 +74,14 @@ type connection struct {
 	initThreshold           int
 	threshold               int
 	lastConnectAttemptNanos int64
+	readTimeout             time.Duration
 	writeTimeout            time.Duration
 	connTimeout             time.Duration
 	numFailures             int
 	mtx                     sync.Mutex
 	keepAlive               bool
 	dialer                  xnet.ContextDialerFn
+	tlsConfigManager        xtls.ConfigManager
 }
 
 // newConnection creates a new connection.
@@ -84,6 +89,7 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 	c := &connection{
 		addr:           addr,
 		connTimeout:    opts.ConnectionTimeout(),
+		readTimeout:    opts.ReadTimeout(),
 		writeTimeout:   opts.WriteTimeout(),
 		keepAlive:      opts.ConnectionKeepAlive(),
 		initThreshold:  opts.InitReconnectThreshold(),
@@ -100,7 +106,8 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 			uninitWriter,
 			xio.ResettableWriterOptions{WriteBufferSize: 0},
 		),
-		metrics: newConnectionMetrics(opts.InstrumentOptions().MetricsScope()),
+		metrics:          newConnectionMetrics(opts.InstrumentOptions().MetricsScope()),
+		tlsConfigManager: xtls.NewConfigManager(opts.TLSOptions(), opts.InstrumentOptions()),
 	}
 	c.connectWithLockFn = c.connectWithLock
 	c.writeWithLockFn = c.writeWithLock
@@ -152,6 +159,36 @@ func (c *connection) Close() {
 	c.mtx.Unlock()
 }
 
+func (c *connection) upgradeToTLS(conn net.Conn) (net.Conn, error) {
+	tlsConfig, err := c.tlsConfigManager.TLSConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	tlsConn := tls.Client(conn, tlsConfig)
+
+	if c.tlsConfigManager.TLSHandshakeOnConnect() {
+		// Set deadline for TLS handshake using existing connection timeout
+		handshakeDeadline := c.nowFn().Add(c.connTimeout)
+		if err := conn.SetDeadline(handshakeDeadline); err != nil {
+			return nil, fmt.Errorf("failed to set TLS handshake deadline: %w", err)
+		}
+
+		// Force immediate TLS handshake instead of lazy handshake
+		if err := tlsConn.Handshake(); err != nil {
+			return nil, fmt.Errorf("TLS handshake failed: %w", err)
+		}
+
+		// Clear deadline after successful handshake for normal operations
+		// This allows read/write timeouts to be managed separately
+		if err := conn.SetDeadline(time.Time{}); err != nil {
+			return nil, fmt.Errorf("failed to clear TLS handshake deadline: %w", err)
+		}
+	}
+
+	return tlsConn, nil
+}
+
 // writeAttemptWithLock attempts to establish a new connection and writes raw bytes
 // to the connection while holding the write lock.
 // If the write succeeds, c.conn is guaranteed to be a valid connection on return.
@@ -192,12 +229,20 @@ func (c *connection) connectWithLock() error {
 		}
 	}
 
-	if c.conn != nil {
-		c.conn.Close() // nolint: errcheck
+	if c.tlsConfigManager.ClientEnabled() {
+		securedConn, err := c.upgradeToTLS(conn)
+		if err != nil {
+			c.metrics.connectError.Inc(1)
+			conn.Close() // nolint: errcheck
+			return err
+		}
+		conn = securedConn
 	}
 
+	// c.conn is always nil at this point, so closing the previous connection is unnecessary
 	c.conn = conn
 	c.writer.Reset(conn)
+	c.metrics.connectSuccess.Inc(1)
 	return nil
 }
 
@@ -249,6 +294,9 @@ func (c *connection) writeWithLock(data []byte) error {
 	if err := c.conn.SetWriteDeadline(c.nowFn().Add(c.writeTimeout)); err != nil {
 		c.metrics.setWriteDeadlineError.Inc(1)
 	}
+	if err := c.conn.SetReadDeadline(c.nowFn().Add(c.readTimeout)); err != nil {
+		c.metrics.setReadDeadlineError.Inc(1)
+	}
 	if _, err := c.writer.Write(data); err != nil {
 		c.metrics.writeError.Inc(1)
 		return err
@@ -267,7 +315,15 @@ func (c *connection) resetWithLock() {
 
 func (c *connection) closeWithLock() {
 	if c.conn != nil {
-		c.conn.Close() // nolint: errcheck
+		// Reference: https://github.com/golang/go/blob/8fd0f83552d3ef9ca38c031bec93a36b189e3e11/src/crypto/tls/conn.go#L1361
+		//
+		// tls.Conn.Close() sets a 5-second write timeout before sending a "close notify" alert.
+		// If the connection is half-open and the send queue is full, "close notify" will be delayed
+		// by this timeout before returning an error. Currently, there is no way to configure this timeout
+		// at the application level (see: https://github.com/golang/go/issues/45162).
+		//
+		// At this point, the lock should be acquired, and we can safely close the connection asynchronously.
+		go c.conn.Close() // nolint: errcheck
 	}
 	c.conn = nil
 }
@@ -278,15 +334,18 @@ const (
 )
 
 type connectionMetrics struct {
+	connectSuccess        tally.Counter
 	connectError          tally.Counter
 	writeError            tally.Counter
 	writeRetries          tally.Counter
 	setKeepAliveError     tally.Counter
+	setReadDeadlineError  tally.Counter
 	setWriteDeadlineError tally.Counter
 }
 
 func newConnectionMetrics(scope tally.Scope) connectionMetrics {
 	return connectionMetrics{
+		connectSuccess: scope.Counter("success"),
 		connectError: scope.Tagged(map[string]string{errorMetricType: "connect"}).
 			Counter(errorMetric),
 		writeError: scope.Tagged(map[string]string{errorMetricType: "write"}).
@@ -295,6 +354,8 @@ func newConnectionMetrics(scope tally.Scope) connectionMetrics {
 		setKeepAliveError: scope.Tagged(map[string]string{errorMetricType: "tcp-keep-alive"}).
 			Counter(errorMetric),
 		setWriteDeadlineError: scope.Tagged(map[string]string{errorMetricType: "set-write-deadline"}).
+			Counter(errorMetric),
+		setReadDeadlineError: scope.Tagged(map[string]string{errorMetricType: "set-read-deadline"}).
 			Counter(errorMetric),
 	}
 }

@@ -149,8 +149,9 @@ func TestWriterManagerWriteUntimedClosed(t *testing.T) {
 	mgr.Lock()
 	mgr.closed = true
 	mgr.Unlock()
-	err := mgr.Write(testPlacementInstance, 0, payload)
+	bytesAdded, err := mgr.Write(testPlacementInstance, 0, payload)
 	require.Equal(t, errInstanceWriterManagerClosed, err)
+	require.Equal(t, 0, bytesAdded)
 }
 
 func TestWriterManagerWriteUntimedNoInstances(t *testing.T) {
@@ -162,8 +163,9 @@ func TestWriterManagerWriteUntimedNoInstances(t *testing.T) {
 		},
 	}
 	mgr := mustMakeInstanceWriterManager(testOptions())
-	err := mgr.Write(testPlacementInstance, 0, payload)
+	bytesAdded, err := mgr.Write(testPlacementInstance, 0, payload)
 	require.Error(t, err)
+	require.Equal(t, 0, bytesAdded)
 	require.NoError(t, mgr.Close())
 }
 
@@ -188,10 +190,10 @@ func TestWriterManagerWriteUntimedSuccess(t *testing.T) {
 		DoAndReturn(func(
 			shard uint32,
 			payload payloadUnion,
-		) error {
+		) (int, error) {
 			shardRes = shard
 			payloadRes = payload
-			return nil
+			return 0, nil
 		})
 	mgr := mustMakeInstanceWriterManager(testOptions())
 	mgr.Lock()
@@ -208,7 +210,9 @@ func TestWriterManagerWriteUntimedSuccess(t *testing.T) {
 			metadatas: testStagedMetadatas,
 		},
 	}
-	require.NoError(t, mgr.Write(testPlacementInstance, 0, payload))
+	bytesAdded, err := mgr.Write(testPlacementInstance, 0, payload)
+	require.NoError(t, err)
+	require.Zero(t, bytesAdded)
 	mgr.Lock()
 	assert.Equal(t, 1, len(mgr.writers))
 	mgr.Unlock()

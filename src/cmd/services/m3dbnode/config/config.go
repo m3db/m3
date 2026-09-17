@@ -709,13 +709,13 @@ func NewEtcdEmbedConfig(cfg DBConfiguration) (*embed.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	newKVCfg.LPUrls = LPUrls
+	newKVCfg.ListenPeerUrls = LPUrls
 
 	LCUrls, err := convertToURLsWithDefault(kvCfg.ListenClientUrls, newURL(defaultEtcdListenHost, DefaultEtcdClientPort))
 	if err != nil {
 		return nil, err
 	}
-	newKVCfg.LCUrls = LCUrls
+	newKVCfg.ListenClientUrls = LCUrls
 
 	host, endpoint, err := getHostAndEndpointFromID(kvCfg.InitialCluster, hostID)
 	if err != nil {
@@ -730,13 +730,13 @@ func NewEtcdEmbedConfig(cfg DBConfiguration) (*embed.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	newKVCfg.APUrls = APUrls
+	newKVCfg.AdvertisePeerUrls = APUrls
 
 	ACUrls, err := convertToURLsWithDefault(kvCfg.AdvertiseClientUrls, newURL(endpoint, DefaultEtcdClientPort))
 	if err != nil {
 		return nil, err
 	}
-	newKVCfg.ACUrls = ACUrls
+	newKVCfg.AdvertiseClientUrls = ACUrls
 
 	newKVCfg.InitialCluster = initialClusterString(kvCfg.InitialCluster)
 

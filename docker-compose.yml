@@ -38,3 +38,4 @@ services:
       - SPLIT_IDX
       - TOTAL_SPLITS
       - GOPATH=/go
+      - SKIP_CODECOV=true

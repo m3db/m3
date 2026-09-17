@@ -116,8 +116,6 @@ func TestIteratorsIterateHighestFrequencyValue(t *testing.T) {
 			{t: at, value: 3.0, unit: xtime.Second},
 			{t: at.Add(time.Second), value: 5.0, unit: xtime.Second},
 			{t: at.Add(2 * time.Second), value: 8.0, unit: xtime.Second},
-
-			// Also test just a single value without any other frequencies
 			{t: at.Add(3 * time.Second), value: 10.0, unit: xtime.Second},
 		},
 	}

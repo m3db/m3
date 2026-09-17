@@ -28,6 +28,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/m3db/m3/src/x/instrument"
+	xtls "github.com/m3db/m3/src/x/tls"
 )
 
 func TestServerConfiguration(t *testing.T) {
@@ -35,6 +36,13 @@ func TestServerConfiguration(t *testing.T) {
 listenAddress: addr
 keepAliveEnabled: true
 keepAlivePeriod: 5s
+tls:
+  mode: enforced
+  mTLSEnabled: true
+  certFile: /tmp/cert
+  keyFile: /tmp/key
+  clientCAFile: /tmp/ca
+  certificatesTTL: 10m
 `
 
 	var cfg Configuration
@@ -43,9 +51,23 @@ keepAlivePeriod: 5s
 	require.True(t, *cfg.KeepAliveEnabled)
 	require.Equal(t, 5*time.Second, *cfg.KeepAlivePeriod)
 
+	require.Equal(t, "enforced", cfg.TLS.Mode)
+	require.True(t, cfg.TLS.MutualTLSEnabled)
+	require.Equal(t, "/tmp/cert", cfg.TLS.CertFile)
+	require.Equal(t, "/tmp/key", cfg.TLS.KeyFile)
+	require.Equal(t, "/tmp/ca", cfg.TLS.ClientCAFile)
+	require.Equal(t, 10*time.Minute, cfg.TLS.CertificatesTTL)
+
 	opts := cfg.NewOptions(instrument.NewOptions())
 	require.Equal(t, 5*time.Second, opts.TCPConnectionKeepAlivePeriod())
 	require.True(t, opts.TCPConnectionKeepAlive())
+
+	require.Equal(t, xtls.Enforced, opts.TLSOptions().ServerMode())
+	require.True(t, opts.TLSOptions().MutualTLSEnabled())
+	require.Equal(t, "/tmp/cert", opts.TLSOptions().CertFile())
+	require.Equal(t, "/tmp/key", opts.TLSOptions().KeyFile())
+	require.Equal(t, "/tmp/ca", opts.TLSOptions().CAFile())
+	require.Equal(t, 10*time.Minute, opts.TLSOptions().CertificatesTTL())
 
 	require.NotNil(t, cfg.NewServer(nil, instrument.NewOptions()))
 }
