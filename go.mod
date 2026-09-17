@@ -202,19 +202,3 @@ replace gopkg.in/vmihailenco/msgpack.v2 => github.com/vmihailenco/msgpack v2.8.3
 replace github.com/google/flatbuffers => github.com/google/flatbuffers v1.12.1
 
 replace google.golang.org/grpc => google.golang.org/grpc v1.40.1
-
-// TODO: this can be removed once M3 is on Go 1.17.x
-// This is here because of a dependency chain that makes client/v2 hard dependent on Go 1.17. Specifically:
-//~ /Code/m3 $ go mod why sigs.k8s.io/json
-// # sigs.k8s.io/json
-// github.com/m3db/m3/src/aggregator/integration
-// go.etcd.io/etcd/tests/v3/framework/integration
-// go.etcd.io/etcd/server/v3/etcdserver
-// go.etcd.io/etcd/server/v3/etcdserver/api/v2discovery
-// go.etcd.io/etcd/client/v2
-// sigs.k8s.io/json
-// This dependency chain is recently added,
-// (in https://github.com/etcd-io/etcd/commit/b5e4c2d3c483d9c3d03a0f97ae7b07607f38a5cc)
-// and not actually relevant to anything used by M3 (we are on client/v3).
-// Therefore, replace client/v2 to avoid the bad dependency chain until we upgrade.
-//replace go.etcd.io/etcd/client/v2 => go.etcd.io/etcd/client/v2 v2.305.0-alpha.0.0.20211029212747-6656181d312a
