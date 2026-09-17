@@ -39,6 +39,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
@@ -496,9 +497,23 @@ func min(x, y int) int {
 }
 
 // isServerOverloadedErr reports whether err is the node rejecting a write
-// because it is shedding load. The error is raised server side as an
-// unexported sentinel and reaches the client as a tchannel internal error
-// carrying only its message, so matching on the text is the only option.
+// because it is shedding load. There are two such paths, both backpressure
+// rather than a write bug:
+//
+//   - errServerIsOverloaded, when the write batch queue is at capacity.
+//   - commitlog.ErrCommitLogQueueFull, when the commit log queue is at
+//     capacity.
+//
+// Both are raised server side and reach the client wrapped in a tchannel
+// internal error that carries only the message, so matching on the text is
+// the only option. errServerIsOverloaded is unexported, hence the literal.
 func isServerOverloadedErr(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "server is overloaded")
+	if err == nil {
+		return false
+	}
+
+	msg := err.Error()
+
+	return strings.Contains(msg, "server is overloaded") ||
+		strings.Contains(msg, commitlog.ErrCommitLogQueueFull.Error())
 }
