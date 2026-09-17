@@ -201,9 +201,6 @@ replace gopkg.in/vmihailenco/msgpack.v2 => github.com/vmihailenco/msgpack v2.8.3
 
 replace github.com/google/flatbuffers => github.com/google/flatbuffers v1.12.1
 
-// Fix legacy import path - https://github.com/uber-go/atomic/pull/60
-replace github.com/uber-go/atomic => github.com/uber-go/atomic v1.4.0
-
 replace google.golang.org/grpc => google.golang.org/grpc v1.40.1
 
 // TODO: this can be removed once M3 is on Go 1.17.x
