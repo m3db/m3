@@ -1,6 +1,6 @@
 module github.com/m3db/m3
 
-go 1.22.0
+go 1.25.5
 
 require (
 	github.com/MichaelTJones/pcg v0.0.0-20180122055547-df440c6ed7ed
@@ -87,7 +87,6 @@ require (
 require (
 	github.com/twmb/murmur3 v1.1.6
 	go.yaml.in/yaml/v3 v3.0.5
-	golang.org/x/exp v0.0.0-20250210185358-939b2ce775ac
 )
 
 require (

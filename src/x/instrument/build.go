@@ -116,7 +116,7 @@ func LogBuildInfoWithLoggerJSON(logger *log.Logger, jsonMarshalFunc func(interfa
 	// If we're logging in pure JSON, remove the timestamp flag since that's in plaintext. Set it back after
 	// emitting the Build Info.
 	log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
-	logger.Printf(string(jsonOut))
+	logger.Print(string(jsonOut))
 	log.SetFlags(log.LstdFlags)
 	return nil
 }

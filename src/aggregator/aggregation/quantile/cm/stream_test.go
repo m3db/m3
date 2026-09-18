@@ -197,9 +197,11 @@ func testStreamWithRandomSamples(t *testing.T, opts Options) {
 	min := math.MaxFloat64
 	max := -1.0
 
-	rand.Seed(100)
+	// NB: use a local source so the sequence stays deterministic. As of Go
+	// 1.24 rand.Seed is a no-op, so seeding the global source does nothing.
+	rnd := rand.New(rand.NewSource(100))
 	for i := 0; i < numSamples; i++ {
-		v := float64(rand.Int63n(maxInt64))
+		v := float64(rnd.Int63n(maxInt64))
 		min = math.Min(min, v)
 		max = math.Max(max, v)
 		s.Add(v)

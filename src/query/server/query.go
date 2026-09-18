@@ -23,7 +23,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -199,8 +198,6 @@ type RunResult struct {
 
 // Run runs the server programmatically given a filename for the configuration file.
 func Run(runOpts RunOptions) RunResult {
-	rand.Seed(time.Now().UnixNano())
-
 	var (
 		cfg          = runOpts.Config
 		listenerOpts = xnet.NewListenerOptions()

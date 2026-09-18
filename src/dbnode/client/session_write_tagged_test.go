@@ -515,7 +515,7 @@ func testWriteTaggedConsistencyLevel(
 		completionFn(host, nil)
 	}
 	for i := 0; i < failures; i++ {
-		completionFn(host, fmt.Errorf(writeErr))
+		completionFn(host, errors.New(writeErr))
 	}
 
 	// Wait for write to complete or timeout

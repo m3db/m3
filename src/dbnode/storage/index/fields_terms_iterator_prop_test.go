@@ -24,7 +24,7 @@
 package index
 
 import (
-	"fmt"
+	"errors"
 	"math/rand"
 	"os"
 	"sort"
@@ -182,7 +182,7 @@ func genIterpoint() gopter.Gen {
 	return gen.Identifier().Map(func(s string, params *gopter.GenParameters) iterpoint {
 		ip := iterpoint{value: s}
 		if params.NextBool() {
-			ip.err = fmt.Errorf(s)
+			ip.err = errors.New(s)
 		}
 		return ip
 	})
