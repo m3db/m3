@@ -1,6 +1,6 @@
 module github.com/m3db/m3
 
-go 1.22
+go 1.22.0
 
 require (
 	github.com/MichaelTJones/pcg v0.0.0-20180122055547-df440c6ed7ed
@@ -16,7 +16,7 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.2
 	github.com/golang/snappy v0.0.4
-	github.com/google/go-cmp v0.5.8
+	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
 	github.com/hydrogen18/stalecucumber v0.0.0-20151102144322-9b38526d4bdf
@@ -69,13 +69,13 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.4.1
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.4.1
 	go.opentelemetry.io/otel/sdk v1.4.1
-	go.uber.org/atomic v1.9.0
-	go.uber.org/config v1.4.0
-	go.uber.org/goleak v1.1.12
-	go.uber.org/zap v1.21.0
-	golang.org/x/net v0.7.0
-	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.5.0
+	go.uber.org/atomic v1.11.0
+	go.uber.org/config v1.4.1
+	go.uber.org/goleak v1.3.0
+	go.uber.org/zap v1.28.0
+	golang.org/x/net v0.35.0
+	golang.org/x/sync v0.11.0
+	golang.org/x/sys v0.30.0
 	google.golang.org/grpc v1.44.0
 	google.golang.org/protobuf v1.27.1
 	gopkg.in/go-playground/validator.v9 v9.29.1
@@ -87,7 +87,7 @@ require (
 require (
 	github.com/twmb/murmur3 v1.1.6
 	go.yaml.in/yaml/v3 v3.0.5
-	golang.org/x/exp v0.0.0-20230725093048-515e97ebf090
+	golang.org/x/exp v0.0.0-20250210185358-939b2ce775ac
 )
 
 require (
@@ -175,13 +175,13 @@ require (
 	go.opentelemetry.io/otel/metric v0.27.0 // indirect
 	go.opentelemetry.io/otel/trace v1.4.1 // indirect
 	go.opentelemetry.io/proto/otlp v0.12.0 // indirect
-	go.uber.org/multierr v1.7.0 // indirect
-	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4 // indirect
-	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
-	golang.org/x/oauth2 v0.0.0-20220223155221-ee480838109b // indirect
-	golang.org/x/text v0.7.0 // indirect
-	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
-	golang.org/x/tools v0.2.0 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
+	golang.org/x/crypto v0.33.0 // indirect
+	golang.org/x/lint v0.0.0-20241112194109-818c5a804067 // indirect
+	golang.org/x/oauth2 v0.26.0 // indirect
+	golang.org/x/text v0.22.0 // indirect
+	golang.org/x/time v0.10.0 // indirect
+	golang.org/x/tools v0.30.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
@@ -201,23 +201,4 @@ replace gopkg.in/vmihailenco/msgpack.v2 => github.com/vmihailenco/msgpack v2.8.3
 
 replace github.com/google/flatbuffers => github.com/google/flatbuffers v1.12.1
 
-// Fix legacy import path - https://github.com/uber-go/atomic/pull/60
-replace github.com/uber-go/atomic => github.com/uber-go/atomic v1.4.0
-
 replace google.golang.org/grpc => google.golang.org/grpc v1.40.1
-
-// TODO: this can be removed once M3 is on Go 1.17.x
-// This is here because of a dependency chain that makes client/v2 hard dependent on Go 1.17. Specifically:
-//~ /Code/m3 $ go mod why sigs.k8s.io/json
-// # sigs.k8s.io/json
-// github.com/m3db/m3/src/aggregator/integration
-// go.etcd.io/etcd/tests/v3/framework/integration
-// go.etcd.io/etcd/server/v3/etcdserver
-// go.etcd.io/etcd/server/v3/etcdserver/api/v2discovery
-// go.etcd.io/etcd/client/v2
-// sigs.k8s.io/json
-// This dependency chain is recently added,
-// (in https://github.com/etcd-io/etcd/commit/b5e4c2d3c483d9c3d03a0f97ae7b07607f38a5cc)
-// and not actually relevant to anything used by M3 (we are on client/v3).
-// Therefore, replace client/v2 to avoid the bad dependency chain until we upgrade.
-//replace go.etcd.io/etcd/client/v2 => go.etcd.io/etcd/client/v2 v2.305.0-alpha.0.0.20211029212747-6656181d312a
