@@ -49,7 +49,7 @@ common: &common
 env:
   SKIP_CODECOV: "true"
   CGO_ENABLED: 0
-  GIMME_GO_VERSION: 1.22.x
+  GIMME_GO_VERSION: 1.25.5
 
 # Buildkite pipeline is currently broken, and we are working on fixing it. In the meantime, we are temporarily
 # disabling steps until it is fixed. ISSUE: https://github.com/m3db/m3/issues/4274
@@ -57,7 +57,7 @@ steps:
 #  - name: "Codegen"
 #    env:
 #      CGO_ENABLED: 0
-#      GIMME_GO_VERSION: 1.22.x
+#      GIMME_GO_VERSION: 1.25.5
 #    plugins:
 #      gopath-checkout#v1.0.1:
 #        import: github.com/m3db/m3
@@ -187,7 +187,7 @@ steps:
     parallelism: 1
     env:
       CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.22.x
+      GIMME_GO_VERSION: 1.25.5
     plugins:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3
@@ -290,7 +290,7 @@ steps:
 #    command: make clean install-vendor-m3 docs-test
 #    env:
 #      CGO_ENABLED: 0
-#      GIMME_GO_VERSION: 1.22.x
+#      GIMME_GO_VERSION: 1.25.5
 #    plugins:
 #        gopath-checkout#v1.0.1:
 #          import: github.com/m3db/m3
