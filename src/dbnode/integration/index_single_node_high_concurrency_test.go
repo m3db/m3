@@ -413,30 +413,34 @@ func testIndexSingleNodeHighConcurrency(
 	// Wait for at least all things to be enqueued for indexing.
 	expectStatPrefix := "dbindex.index-attempt+namespace=testNs1,"
 	expectStatProcess := expectStatPrefix + "stage=process"
-	// Expect to index the writes the server actually accepted. Writes it
-	// rejected as backpressure never reached the index, so holding the index
-	// to the enqueued total would fail on a loaded host for a reason that has
-	// nothing to do with indexing.
-	expectNumIndex := int(numTotalSuccess.Load())
+	// Every write the client saw succeed must reach the index, so that count is
+	// a floor rather than an exact target. It cannot be an exact target because
+	// indexing happens before the commit log write (see db.WriteTagged), so a
+	// write rejected by a full commit log queue is indexed and still counted as
+	// a client failure. Those land in the gap between the floor and the number
+	// of writes actually attempted, which is the ceiling.
+	minNumIndex := int(numTotalSuccess.Load())
 	indexProcess := xclock.WaitUntil(func() bool {
 		counters := testSetup.Scope().Snapshot().Counters()
 		counter, ok := counters[expectStatProcess]
 		if !ok {
 			return false
 		}
-		return int(counter.Value()) == expectNumIndex
+		return int(counter.Value()) >= minNumIndex
 	}, time.Minute*5)
 
 	counters := testSetup.Scope().Snapshot().Counters()
 	counter, ok := counters[expectStatProcess]
 
-	var value int
+	var numIndexed int
 	if ok {
-		value = int(counter.Value())
+		numIndexed = int(counter.Value())
 	}
 	assert.True(t, indexProcess,
-		fmt.Sprintf("timeout waiting for index to process: expected to index %d but only processed %d",
-			expectNumIndex, value))
+		fmt.Sprintf("timeout waiting for index to process: expected to index at least %d but only processed %d",
+			minNumIndex, numIndexed))
+	assert.LessOrEqual(t, numIndexed, attemptedWrites,
+		"indexed more series than were ever written")
 
 	// Allow concurrent query during writes to finish.
 	stopQueries()
@@ -491,8 +495,16 @@ func testIndexSingleNodeHighConcurrency(
 
 	log.Info("data indexing verify done", zap.Duration("took", time.Since(start)))
 
-	// Make sure attempted total indexing = skipped + written.
+	// Make sure attempted total indexing = skipped + written. Read all three
+	// stages from one snapshot: indexing can still advance between snapshots,
+	// and comparing a stale total against fresh stages would fail on timing
+	// alone. Compare against the process counter rather than the client's
+	// success count, which undercounts by the backpressure gap above.
 	counters = testSetup.Scope().Snapshot().Counters()
+	totalProcessed := 0
+	if actual, ok := counters[expectStatProcess]; ok {
+		totalProcessed = int(actual.Value())
+	}
 	totalSkippedWritten := 0
 	for _, expectID := range []string{
 		expectStatPrefix + "stage=skip",
@@ -507,9 +519,9 @@ func testIndexSingleNodeHighConcurrency(
 	}
 
 	log.Info("check written + skipped",
-		zap.Int("expectedValue", expectNumIndex),
+		zap.Int("expectedValue", totalProcessed),
 		zap.Int("actualValue", totalSkippedWritten))
-	assert.Equal(t, expectNumIndex, totalSkippedWritten,
+	assert.Equal(t, totalProcessed, totalSkippedWritten,
 		"total written + skipped mismatch")
 }
 
