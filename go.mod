@@ -52,6 +52,7 @@ require (
 	github.com/sergi/go-diff v1.1.0
 	github.com/spf13/cobra v1.3.0
 	github.com/stretchr/testify v1.12.1
+	github.com/twmb/murmur3 v1.1.6
 	github.com/twotwotwo/sorts v0.0.0-20160814051341-bf5c1f2b8553
 	github.com/uber-go/tally v3.5.8+incompatible
 	github.com/uber/jaeger-client-go v2.29.1+incompatible
@@ -68,10 +69,12 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.44.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.44.0
 	go.opentelemetry.io/otel/sdk v1.44.0
-	go.uber.org/atomic v1.11.0
+	go.opentelemetry.io/proto/otlp v1.10.0
+	go.uber.org/atomic v1.12.0
 	go.uber.org/config v1.4.1
 	go.uber.org/goleak v1.3.0
 	go.uber.org/zap v1.28.0
+	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/net v0.55.0
 	golang.org/x/sync v0.20.0
 	golang.org/x/sys v0.45.0
@@ -81,18 +84,6 @@ require (
 	gopkg.in/validator.v2 v2.0.0-20160201165114-3e4f037f12a1
 	gopkg.in/vmihailenco/msgpack.v2 v2.8.3
 	gopkg.in/yaml.v2 v2.4.0
-)
-
-require (
-	github.com/twmb/murmur3 v1.1.6
-	go.opentelemetry.io/proto/otlp v1.10.0
-	go.yaml.in/yaml/v3 v3.0.5
-)
-
-require (
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 )
 
 require (
@@ -130,6 +121,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jpillora/backoff v1.0.0 // indirect
@@ -177,6 +169,8 @@ require (
 	golang.org/x/time v0.10.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto v0.0.0-20240213162025-012b6fc9bca9 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	sigs.k8s.io/yaml v1.2.0 // indirect
 )
@@ -190,5 +184,3 @@ require (
 // src/metrics/encoding/msgpack/base_encoder.go
 // src/dbnode/persist/fs/msgpack/encoder.go
 replace gopkg.in/vmihailenco/msgpack.v2 => github.com/vmihailenco/msgpack v2.8.3+incompatible
-
-replace github.com/google/flatbuffers => github.com/google/flatbuffers v1.12.1
