@@ -338,5 +338,5 @@ var _ memberClient = (*clientv3.Client)(nil)
 
 // memberClient exposes just one method of *clientv3.Client, for purposes of tests.
 type memberClient interface {
-	MemberList(ctx context.Context) (*clientv3.MemberListResponse, error)
+	MemberList(ctx context.Context, opts ...clientv3.OpOption) (*clientv3.MemberListResponse, error)
 }

@@ -226,7 +226,10 @@ type fakeMemberClient struct {
 	err error
 }
 
-func (f fakeMemberClient) MemberList(ctx context.Context) (*clientv3.MemberListResponse, error) {
+func (f fakeMemberClient) MemberList(
+	ctx context.Context,
+	_ ...clientv3.OpOption,
+) (*clientv3.MemberListResponse, error) {
 	return nil, f.err
 }
 
