@@ -180,12 +180,23 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-// NB(nate): upgrading to the latest msgpack is not backwards compatibile as msgpack will no longer attempt to automatically
-// write an integer into the smallest number of bytes it will fit in. We rely on this behavior by having helper methods
-// in at least two encoders (see below) take int64s and expect that msgpack will size them down accordingly. We'll have
-// to make integer sizing explicit before attempting to upgrade.
+// NB(nate): pinned to v2.8.3, which sizes an integer down to the smallest number of bytes it
+// fits in. Newer msgpack does not: in v4 and v5, EncodeInt64/EncodeUint64 always write the full
+// 9 bytes and the compact behavior moved to EncodeInt/EncodeUint. We depend on the compact
+// encoding for the on-disk format via encodeVarint/encodeVarUint in
+// src/dbnode/persist/fs/msgpack/encoder.go.
 //
-// Encoders:
-// src/metrics/encoding/msgpack/base_encoder.go
-// src/dbnode/persist/fs/msgpack/encoder.go
+// The sharp edge is the commit log headers built at init in
+// src/dbnode/persist/fs/msgpack/schema.go: DecodeLogEntryFast skips them by length without
+// validating their contents, so widening the integers inside them would make new binaries
+// silently misparse commit logs written by old ones. TestCommitLogHeadersUnchanged pins those
+// bytes so that an upgrade fails there rather than during bootstrap.
+//
+// To upgrade, target v5 rather than v4 (v4's codes package is typed, v5's msgpcode constants
+// are plain bytes like v2's, which the hand-inlined fast paths need). Switch
+// encodeVarint/encodeVarUint to EncodeInt/EncodeUint, which are byte-for-byte identical to
+// v2.8.3's EncodeInt64/EncodeUint64, and the on-disk format is preserved exactly.
+//
+// The replace below is separate from the pin: it rewrites the path at the same version, and the
+// two module trees are identical, so it can be dropped on its own without touching the encoding.
 replace gopkg.in/vmihailenco/msgpack.v2 => github.com/vmihailenco/msgpack v2.8.3+incompatible
