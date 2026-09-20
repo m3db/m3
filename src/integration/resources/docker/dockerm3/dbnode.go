@@ -21,11 +21,13 @@
 package dockerm3
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
-	"github.com/ory/dockertest/v3"
-	"github.com/ory/dockertest/v3/docker"
+	"github.com/moby/moby/api/types/network"
+	mobyclient "github.com/moby/moby/client"
+	"github.com/ory/dockertest/v4"
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
@@ -53,16 +55,17 @@ var (
 type dbNode struct {
 	tchanClient *integration.TestTChannelClient
 	resource    *xdockertest.Resource
-	pool        *dockertest.Pool
+	pool        dockertest.Pool
 	logger      *zap.Logger
 }
 
 func newDockerHTTPNode(
-	pool *dockertest.Pool,
+	ctx context.Context,
+	pool dockertest.Pool,
 	opts xdockertest.ResourceOptions,
 ) (resources.Node, error) {
 	opts = opts.WithDefaults(defaultDBNodeOptions)
-	resource, err := xdockertest.NewDockerResource(pool, opts)
+	resource, err := xdockertest.NewDockerResource(ctx, pool, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -96,18 +99,24 @@ func (c *dbNode) Start() {
 }
 
 func (c *dbNode) HostDetails(p int) (*admin.Host, error) {
-	var network docker.ContainerNetwork
-	for _, n := range c.resource.Resource().Container.NetworkSettings.Networks { // nolint: gocritic
-		network = n
+	container := c.resource.Resource().Container()
+
+	var endpoint network.EndpointSettings
+	if container.NetworkSettings != nil {
+		for _, n := range container.NetworkSettings.Networks { // nolint: gocritic
+			if n != nil {
+				endpoint = *n
+			}
+		}
 	}
 
-	host := strings.TrimLeft(c.resource.Resource().Container.Name, "/")
+	host := strings.TrimLeft(container.Name, "/")
 	return &admin.Host{
 		Id:             host,
-		IsolationGroup: "rack-a-" + c.resource.Resource().Container.Name,
+		IsolationGroup: "rack-a-" + container.Name,
 		Zone:           "embedded",
 		Weight:         1024,
-		Address:        network.IPAddress,
+		Address:        endpoint.IPAddress.String(),
 		Port:           uint32(p),
 	}, nil
 }
@@ -132,7 +141,8 @@ func (c *dbNode) WaitForBootstrap() error {
 	}
 
 	logger := c.logger.With(zapMethod("waitForBootstrap"))
-	return c.pool.Retry(func() error {
+	// NB: a zero timeout uses the pool's configured max wait.
+	return c.pool.Retry(context.Background(), 0, func() error {
 		health, err := c.Health()
 		if err != nil {
 			return err
@@ -250,12 +260,23 @@ func (c *dbNode) Restart() error {
 		return xdockertest.ErrClosed
 	}
 
-	cName := c.resource.Resource().Container.Name
+	var (
+		ctx       = context.Background()
+		container = c.resource.Resource().Container()
+		client    = c.pool.Client()
+		// Matches the 60s grace period previously passed to RestartContainer.
+		stopTimeoutSeconds = 60
+	)
 	logger := c.logger.With(zapMethod("restart"))
-	logger.Info("restarting container", zap.String("container", cName))
-	err := c.pool.Client.RestartContainer(cName, 60)
-	if err != nil {
-		logger.Error("could not restart", zap.Error(err))
+	logger.Info("restarting container", zap.String("container", container.Name))
+	if _, err := client.ContainerStop(ctx, container.ID, mobyclient.ContainerStopOptions{
+		Timeout: &stopTimeoutSeconds,
+	}); err != nil {
+		logger.Error("could not stop container for restart", zap.Error(err))
+		return err
+	}
+	if _, err := client.ContainerStart(ctx, container.ID, mobyclient.ContainerStartOptions{}); err != nil {
+		logger.Error("could not start container for restart", zap.Error(err))
 		return err
 	}
 

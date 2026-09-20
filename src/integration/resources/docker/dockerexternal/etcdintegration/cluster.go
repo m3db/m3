@@ -30,7 +30,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v4"
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
@@ -86,7 +86,7 @@ func NewCluster(t testingT, cfg *ClusterConfig) *Cluster {
 	// TestMultiServerForwardingPipelineDiscardNaNAggregatedValues fails fairly  consistently with zaptest here.
 	logger := xtest.NewLogger(t)
 
-	pool, err := dockertest.NewPool("")
+	pool, err := dockertest.NewPool(context.Background(), "")
 	require.NoError(t, err)
 
 	r, err := dockerexternal.NewEtcd(pool, instrument.NewOptions(), dockerexternal.EtcdClusterUseBridge(cfg.UseBridge))

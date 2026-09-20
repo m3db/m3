@@ -22,9 +22,10 @@
 package dockerm3
 
 import (
+	"context"
 	"time"
 
-	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v4"
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/integration/resources"
@@ -39,7 +40,7 @@ type dockerResources struct {
 	coordinator resources.Coordinator
 	nodes       resources.Nodes
 
-	pool *dockertest.Pool
+	pool dockertest.Pool
 }
 
 // SetupSingleM3DBNode creates docker resources representing a setup with a
@@ -50,25 +51,20 @@ func SetupSingleM3DBNode(opts ...SetupOptions) (resources.M3Resources, error) { 
 		f(&options)
 	}
 
-	pool, err := dockertest.NewPool("")
+	ctx := context.Background()
+	pool, err := dockertest.NewPool(ctx, "", dockertest.WithMaxWait(timeout))
 	if err != nil {
 		return nil, err
 	}
 
-	pool.MaxWait = timeout
-
 	if !options.existingCluster {
-		if err := xdockertest.SetupNetwork(pool, true); err != nil {
-			return nil, err
-		}
-
-		if err := xdockertest.SetupVolume(pool); err != nil {
+		if err := xdockertest.SetupNetwork(ctx, pool, true); err != nil {
 			return nil, err
 		}
 	}
 
 	iOpts := instrument.NewOptions()
-	dbNode, err := newDockerHTTPNode(pool, xdockertest.ResourceOptions{
+	dbNode, err := newDockerHTTPNode(ctx, pool, xdockertest.ResourceOptions{
 		Image:          options.dbNodeImage,
 		ContainerName:  options.dbNodeContainerName,
 		InstrumentOpts: iOpts,
@@ -92,7 +88,7 @@ func SetupSingleM3DBNode(opts ...SetupOptions) (resources.M3Resources, error) { 
 		return nil, err
 	}
 
-	coordinator, err := newDockerHTTPCoordinator(pool, xdockertest.ResourceOptions{
+	coordinator, err := newDockerHTTPCoordinator(ctx, pool, xdockertest.ResourceOptions{
 		Image:          options.coordinatorImage,
 		ContainerName:  options.coordinatorContainerName,
 		InstrumentOpts: iOpts,
@@ -129,16 +125,16 @@ func AttachToExistingContainers(
 	coordinatorContainerName string,
 	dbNodesContainersNames []string,
 ) (resources.M3Resources, error) {
-	pool, err := dockertest.NewPool("")
+	ctx := context.Background()
+	pool, err := dockertest.NewPool(ctx, "", dockertest.WithMaxWait(timeout))
 	if err != nil {
 		return nil, err
 	}
-	pool.MaxWait = timeout
 
 	iOpts := instrument.NewOptions()
 	dbNodes := resources.Nodes{}
 	for _, containerName := range dbNodesContainersNames {
-		dbNode, err := newDockerHTTPNode(pool, xdockertest.ResourceOptions{
+		dbNode, err := newDockerHTTPNode(ctx, pool, xdockertest.ResourceOptions{
 			InstrumentOpts: iOpts,
 			ContainerName:  containerName,
 		})
@@ -149,6 +145,7 @@ func AttachToExistingContainers(
 	}
 
 	coordinator, err := newDockerHTTPCoordinator(
+		ctx,
 		pool,
 		xdockertest.ResourceOptions{
 			InstrumentOpts: iOpts,

@@ -30,7 +30,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -59,7 +59,7 @@ func testSetup(t *testing.T) (resources.M3Resources, resources.ExternalResources
 	)
 	require.NoError(t, err)
 
-	pool, err := dockertest.NewPool("")
+	pool, err := dockertest.NewPool(context.Background(), "")
 	require.NoError(t, err)
 
 	_, filename, _, _ := runtime.Caller(0)
