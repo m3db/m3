@@ -34,7 +34,6 @@ require (
 	github.com/m3db/prometheus_common v0.34.7
 	github.com/m3db/prometheus_procfs v0.8.1
 	github.com/m3db/stackadler32 v0.0.0-20180104200216-bfebcd73ef6f
-	github.com/m3db/stackmurmur3/v2 v2.0.2
 	github.com/m3dbx/pilosa v1.4.1
 	github.com/m3dbx/vellum v0.0.0-20201119082309-5b47f7a70f69
 	github.com/mauricelam/genny v0.0.0-20190320071652-0800202903e5

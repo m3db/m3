@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"time"
 
-	murmur3 "github.com/m3db/stackmurmur3/v2"
+	"github.com/twmb/murmur3"
 
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
