@@ -61,6 +61,7 @@ require (
 	github.com/uber/jaeger-lib v2.4.1+incompatible
 	github.com/uber/tchannel-go v1.34.5
 	github.com/valyala/tcplisten v1.0.0
+	github.com/vmihailenco/msgpack/v5 v5.4.1
 	github.com/willf/bitset v1.1.11
 	go.etcd.io/etcd/api/v3 v3.6.13
 	go.etcd.io/etcd/client/pkg/v3 v3.6.13
@@ -84,7 +85,6 @@ require (
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/go-playground/validator.v9 v9.31.0
 	gopkg.in/validator.v2 v2.0.1
-	gopkg.in/vmihailenco/msgpack.v2 v2.8.3
 	gopkg.in/yaml.v2 v2.4.0
 )
 
@@ -156,6 +156,7 @@ require (
 	github.com/tinylib/msgp v1.6.4 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75 // indirect
+	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/xiang90/probing v0.0.0-20221125231312-a49e3df8f510 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.etcd.io/bbolt v1.4.3 // indirect
@@ -173,31 +174,9 @@ require (
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260720211330-0afa2a65878a // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260803160001-6ac0973c030d // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
-
-// NB(nate): pinned to v2.8.3, which sizes an integer down to the smallest number of bytes it
-// fits in. Newer msgpack does not: in v4 and v5, EncodeInt64/EncodeUint64 always write the full
-// 9 bytes and the compact behavior moved to EncodeInt/EncodeUint. We depend on the compact
-// encoding for the on-disk format via encodeVarint/encodeVarUint in
-// src/dbnode/persist/fs/msgpack/encoder.go.
-//
-// The sharp edge is the commit log headers built at init in
-// src/dbnode/persist/fs/msgpack/schema.go: DecodeLogEntryFast skips them by length without
-// validating their contents, so widening the integers inside them would make new binaries
-// silently misparse commit logs written by old ones. TestCommitLogHeadersUnchanged pins those
-// bytes so that an upgrade fails there rather than during bootstrap.
-//
-// To upgrade, target v5 rather than v4 (v4's codes package is typed, v5's msgpcode constants
-// are plain bytes like v2's, which the hand-inlined fast paths need). Switch
-// encodeVarint/encodeVarUint to EncodeInt/EncodeUint, which are byte-for-byte identical to
-// v2.8.3's EncodeInt64/EncodeUint64, and the on-disk format is preserved exactly.
-//
-// The replace below is separate from the pin: it rewrites the path at the same version, and the
-// two module trees are identical, so it can be dropped on its own without touching the encoding.
-replace gopkg.in/vmihailenco/msgpack.v2 => github.com/vmihailenco/msgpack v2.8.3+incompatible
