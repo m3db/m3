@@ -1090,8 +1090,6 @@ github.com/m3db/stackadler32 v0.0.0-20180104200216-bfebcd73ef6f h1:+FWCOZjB96lBc
 github.com/m3db/stackadler32 v0.0.0-20180104200216-bfebcd73ef6f/go.mod h1:VJQWii2dj/AE1cRKup4MXL4TKbbs5J4wZnNe5I1CZaw=
 github.com/m3db/stackmurmur3 v1.0.1 h1:ASTdJ6Bd2m34dgsnOBZHrwWdKGcpaavP3MokiKL/ERs=
 github.com/m3db/stackmurmur3 v1.0.1/go.mod h1:hkR/F91aDUfPxDv5Jw55ifIXV6ZW1jzNHW0d8GP02rw=
-github.com/m3db/stackmurmur3/v2 v2.0.2 h1:q/kOlC12PwOib9XziHUTM/jsCQULHnRxBz/H4hT/Aro=
-github.com/m3db/stackmurmur3/v2 v2.0.2/go.mod h1:HnguA9wfEbTqYdTT/5klUlhxSDPRMGaWyvLzugxW+MA=
 github.com/m3dbx/pilosa v1.4.1 h1:/Cpp1XAHSd6orpjceXGiKpCoDdYBP5BD/6NoqGG9eVg=
 github.com/m3dbx/pilosa v1.4.1/go.mod h1:Jt0+w9O08sa7qWDeRC58VBjb4OeOTDMOhfvVmyeVCO8=
 github.com/m3dbx/vellum v0.0.0-20201119082309-5b47f7a70f69 h1:dANuca0xuYlZR7qWdPIIAZKG0YHvsbLTzdenj53yQvc=

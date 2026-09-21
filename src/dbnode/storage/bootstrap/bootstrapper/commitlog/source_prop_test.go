@@ -39,8 +39,8 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
-	murmur3 "github.com/m3db/stackmurmur3/v2"
 	"github.com/stretchr/testify/require"
+	"github.com/twmb/murmur3"
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/digest"
