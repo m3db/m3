@@ -35,7 +35,7 @@ import (
 	"github.com/m3db/bitset"
 	"github.com/opentracing/opentracing-go"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 
@@ -93,7 +93,6 @@ const (
 
 var allQuery = idx.NewAllQuery()
 
-// nolint: maligned
 type nsIndex struct {
 	state nsIndexState
 

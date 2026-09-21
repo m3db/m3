@@ -30,7 +30,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v3"
-	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v4"
 	"github.com/prometheus/common/model"
 
 	xdockertest "github.com/m3db/m3/src/x/dockertest"
@@ -39,7 +39,7 @@ import (
 
 // Prometheus is a docker-backed instantiation of Prometheus.
 type Prometheus struct {
-	pool      *dockertest.Pool
+	pool      dockertest.Pool
 	pathToCfg string
 	iOpts     instrument.Options
 
@@ -50,7 +50,7 @@ type Prometheus struct {
 // spinning up docker container running Prometheus
 type PrometheusOptions struct {
 	// Pool is the connection to the docker API
-	Pool *dockertest.Pool
+	Pool dockertest.Pool
 	// PathToCfg contains the path to the prometheus.yml configuration
 	// file to be used on startup.
 	PathToCfg string
@@ -79,11 +79,11 @@ func (p *Prometheus) Setup(ctx context.Context) error {
 			"before attempting to setup again")
 	}
 
-	if err := xdockertest.SetupNetwork(p.pool, true); err != nil {
+	if err := xdockertest.SetupNetwork(ctx, p.pool, true); err != nil {
 		return err
 	}
 
-	res, err := xdockertest.NewDockerResource(p.pool, xdockertest.ResourceOptions{
+	res, err := xdockertest.NewDockerResource(ctx, p.pool, xdockertest.ResourceOptions{
 		ContainerName: "prometheus",
 		Image: xdockertest.Image{
 			Name: "prom/prometheus",

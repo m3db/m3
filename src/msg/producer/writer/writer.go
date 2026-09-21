@@ -25,7 +25,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 
@@ -67,7 +67,6 @@ func newWriterMetrics(scope tally.Scope) writerMetrics {
 	}
 }
 
-// nolint: maligned
 type writer struct {
 	sync.RWMutex
 

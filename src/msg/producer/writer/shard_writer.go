@@ -118,7 +118,6 @@ func (w *sharedShardWriter) SetMessageTTLNanos(value int64) {
 	w.mw.SetMessageTTLNanos(value)
 }
 
-// nolint: maligned
 type replicatedShardWriter struct {
 	sync.RWMutex
 

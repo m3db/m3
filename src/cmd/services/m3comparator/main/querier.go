@@ -53,6 +53,9 @@ type querier struct {
 	blockSize            time.Duration
 	defaultResolution    time.Duration
 	histogramBucketCount uint
+	// rnd is seeded per query by lockAndSeed and is only accessed while the
+	// mutex is held.
+	rnd *rand.Rand
 	sync.Mutex
 }
 
@@ -91,9 +94,9 @@ func (q *querier) generateSeriesBlock(
 		stamp := start.Add(resolution * time.Duration(i))
 		var value float64
 		if integerValues {
-			value = float64(rand.Intn(1000))
+			value = float64(q.rnd.Intn(1000))
 		} else {
-			value = rand.Float64()
+			value = q.rnd.Float64()
 		}
 		dp := ts.Datapoint{
 			TimestampNanos: xtime.ToUnixNano(stamp),
@@ -404,7 +407,10 @@ func multiSeriesTags(metricsName string, id int) parser.Tags {
 
 func (q *querier) lockAndSeed(start time.Time) func() {
 	q.Lock()
-	rand.Seed(start.Unix())
+	// NB: use a local source so the generated series stay reproducible for a
+	// given start time. As of Go 1.24 rand.Seed is a no-op, so seeding the
+	// global source does nothing.
+	q.rnd = rand.New(rand.NewSource(start.Unix()))
 
 	return q.Unlock
 }

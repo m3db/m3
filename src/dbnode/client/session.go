@@ -32,7 +32,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -2291,7 +2291,6 @@ func (s *session) Truncate(namespace ident.ID) (int64, error) {
 // NB(r): Excluding maligned struct check here as we can
 // live with a few extra bytes since this struct is only
 // ever passed by stack, its much more readable not optimized
-// nolint: maligned
 type peers struct {
 	peers            []peer
 	shard            uint32

@@ -63,7 +63,7 @@ func mustNewLogger(opts loggerOptions) *zap.Logger {
 	loggerCfg.DisableStacktrace = !opts.enableStacktrace
 	logger, err := loggerCfg.Build()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, err.Error())
+		fmt.Fprint(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 

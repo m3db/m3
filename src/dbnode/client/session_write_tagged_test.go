@@ -32,7 +32,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/topology"
@@ -515,7 +515,7 @@ func testWriteTaggedConsistencyLevel(
 		completionFn(host, nil)
 	}
 	for i := 0; i < failures; i++ {
-		completionFn(host, fmt.Errorf(writeErr))
+		completionFn(host, errors.New(writeErr))
 	}
 
 	// Wait for write to complete or timeout

@@ -28,8 +28,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ory/dockertest/v3"
-	"github.com/ory/dockertest/v3/docker"
+	"github.com/moby/moby/api/types/container"
+	mobyclient "github.com/moby/moby/client"
+	"github.com/ory/dockertest/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -47,13 +48,13 @@ var (
 )
 
 type etcdTestDeps struct {
-	Pool           *dockertest.Pool
+	Pool           dockertest.Pool
 	InstrumentOpts instrument.Options
 	Etcd           *EtcdNode
 }
 
 func setupEtcdTest(t *testing.T) etcdTestDeps {
-	pool, err := dockertest.NewPool("")
+	pool, err := dockertest.NewPool(context.Background(), "")
 	require.NoError(t, err)
 
 	iopts := instrument.NewOptions().SetLogger(testLogger)
@@ -124,14 +125,14 @@ func TestCluster(t *testing.T) {
 		testPrefix := "cleanup-test-"
 		deps.Etcd.namePrefix = testPrefix
 
-		findContainers := func(namePrefix string, _ *dockertest.Pool) ([]docker.APIContainers, error) {
-			containers, err := deps.Pool.Client.ListContainers(docker.ListContainersOptions{})
+		findContainers := func(namePrefix string, pool dockertest.Pool) ([]container.Summary, error) {
+			containers, err := pool.Client().ContainerList(ctx, mobyclient.ContainerListOptions{})
 			if err != nil {
 				return nil, err
 			}
 
-			var rtn []docker.APIContainers
-			for _, ct := range containers {
+			var rtn []container.Summary
+			for _, ct := range containers.Items {
 				for _, name := range ct.Names {
 					// Docker response prefixes the container name with / regardless of what you give it as input.
 					if strings.HasPrefix(name, "/"+namePrefix) {
@@ -171,11 +172,65 @@ func TestCluster_waitForHealth(t *testing.T) {
 	})
 }
 
+func TestHealthCheckContext(t *testing.T) {
+	t.Run("grants the floor when the parent deadline is already blown", func(t *testing.T) {
+		// Mimics a container pull that overran the caller's whole budget.
+		parent, cancelParent := context.WithTimeout(context.Background(), -2*time.Minute)
+		defer cancelParent()
+		require.Error(t, parent.Err(), "parent should already be expired")
+
+		ctx, cancel := healthCheckContext(parent)
+		defer cancel()
+
+		require.NoError(t, ctx.Err())
+		deadline, ok := ctx.Deadline()
+		require.True(t, ok)
+		assert.Greater(t, time.Until(deadline), minHealthCheckTimeout/2)
+	})
+
+	t.Run("keeps a parent deadline that leaves enough room", func(t *testing.T) {
+		want := 10 * minHealthCheckTimeout
+		parent, cancelParent := context.WithTimeout(context.Background(), want)
+		defer cancelParent()
+
+		ctx, cancel := healthCheckContext(parent)
+		defer cancel()
+
+		parentDeadline, ok := parent.Deadline()
+		require.True(t, ok)
+		deadline, ok := ctx.Deadline()
+		require.True(t, ok)
+		assert.Equal(t, parentDeadline, deadline)
+	})
+
+	t.Run("propagates cancellation when the parent deadline is kept", func(t *testing.T) {
+		parent, cancelParent := context.WithTimeout(context.Background(), 10*minHealthCheckTimeout)
+		defer cancelParent()
+
+		ctx, cancel := healthCheckContext(parent)
+		defer cancel()
+
+		cancelParent()
+		assert.ErrorIs(t, ctx.Err(), context.Canceled)
+	})
+
+	t.Run("bounds a parentless context", func(t *testing.T) {
+		ctx, cancel := healthCheckContext(context.Background())
+		defer cancel()
+
+		_, ok := ctx.Deadline()
+		assert.False(t, ok, "should not invent a deadline the caller did not set")
+	})
+}
+
 type fakeMemberClient struct {
 	err error
 }
 
-func (f fakeMemberClient) MemberList(ctx context.Context) (*clientv3.MemberListResponse, error) {
+func (f fakeMemberClient) MemberList(
+	ctx context.Context,
+	_ ...clientv3.OpOption,
+) (*clientv3.MemberListResponse, error) {
 	return nil, f.err
 }
 

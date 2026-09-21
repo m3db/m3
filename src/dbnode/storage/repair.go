@@ -31,7 +31,7 @@ import (
 	"time"
 
 	"github.com/jhump/protoreflect/dynamic"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/dbnode/client"

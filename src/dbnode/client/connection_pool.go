@@ -29,8 +29,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	murmur3 "github.com/m3db/stackmurmur3/v2"
-	"github.com/uber-go/tally"
+	"github.com/twmb/murmur3"
+	"github.com/uber-go/tally/v4"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 

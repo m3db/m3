@@ -29,7 +29,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/cluster/services"
@@ -239,7 +239,6 @@ type goalState struct {
 
 type campaignIsEnabledFn func() (bool, error)
 
-// nolint: maligned
 type electionManager struct {
 	sync.RWMutex
 	sync.WaitGroup

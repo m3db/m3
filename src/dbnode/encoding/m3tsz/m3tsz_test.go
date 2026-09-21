@@ -26,7 +26,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -108,7 +107,6 @@ func testNegativeIntConversions(t *testing.T, numConv, numDig, numDec int) {
 }
 
 func validateIntConversions(t *testing.T, numConv, numDig, numDec int, neg bool) {
-	rand.Seed(time.Now().UnixNano())
 	digMod := int(math.Pow10(numDig))
 	decMod := int(math.Pow10(numDec))
 	sign := 1.0
@@ -135,7 +133,6 @@ func validateIntConversions(t *testing.T, numConv, numDig, numDec int, neg bool)
 }
 
 func testFloatConversions(t *testing.T, numConv, numDig, numDec int) {
-	rand.Seed(time.Now().UnixNano())
 	digMod := int(math.Pow10(numDig))
 	decMod := int(math.Pow10(numDec))
 

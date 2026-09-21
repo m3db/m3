@@ -38,7 +38,7 @@ func (noopLogger) Enabled(_ tchannel.LogLevel) bool {
 	return false
 }
 func (noopLogger) Fatal(msg string) {
-	fmt.Fprintf(os.Stderr, msg)
+	fmt.Fprint(os.Stderr, msg)
 	os.Exit(1)
 }
 func (noopLogger) Error(msg string) {

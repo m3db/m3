@@ -20,7 +20,7 @@
 
 package encoding
 
-import "github.com/uber-go/tally"
+import "github.com/uber-go/tally/v4"
 
 // Metrics contains metrics for encoding.
 type Metrics struct {

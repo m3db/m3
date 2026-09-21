@@ -35,7 +35,7 @@ import (
 	"github.com/golang/snappy"
 	"github.com/prometheus/prometheus/model/labels"
 	promql "github.com/prometheus/prometheus/promql/parser"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap"
 
 	comparator "github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"

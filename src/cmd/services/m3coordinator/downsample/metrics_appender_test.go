@@ -28,7 +28,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/metrics/matcher"
@@ -124,7 +124,6 @@ func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
 
 				// NB: expected ID is generated into human-readable form
 				// from tags in ForwardMatch mock above. Also include the m3 type, which is included when matching.
-				// nolint:scopelint
 				expected := fmt.Sprintf("__m3_prom_type__-unknown,__m3_type__-gauge,foo%d-bar%d", i, i)
 				if expected != u.ID.String() {
 					// NB: if this fails, appender is holding state after Finalize.

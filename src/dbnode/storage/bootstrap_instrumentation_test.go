@@ -26,7 +26,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	xerrors "github.com/m3db/m3/src/x/errors"

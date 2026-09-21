@@ -189,7 +189,6 @@ func TestPlacementChecker(t *testing.T) {
 	for _, test := range tests {
 		for _, tc := range test.cases {
 			testName := fmt.Sprintf("%s(%+v)", test.name, tc.instances)
-			//nolint:scopelint
 			t.Run(testName, func(t *testing.T) {
 				require.Equal(t, tc.expectedGlobal, test.globalFn(p, tc.instances, nowNanos))
 				require.Equal(t, tc.expectedLocal, test.localFn(p, tc.instances, nowNanos))

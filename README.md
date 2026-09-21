@@ -118,9 +118,9 @@ This project is released under the [Apache License, Version 2.0](LICENSE).
 
 [doc]: https://godoc.org/github.com/m3db/m3
 
-[ci-img]: https://badge.buildkite.com/5509d9360bfea7f99ac3a07fd029feb1aafa5cff9ed5ab667b.svg?branch=master
+[ci-img]: https://badge.buildkite.com/8e65c098f9619dd46b99813c7cca0d1f0de591d943c3bf7ef2.svg?branch=master
 
-[ci]: https://buildkite.com/uberopensource/m3-monorepo-ci
+[ci]: https://buildkite.com/uberopensource/m3-monorepo-ci-uber-oss
 
 [cov-img]: https://codecov.io/gh/m3db/m3/branch/master/graph/badge.svg
 

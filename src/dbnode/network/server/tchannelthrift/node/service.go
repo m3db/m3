@@ -30,7 +30,7 @@ import (
 	"time"
 
 	opentracinglog "github.com/opentracing/opentracing-go/log"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 

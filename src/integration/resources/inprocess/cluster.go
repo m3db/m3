@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v4"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
@@ -231,7 +231,7 @@ func NewClusterFromSpecification(
 	etcdEndpoints := opts.EtcdEndpoints
 	if len(opts.EtcdEndpoints) == 0 {
 		// TODO: amainsd: maybe not the cleanest place to do this.
-		pool, err := dockertest.NewPool("")
+		pool, err := dockertest.NewPool(context.Background(), "")
 		if err != nil {
 			return nil, err
 		}

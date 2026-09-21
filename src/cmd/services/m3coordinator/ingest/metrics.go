@@ -23,7 +23,7 @@ package ingest
 import (
 	"time"
 
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 )
 
 // LatencyBuckets are a set of latency buckets useful for measuring things.

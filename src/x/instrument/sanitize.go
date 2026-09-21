@@ -24,9 +24,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/uber-go/tally"
-	"github.com/uber-go/tally/m3"
-	"github.com/uber-go/tally/prometheus"
+	"github.com/uber-go/tally/v4"
+	"github.com/uber-go/tally/v4/m3"
+	"github.com/uber-go/tally/v4/prometheus"
 )
 
 // MetricSanitizationType is a type of sanitizer to use for metrics.

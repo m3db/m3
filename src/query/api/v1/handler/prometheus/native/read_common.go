@@ -26,7 +26,7 @@ import (
 	"net/http"
 
 	opentracinglog "github.com/opentracing/opentracing-go/log"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/options"

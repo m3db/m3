@@ -1,8 +1,8 @@
-FROM golang:1.21-alpine AS builder
+FROM golang:1.25.6-alpine3.22 AS builder
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
-# Install delve debugger - use v1.23.1 which supports Go 1.21
-RUN go install github.com/go-delve/delve/cmd/dlv@v1.23.1
+# Install delve debugger - use v1.27.2 which supports Go 1.25
+RUN go install github.com/go-delve/delve/cmd/dlv@v1.27.2
 
 # Use alpine with go runtime for debugging
 FROM alpine:3.11

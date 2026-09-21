@@ -32,7 +32,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/protocol/proto"
@@ -388,7 +388,7 @@ func TestConsumerWriterResetWhileDecoding(t *testing.T) {
 
 // Interface solely for mocking.
 //
-//nolint:deadcode,unused
+//nolint:unused
 type contextDialer interface {
 	DialContext(ctx context.Context, network string, addr string) (net.Conn, error)
 }

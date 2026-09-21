@@ -36,8 +36,8 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/snappy"
-	murmur3 "github.com/m3db/stackmurmur3/v2"
-	"github.com/uber-go/tally"
+	"github.com/twmb/murmur3"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"

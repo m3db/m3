@@ -36,7 +36,7 @@ var (
 )
 
 var (
-	// nolint: gosimple
+	// nolint: staticcheck
 	reCarbon = regexp.MustCompile("(?i)^([^\\s]+)\\s+(-?[0-9\\.]+|\\-?nan)\\s+([0-9]+)\\s*$")
 )
 

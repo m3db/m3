@@ -27,7 +27,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -187,7 +187,7 @@ type commitLogMetrics struct {
 
 type eventType int
 
-// nolint: varcheck, unused
+// nolint: unused
 const (
 	writeEventType eventType = iota
 	flushEventType

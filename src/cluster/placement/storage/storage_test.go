@@ -211,7 +211,7 @@ func TestStorageCompressesStagedPlacement(t *testing.T) {
 			opts := placement.NewOptions().SetIsStaged(true).SetCompress(true)
 			storage := newTestPlacementStorage(mem.NewStore(), opts)
 
-			err := tc.storeActionFn(storage, expected.Clone()) // nolint: scopelint
+			err := tc.storeActionFn(storage, expected.Clone())
 			require.NoError(t, err)
 
 			m, _, err := storage.Proto()

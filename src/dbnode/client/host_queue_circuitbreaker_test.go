@@ -30,7 +30,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
@@ -255,10 +255,10 @@ func TestHostQueueCircuitBreakerErrorFilter(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                    string
-		mockError               error
-		expectCBRejectOnSecond  bool
-		expectFirstWriteError   bool
+		name                   string
+		mockError              error
+		expectCBRejectOnSecond bool
+		expectFirstWriteError  bool
 	}{
 		{
 			name:                   "timeout error trips circuit breaker - second request rejected",

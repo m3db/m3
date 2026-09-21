@@ -31,6 +31,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -38,7 +39,6 @@ import (
 
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
-	"golang.org/x/exp/slices"
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"

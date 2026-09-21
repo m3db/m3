@@ -24,7 +24,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/metrics/policy"

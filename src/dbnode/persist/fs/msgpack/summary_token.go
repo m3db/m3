@@ -21,7 +21,7 @@
 package msgpack
 
 import (
-	"gopkg.in/vmihailenco/msgpack.v2"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 // IndexSummaryToken can be used, along with the summaries file buffer, to

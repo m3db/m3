@@ -71,7 +71,7 @@ var (
 // HandlerOptions is the options struct for the handler.
 type HandlerOptions struct {
 	// This is used by other placement Handlers
-	// nolint: structcheck
+	// nolint: unused
 	clusterClient clusterclient.Client
 	placement     placement.Configuration
 
@@ -108,7 +108,7 @@ func NewHandlerOptions(
 type Handler struct {
 	HandlerOptions
 
-	// nolint: structcheck
+	// nolint: unused
 	nowFn func() time.Time
 }
 

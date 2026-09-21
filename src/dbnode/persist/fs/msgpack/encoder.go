@@ -23,7 +23,7 @@ package msgpack
 import (
 	"bytes"
 
-	"gopkg.in/vmihailenco/msgpack.v2"
+	"github.com/vmihailenco/msgpack/v5"
 
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
@@ -396,18 +396,22 @@ func (enc *Encoder) encodeObjectType(objType objectType) {
 	enc.encodeVarintFn(int64(objType))
 }
 
+// NB: EncodeInt, not EncodeInt64. EncodeInt64 always writes the full 9 bytes, while EncodeInt
+// sizes the value down to the smallest encoding it fits in, which is what the on-disk format
+// and the commit log headers depend on. See TestCommitLogHeadersUnchanged.
 func (enc *Encoder) encodeVarint(value int64) {
 	if enc.err != nil {
 		return
 	}
-	enc.err = enc.enc.EncodeInt64(value)
+	enc.err = enc.enc.EncodeInt(value)
 }
 
+// NB: EncodeUint, not EncodeUint64, for the same reason as encodeVarint above.
 func (enc *Encoder) encodeVarUint(value uint64) {
 	if enc.err != nil {
 		return
 	}
-	enc.err = enc.enc.EncodeUint64(value)
+	enc.err = enc.enc.EncodeUint(value)
 }
 
 func (enc *Encoder) encodeFloat64(value float64) {

@@ -72,7 +72,7 @@ curl -X POST {{% apiendpoint %}}services/m3db/namespace -d '{
       "bufferFutureDuration": "10m",
       "bufferPastDuration": "10m",
       "blockDataExpiry": true,
-      "blockDataExpiryAfterNotAccessedPeriodDuration": "5m"
+      "blockDataExpiryAfterNotAccessPeriodDuration": "5m"
     },
     "indexOptions": {
       "enabled": true,
