@@ -23,7 +23,6 @@ package graphite
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"math"
 	"net/http"
 	"strconv"
@@ -106,7 +105,7 @@ func (dp RenderDatapoints) Get(i int) (time.Time, float64) {
 	case time.Time:
 		return timestamp, value
 	default:
-		panic(fmt.Sprintf("unsupported timestamp type"))
+		panic("unsupported timestamp type")
 	}
 }
 
