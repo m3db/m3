@@ -665,7 +665,7 @@ func (b *dbBuffer) WarmFlush(
 		// there be buckets for previous versions. In this case, we need to try
 		// to flush them again, so we merge them together to one stream and
 		// persist it.
-		encoder, _, err := mergeStreamsToEncoder(blockStart, streams, b.opts, nsCtx)
+		encoder, _, _, err := mergeStreamsToEncoder(blockStart, streams, b.opts, nsCtx)
 		if err != nil {
 			return FlushOutcomeErr, err
 		}
@@ -1524,7 +1524,7 @@ func (b *BufferBucket) merge(nsCtx namespace.Context) (int, error) {
 		}
 	}
 
-	encoder, lastWriteAt, err := mergeStreamsToEncoder(start, readers, b.opts, nsCtx)
+	encoder, lastWriteAt, lastWriteUnit, err := mergeStreamsToEncoder(start, readers, b.opts, nsCtx)
 	if err != nil {
 		return 0, err
 	}
@@ -1533,44 +1533,49 @@ func (b *BufferBucket) merge(nsCtx namespace.Context) (int, error) {
 	b.resetLoadedBlocks()
 
 	b.encoders = append(b.encoders, inOrderEncoder{
-		encoder:     encoder,
-		lastWriteAt: lastWriteAt,
+		encoder:       encoder,
+		lastWriteAt:   lastWriteAt,
+		lastWriteUnit: lastWriteUnit,
 	})
 
 	return merges, nil
 }
 
 // mergeStreamsToEncoder merges streams to an encoder and returns the last
-// write time. It is the responsibility of the caller to close the returned
-// encoder when appropriate.
+// write time and unit. It is the responsibility of the caller to close the
+// returned encoder when appropriate.
 func mergeStreamsToEncoder(
 	blockStart xtime.UnixNano,
 	streams []xio.SegmentReader,
 	opts Options,
 	nsCtx namespace.Context,
-) (encoding.Encoder, xtime.UnixNano, error) {
+) (encoding.Encoder, xtime.UnixNano, xtime.Unit, error) {
 	bopts := opts.DatabaseBlockOptions()
 	encoder := opts.EncoderPool().Get()
 	encoder.Reset(blockStart, bopts.DatabaseBlockAllocSize(), nsCtx.Schema)
 	iter := opts.MultiReaderIteratorPool().Get()
 	defer iter.Close()
 
-	var lastWriteAt xtime.UnixNano
+	var (
+		lastWriteAt   xtime.UnixNano
+		lastWriteUnit xtime.Unit
+	)
 	iter.Reset(streams, blockStart, opts.RetentionOptions().BlockSize(), nsCtx.Schema)
 	for iter.Next() {
 		dp, unit, annotation := iter.Current()
 		if err := encoder.Encode(dp, unit, annotation); err != nil {
 			encoder.Close()
-			return nil, 0, err
+			return nil, 0, xtime.None, err
 		}
 		lastWriteAt = dp.TimestampNanos
+		lastWriteUnit = unit
 	}
 	if err := iter.Err(); err != nil {
 		encoder.Close()
-		return nil, 0, err
+		return nil, 0, xtime.None, err
 	}
 
-	return encoder, lastWriteAt, nil
+	return encoder, lastWriteAt, lastWriteUnit, nil
 }
 
 // mergeToStream merges all streams in this BufferBucket into one stream and

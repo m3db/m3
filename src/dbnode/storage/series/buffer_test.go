@@ -743,6 +743,42 @@ func TestBufferBucketWriteDuplicateWithDifferentTimeUnit(t *testing.T) {
 	requireReaderValuesEqual(t, expected, results, opts, namespace.Context{})
 }
 
+func TestBufferBucketDuplicateNotWrittenAfterMerge(t *testing.T) {
+	opts := newBufferTestOptions()
+	rops := opts.RetentionOptions()
+	curr := xtime.Now().Truncate(rops.BlockSize())
+
+	b := &BufferBucket{}
+	b.resetTo(curr, WarmWrite, opts)
+
+	// Two differing writes at the same timestamp force a second encoder so
+	// that merge() actually has something to merge.
+	wasWritten, err := b.write(curr, 1, xtime.Second, nil, nil)
+	require.NoError(t, err)
+	require.True(t, wasWritten)
+
+	wasWritten, err = b.write(curr, 2, xtime.Second, nil, nil)
+	require.NoError(t, err)
+	require.True(t, wasWritten)
+	require.Len(t, b.encoders, 2)
+
+	_, err = b.merge(namespace.Context{})
+	require.NoError(t, err)
+	require.Len(t, b.encoders, 1)
+
+	// The merged encoder must retain the last write's unit so that an exact
+	// duplicate of the last datapoint is still deduplicated after a merge.
+	wasWritten, err = b.write(curr, 2, xtime.Second, nil, nil)
+	require.NoError(t, err)
+	require.False(t, wasWritten)
+	require.Len(t, b.encoders, 1)
+
+	// A write differing only by unit is still accepted after a merge.
+	wasWritten, err = b.write(curr, 2, xtime.Millisecond, nil, nil)
+	require.NoError(t, err)
+	require.True(t, wasWritten)
+}
+
 func TestIndexedBufferWriteOnlyWritesSinglePoint(t *testing.T) {
 	opts := newBufferTestOptions()
 	rops := opts.RetentionOptions()
