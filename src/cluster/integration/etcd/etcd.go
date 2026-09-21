@@ -28,7 +28,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v4"
 
 	"github.com/m3db/m3/src/cluster/client"
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
@@ -50,7 +50,7 @@ func New(opts Options) (EmbeddedKV, error) {
 		return nil, err
 	}
 
-	pool, err := dockertest.NewPool("")
+	pool, err := dockertest.NewPool(context.Background(), "")
 	if err != nil {
 		return nil, fmt.Errorf("constructing dockertest.Pool for EmbeddedKV: %w", err)
 	}

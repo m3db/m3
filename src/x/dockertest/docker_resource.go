@@ -22,34 +22,43 @@ package dockertest
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
+	"net"
 	"runtime"
 	"strconv"
 	"strings"
 
-	"github.com/ory/dockertest/v3"
-	dc "github.com/ory/dockertest/v3/docker"
-	"github.com/ory/dockertest/v3/docker/types/mount"
+	"github.com/moby/moby/api/pkg/stdcopy"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/mount"
+	mobyclient "github.com/moby/moby/client"
+	"github.com/ory/dockertest/v4"
 	"go.uber.org/zap"
 )
 
 // Resource is an object that provides a handle
 // to a service being spun up via docker.
 type Resource struct {
-	resource *dockertest.Resource
+	resource dockertest.Resource
+	// closable is set only for containers started by this package. Containers
+	// attached to by name (see NewDockerResource) are not tracked by the pool
+	// and are removed directly through the docker client on Close.
+	closable dockertest.ClosableResource
 	closed   bool
 
 	logger *zap.Logger
 
-	pool *dockertest.Pool
+	pool dockertest.Pool
 }
 
 // NewDockerResource creates a new DockerResource.
 // If resourceOpts.Image is empty, it will attempt to connect to an existing container.
 // Otherwise, it will start the container with the specified image.
 func NewDockerResource(
-	pool *dockertest.Pool,
+	ctx context.Context,
+	pool dockertest.Pool,
 	resourceOpts ResourceOptions,
 ) (*Resource, error) {
 	var (
@@ -68,32 +77,27 @@ func NewDockerResource(
 	// TODO: this seems hard to use; a different method might be more appropriate.
 	if image.Name == "" {
 		logger.Info("connecting to existing container", zap.String("container", containerName))
-		var ok bool
-		resource, ok := pool.ContainerByName(containerName)
-		if !ok {
-			logger.Error("could not find container")
-			return nil, fmt.Errorf("could not find container %v", containerName)
+		inspected, err := pool.Client().ContainerInspect(ctx, containerName, mobyclient.ContainerInspectOptions{})
+		if err != nil {
+			logger.Error("could not find container", zap.Error(err))
+			return nil, fmt.Errorf("could not find container %v: %w", containerName, err)
 		}
 
 		return &Resource{
 			logger:   logger,
-			resource: resource,
-			pool:     nil,
+			resource: dockertest.NewResource(inspected.Container),
+			pool:     pool,
 		}, nil
 	}
 
-	opts := newOptions(containerName)
-	if !resourceOpts.NoNetworkOverlay {
-		opts.NetworkID = networkName
-	}
-	opts, err := exposePorts(opts, portList, resourceOpts.PortMappings)
+	ports, err := exposePorts(portList, resourceOpts.PortMappings)
 	if err != nil {
 		return nil, err
 	}
 
-	hostConfigOpts := func(c *dc.HostConfig) {
+	hostConfigOpts := func(c *container.HostConfig) {
 		if !resourceOpts.NoNetworkOverlay {
-			c.NetworkMode = networkName
+			c.NetworkMode = container.NetworkMode(networkName)
 		}
 		// Allow the docker container to call services on the host machine.
 		// Docker for OS X and Windows support the host.docker.internal hostname
@@ -102,27 +106,45 @@ func NewDockerResource(
 		if runtime.GOOS == "linux" {
 			c.ExtraHosts = []string{"host.docker.internal:172.17.0.1"}
 		}
-		mounts := make([]dc.HostMount, 0, len(resourceOpts.TmpfsMounts))
+		mounts := make([]mount.Mount, 0, len(resourceOpts.TmpfsMounts))
 		for _, m := range resourceOpts.TmpfsMounts {
-			mounts = append(mounts, dc.HostMount{
+			mounts = append(mounts, mount.Mount{
 				Target: m,
-				Type:   string(mount.TypeTmpfs),
+				Type:   mount.TypeTmpfs,
 			})
 		}
 
 		c.Mounts = mounts
 	}
 
-	opts = useImage(opts, image)
-	opts.Mounts = resourceOpts.Mounts
-	opts.Env = resourceOpts.Env
-	opts.Cmd = resourceOpts.Cmd
+	runOpts := []dockertest.RunOption{
+		// dockertest v4 reuses containers keyed on repository:tag by default,
+		// which would collapse independently named nodes (e.g. multi-node etcd or
+		// dbnode clusters) into a single shared container. Every resource created
+		// here is named uniquely by its caller, so always run a fresh container to
+		// preserve the v3 semantics.
+		dockertest.WithoutReuse(),
+		dockertest.WithName(containerName),
+		dockertest.WithPortBindings(ports),
+		dockertest.WithHostConfig(hostConfigOpts),
+		dockertest.WithMounts(resourceOpts.Mounts),
+		dockertest.WithEnv(resourceOpts.Env),
+		dockertest.WithCmd(resourceOpts.Cmd),
+	}
+	if image.Tag != "" {
+		runOpts = append(runOpts, dockertest.WithTag(image.Tag))
+	}
 
 	imageWithTag := fmt.Sprintf("%v:%v", image.Name, image.Tag)
 	logger.Info("running container with options",
-		zap.String("image", imageWithTag), zap.Any("options", opts))
-	resource, err := pool.RunWithOptions(opts, hostConfigOpts)
-
+		zap.String("image", imageWithTag),
+		zap.Strings("cmd", resourceOpts.Cmd),
+		zap.Strings("env", resourceOpts.Env),
+		zap.Strings("mounts", resourceOpts.Mounts),
+		zap.Strings("tmpfsMounts", resourceOpts.TmpfsMounts),
+		zap.Any("ports", ports),
+		zap.Bool("noNetworkOverlay", resourceOpts.NoNetworkOverlay))
+	resource, err := pool.Run(ctx, image.Name, runOpts...)
 	if err != nil {
 		logger.Error("could not run container", zap.Error(err))
 		return nil, err
@@ -131,6 +153,7 @@ func NewDockerResource(
 	return &Resource{
 		logger:   logger,
 		resource: resource,
+		closable: resource,
 		pool:     pool,
 	}, nil
 }
@@ -144,8 +167,8 @@ func (c *Resource) GetPort(bindPort int) (int, error) {
 // GetURL retrieves the URL for accessing this resource.
 func (c *Resource) GetURL(port int, path string) string {
 	tcpPort := fmt.Sprintf("%d/tcp", port)
-	return fmt.Sprintf("http://%s:%s/%s",
-		c.resource.GetBoundIP(tcpPort), c.resource.GetPort(tcpPort), path)
+	hostPort := net.JoinHostPort(c.resource.GetBoundIP(tcpPort), c.resource.GetPort(tcpPort))
+	return fmt.Sprintf("http://%s/%s", hostPort, path)
 }
 
 // Exec runs commands within a docker container.
@@ -154,14 +177,15 @@ func (c *Resource) Exec(commands ...string) (string, error) {
 		return "", ErrClosed
 	}
 
+	ctx := context.Background()
+
 	// NB: this is prefixed with a `/` that should be trimmed off.
-	name := strings.TrimLeft(c.resource.Container.Name, "/")
+	name := strings.TrimLeft(c.resource.Container().Name, "/")
 	logger := c.logger.With(zap.String("method", "exec"))
-	client := c.pool.Client
-	exec, err := client.CreateExec(dc.CreateExecOptions{
+	client := c.pool.Client()
+	exec, err := client.ExecCreate(ctx, name, mobyclient.ExecCreateOptions{
 		AttachStdout: true,
 		AttachStderr: true,
-		Container:    name,
 		Cmd:          commands,
 	})
 	if err != nil {
@@ -169,25 +193,31 @@ func (c *Resource) Exec(commands ...string) (string, error) {
 		return "", err
 	}
 
-	var outBuf, errBuf bytes.Buffer
 	logger.Info("starting exec",
 		zap.Strings("commands", commands),
 		zap.String("execID", exec.ID))
-	err = client.StartExec(exec.ID, dc.StartExecOptions{
-		OutputStream: &outBuf,
-		ErrorStream:  &errBuf,
-	})
+	attached, err := client.ExecAttach(ctx, exec.ID, mobyclient.ExecAttachOptions{})
+	if err != nil {
+		logger.Error("failed starting exec", zap.Error(err))
+		return "", err
+	}
+	defer attached.Conn.Close() //nolint:errcheck
+
+	var outBuf, errBuf bytes.Buffer
+	_, err = stdcopy.StdCopy(&outBuf, &errBuf, attached.Reader)
 
 	output, bufferErr := outBuf.String(), errBuf.String()
 	logger = logger.With(zap.String("stdout", output),
 		zap.String("stderr", bufferErr))
 
 	if err != nil {
-		logger.Error("failed starting exec",
+		logger.Error("failed reading exec output",
 			zap.Error(err))
 		return "", err
 	}
 
+	// NB: as in the dockertest v3 implementation, any output on stderr is
+	// treated as failure regardless of the exit code.
 	if len(bufferErr) != 0 {
 		err = errors.New(bufferErr)
 		logger.Error("exec failed", zap.Error(err))
@@ -209,7 +239,8 @@ func (c *Resource) GoalStateExec(
 	}
 
 	logger := c.logger.With(zap.String("method", "GoalStateExec"))
-	return c.pool.Retry(func() error {
+	// NB: a zero timeout uses the pool's configured max wait.
+	return c.pool.Retry(context.Background(), 0, func() error {
 		err := verifier(c.Exec(commands...))
 		if err != nil {
 			logger.Error("rerunning goal state verification", zap.Error(err))
@@ -230,7 +261,19 @@ func (c *Resource) Close() error {
 
 	c.closed = true
 	c.logger.Info("closing resource")
-	return c.pool.Purge(c.Resource())
+
+	ctx := context.Background()
+	if c.closable != nil {
+		return c.closable.Close(ctx)
+	}
+
+	// Attached containers are not tracked by the pool; remove them directly,
+	// matching what dockertest v3's Purge did.
+	_, err := c.pool.Client().ContainerRemove(ctx, c.resource.Container().ID, mobyclient.ContainerRemoveOptions{
+		Force:         true,
+		RemoveVolumes: true,
+	})
+	return err
 }
 
 // Closed returns true if the resource has been closed.
@@ -240,6 +283,6 @@ func (c *Resource) Closed() bool {
 
 // Resource is the underlying dockertest resource used by this Resource. It can be used to perform more advanced
 // operations not exposed by this class.
-func (c *Resource) Resource() *dockertest.Resource {
+func (c *Resource) Resource() dockertest.Resource {
 	return c.resource
 }

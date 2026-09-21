@@ -21,18 +21,20 @@
 package dockertest
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net/netip"
 
-	"github.com/ory/dockertest/v3"
-	dc "github.com/ory/dockertest/v3/docker"
+	"github.com/moby/moby/api/types/network"
+	mobyclient "github.com/moby/moby/client"
+	"github.com/ory/dockertest/v4"
 
 	"github.com/m3db/m3/src/x/instrument"
 )
 
 var (
 	networkName = "d-test"
-	volumeName  = "d-test"
 
 	// ErrClosed is a common error for use when a container has been closed.
 	ErrClosed = errors.New("container has been closed")
@@ -58,14 +60,14 @@ type ResourceOptions struct {
 	ContainerName    string
 	Image            Image
 	PortList         []int
-	PortMappings     map[dc.Port][]dc.PortBinding
+	PortMappings     network.PortMap
 
 	// NoNetworkOverlay if set, disables use of the default integration testing network we create (networkName).
 	NoNetworkOverlay bool
 
 	Cmd []string
 
-	// Env is the environment for the docker container; it corresponds 1:1 with dockertest.RunOptions.
+	// Env is the environment for the docker container; it is passed through to dockertest.WithEnv.
 	// Format should be: VAR=value
 	Env []string
 	// Mounts creates mounts in the container that map back to a resource
@@ -114,31 +116,20 @@ func (o ResourceOptions) WithDefaults(
 	return o
 }
 
-func newOptions(name string) *dockertest.RunOptions {
-	return &dockertest.RunOptions{
-		Name: name,
-	}
-}
-
-func useImage(opts *dockertest.RunOptions, image Image) *dockertest.RunOptions {
-	opts.Repository = image.Name
-	opts.Tag = image.Tag
-	return opts
-}
-
 // SetupNetwork sets up a network within docker.
-func SetupNetwork(pool *dockertest.Pool, cleanIfExists bool) error {
-	networks, err := pool.Client.ListNetworks()
+func SetupNetwork(ctx context.Context, pool dockertest.Pool, cleanIfExists bool) error {
+	client := pool.Client()
+	networks, err := client.NetworkList(ctx, mobyclient.NetworkListOptions{})
 	if err != nil {
 		return err
 	}
 
-	for _, n := range networks {
+	for _, n := range networks.Items {
 		if n.Name == networkName {
 			if !cleanIfExists {
 				return nil
 			}
-			if err := pool.Client.RemoveNetwork(networkName); err != nil {
+			if _, err := client.NetworkRemove(ctx, networkName, mobyclient.NetworkRemoveOptions{}); err != nil {
 				return err
 			}
 
@@ -146,53 +137,28 @@ func SetupNetwork(pool *dockertest.Pool, cleanIfExists bool) error {
 		}
 	}
 
-	_, err = pool.Client.CreateNetwork(dc.CreateNetworkOptions{Name: networkName})
+	_, err = client.NetworkCreate(ctx, networkName, mobyclient.NetworkCreateOptions{})
 	return err
 }
 
-// SetupVolume creates a default docker volume, with name volumeName (in this package)
-func SetupVolume(pool *dockertest.Pool) error {
-	volumes, err := pool.Client.ListVolumes(dc.ListVolumesOptions{})
-	if err != nil {
-		return err
-	}
-
-	for _, v := range volumes {
-		if volumeName == v.Name {
-			if err := pool.Client.RemoveVolume(volumeName); err != nil {
-				return err
-			}
-
-			break
-		}
-	}
-
-	_, err = pool.Client.CreateVolume(dc.CreateVolumeOptions{
-		Name: volumeName,
-	})
-
-	return err
+// TCPPort returns the moby representation of a TCP container port, e.g. "9000/tcp".
+func TCPPort(port int) network.Port {
+	return network.MustParsePort(fmt.Sprintf("%d/tcp", port))
 }
 
 func exposePorts(
-	opts *dockertest.RunOptions,
 	portList []int,
-	mappings map[dc.Port][]dc.PortBinding,
-) (*dockertest.RunOptions, error) {
-	ports := make(map[dc.Port][]dc.PortBinding, len(portList))
+	mappings network.PortMap,
+) (network.PortMap, error) {
+	ports := make(network.PortMap, len(portList)+len(mappings))
 	for _, p := range portList {
 		port := fmt.Sprintf("%d", p)
-
-		portRepresentation := dc.Port(fmt.Sprintf("%s/tcp", port))
-		binding := dc.PortBinding{HostIP: "0.0.0.0", HostPort: port}
-		entry, found := ports[portRepresentation]
-		if !found {
-			entry = []dc.PortBinding{binding}
-		} else {
-			entry = append(entry, binding)
+		portRepresentation, err := network.ParsePort(fmt.Sprintf("%s/tcp", port))
+		if err != nil {
+			return nil, err
 		}
-
-		ports[portRepresentation] = entry
+		binding := network.PortBinding{HostIP: netip.IPv4Unspecified(), HostPort: port}
+		ports[portRepresentation] = append(ports[portRepresentation], binding)
 	}
 
 	for k, v := range mappings {
@@ -205,6 +171,5 @@ func exposePorts(
 		ports[k] = v
 	}
 
-	opts.PortBindings = ports
-	return opts, nil
+	return ports, nil
 }

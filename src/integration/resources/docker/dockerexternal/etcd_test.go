@@ -28,8 +28,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ory/dockertest/v3"
-	"github.com/ory/dockertest/v3/docker"
+	"github.com/moby/moby/api/types/container"
+	mobyclient "github.com/moby/moby/client"
+	"github.com/ory/dockertest/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -47,13 +48,13 @@ var (
 )
 
 type etcdTestDeps struct {
-	Pool           *dockertest.Pool
+	Pool           dockertest.Pool
 	InstrumentOpts instrument.Options
 	Etcd           *EtcdNode
 }
 
 func setupEtcdTest(t *testing.T) etcdTestDeps {
-	pool, err := dockertest.NewPool("")
+	pool, err := dockertest.NewPool(context.Background(), "")
 	require.NoError(t, err)
 
 	iopts := instrument.NewOptions().SetLogger(testLogger)
@@ -124,14 +125,14 @@ func TestCluster(t *testing.T) {
 		testPrefix := "cleanup-test-"
 		deps.Etcd.namePrefix = testPrefix
 
-		findContainers := func(namePrefix string, _ *dockertest.Pool) ([]docker.APIContainers, error) {
-			containers, err := deps.Pool.Client.ListContainers(docker.ListContainersOptions{})
+		findContainers := func(namePrefix string, pool dockertest.Pool) ([]container.Summary, error) {
+			containers, err := pool.Client().ContainerList(ctx, mobyclient.ContainerListOptions{})
 			if err != nil {
 				return nil, err
 			}
 
-			var rtn []docker.APIContainers
-			for _, ct := range containers {
+			var rtn []container.Summary
+			for _, ct := range containers.Items {
 				for _, name := range ct.Names {
 					// Docker response prefixes the container name with / regardless of what you give it as input.
 					if strings.HasPrefix(name, "/"+namePrefix) {

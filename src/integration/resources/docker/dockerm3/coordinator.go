@@ -21,12 +21,13 @@
 package dockerm3
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
-	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v4"
 	"github.com/prometheus/common/model"
 
 	"github.com/m3db/m3/src/integration/resources"
@@ -57,13 +58,14 @@ type coordinator struct {
 }
 
 func newDockerHTTPCoordinator(
-	pool *dockertest.Pool,
+	ctx context.Context,
+	pool dockertest.Pool,
 	opts xdockertest.ResourceOptions,
 ) (resources.Coordinator, error) {
 	opts = opts.WithDefaults(defaultCoordinatorOptions)
 	opts.TmpfsMounts = []string{"/etc/m3coordinator/"}
 
-	resource, err := xdockertest.NewDockerResource(pool, opts)
+	resource, err := xdockertest.NewDockerResource(ctx, pool, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -71,10 +73,13 @@ func newDockerHTTPCoordinator(
 	return &coordinator{
 		resource: resource,
 		client: resources.NewCoordinatorClient(resources.CoordinatorClientOptions{
-			Client:    http.DefaultClient,
-			HTTPPort:  7201,
-			Logger:    opts.InstrumentOpts.Logger(),
-			RetryFunc: pool.Retry,
+			Client:   http.DefaultClient,
+			HTTPPort: 7201,
+			Logger:   opts.InstrumentOpts.Logger(),
+			RetryFunc: func(op func() error) error {
+				// NB: a zero timeout uses the pool's configured max wait.
+				return pool.Retry(context.Background(), 0, op)
+			},
 		}),
 	}, nil
 }

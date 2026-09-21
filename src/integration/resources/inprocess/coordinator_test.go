@@ -27,7 +27,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v4"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,7 +46,7 @@ import (
 )
 
 func TestNewCoordinator(t *testing.T) {
-	pool, err := dockertest.NewPool("")
+	pool, err := dockertest.NewPool(context.Background(), "")
 	require.NoError(t, err)
 
 	etcd, err := dockerexternal.NewEtcd(pool, instrument.NewOptions(), dockerexternal.EtcdClusterPort(2379))

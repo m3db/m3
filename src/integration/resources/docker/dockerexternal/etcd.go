@@ -26,12 +26,14 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"net/netip"
 	"runtime"
 	"strconv"
 	"time"
 
-	"github.com/ory/dockertest/v3"
-	"github.com/ory/dockertest/v3/docker"
+	"github.com/moby/moby/api/types/network"
+	mobyclient "github.com/moby/moby/client"
+	"github.com/ory/dockertest/v4"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -47,6 +49,9 @@ import (
 // and start already consumed.
 const minHealthCheckTimeout = 30 * time.Second
 
+// etcdClientPort is the port etcd listens on for clients inside the container.
+const etcdClientPort = 2379
+
 var (
 	etcdImage = xdockertest.Image{
 		Name: "quay.io/coreos/etcd",
@@ -56,7 +61,7 @@ var (
 
 // NewEtcd constructs a single etcd node, running in a docker container.
 func NewEtcd(
-	pool *dockertest.Pool,
+	pool dockertest.Pool,
 	instrumentOpts instrument.Options,
 	options ...EtcdClusterOption,
 ) (*EtcdNode, error) {
@@ -91,7 +96,7 @@ func NewEtcd(
 type EtcdNode struct {
 	instrumentOpts instrument.Options
 	logger         *zap.Logger
-	pool           *dockertest.Pool
+	pool           dockertest.Pool
 	opts           etcdClusterOptions
 
 	// namePrefix is used to name the cluster. Exists solely for unittests in this package; otherwise a const
@@ -136,7 +141,7 @@ func (c *EtcdNode) Setup(ctx context.Context) (closeErr error) {
 	//	--initial-cluster node1=http://127.0.0.1:2380"
 	//
 	// Port 2379 on the container is bound to a free port on the host
-	resource, err := xdockertest.NewDockerResource(c.pool, xdockertest.ResourceOptions{
+	resource, err := xdockertest.NewDockerResource(ctx, c.pool, xdockertest.ResourceOptions{
 		OverrideDefaults: false,
 		// TODO: what even is this?
 		Source: "etcd",
@@ -145,9 +150,9 @@ func (c *EtcdNode) Setup(ctx context.Context) (closeErr error) {
 		Image:          etcdImage,
 		Env:            []string{"ALLOW_NONE_AUTHENTICATION=yes"},
 		InstrumentOpts: c.instrumentOpts,
-		PortMappings: map[docker.Port][]docker.PortBinding{
-			"2379/tcp": {{
-				HostIP:   "0.0.0.0",
+		PortMappings: network.PortMap{
+			xdockertest.TCPPort(etcdClientPort): {{
+				HostIP:   netip.IPv4Unspecified(),
 				HostPort: strconv.Itoa(c.opts.port),
 			}},
 		},
@@ -178,7 +183,7 @@ func (c *EtcdNode) Setup(ctx context.Context) (closeErr error) {
 		}
 	}()
 
-	container := resource.Resource().Container
+	container := resource.Resource().Container()
 	c.logger.Info("etcd container started",
 		zap.String("containerID", container.ID),
 		zap.Any("ports", container.NetworkSettings.Ports),
@@ -237,8 +242,7 @@ func healthCheckContext(ctx context.Context) (context.Context, context.CancelFun
 }
 
 func (c *EtcdNode) containerClientHostPort() string {
-	portBinds := c.resource.Resource().Container.NetworkSettings.Ports["2379/tcp"]
-	port := portBinds[0].HostPort
+	port := c.resource.Resource().GetPort(xdockertest.TCPPort(etcdClientPort).String())
 
 	var ipAddress string
 	_, err := net.ResolveIPAddr("ip4", "host.docker.internal")
@@ -309,7 +313,13 @@ func (c *EtcdNode) Stop(ctx context.Context) error {
 	if c.stopped {
 		return errors.New("etcd node is already stopped")
 	}
-	if err := c.pool.Client.StopContainerWithContext(c.resource.Resource().Container.ID, 0, ctx); err != nil {
+	// A zero timeout kills the container immediately rather than waiting for a
+	// graceful shutdown, matching the previous StopContainerWithContext call.
+	stopTimeoutSeconds := 0
+	_, err := c.pool.Client().ContainerStop(ctx, c.resource.Resource().Container().ID, mobyclient.ContainerStopOptions{
+		Timeout: &stopTimeoutSeconds,
+	})
+	if err != nil {
 		return err
 	}
 	c.stopped = true
@@ -326,7 +336,7 @@ func (c *EtcdNode) Restart(ctx context.Context) error {
 			return fmt.Errorf("stopping etcd node for Restart: %w", err)
 		}
 	}
-	err := c.pool.Client.StartContainerWithContext(c.resource.Resource().Container.ID, nil, ctx)
+	_, err := c.pool.Client().ContainerStart(ctx, c.resource.Resource().Container().ID, mobyclient.ContainerStartOptions{})
 	if err != nil {
 		return fmt.Errorf("starting etcd node for Restart: %w", err)
 	}

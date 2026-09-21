@@ -28,7 +28,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -47,7 +47,7 @@ func TestRepairAndReplication(t *testing.T) {
 }
 
 func testSetup(t *testing.T) (resources.M3Resources, resources.M3Resources, func()) {
-	pool, err := dockertest.NewPool("")
+	pool, err := dockertest.NewPool(context.Background(), "")
 	require.NoError(t, err)
 
 	etcd1 := mustNewStartedEtcd(t, pool)
@@ -90,7 +90,7 @@ func testSetup(t *testing.T) (resources.M3Resources, resources.M3Resources, func
 	}
 }
 
-func mustNewStartedEtcd(t *testing.T, pool *dockertest.Pool) *dockerexternal.EtcdNode {
+func mustNewStartedEtcd(t *testing.T, pool dockertest.Pool) *dockerexternal.EtcdNode {
 	etcd, err := dockerexternal.NewEtcd(pool, instrument.NewOptions())
 	require.NoError(t, err)
 	require.NoError(t, etcd.Setup(context.TODO()))
