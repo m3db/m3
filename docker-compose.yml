@@ -38,4 +38,5 @@ services:
       - SPLIT_IDX
       - TOTAL_SPLITS
       - GOPATH=/go
+      - M3_TEST_HOST
       - SKIP_CODECOV=true

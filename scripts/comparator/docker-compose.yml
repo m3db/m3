@@ -27,9 +27,10 @@ services:
       - "0.0.0.0:9090:9090"
     networks:
       - backend
-    image: prom/prometheus:v2.31.2
-    volumes:
-      - "./prometheus.yml:/etc/prometheus/prometheus.yml"
+    build:
+      context: .
+      dockerfile: prometheus.Dockerfile
+    image: "m3prometheus:${REVISION}"
   grafana:
     build:
       context: ./grafana
