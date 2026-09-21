@@ -338,7 +338,7 @@ func newTestBulkReqBody() updateRuleSetRequest {
 		RuleSetChanges: changes.RuleSetChanges{
 			Namespace: "testNamespace",
 			RollupRuleChanges: []changes.RollupRuleChange{
-				changes.RollupRuleChange{
+				{
 					Op: changes.AddOp,
 					RuleData: &view.RollupRule{
 						Name: "rollupRule3",
@@ -346,7 +346,7 @@ func newTestBulkReqBody() updateRuleSetRequest {
 				},
 			},
 			MappingRuleChanges: []changes.MappingRuleChange{
-				changes.MappingRuleChange{
+				{
 					Op: changes.AddOp,
 					RuleData: &view.MappingRule{
 						Name: "mappingRule3",

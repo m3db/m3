@@ -41,12 +41,12 @@ var (
 	testFlushTimesKey   = fmt.Sprintf(testFlushTimesKeyFmt, testShardSetID)
 	testFlushTimesProto = &schema.ShardSetFlushTimes{
 		ByShard: map[uint32]*schema.ShardFlushTimes{
-			0: &schema.ShardFlushTimes{
+			0: {
 				StandardByResolution: map[int64]int64{
 					int64(time.Second): 1000,
 				},
 				ForwardedByResolution: map[int64]*schema.ForwardedFlushTimesForResolution{
-					1000000000: &schema.ForwardedFlushTimesForResolution{
+					1000000000: {
 						ByNumForwardedTimes: map[int32]int64{
 							1: 700,
 						},
@@ -56,12 +56,12 @@ var (
 					int64(time.Second): 500,
 				},
 			},
-			1: &schema.ShardFlushTimes{
+			1: {
 				StandardByResolution: map[int64]int64{
 					int64(time.Minute): 2000,
 				},
 				ForwardedByResolution: map[int64]*schema.ForwardedFlushTimesForResolution{
-					1000000000: &schema.ForwardedFlushTimesForResolution{
+					1000000000: {
 						ByNumForwardedTimes: map[int32]int64{
 							1: 2500,
 							3: 3500,

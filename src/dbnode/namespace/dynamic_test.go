@@ -396,7 +396,7 @@ func singleTestValue() *testValue {
 		version: 1,
 		Registry: nsproto.Registry{
 			Namespaces: map[string]*nsproto.NamespaceOptions{
-				"testns1": &nsproto.NamespaceOptions{
+				"testns1": {
 					BootstrapEnabled:  true,
 					CleanupEnabled:    true,
 					FlushEnabled:      true,
