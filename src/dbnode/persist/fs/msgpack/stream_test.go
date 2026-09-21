@@ -30,7 +30,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	msgpacklib "gopkg.in/vmihailenco/msgpack.v2"
+	msgpacklib "github.com/vmihailenco/msgpack/v5"
 )
 
 // Call Read to accumulate the text of a file.

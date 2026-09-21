@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	vmmsgpack "gopkg.in/vmihailenco/msgpack.v2"
-	"gopkg.in/vmihailenco/msgpack.v2/codes"
+	vmmsgpack "github.com/vmihailenco/msgpack/v5"
+	codes "github.com/vmihailenco/msgpack/v5/msgpcode"
 
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 )

@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"math"
 
-	"gopkg.in/vmihailenco/msgpack.v2/codes"
+	codes "github.com/vmihailenco/msgpack/v5/msgpcode"
 
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 )

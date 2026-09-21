@@ -29,7 +29,7 @@ import (
 	"os"
 	"time"
 
-	"gopkg.in/vmihailenco/msgpack.v2"
+	"github.com/vmihailenco/msgpack/v5"
 
 	"github.com/m3db/m3/src/dbnode/digest"
 	xmsgpack "github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
