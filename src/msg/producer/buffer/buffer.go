@@ -124,7 +124,6 @@ func newBufferMetrics(
 	}
 }
 
-// nolint: maligned
 type buffer struct {
 	sync.RWMutex
 

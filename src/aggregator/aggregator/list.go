@@ -152,7 +152,6 @@ type flushBeforeFn func(beforeNanos int64, jitter time.Duration, flushType flush
 
 // baseMetricList is a metric list storing aggregations at a given resolution and
 // flushing them periodically.
-// nolint: maligned
 type baseMetricList struct {
 	sync.RWMutex
 
@@ -830,7 +829,6 @@ func newMetricList(shard uint32, id metricListID, opts Options) (metricList, err
 type newMetricListFn func(shard uint32, id metricListID, opts Options) (metricList, error)
 
 // metricLists contains all the metric lists.
-// nolint: maligned
 type metricLists struct {
 	sync.RWMutex
 

@@ -541,7 +541,6 @@ func TestReaderFetchBlocksRobust(t *testing.T) {
 	}
 }
 
-//nolint:scopelint
 func TestReaderReadEncodedRobust(t *testing.T) {
 	for _, tc := range robustReaderTestCases {
 		tc := tc

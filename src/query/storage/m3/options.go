@@ -126,7 +126,6 @@ func NewOptions(encodingOpts encoding.Options) Options {
 	return newOptions(bytesPool, iteratorPools)
 }
 
-//nolint:maligned
 type encodedBlockOptions struct {
 	splitSeries                   bool
 	lookbackDuration              time.Duration

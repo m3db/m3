@@ -547,7 +547,7 @@ func (as *activeRuleSet) matchRollupTarget(
 		// early whenever there's a missing match and increment matchRuleIdx whenever there is a match.
 		for hasMoreTags := sortedTagIter.Next(); hasMoreTags; hasMoreTags = sortedTagIter.Next() {
 			tagName, tagVal := sortedTagIter.Current()
-			// nolint:gosimple
+			// nolint: staticcheck
 			isNameTag := bytes.Compare(tagName, nameTagName) == 0
 			if isNameTag {
 				nameTagValue = tagVal
@@ -594,7 +594,7 @@ func (as *activeRuleSet) matchRollupTarget(
 		// since we need to be careful in the case where there is no matching input tag for some rule.
 		for hasMoreTags := sortedTagIter.Next(); hasMoreTags; {
 			tagName, tagVal := sortedTagIter.Current()
-			// nolint:gosimple
+			// nolint: staticcheck
 			isNameTag := bytes.Compare(tagName, nameTagName) == 0
 			if isNameTag {
 				nameTagValue = tagVal

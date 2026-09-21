@@ -113,7 +113,6 @@ func newMetricMapMetrics(scope tally.Scope) metricMapMetrics {
 
 // NB(xichen): use a type-specific list for hashedEntry if the conversion
 // overhead between interface{} and hashedEntry becomes a problem.
-// nolint: maligned
 type metricMap struct {
 	sync.RWMutex
 

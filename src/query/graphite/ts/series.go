@@ -102,7 +102,6 @@ func (a SeriesByNameAndNaturalNumbers) Swap(i, j int) {
 }
 
 // Less determines if a series is ordered before another series by name
-// nolint: ifshort
 func (a SeriesByNameAndNaturalNumbers) Less(i, j int) bool {
 	left := a[i].name
 	if strings.ContainsAny(left, digits) {

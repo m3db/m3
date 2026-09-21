@@ -207,7 +207,6 @@ func (i *svcNode) Setup(
 	return nil
 }
 
-// nolint: maligned
 type transferOpts struct {
 	targets   []string
 	fileType  m3em.PushFileType

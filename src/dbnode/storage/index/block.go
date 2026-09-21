@@ -130,7 +130,6 @@ type addAggregateResultsFn func(
 	source []byte,
 ) ([]AggregateResultsEntry, int, int, error)
 
-// nolint: maligned
 type block struct {
 	sync.RWMutex
 

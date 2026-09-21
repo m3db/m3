@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 )
 
-// nolint: structcheck
+// nolint: unused
 func TestMapWithPooling(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

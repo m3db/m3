@@ -159,7 +159,7 @@ func newClientWatchOptions(opts Options) []clientv3.OpOption {
 	return clientWatchOpts
 }
 
-//nolint:structcheck
+// nolint: unused
 type client[ValueType any, ValueWatchType any] struct {
 	sync.RWMutex
 

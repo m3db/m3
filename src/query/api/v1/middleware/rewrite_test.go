@@ -43,7 +43,6 @@ import (
 )
 
 func TestPrometheusRangeRewrite(t *testing.T) {
-	// nolint:maligned
 	queryTests := []struct {
 		name     string
 		attrs    []storagemetadata.Attributes

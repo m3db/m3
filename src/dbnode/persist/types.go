@@ -246,7 +246,6 @@ type IndexFlush interface {
 }
 
 // DataPrepareOptions is the options struct for the DataFlush's Prepare method.
-// nolint: maligned
 type DataPrepareOptions struct {
 	NamespaceMetadata namespace.Metadata
 	BlockStart        xtime.UnixNano
@@ -262,7 +261,6 @@ type DataPrepareOptions struct {
 }
 
 // IndexPrepareOptions is the options struct for the IndexFlush's Prepare method.
-// nolint: maligned
 type IndexPrepareOptions struct {
 	NamespaceMetadata namespace.Metadata
 	BlockStart        xtime.UnixNano

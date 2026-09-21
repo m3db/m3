@@ -172,7 +172,6 @@ type ElemData struct {
 	RoutingPolicy      policy.RoutingPolicy
 }
 
-// nolint: maligned
 type elemBase struct {
 	sync.RWMutex
 
@@ -194,7 +193,7 @@ type elemBase struct {
 	listType                        metricListType
 
 	// Mutable states.
-	cachedSourceSets []map[uint32]*bitset.BitSet // nolint: structcheck
+	cachedSourceSets []map[uint32]*bitset.BitSet // nolint: unused
 	// a cache of the flush metrics that don't require grabbing a lock to access.
 	flushMetricsCache     map[flushKey]*flushMetrics
 	writeMetrics          writeMetrics
@@ -647,7 +646,6 @@ func (e *gaugeElemBase) ResetSetData(
 
 func (e *gaugeElemBase) Close() {}
 
-// nolint: maligned
 type parsedPipeline struct {
 	// Whether the source pipeline contains derivative transformations at its head.
 	HasDerivativeTransform bool

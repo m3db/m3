@@ -54,7 +54,7 @@ const (
 
 type objectType int
 
-// nolint: varcheck, unused
+// nolint: unused
 const (
 	// Adding any new object types is a backwards-compatible change I.E
 	// the new binary will still be able to read old files, but it is

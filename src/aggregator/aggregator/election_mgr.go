@@ -239,7 +239,6 @@ type goalState struct {
 
 type campaignIsEnabledFn func() (bool, error)
 
-// nolint: maligned
 type electionManager struct {
 	sync.RWMutex
 	sync.WaitGroup

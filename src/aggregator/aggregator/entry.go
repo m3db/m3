@@ -185,7 +185,7 @@ type entryMetrics struct {
 
 // NewEntryMetrics creates new entry metrics.
 //
-//nolint:golint,revive
+//nolint:revive
 func NewEntryMetrics(scope tally.Scope) *entryMetrics {
 	scope = scope.SubScope("entry")
 	untimedEntryScope := scope.Tagged(map[string]string{"entry-type": "untimed"})
@@ -226,7 +226,6 @@ func NewEntryMetrics(scope tally.Scope) *entryMetrics {
 // TODO(xichen): make the access time per aggregation key for entries associated
 // with forwarded metrics so we can reclaim aggregation elements associated with
 // individual aggregation keys even though the entry is still active.
-// nolint: maligned
 type Entry struct {
 	opts                Options
 	decompressor        aggregation.IDDecompressor

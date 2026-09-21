@@ -110,7 +110,6 @@ func init() {
 	}
 }
 
-// nolint: maligned
 type options struct {
 	forwardIndexThreshold           float64
 	forwardIndexProbability         float64

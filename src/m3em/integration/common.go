@@ -44,7 +44,7 @@ const (
 type testProgram []byte
 
 var (
-	// nolint: varcheck
+	// nolint: unused
 	shortLivedTestProgram = testProgram([]byte(`#!/usr/bin/env bash
 if [ "$#" -ne 2 ]; then
 	echo "Args: $@" >&2
@@ -53,7 +53,7 @@ if [ "$#" -ne 2 ]; then
 fi
 echo -ne "testing random output"`))
 
-	// nolint: varcheck
+	// nolint: unused
 	longRunningTestProgram = testProgram([]byte(`#!/usr/bin/env bash
 	echo -ne "testing random output"
 	while true; do sleep 1; done
