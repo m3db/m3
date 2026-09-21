@@ -27,10 +27,10 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/m3db/prometheus_client_golang/prometheus"
-	dto "github.com/m3db/prometheus_client_model/go"
-	"github.com/m3db/prometheus_common/expfmt"
-	procfs "github.com/m3db/prometheus_procfs"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/procfs"
 )
 
 func TestProcessCollector(t *testing.T) {

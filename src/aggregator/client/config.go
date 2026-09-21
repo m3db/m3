@@ -25,7 +25,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 
 	"github.com/m3db/m3/src/aggregator/sharding"
 	m3clusterclient "github.com/m3db/m3/src/cluster/client"

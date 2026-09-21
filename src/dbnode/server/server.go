@@ -40,7 +40,7 @@ import (
 	"github.com/m3dbx/vellum/levenshtein2"
 	"github.com/m3dbx/vellum/regexp"
 	"github.com/opentracing/opentracing-go"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"github.com/uber/tchannel-go"
 	"go.etcd.io/etcd/server/v3/embed"
 	"go.uber.org/zap"

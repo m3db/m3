@@ -36,7 +36,7 @@ import (
 	"github.com/fortytw2/leaktest"
 	"github.com/m3db/bitset"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"

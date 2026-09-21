@@ -30,7 +30,7 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 

@@ -26,7 +26,7 @@ import (
 	"regexp/syntax"
 	"sync"
 
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 
 	fstregexp "github.com/m3db/m3/src/m3ninx/index/segment/fst/regexp"
 	"github.com/m3db/m3/src/x/cache"

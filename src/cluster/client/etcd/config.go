@@ -24,7 +24,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"google.golang.org/grpc"
 
 	"github.com/m3db/m3/src/cluster/client"
