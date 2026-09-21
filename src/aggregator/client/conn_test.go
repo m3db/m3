@@ -338,6 +338,7 @@ func TestConnectWithCustomDialer(t *testing.T) {
 		mockConn := NewMockConn(ctrl)
 
 		mockConn.EXPECT().Write(testData)
+		mockConn.EXPECT().SetReadDeadline(gomock.Any())
 		mockConn.EXPECT().SetWriteDeadline(gomock.Any())
 		testWithConn(t, mockConn)
 	})
@@ -347,6 +348,7 @@ func TestConnectWithCustomDialer(t *testing.T) {
 		mockConn := NewMockConn(ctrl)
 
 		mockConn.EXPECT().Write(testData)
+		mockConn.EXPECT().SetReadDeadline(gomock.Any())
 		mockConn.EXPECT().SetWriteDeadline(gomock.Any())
 
 		mockKeepAlivable := NewMockkeepAlivable(ctrl)
@@ -415,6 +417,8 @@ func TestTLSConnectWriteToServer(t *testing.T) {
 	// Start tls server.
 	var wg sync.WaitGroup
 	wg.Add(1)
+	doneCh := make(chan struct{})
+	numClients := 10
 
 	serverCert, err := tls.LoadX509KeyPair("./testdata/server.crt", "./testdata/server.key")
 	require.NoError(t, err)
@@ -432,7 +436,7 @@ func TestTLSConnectWriteToServer(t *testing.T) {
 	require.NoError(t, err)
 	serverAddr := l.Addr().String()
 
-	go func() {
+	go func(done <-chan struct{}) {
 		defer wg.Done()
 
 		// Ignore the first testing connection.
@@ -445,14 +449,32 @@ func TestTLSConnectWriteToServer(t *testing.T) {
 		require.NoError(t, conn.Close())
 
 		// Read from the second connection.
-		conn, err = l.Accept()
-		require.NoError(t, err)
-		buf := make([]byte, 1024)
-		n, err := conn.Read(buf)
-		require.NoError(t, err)
-		require.Equal(t, data, buf[:n])
-		conn.Close() // nolint: errcheck
-	}()
+		for {
+			conn, err = l.Accept()
+			if err != nil {
+				if errors.Is(err, net.ErrClosed) {
+					break
+				}
+				require.NoError(t, err)
+			}
+			buf := make([]byte, 1024)
+			n, err := conn.Read(buf)
+			if err != nil {
+				if errors.Is(err, net.ErrClosed) {
+					break
+				}
+				require.NoError(t, err)
+			}
+			require.Equal(t, data, buf[:n])
+			conn.Close() // nolint: errcheck
+
+			select {
+			case <-done:
+				return
+			default:
+			}
+		}
+	}(doneCh)
 
 	clientCert, err := tls.LoadX509KeyPair("./testdata/client.crt", "./testdata/client.key")
 	require.NoError(t, err)
@@ -467,18 +489,42 @@ func TestTLSConnectWriteToServer(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, testConn.Close())
 
-	// Create a new connection and assert we can write successfully.
-	opts := testTLSConnectionOptions().SetInitReconnectThreshold(0)
-	conn := newConnection(serverAddr, opts)
-	require.NoError(t, conn.Write(data))
-	require.Equal(t, 0, conn.numFailures)
-	require.NotNil(t, conn.conn)
+	for i := range numClients {
+		// Create a new connection and assert we can write successfully.
+		opts := testTLSConnectionOptions().SetInitReconnectThreshold(0)
+		opts = opts.SetTLSOptions(opts.TLSOptions().SetTLSHandshakeOnConnect(i%2 == 0))
+		conn := newConnection(serverAddr, opts)
+		require.NoError(t, conn.Write(data))
+		require.Equal(t, 0, conn.numFailures)
+		require.NotNil(t, conn.conn)
 
+		// Close the connection
+		conn.Close()
+		require.Nil(t, conn.conn)
+	}
+
+	close(doneCh)
 	wg.Wait()
+}
 
-	// Close the connection
-	conn.Close()
-	require.Nil(t, conn.conn)
+func TestCloseConnectionAsync(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockConn := NewMockConn(ctrl)
+	closeDoneCh := make(chan bool)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	mockConn.EXPECT().Close().Do(func() error {
+		<-closeDoneCh
+		wg.Done()
+		return nil
+	})
+	conn := &connection{
+		conn: mockConn,
+	}
+	conn.closeWithLock()
+	require.Nil(t, conn.conn, "Connection should be nil after being closed")
+	closeDoneCh <- true
+	wg.Wait()
 }
 
 func testConnectionOptions() ConnectionOptions {
@@ -489,7 +535,8 @@ func testConnectionOptions() ConnectionOptions {
 		SetInitReconnectThreshold(2).
 		SetMaxReconnectThreshold(6).
 		SetReconnectThresholdMultiplier(2).
-		SetWriteTimeout(100 * time.Millisecond)
+		SetWriteTimeout(100 * time.Millisecond).
+		SetReadTimeout(100 * time.Millisecond)
 }
 
 func testTLSConnectionOptions() ConnectionOptions {

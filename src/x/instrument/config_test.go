@@ -30,6 +30,7 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	extprom "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 	"github.com/sergi/go-diff/diffmatchpatch"
 	"github.com/stretchr/testify/require"
 
@@ -267,7 +268,7 @@ func assertMetricsEqual(t *testing.T, listener net.Listener, expected map[string
 
 	defer resp.Body.Close()
 
-	var parser expfmt.TextParser
+	parser := expfmt.NewTextParser(model.UTF8Validation)
 	metricFamilies, err := parser.TextToMetricFamilies(resp.Body)
 	require.NoError(t, err)
 

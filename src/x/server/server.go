@@ -103,6 +103,10 @@ type server struct {
 
 // NewServer creates a new server.
 func NewServer(address string, handler Handler, opts Options) Server {
+	return newServer(address, handler, opts)
+}
+
+func newServer(address string, handler Handler, opts Options) *server {
 	instrumentOpts := opts.InstrumentOptions()
 	scope := instrumentOpts.MetricsScope()
 
@@ -141,8 +145,12 @@ func (s *server) ListenAndServe() error {
 
 func (s *server) Serve(l net.Listener) error {
 	s.address = l.Addr().String()
+
+	s.Lock()
 	s.listener = l
-	go s.serve()
+	s.Unlock()
+
+	go s.serve(l)
 	return nil
 }
 
@@ -167,8 +175,8 @@ func (s *server) maybeUpgradeToTLS(conn *securedConn) (*securedConn, error) {
 	return conn, nil
 }
 
-func (s *server) serve() {
-	connCh, errCh := xnet.StartForeverAcceptLoop(s.listener, s.retryOpts)
+func (s *server) serve(l net.Listener) {
+	connCh, errCh := xnet.StartForeverAcceptLoop(l, s.retryOpts)
 	for conn := range connCh {
 		conn := newSecuredConn(conn)
 		if tcpConn, ok := conn.Conn.(*net.TCPConn); ok {
@@ -200,6 +208,22 @@ func (s *server) serve() {
 	s.log.Error("server unexpectedly closed", zap.Error(err))
 }
 
+func (s *server) Stop() {
+	s.Lock()
+	if s.listener == nil {
+		s.Unlock()
+		return
+	}
+	l := s.listener
+	s.listener = nil
+	s.Unlock()
+
+	err := l.Close()
+	if err != nil {
+		s.log.Error("error closing listener during Stop()", zap.Error(err))
+	}
+}
+
 func (s *server) Close() {
 	s.Lock()
 	if s.closed {
@@ -211,16 +235,20 @@ func (s *server) Close() {
 	close(s.closedChan)
 	openConns := make([]net.Conn, len(s.conns))
 	copy(openConns, s.conns)
+
+	// Close the listener.
+	if s.listener != nil {
+		err := s.listener.Close()
+		if err != nil {
+			s.log.Error("error closing listener", zap.Error(err))
+		}
+	}
+	s.listener = nil
 	s.Unlock()
 
 	// Close all open connections.
 	for _, conn := range openConns {
 		conn.Close()
-	}
-
-	// Close the listener.
-	if s.listener != nil {
-		s.listener.Close()
 	}
 
 	// Wait for all connection handlers to finish.

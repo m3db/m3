@@ -27,26 +27,19 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
-	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/component/componenttest"
-	"go.opentelemetry.io/collector/consumer"
-	"go.opentelemetry.io/collector/consumer/consumertest"
-	"go.opentelemetry.io/collector/receiver/otlpreceiver"
+	coltracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
+	"google.golang.org/grpc"
 )
 
 func TestConfiguration(t *testing.T) {
 	ctx := context.Background()
-	addr := localAddress(t)
-	r := grpcReceiver(t, "receiver", addr, consumertest.NewNop(), consumertest.NewNop())
-	require.NotNil(t, r)
-	require.NoError(t, r.Start(ctx, componenttest.NewNopHost()))
-	defer func() {
-		require.NoError(t, r.Shutdown(ctx))
-	}()
+	ln := localListener(t)
+	stop := otlpTraceServer(t, ln)
+	defer stop()
 
 	cfg := Configuration{
 		ServiceName: "foo",
-		Endpoint:    addr,
+		Endpoint:    ln.Addr().String(),
 		Insecure:    true,
 		Attributes:  map[string]string{"bar": "baz"},
 	}
@@ -57,37 +50,30 @@ func TestConfiguration(t *testing.T) {
 	require.NotNil(t, tracerProvider)
 }
 
-func grpcReceiver(
-	t *testing.T,
-	name, endpoint string,
-	tc consumer.Traces,
-	mc consumer.Metrics,
-) component.Component {
-	factory := otlpreceiver.NewFactory()
-	cfg := factory.CreateDefaultConfig().(*otlpreceiver.Config)
-	cfg.SetIDName(name)
-	cfg.GRPC.NetAddr.Endpoint = endpoint
-	cfg.HTTP = nil
-
-	var (
-		set = componenttest.NewNopReceiverCreateSettings()
-		r   component.Component
-		err error
-	)
-	if tc != nil {
-		r, err = factory.CreateTracesReceiver(context.Background(), set, cfg, tc)
-		require.NoError(t, err)
-	}
-	if mc != nil {
-		r, err = factory.CreateMetricsReceiver(context.Background(), set, cfg, mc)
-		require.NoError(t, err)
-	}
-	return r
+// nopTraceService accepts and discards exported spans, standing in for a real
+// OTLP collector so NewTracerProvider has something to dial.
+type nopTraceService struct {
+	coltracepb.UnimplementedTraceServiceServer
 }
 
-func localAddress(t *testing.T) string {
+func (nopTraceService) Export(
+	context.Context, *coltracepb.ExportTraceServiceRequest,
+) (*coltracepb.ExportTraceServiceResponse, error) {
+	return &coltracepb.ExportTraceServiceResponse{}, nil
+}
+
+func otlpTraceServer(t *testing.T, ln net.Listener) func() {
+	t.Helper()
+	srv := grpc.NewServer()
+	coltracepb.RegisterTraceServiceServer(srv, nopTraceService{})
+	go func() { _ = srv.Serve(ln) }()
+	return srv.Stop
+}
+
+func localListener(t *testing.T) net.Listener {
+	t.Helper()
 	ln, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
-	defer func() { _ = ln.Close() }()
-	return ln.Addr().String()
+	t.Cleanup(func() { _ = ln.Close() })
+	return ln
 }

@@ -64,8 +64,8 @@ func (c Configuration) NewOptions(iOpts instrument.Options) Options {
 }
 
 // NewServer creates a new server.
-func (c Configuration) NewServer(handler Handler, iOpts instrument.Options) Server {
-	return NewServer(c.ListenAddress, handler, c.NewOptions(iOpts))
+func (c Configuration) NewServer(handler Handler, iOpts instrument.Options) StoppableServer {
+	return NewStoppableServer(c.ListenAddress, handler, c.NewOptions(iOpts))
 }
 
 // TLSConfiguration configs a tls server
@@ -75,9 +75,6 @@ type TLSConfiguration struct {
 	// permissive - allows both plaintext and TLS connections
 	// enforced - allows TLS connections only
 	Mode string `yaml:"mode" validate:"nonzero,regexp=^(disabled|permissive|enforced)$"`
-
-	// MutualTLSEnabled sets mTLS
-	MutualTLSEnabled bool `yaml:"mTLSEnabled"`
 
 	// CertFile path to a server certificate file
 	CertFile string `yaml:"certFile"`
@@ -90,6 +87,9 @@ type TLSConfiguration struct {
 
 	// CertificatesTTL is a time duration certificates are stored in memory
 	CertificatesTTL time.Duration `yaml:"certificatesTTL"`
+
+	// MutualTLSEnabled sets mTLS
+	MutualTLSEnabled bool `yaml:"mTLSEnabled"`
 }
 
 // NewOptions creates TLS options

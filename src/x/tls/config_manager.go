@@ -43,6 +43,7 @@ type ConfigManager interface {
 	TLSConfig() (*tls.Config, error)
 	ServerMode() ServerMode
 	ClientEnabled() bool
+	TLSHandshakeOnConnect() bool
 }
 
 type configManager struct {
@@ -152,12 +153,13 @@ func (c *configManager) loadTLSConfig() (*tls.Config, error) {
 }
 
 func (c *configManager) TLSConfig() (*tls.Config, error) {
-	if c.options.CertificatesTTL() == 0 || c.tlsConfig == nil {
+	c.mu.RLock()
+	tlsConfig := c.tlsConfig
+	c.mu.RUnlock()
+	if c.options.CertificatesTTL() == 0 || tlsConfig == nil {
 		return c.loadTLSConfig()
 	}
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.tlsConfig, nil
+	return tlsConfig, nil
 }
 
 func (c *configManager) ServerMode() ServerMode {
@@ -166,4 +168,8 @@ func (c *configManager) ServerMode() ServerMode {
 
 func (c *configManager) ClientEnabled() bool {
 	return c.options.ClientEnabled()
+}
+
+func (c *configManager) TLSHandshakeOnConnect() bool {
+	return c.options.TLSHandshakeOnConnect()
 }

@@ -171,11 +171,65 @@ func TestCluster_waitForHealth(t *testing.T) {
 	})
 }
 
+func TestHealthCheckContext(t *testing.T) {
+	t.Run("grants the floor when the parent deadline is already blown", func(t *testing.T) {
+		// Mimics a container pull that overran the caller's whole budget.
+		parent, cancelParent := context.WithTimeout(context.Background(), -2*time.Minute)
+		defer cancelParent()
+		require.Error(t, parent.Err(), "parent should already be expired")
+
+		ctx, cancel := healthCheckContext(parent)
+		defer cancel()
+
+		require.NoError(t, ctx.Err())
+		deadline, ok := ctx.Deadline()
+		require.True(t, ok)
+		assert.Greater(t, time.Until(deadline), minHealthCheckTimeout/2)
+	})
+
+	t.Run("keeps a parent deadline that leaves enough room", func(t *testing.T) {
+		want := 10 * minHealthCheckTimeout
+		parent, cancelParent := context.WithTimeout(context.Background(), want)
+		defer cancelParent()
+
+		ctx, cancel := healthCheckContext(parent)
+		defer cancel()
+
+		parentDeadline, ok := parent.Deadline()
+		require.True(t, ok)
+		deadline, ok := ctx.Deadline()
+		require.True(t, ok)
+		assert.Equal(t, parentDeadline, deadline)
+	})
+
+	t.Run("propagates cancellation when the parent deadline is kept", func(t *testing.T) {
+		parent, cancelParent := context.WithTimeout(context.Background(), 10*minHealthCheckTimeout)
+		defer cancelParent()
+
+		ctx, cancel := healthCheckContext(parent)
+		defer cancel()
+
+		cancelParent()
+		assert.ErrorIs(t, ctx.Err(), context.Canceled)
+	})
+
+	t.Run("bounds a parentless context", func(t *testing.T) {
+		ctx, cancel := healthCheckContext(context.Background())
+		defer cancel()
+
+		_, ok := ctx.Deadline()
+		assert.False(t, ok, "should not invent a deadline the caller did not set")
+	})
+}
+
 type fakeMemberClient struct {
 	err error
 }
 
-func (f fakeMemberClient) MemberList(ctx context.Context) (*clientv3.MemberListResponse, error) {
+func (f fakeMemberClient) MemberList(
+	ctx context.Context,
+	_ ...clientv3.OpOption,
+) (*clientv3.MemberListResponse, error) {
 	return nil, f.err
 }
 

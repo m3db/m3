@@ -80,20 +80,10 @@ type ValueWatch interface {
 }
 
 // ValueWatchable can be watched for Value changes
-type ValueWatchable interface {
-	// Get returns the latest Value
-	Get() Value
-	// Watch returns the Value and a ValueWatch that will be notified on updates
-	Watch() (Value, ValueWatch, error)
-	// NumWatches returns the number of watches on the Watchable
-	NumWatches() int
-	// Update sets the Value and notify Watches
-	Update(Value) error
-	// IsClosed returns true if the Watchable is closed
-	IsClosed() bool
-	// Close stops watching for value updates
-	Close()
-}
+type ValueWatchable = Watchable[Value, ValueWatch]
+
+// PrefixWatchable can be watched for Prefix changes
+type PrefixWatchable = Watchable[map[string]interface{}, PrefixWatch]
 
 // OverrideOptions provides a set of options to override the default configurations of a KV store.
 type OverrideOptions interface {
@@ -230,4 +220,36 @@ type TxnStore interface {
 	Store
 
 	Commit([]Condition, []Op) (Response, error)
+}
+
+// PrefixStore is a multi-key store that supports prefix-based operations.
+// It exposes a Get() method that fetches all the values under the particular
+// prefix. It supports watching a prefix path and returns the current state
+// of the entire list of keys that are covered by the prefix.
+// It only supports read-only operations at the moment.
+type PrefixStore interface {
+	GetForPrefix(prefix string) (map[string]interface{}, error)
+	WatchForPrefix(prefix string) (PrefixWatch, error)
+}
+
+// PrefixWatch is a watch for a prefix paths.
+type PrefixWatch interface {
+	C() <-chan struct{}
+	Get() map[string]interface{}
+	Close()
+}
+
+// Watchable is a watchable object that can be watched for updates.
+type Watchable[ValueType any, ValueWatchType any] interface {
+	Get() ValueType
+	// Watch returns the PrefixWatch that will be notified on updates
+	Watch() (ValueType, ValueWatchType, error)
+	// NumWatches returns the number of watches on the Watchable
+	NumWatches() int
+	// Update notifies the registered Watches
+	Update(ValueType) error
+	// IsClosed returns true if the Watchable is closed
+	IsClosed() bool
+	// Close stops watching for updates to the prefix path.
+	Close()
 }

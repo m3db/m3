@@ -1,3 +1,3 @@
-FROM golang:1.22-bullseye
+FROM golang:1.25.6-bookworm
 
-RUN apt-get update && apt-get install -y lsof netcat-openbsd docker.io jq
+RUN apt-get update && apt-get install -y lsof netcat-openbsd docker.io jq docker-compose

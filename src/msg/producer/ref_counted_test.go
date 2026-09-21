@@ -27,7 +27,16 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
+
+var filterAcceptFn = func(metadata FilterFuncMetadata) tally.Counter {
+	return tally.NoopScope.Counter("accept")
+}
+
+var filterDenyFn = func(metadata FilterFuncMetadata) tally.Counter {
+	return tally.NoopScope.Counter("deny")
+}
 
 func TestRefCountedMessageConsume(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -123,31 +132,35 @@ func TestRefCountedMessageFilter(t *testing.T) {
 	defer ctrl.Finish()
 
 	var called int
-	filter := func(m Message) bool {
-		called++
-		return m.Shard() == 0
-	}
+	filter := NewFilterFunc(
+		func(m Message) bool {
+			called++
+			return m.Shard() == 0
+		},
+		UnspecifiedFilter,
+		StaticConfig,
+	)
 
-	sizeFilter := func(m Message) bool {
+	sizeFilter := NewFilterFunc(func(m Message) bool {
 		called++
 		return m.Size() == 0
-	}
+	}, UnspecifiedFilter, StaticConfig)
 
 	mm := NewMockMessage(ctrl)
 	mm.EXPECT().Size().Return(0)
 	rm := NewRefCountedMessage(mm, nil)
 
 	mm.EXPECT().Shard().Return(uint32(0))
-	require.True(t, rm.Accept([]FilterFunc{filter}))
+	require.True(t, rm.Accept([]FilterFunc{filter}, filterAcceptFn, filterDenyFn))
 
 	mm.EXPECT().Shard().Return(uint32(1))
-	require.False(t, rm.Accept([]FilterFunc{filter}))
+	require.False(t, rm.Accept([]FilterFunc{filter}, filterAcceptFn, filterDenyFn))
 
 	mm.EXPECT().Shard().Return(uint32(0))
 	mm.EXPECT().Size().Return(0)
-	require.True(t, rm.Accept([]FilterFunc{filter, sizeFilter}))
+	require.True(t, rm.Accept([]FilterFunc{filter, sizeFilter}, filterAcceptFn, filterDenyFn))
 
-	require.False(t, rm.Accept([]FilterFunc{}))
+	require.False(t, rm.Accept([]FilterFunc{}, filterAcceptFn, filterDenyFn))
 }
 
 func TestRefCountedMessageOnDropFn(t *testing.T) {

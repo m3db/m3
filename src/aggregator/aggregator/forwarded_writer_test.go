@@ -105,19 +105,23 @@ func TestForwardedWriterRegisterNewAggregation(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		c      = client.NewMockAdminClient(ctrl)
-		opts   = NewOptions(clock.NewOptions()).SetAdminClient(c)
-		w      = newForwardedWriter(0, opts)
-		mt     = metric.GaugeType
-		mid    = id.RawID("foo")
-		aggKey = testForwardedWriterAggregationKey
+		c           = client.NewMockAdminClient(ctrl)
+		opts        = NewOptions(clock.NewOptions()).SetAdminClient(c)
+		w           = newForwardedWriter(0, opts)
+		mt          = metric.GaugeType
+		mid         = id.RawID("foo")
+		aggKey      = testForwardedWriterAggregationKey
+		routePolicy = policy.RoutingPolicy{
+			TrafficTypes: 1,
+		}
 	)
 
 	// Validate that no error is returned.
 	writeFn, onDoneFn, err := w.Register(testRegisterable{
-		metricType: mt,
-		id:         mid,
-		key:        aggKey,
+		metricType:  mt,
+		id:          mid,
+		key:         aggKey,
+		routePolicy: routePolicy,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, writeFn)
@@ -142,29 +146,31 @@ func TestForwardedWriterRegisterNewAggregation(t *testing.T) {
 
 	// Validate that writeFn can be used to write data to the aggregation.
 	ts1 := xtime.UnixNano(1234)
-	writeFn(aggKey, int64(ts1), 5.67, 5.0, nil, false)
+	writeFn(aggKey, int64(ts1), 5.67, 5.0, nil, false, routePolicy)
 	require.Equal(t, 1, len(agg.byKey[0].buckets))
 	require.Equal(t, ts1, agg.byKey[0].buckets[0].timeNanos)
 	require.Equal(t, []float64{5.67}, agg.byKey[0].buckets[0].values)
 	require.Equal(t, []float64{5.0}, agg.byKey[0].buckets[0].prevValues)
 	require.Equal(t, uint32(0), agg.byKey[0].versions[ts1])
 	require.Nil(t, agg.byKey[0].buckets[0].annotation)
-
-	writeFn(aggKey, int64(ts1), 1.78, 1.0, testAnnot, false)
+	require.Equal(t, routePolicy, agg.byKey[0].buckets[0].routePolicy)
+	writeFn(aggKey, int64(ts1), 1.78, 1.0, testAnnot, false, routePolicy)
 	require.Equal(t, 1, len(agg.byKey[0].buckets))
 	require.Equal(t, ts1, agg.byKey[0].buckets[0].timeNanos)
 	require.Equal(t, []float64{5.67, 1.78}, agg.byKey[0].buckets[0].values)
 	require.Equal(t, []float64{5.0, 1.0}, agg.byKey[0].buckets[0].prevValues)
 	require.Equal(t, uint32(0), agg.byKey[0].versions[ts1])
 	require.Equal(t, testAnnot, agg.byKey[0].buckets[0].annotation)
+	require.Equal(t, routePolicy, agg.byKey[0].buckets[0].routePolicy)
 
 	ts2 := xtime.UnixNano(1240)
-	writeFn(aggKey, int64(ts2), -2.95, 0.0, nil, false)
+	writeFn(aggKey, int64(ts2), -2.95, 0.0, nil, false, routePolicy)
 	require.Equal(t, 2, len(agg.byKey[0].buckets))
 	require.Equal(t, ts2, agg.byKey[0].buckets[1].timeNanos)
 	require.Equal(t, []float64{-2.95}, agg.byKey[0].buckets[1].values)
 	require.Equal(t, []float64{0.0}, agg.byKey[0].buckets[1].prevValues)
 	require.Equal(t, uint32(0), agg.byKey[0].versions[ts2])
+	require.Equal(t, routePolicy, agg.byKey[0].buckets[1].routePolicy)
 
 	// Validate that onDoneFn can be used to flush data out.
 	expectedMetric1 := aggregated.ForwardedMetric{
@@ -188,6 +194,7 @@ func TestForwardedWriterRegisterNewAggregation(t *testing.T) {
 		StoragePolicy:     policy.MustParseStoragePolicy("10s:2d"),
 		SourceID:          0,
 		NumForwardedTimes: 1,
+		RoutingPolicy:     routePolicy,
 	}
 	c.EXPECT().WriteForwarded(expectedMetric1, expectedMeta).Return(nil)
 	c.EXPECT().WriteForwarded(expectedMetric2, expectedMeta).Return(nil)
@@ -346,39 +353,44 @@ func TestForwardedWriterPrepare(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		c      = client.NewMockAdminClient(ctrl)
-		opts   = NewOptions(clock.NewOptions()).SetAdminClient(c)
-		w      = newForwardedWriter(0, opts)
-		mt     = metric.GaugeType
-		mid    = id.RawID("foo")
-		mid2   = id.RawID("bar")
-		aggKey = testForwardedWriterAggregationKey
+		c           = client.NewMockAdminClient(ctrl)
+		opts        = NewOptions(clock.NewOptions()).SetAdminClient(c)
+		w           = newForwardedWriter(0, opts)
+		mt          = metric.GaugeType
+		mid         = id.RawID("foo")
+		mid2        = id.RawID("bar")
+		aggKey      = testForwardedWriterAggregationKey
+		routePolicy = policy.RoutingPolicy{
+			TrafficTypes: 1,
+		}
 	)
 
 	// Register an aggregation.
 	writeFn, onDoneFn, err := w.Register(testRegisterable{
-		metricType: mt,
-		id:         mid,
-		key:        aggKey,
+		metricType:  mt,
+		id:          mid,
+		key:         aggKey,
+		routePolicy: routePolicy,
 	})
 	require.NoError(t, err)
 
 	// Write some datapoints.
-	writeFn(aggKey, 1234, 3.4, 3.0, nil, false)
-	writeFn(aggKey, 1234, 3.5, 2.0, nil, false)
-	writeFn(aggKey, 1240, 98.2, 98.0, nil, false)
+	writeFn(aggKey, 1234, 3.4, 3.0, nil, false, routePolicy)
+	writeFn(aggKey, 1234, 3.5, 2.0, nil, false, routePolicy)
+	writeFn(aggKey, 1240, 98.2, 98.0, nil, false, routePolicy)
 
 	// Register another aggregation.
 	writeFn2, onDoneFn2, err := w.Register(testRegisterable{
-		metricType: mt,
-		id:         mid2,
-		key:        aggKey,
+		metricType:  mt,
+		id:          mid2,
+		key:         aggKey,
+		routePolicy: routePolicy,
 	})
 	require.NoError(t, err)
 
 	// Write some more datapoints.
-	writeFn2(aggKey, 1238, 3.4, 0.0, nil, false)
-	writeFn2(aggKey, 1239, 3.5, 0.0, nil, false)
+	writeFn2(aggKey, 1238, 3.4, 0.0, nil, false, routePolicy)
+	writeFn2(aggKey, 1239, 3.5, 0.0, nil, false, routePolicy)
 
 	expectedMetric1 := aggregated.ForwardedMetric{
 		Type:       mt,
@@ -413,6 +425,7 @@ func TestForwardedWriterPrepare(t *testing.T) {
 		StoragePolicy:     policy.MustParseStoragePolicy("10s:2d"),
 		SourceID:          0,
 		NumForwardedTimes: 1,
+		RoutingPolicy:     routePolicy,
 	}
 	c.EXPECT().WriteForwarded(expectedMetric1, expectedMeta).Return(nil).Times(2)
 	c.EXPECT().WriteForwarded(expectedMetric2, expectedMeta).Return(nil).Times(2)
@@ -450,11 +463,11 @@ func TestForwardedWriterPrepare(t *testing.T) {
 	require.Equal(t, 0, agg.byKey[0].currRefCnt)
 
 	// Write datapoints again.
-	writeFn(aggKey, 1234, 3.4, 3.0, nil, false)
-	writeFn(aggKey, 1234, 3.5, 2.0, nil, false)
-	writeFn(aggKey, 1240, 98.2, 98.0, nil, false)
-	writeFn2(aggKey, 1238, 3.4, 0.0, nil, false)
-	writeFn2(aggKey, 1239, 3.5, 0.0, nil, false)
+	writeFn(aggKey, 1234, 3.4, 3.0, nil, false, routePolicy)
+	writeFn(aggKey, 1234, 3.5, 2.0, nil, false, routePolicy)
+	writeFn(aggKey, 1240, 98.2, 98.0, nil, false, routePolicy)
+	writeFn2(aggKey, 1238, 3.4, 0.0, nil, false, routePolicy)
+	writeFn2(aggKey, 1239, 3.5, 0.0, nil, false, routePolicy)
 	require.NoError(t, onDoneFn(aggKey, nil))
 	require.NoError(t, onDoneFn2(aggKey, nil))
 
@@ -484,11 +497,14 @@ func TestForwardedWriterResend(t *testing.T) {
 			SetBufferForPastTimedMetricFn(func(resolution time.Duration) time.Duration {
 				return resolution
 			})
-		w      = newForwardedWriter(0, opts)
-		mt     = metric.GaugeType
-		mid    = id.RawID("foo")
-		mid2   = id.RawID("bar")
-		aggKey = testForwardedWriterAggregationKey
+		w           = newForwardedWriter(0, opts)
+		mt          = metric.GaugeType
+		mid         = id.RawID("foo")
+		mid2        = id.RawID("bar")
+		aggKey      = testForwardedWriterAggregationKey
+		routePolicy = policy.RoutingPolicy{
+			TrafficTypes: 1,
+		}
 	)
 
 	// Register an aggregation.
@@ -497,13 +513,14 @@ func TestForwardedWriterResend(t *testing.T) {
 		id:            mid,
 		key:           aggKey,
 		resendEnabled: true,
+		routePolicy:   routePolicy,
 	})
 	require.NoError(t, err)
 
 	// Write some datapoints.
-	writeFn(aggKey, 1234, 3.4, 3.0, nil, true)
-	writeFn(aggKey, 1234, 3.5, 2.0, nil, true)
-	writeFn(aggKey, 1240, 98.2, 98.0, nil, true)
+	writeFn(aggKey, 1234, 3.4, 3.0, nil, true, routePolicy)
+	writeFn(aggKey, 1234, 3.5, 2.0, nil, true, routePolicy)
+	writeFn(aggKey, 1240, 98.2, 98.0, nil, true, routePolicy)
 
 	// Register another aggregation.
 	writeFn2, onDoneFn2, err := w.Register(testRegisterable{
@@ -511,12 +528,13 @@ func TestForwardedWriterResend(t *testing.T) {
 		id:            mid2,
 		key:           aggKey,
 		resendEnabled: true,
+		routePolicy:   routePolicy,
 	})
 	require.NoError(t, err)
 
 	// Write some more datapoints.
-	writeFn2(aggKey, 1238, 3.4, 0.0, nil, true)
-	writeFn2(aggKey, 1239, 3.5, 0.0, nil, true)
+	writeFn2(aggKey, 1238, 3.4, 0.0, nil, true, routePolicy)
+	writeFn2(aggKey, 1239, 3.5, 0.0, nil, true, routePolicy)
 
 	expectedMetric1 := aggregated.ForwardedMetric{
 		Type:       mt,
@@ -555,6 +573,7 @@ func TestForwardedWriterResend(t *testing.T) {
 		NumForwardedTimes: 1,
 		Pipeline:          aggKey.pipeline,
 		ResendEnabled:     true,
+		RoutingPolicy:     routePolicy,
 	}
 	c.EXPECT().WriteForwarded(expectedMetric1, expectedMeta).Return(nil)
 	c.EXPECT().WriteForwarded(expectedMetric2, expectedMeta).Return(nil)
@@ -594,11 +613,11 @@ func TestForwardedWriterResend(t *testing.T) {
 	require.Equal(t, 0, agg.byKey[0].currRefCnt)
 
 	// Write datapoints again.
-	writeFn(aggKey, 1234, 3.4, 3.0, nil, true)
-	writeFn(aggKey, 1234, 3.5, 2.0, nil, true)
-	writeFn(aggKey, 1240, 98.2, 98.0, nil, true)
-	writeFn2(aggKey, 1238, 3.4, 0.0, nil, true)
-	writeFn2(aggKey, 1239, 3.5, 0.0, nil, true)
+	writeFn(aggKey, 1234, 3.4, 3.0, nil, true, routePolicy)
+	writeFn(aggKey, 1234, 3.5, 2.0, nil, true, routePolicy)
+	writeFn(aggKey, 1240, 98.2, 98.0, nil, true, routePolicy)
+	writeFn2(aggKey, 1238, 3.4, 0.0, nil, true, routePolicy)
+	writeFn2(aggKey, 1239, 3.5, 0.0, nil, true, routePolicy)
 
 	expectedMetric1.Version = 1
 	expectedMetric2.Version = 1
@@ -664,6 +683,7 @@ type testRegisterable struct {
 	id            id.RawID
 	key           aggregationKey
 	resendEnabled bool
+	routePolicy   policy.RoutingPolicy
 }
 
 func (t testRegisterable) Type() metric.Type {
@@ -680,6 +700,10 @@ func (t testRegisterable) ForwardedAggregationKey() (aggregationKey, bool) {
 
 func (t testRegisterable) ResendEnabled() bool {
 	return t.resendEnabled
+}
+
+func (t testRegisterable) RoutePolicy() policy.RoutingPolicy {
+	return t.routePolicy
 }
 
 var _ Registerable = &testRegisterable{}

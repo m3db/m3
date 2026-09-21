@@ -51,3 +51,7 @@ enum DropPolicy {
   DROP_MUST = 1;
   DROP_IF_ONLY_MATCH = 2;
 }
+
+message RoutingPolicy {
+  uint64 traffic_types = 1;
+}

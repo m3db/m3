@@ -46,7 +46,7 @@ func (c Configuration) NewServer(
 	writeFn WriteFn,
 	rwOpts xio.Options,
 	iOpts instrument.Options,
-) (server.Server, error) {
+) (server.StoppableServer, error) {
 	scope := iOpts.MetricsScope().Tagged(map[string]string{"server": "m3msg"})
 	cOpts := c.Consumer.NewOptions(
 		iOpts.SetMetricsScope(scope.Tagged(map[string]string{

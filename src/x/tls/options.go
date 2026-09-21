@@ -68,27 +68,34 @@ type Options interface {
 	SetCertificatesTTL(value time.Duration) Options
 	// CertificatesTTL returns the certificates TTL
 	CertificatesTTL() time.Duration
+
+	// SetTLSHandshakeOnConnect sets the TLS handshake on connect option
+	SetTLSHandshakeOnConnect(value bool) Options
+	// TLSHandshakeOnConnect returns the TLS handshake on connect option
+	TLSHandshakeOnConnect() bool
 }
 
 type options struct {
-	serverName         string
-	certFile           string
-	keyFile            string
-	caFile             string
-	certificatesTTL    time.Duration
-	serverMode         ServerMode
-	clientEnabled      bool
-	insecureSkipVerify bool
-	mTLSEnabled        bool
+	serverName            string
+	certFile              string
+	keyFile               string
+	caFile                string
+	certificatesTTL       time.Duration
+	serverMode            ServerMode
+	clientEnabled         bool
+	insecureSkipVerify    bool
+	mTLSEnabled           bool
+	tlsHandshakeOnConnect bool
 }
 
 // NewOptions creates a new set of tls options
 func NewOptions() Options {
 	return &options{
-		clientEnabled:      false,
-		insecureSkipVerify: true,
-		serverMode:         Disabled,
-		mTLSEnabled:        false,
+		clientEnabled:         false,
+		insecureSkipVerify:    true,
+		serverMode:            Disabled,
+		mTLSEnabled:           false,
+		tlsHandshakeOnConnect: true,
 	}
 }
 
@@ -180,4 +187,14 @@ func (o *options) SetCertificatesTTL(value time.Duration) Options {
 
 func (o *options) CertificatesTTL() time.Duration {
 	return o.certificatesTTL
+}
+
+func (o *options) SetTLSHandshakeOnConnect(value bool) Options {
+	opts := *o
+	opts.tlsHandshakeOnConnect = value
+	return &opts
+}
+
+func (o *options) TLSHandshakeOnConnect() bool {
+	return o.tlsHandshakeOnConnect
 }

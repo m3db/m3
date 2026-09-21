@@ -128,8 +128,15 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 				Endpoint:       "http://localhost:9000",
 				Hostname:       "localhost",
 				Port:           9000,
+				Metadata: &placementpb.InstanceMetadata{
+					DebugPort: 0,
+				},
 			},
 		},
+		IsSharded:              false,
+		IsMirrored:             false,
+		IsSubclustered:         false,
+		InstancesPerSubcluster: 0,
 	}
 	newPlacement, err := placement.NewPlacementFromProto(placementProto)
 	require.NoError(t, err)
@@ -208,7 +215,8 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 						"port": 9000,
 						"metadata": {
 							"debugPort": 0
-						}
+						},
+						"subclusterId": 0
 					}
 				},
 				"replicaFactor": 0,
@@ -216,7 +224,9 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 				"isSharded": false,
 				"cutoverTime": "0",
 				"isMirrored": false,
-				"maxShardSetId": 0
+				"maxShardSetId": 0,
+				"isSubclustered": false,
+				"instancesPerSubcluster": 0
 			},
 			"version": 0
 		}
@@ -384,7 +394,8 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 						"port": 9000,
 						"metadata": {
 							"debugPort": 0
-						}
+						},
+						"subclusterId": 0
 					}
 				},
 				"replicaFactor": 0,
@@ -392,7 +403,9 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 				"isSharded": false,
 				"cutoverTime": "0",
 				"isMirrored": false,
-				"maxShardSetId": 0
+				"maxShardSetId": 0,
+				"isSubclustered": false,
+				"instancesPerSubcluster": 0
 			},
 			"version": 0
 		}
@@ -513,7 +526,8 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 						"port": 9000,
 						"metadata": {
 							"debugPort": 0
-						}
+						},
+						"subclusterId": 0
 					}
 				},
 				"replicaFactor": 0,
@@ -521,7 +535,9 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 				"isSharded": false,
 				"cutoverTime": "0",
 				"isMirrored": false,
-				"maxShardSetId": 0
+				"maxShardSetId": 0,
+				"isSubclustered": false,
+				"instancesPerSubcluster": 0
 			},
 			"version": 0
 		}
@@ -647,7 +663,8 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 						"port": 9000,
 						"metadata": {
 							"debugPort": 0
-						}
+						},
+						"subclusterId": 0
 					}
 				},
 				"replicaFactor": 0,
@@ -655,7 +672,9 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 				"isSharded": false,
 				"cutoverTime": "0",
 				"isMirrored": false,
-				"maxShardSetId": 0
+				"maxShardSetId": 0,
+				"isSubclustered": false,
+				"instancesPerSubcluster": 0
 			},
 			"version": 0
 		}
@@ -911,7 +930,8 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 						"port": 9000,
 						"metadata": {
 							"debugPort": 0
-						}
+						},
+						"subclusterId": 0
 					},
 					"host2": {
 						"id": "host2",
@@ -925,7 +945,8 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 						"port": 9000,
 						"metadata": {
 							"debugPort": 0
-						}
+						},
+						"subclusterId": 0
 					}
 				},
 				"replicaFactor": 0,
@@ -933,7 +954,9 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 				"isSharded": false,
 				"cutoverTime": "0",
 				"isMirrored": false,
-				"maxShardSetId": 0
+				"maxShardSetId": 0,
+				"isSubclustered": false,
+				"instancesPerSubcluster": 0
 			},
 			"version": 0
 		}
@@ -1068,7 +1091,8 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 						"port": 9000,
 						"metadata": {
 							"debugPort": 0
-						}
+						},
+						"subclusterId": 0
 					},
 					"host2": {
 						"id": "host2",
@@ -1082,7 +1106,8 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 						"port": 9000,
 						"metadata": {
 							"debugPort": 0
-						}
+						},
+						"subclusterId": 0
 					}
 				},
 				"replicaFactor": 0,
@@ -1090,7 +1115,9 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 				"isSharded": false,
 				"cutoverTime": "0",
 				"isMirrored": false,
-				"maxShardSetId": 0
+				"maxShardSetId": 0,
+				"isSubclustered": false,
+				"instancesPerSubcluster": 0
 			},
 			"version": 0
 		}
@@ -1102,6 +1129,7 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 
 	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
+
 func TestClusterTypeMissingHostnames(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -1329,7 +1357,8 @@ func TestLocalTypeWithAggregatedNamespace(t *testing.T) {
 						"port": 9000,
 						"metadata": {
 							"debugPort": 0
-						}
+						},
+						"subclusterId": 0
 					}
 				},
 				"replicaFactor": 0,
@@ -1337,7 +1366,9 @@ func TestLocalTypeWithAggregatedNamespace(t *testing.T) {
 				"isSharded": false,
 				"cutoverTime": "0",
 				"isMirrored": false,
-				"maxShardSetId": 0
+				"maxShardSetId": 0,
+				"isSubclustered": false,
+				"instancesPerSubcluster": 0
 			},
 			"version": 0
 		}

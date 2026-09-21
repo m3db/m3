@@ -211,13 +211,14 @@ func (c *Configuration) NewClientOptions(
 
 // TLSConfiguration contains the TLS configuration
 type TLSConfiguration struct {
-	Enabled            bool          `yaml:"enabled"`
-	InsecureSkipVerify bool          `yaml:"insecureSkipVerify"`
-	ServerName         string        `yaml:"serverName"`
-	CAFile             string        `yaml:"caFile"`
-	CertFile           string        `yaml:"certFile"`
-	KeyFile            string        `yaml:"keyFile"`
-	CertificatesTTL    time.Duration `yaml:"certificatesTTL"`
+	Enabled               bool          `yaml:"enabled"`
+	InsecureSkipVerify    bool          `yaml:"insecureSkipVerify"`
+	TLSHandshakeOnConnect bool          `yaml:"tlsHandshakeOnConnect"`
+	ServerName            string        `yaml:"serverName"`
+	CAFile                string        `yaml:"caFile"`
+	CertFile              string        `yaml:"certFile"`
+	KeyFile               string        `yaml:"keyFile"`
+	CertificatesTTL       time.Duration `yaml:"certificatesTTL"`
 }
 
 // NewTLSOptions creates new TLS options
@@ -228,13 +229,15 @@ func (c *TLSConfiguration) NewTLSOptions() xtls.Options {
 		SetServerName(c.ServerName).
 		SetCAFile(c.CAFile).
 		SetCertFile(c.CertFile).
-		SetKeyFile(c.KeyFile)
+		SetKeyFile(c.KeyFile).
+		SetTLSHandshakeOnConnect(c.TLSHandshakeOnConnect)
 }
 
 // ConnectionConfiguration contains the connection configuration.
 type ConnectionConfiguration struct {
 	ConnectionTimeout            time.Duration        `yaml:"connectionTimeout"`
 	ConnectionKeepAlive          *bool                `yaml:"connectionKeepAlive"`
+	ReadTimeout                  time.Duration        `yaml:"readTimeout"`
 	WriteTimeout                 time.Duration        `yaml:"writeTimeout"`
 	InitReconnectThreshold       int                  `yaml:"initReconnectThreshold"`
 	MaxReconnectThreshold        int                  `yaml:"maxReconnectThreshold"`
@@ -253,6 +256,9 @@ func (c *ConnectionConfiguration) NewConnectionOptions(scope tally.Scope) Connec
 	}
 	if c.ConnectionKeepAlive != nil {
 		opts = opts.SetConnectionKeepAlive(*c.ConnectionKeepAlive)
+	}
+	if c.ReadTimeout != 0 {
+		opts = opts.SetReadTimeout(c.ReadTimeout)
 	}
 	if c.WriteTimeout != 0 {
 		opts = opts.SetWriteTimeout(c.WriteTimeout)

@@ -21,7 +21,10 @@
 package producer
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3/src/cluster/services"
+	"github.com/m3db/m3/src/msg/routing"
 )
 
 // FinalizeReason defines the reason why the message is being finalized by Producer.
@@ -83,10 +86,110 @@ type Producer interface {
 	// If the CloseType is WaitForConsumption, then it will block until all the messages have been consumed.
 	// If the CloseType is DropEverything, then it will simply drop all the messages buffered and return.
 	Close(ct CloseType)
+
+	// SetRoutingPolicyHandler sets the routing policy handler.
+	SetRoutingPolicyHandler(policy routing.PolicyHandler)
+}
+
+// FilterFuncType specifies the type of filter function.
+type FilterFuncType uint8
+
+const (
+	// ShardSetFilter filters messages based on a shard set.
+	ShardSetFilter FilterFuncType = iota
+	// StoragePolicyFilter filters messages based on a storage policy.
+	StoragePolicyFilter
+	// PercentageFilter filters messages on a sampling percentage.
+	PercentageFilter
+	// RoutingPolicyFilter filters messages based on a route policy.
+	RoutingPolicyFilter
+	// AcceptAllFilter accepts all messages.
+	AcceptAllFilter
+	// UnspecifiedFilter is any filter that is not one of the well known types.
+	UnspecifiedFilter
+)
+
+func (f FilterFuncType) String() string {
+	switch f {
+
+	case ShardSetFilter:
+		return "ShardSetFilter"
+	case StoragePolicyFilter:
+		return "StoragePolicyFilter"
+	case PercentageFilter:
+		return "PercentageFilter"
+	case RoutingPolicyFilter:
+		return "RoutingPolicyFilter"
+	case AcceptAllFilter:
+		return "AcceptAllFilter"
+	case UnspecifiedFilter:
+		return "UnspecifiedFilter"
+	}
+
+	return "Unknown"
+}
+
+// FilterFuncConfigSourceType specifies the configuration source of the filter function.
+type FilterFuncConfigSourceType uint8
+
+const (
+	// StaticConfig is static configuration that is applied once at service startup.
+	StaticConfig FilterFuncConfigSourceType = iota
+	// DynamicConfig is dynamic configuration that can be updated at runtime.
+	DynamicConfig
+)
+
+func (f FilterFuncConfigSourceType) String() string {
+	switch f {
+
+	case StaticConfig:
+		return "StaticConfig"
+	case DynamicConfig:
+		return "DynamicConfig"
+	}
+
+	return "Unknown"
+}
+
+// FilterFuncMetadata contains metadata about a filter function.
+type FilterFuncMetadata struct {
+	FilterType FilterFuncType
+	SourceType FilterFuncConfigSourceType
+	cacheKey   string // Pre-computed key for metric map lookups to avoid allocations in hot path
+}
+
+// NewFilterFuncMetadata creates a new filter function metadata.
+func NewFilterFuncMetadata(
+	filterType FilterFuncType,
+	sourceType FilterFuncConfigSourceType) FilterFuncMetadata {
+	return FilterFuncMetadata{
+		FilterType: filterType,
+		SourceType: sourceType,
+		cacheKey:   fmt.Sprintf("%s::%s", filterType.String(), sourceType.String()),
+	}
+}
+
+// CacheKey returns the pre-computed cache key for this metadata.
+func (m FilterFuncMetadata) CacheKey() string {
+	return m.cacheKey
 }
 
 // FilterFunc can filter message.
-type FilterFunc func(m Message) bool
+type FilterFunc struct {
+	Function func(m Message) bool
+	Metadata FilterFuncMetadata
+}
+
+// NewFilterFunc creates a new filter function.
+func NewFilterFunc(
+	function func(m Message) bool,
+	filterType FilterFuncType,
+	sourceType FilterFuncConfigSourceType) FilterFunc {
+	return FilterFunc{
+		Function: function,
+		Metadata: NewFilterFuncMetadata(filterType, sourceType),
+	}
+}
 
 // Options configs a producer.
 type Options interface {
@@ -131,6 +234,9 @@ type Writer interface {
 	// NumShards returns the total number of shards of the topic the writer is
 	// writing to.
 	NumShards() uint32
+
+	// SetRoutingPolicyHandler sets the routing policy handler.
+	SetRoutingPolicyHandler(h routing.PolicyHandler)
 
 	// Init initializes a writer.
 	Init() error

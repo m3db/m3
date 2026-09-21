@@ -24,5 +24,6 @@
 //go:generate sh -c "mockgen -package=ident $PACKAGE/src/x/ident ID,TagIterator,Pool | genclean -pkg $PACKAGE/src/x/ident -out ../../ident/ident_mock.go"
 //go:generate sh -c "mockgen -package=checked $PACKAGE/src/x/checked Bytes | genclean -pkg $PACKAGE/src/x/checked -out ../../checked/checked_mock.go"
 //go:generate sh -c "mockgen -package=pool $PACKAGE/src/x/pool CheckedBytesPool,BytesPool | genclean -pkg $PACKAGE/src/x/pool -out ../../pool/pool_mock.go"
+//go:generate sh -c "mockgen -package=debug $PACKAGE/src/x/debug ZipWriter | genclean -pkg $PACKAGE/src/x/debug -out ../../debug/zipWriter_mock.go"
 
 package mocks

@@ -48,6 +48,13 @@ const (
 	unknownRemoteHostAddress = "<unknown>"
 )
 
+var (
+	timerBatchSizesBuckets = append(
+		tally.MustMakeLinearValueBuckets(0, 1000, 50),
+		tally.MustMakeExponentialValueBuckets(50000, 2, 6)...,
+	)
+)
+
 // NewServer creates a new raw TCP server.
 func NewServer(address string, aggregator aggregator.Aggregator, opts Options) xserver.Server {
 	iOpts := opts.InstrumentOptions()
@@ -65,6 +72,7 @@ type handlerMetrics struct {
 	unknownErrorTypeErrors   tally.Counter
 	decodeErrors             tally.Counter
 	errLogRateLimited        tally.Counter
+	timerBatchSizes          tally.Histogram
 }
 
 func newHandlerMetrics(scope tally.Scope) handlerMetrics {
@@ -77,6 +85,9 @@ func newHandlerMetrics(scope tally.Scope) handlerMetrics {
 		unknownErrorTypeErrors:   scope.Counter("unknown-error-type-errors"),
 		decodeErrors:             scope.Counter("decode-errors"),
 		errLogRateLimited:        scope.Counter("error-log-rate-limited"),
+		timerBatchSizes: scope.Tagged(map[string]string{
+			"bucket-version": "v2",
+		}).Histogram("timer-batch-sizes", timerBatchSizesBuckets),
 	}
 }
 
@@ -150,6 +161,9 @@ func (s *handler) Handle(conn net.Conn) {
 			untimedMetric.Annotation = current.BatchTimerWithMetadatas.Annotation
 			stagedMetadatas = current.BatchTimerWithMetadatas.StagedMetadatas
 			err = s.aggregator.AddUntimed(untimedMetric, stagedMetadatas)
+			s.metrics.timerBatchSizes.RecordValue(float64(
+				len(current.BatchTimerWithMetadatas.BatchTimer.Values),
+			))
 		case encoding.GaugeWithMetadatasType:
 			untimedMetric = current.GaugeWithMetadatas.Gauge.ToUnion()
 			untimedMetric.Annotation = current.GaugeWithMetadatas.Annotation

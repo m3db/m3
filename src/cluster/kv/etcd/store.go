@@ -50,40 +50,10 @@ var (
 	errNilPutResponse        = errors.New("nil put response from etcd")
 )
 
-// NewStore creates a kv store based on etcd
+// NewStore creates a kv store based on etcd and watches single keys.
 func NewStore(etcdKV *clientv3.Client, opts Options) (kv.TxnStore, error) {
-	scope := opts.InstrumentsOptions().MetricsScope()
-
-	store := &client{
-		opts:           opts,
-		kv:             etcdKV,
-		watchables:     map[string]kv.ValueWatchable{},
-		retrier:        retry.NewRetrier(opts.RetryOptions()),
-		logger:         opts.InstrumentsOptions().Logger(),
-		cacheFile:      opts.CacheFileFn()(opts.Prefix()),
-		cache:          newCache(),
-		cacheUpdatedCh: make(chan struct{}, 1),
-		m: clientMetrics{
-			etcdGetError:   scope.Counter("etcd-get-error"),
-			etcdPutError:   scope.Counter("etcd-put-error"),
-			etcdTnxError:   scope.Counter("etcd-tnx-error"),
-			diskWriteError: scope.Counter("disk-write-error"),
-			diskReadError:  scope.Counter("disk-read-error"),
-		},
-	}
-
-	clientWatchOpts := []clientv3.OpOption{
-		// periodically (appx every 10 mins) checks for the latest data
-		// with or without any update notification
-		clientv3.WithProgressNotify(),
-		// receive initial notification once the watch channel is created
-		clientv3.WithCreatedNotify(),
-	}
-
-	if rev := opts.WatchWithRevision(); rev > 0 {
-		clientWatchOpts = append(clientWatchOpts, clientv3.WithRev(rev))
-	}
-
+	store := newStore[kv.Value, kv.ValueWatch](etcdKV, opts)
+	clientWatchOpts := newClientWatchOptions(opts)
 	wOpts := watchmanager.NewOptions().
 		SetClient(etcdKV).
 		SetUpdateFn(store.update).
@@ -100,6 +70,60 @@ func NewStore(etcdKV *clientv3.Client, opts Options) (kv.TxnStore, error) {
 	}
 
 	store.wm = wm
+	return store, nil
+}
+
+// NewPrefixStore creates a kv store based on etcd and watches all keys with a given prefix.
+func NewPrefixStore(etcdKV *clientv3.Client, opts Options) (kv.PrefixStore, error) {
+	store := newStore[map[string]interface{}, kv.PrefixWatch](
+		etcdKV,
+		opts,
+	)
+
+	clientWatchOpts := newClientWatchOptions(opts)
+	clientWatchOpts = append(clientWatchOpts, []clientv3.OpOption{clientv3.WithPrefix()}...)
+	wOpts := watchmanager.NewOptions().
+		SetClient(etcdKV).
+		SetUpdateFn(store.updateForPrefix).
+		SetTickAndStopFn(store.tickAndStop).
+		SetWatchOptions(clientWatchOpts).
+		SetWatchChanCheckInterval(opts.WatchChanCheckInterval()).
+		SetWatchChanInitTimeout(opts.WatchChanInitTimeout()).
+		SetWatchChanResetInterval(opts.WatchChanResetInterval()).
+		SetInstrumentsOptions(opts.InstrumentsOptions())
+
+	wm, err := watchmanager.NewWatchManager(wOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	store.wm = wm
+	return store, nil
+}
+
+func newStore[ValueType any, ValueWatchType any](
+	etcdKV *clientv3.Client,
+	opts Options,
+) *client[ValueType, ValueWatchType] {
+	scope := opts.InstrumentsOptions().MetricsScope()
+
+	store := &client[ValueType, ValueWatchType]{
+		opts:           opts,
+		kv:             etcdKV,
+		watchables:     map[string]kv.Watchable[ValueType, ValueWatchType]{},
+		retrier:        retry.NewRetrier(opts.RetryOptions()),
+		logger:         opts.InstrumentsOptions().Logger(),
+		cacheFile:      opts.CacheFileFn()(opts.Prefix()),
+		cache:          newCache(),
+		cacheUpdatedCh: make(chan struct{}, 1),
+		m: clientMetrics{
+			etcdGetError:   scope.Counter("etcd-get-error"),
+			etcdPutError:   scope.Counter("etcd-put-error"),
+			etcdTnxError:   scope.Counter("etcd-tnx-error"),
+			diskWriteError: scope.Counter("disk-write-error"),
+			diskReadError:  scope.Counter("disk-read-error"),
+		},
+	}
 
 	if store.cacheFile != "" {
 		if err := store.initCache(opts.NewDirectoryMode()); err != nil {
@@ -116,15 +140,32 @@ func NewStore(etcdKV *clientv3.Client, opts Options) (kv.TxnStore, error) {
 			}
 		}()
 	}
-	return store, nil
+	return store
 }
 
-type client struct {
+func newClientWatchOptions(opts Options) []clientv3.OpOption {
+	clientWatchOpts := []clientv3.OpOption{
+		// periodically (appx every 10 mins) checks for the latest data
+		// with or without any update notification
+		clientv3.WithProgressNotify(),
+		// receive initial notification once the watch channel is created
+		clientv3.WithCreatedNotify(),
+	}
+
+	if rev := opts.WatchWithRevision(); rev > 0 {
+		clientWatchOpts = append(clientWatchOpts, clientv3.WithRev(rev))
+	}
+
+	return clientWatchOpts
+}
+
+//nolint:structcheck
+type client[ValueType any, ValueWatchType any] struct {
 	sync.RWMutex
 
 	opts           Options
 	kv             *clientv3.Client
-	watchables     map[string]kv.ValueWatchable
+	watchables     map[string]kv.Watchable[ValueType, ValueWatchType]
 	retrier        retry.Retrier
 	logger         *zap.Logger
 	m              clientMetrics
@@ -145,11 +186,11 @@ type clientMetrics struct {
 
 // Get returns the latest value from etcd store and only fall back to
 // in-memory cache if the remote store is unavailable
-func (c *client) Get(key string) (kv.Value, error) {
+func (c *client[ValueType, ValueWatchType]) Get(key string) (kv.Value, error) {
 	return c.get(c.opts.ApplyPrefix(key))
 }
 
-func (c *client) get(key string) (kv.Value, error) {
+func (c *client[ValueType, ValueWatchType]) get(key string) (kv.Value, error) {
 	ctx, cancel := c.context()
 	defer cancel()
 
@@ -179,7 +220,38 @@ func (c *client) get(key string) (kv.Value, error) {
 	return v, nil
 }
 
-func (c *client) History(key string, from, to int) ([]kv.Value, error) {
+func (c *client[ValueType, ValueWatchType]) GetForPrefix(prefix string) (map[string]interface{}, error) {
+	return c.getForPrefix(c.opts.ApplyPrefix(prefix))
+}
+
+func (c *client[ValueType, ValueWatchType]) getForPrefix(prefix string) (map[string]interface{}, error) {
+	ctx, cancel := c.context()
+	defer cancel()
+
+	var opts []clientv3.OpOption
+	if c.opts.EnableFastGets() {
+		opts = append(opts, clientv3.WithSerializable())
+	}
+	opts = append(opts, clientv3.WithPrefix())
+	r, err := c.kv.Get(ctx, prefix, opts...)
+	if err != nil {
+		c.m.etcdGetError.Inc(1)
+		return nil, err
+	}
+
+	if r.Count == 0 {
+		return nil, kv.ErrNotFound
+	}
+
+	values := make(map[string]interface{})
+	for _, kv := range r.Kvs {
+		values[string(kv.Key)] = newValue(kv.Value, kv.Version, kv.ModRevision)
+	}
+
+	return values, nil
+}
+
+func (c *client[ValueType, ValueWatchType]) History(key string, from, to int) ([]kv.Value, error) {
 	if from > to || from < 0 || to < 0 {
 		return nil, errInvalidHistoryVersion
 	}
@@ -250,7 +322,7 @@ func (c *client) History(key string, from, to int) ([]kv.Value, error) {
 	return res, nil
 }
 
-func (c *client) processCondition(condition kv.Condition) (clientv3.Cmp, error) {
+func (c *client[ValueType, ValueWatchType]) processCondition(condition kv.Condition) (clientv3.Cmp, error) {
 	var cmp clientv3.Cmp
 	switch condition.TargetType() {
 	case kv.TargetVersion:
@@ -270,7 +342,7 @@ func (c *client) processCondition(condition kv.Condition) (clientv3.Cmp, error) 
 	return clientv3.Compare(cmp, compareStr, condition.Value()), nil
 }
 
-func (c *client) processOp(op kv.Op) (clientv3.Op, error) {
+func (c *client[ValueType, ValueWatchType]) processOp(op kv.Op) (clientv3.Op, error) {
 	switch op.Type() {
 	case kv.OpSet:
 		opSet := op.(kv.SetOp)
@@ -290,7 +362,7 @@ func (c *client) processOp(op kv.Op) (clientv3.Op, error) {
 	}
 }
 
-func (c *client) Commit(conditions []kv.Condition, ops []kv.Op) (kv.Response, error) {
+func (c *client[ValueType, ValueWatchType]) Commit(conditions []kv.Condition, ops []kv.Op) (kv.Response, error) {
 	ctx, cancel := c.context()
 	defer cancel()
 
@@ -353,23 +425,41 @@ func (c *client) Commit(conditions []kv.Condition, ops []kv.Op) (kv.Response, er
 	return kv.NewResponse().SetResponses(opResponses), nil
 }
 
-func (c *client) Watch(key string) (kv.ValueWatch, error) {
+func (c *client[ValueType, ValueWatchType]) Watch(key string) (ValueWatchType, error) {
 	newKey := c.opts.ApplyPrefix(key)
 	c.Lock()
-	watchable, ok := c.watchables[newKey]
+	w, ok := c.watchables[newKey]
 	if !ok {
-		watchable = kv.NewValueWatchable()
-		c.watchables[newKey] = watchable
+		watchable := kv.NewValueWatchable()
+		w = watchable.(kv.Watchable[ValueType, ValueWatchType])
+		c.watchables[newKey] = w
 
 		go c.wm.Watch(newKey)
 
 	}
 	c.Unlock()
-	_, w, err := watchable.Watch()
-	return w, err
+	_, watch, err := w.Watch()
+	return watch, err
 }
 
-func (c *client) getFromKVStore(key string) (kv.Value, error) {
+func (c *client[ValueType, ValueWatchType]) WatchForPrefix(prefix string) (ValueWatchType, error) {
+	newKey := c.opts.ApplyPrefix(prefix)
+	c.Lock()
+	w, ok := c.watchables[newKey]
+	if !ok {
+		watchable := kv.NewPrefixWatchable()
+		w = watchable.(kv.Watchable[ValueType, ValueWatchType])
+		c.watchables[newKey] = w
+		go c.wm.Watch(newKey)
+	}
+
+	c.Unlock()
+
+	_, watch, err := w.Watch()
+	return watch, err
+}
+
+func (c *client[ValueType, ValueWatchType]) getFromKVStore(key string) (kv.Value, error) {
 	var (
 		nv  kv.Value
 		err error
@@ -388,7 +478,7 @@ func (c *client) getFromKVStore(key string) (kv.Value, error) {
 	return nv, nil
 }
 
-func (c *client) getFromEtcdEvents(key string, events []*clientv3.Event) kv.Value {
+func (c *client[ValueType, ValueWatchType]) getFromEtcdEvents(key string, events []*clientv3.Event) kv.Value {
 	lastEvent := events[len(events)-1]
 	if lastEvent.Type == clientv3.EventTypeDelete {
 		c.deleteCache(key)
@@ -400,7 +490,44 @@ func (c *client) getFromEtcdEvents(key string, events []*clientv3.Event) kv.Valu
 	return nv
 }
 
-func (c *client) update(key string, events []*clientv3.Event) error {
+func (c *client[ValueType, ValueWatchType]) getFromEtcdEventsForPrefix(
+	events []*clientv3.Event,
+) (map[string]interface{}, []string) {
+	toDelete := []string{}
+
+	values := make(map[string]interface{})
+	for _, e := range events {
+		if e.Type == clientv3.EventTypeDelete {
+			toDelete = append(toDelete, string(e.Kv.Key))
+			continue
+		}
+
+		values[string(e.Kv.Key)] = newValue(e.Kv.Value, e.Kv.Version, e.Kv.ModRevision)
+	}
+
+	return values, toDelete
+}
+
+func (c *client[ValueType, ValueWatchType]) getFromKVStoreForPrefix(prefix string) (map[string]interface{}, error) {
+	var (
+		nv  map[string]interface{}
+		err error
+	)
+	if execErr := c.retrier.Attempt(func() error {
+		nv, err = c.getForPrefix(prefix)
+		if errors.Is(err, kv.ErrNotFound) {
+			// do not retry on ErrNotFound
+			return retry.NonRetryableError(err)
+		}
+		return err
+	}); execErr != nil && errors.Is(xerrors.GetInnerNonRetryableError(execErr), kv.ErrNotFound) {
+		return nil, execErr
+	}
+
+	return nv, nil
+}
+
+func (c *client[ValueType, ValueWatchType]) update(key string, events []*clientv3.Event) error {
 	var nv kv.Value
 	if len(events) == 0 {
 		var err error
@@ -419,7 +546,12 @@ func (c *client) update(key string, events []*clientv3.Event) error {
 		return fmt.Errorf("unexpected: no watchable found for key: %s", key)
 	}
 
-	curValue := w.Get()
+	watchable, ok := any(w).(kv.ValueWatchable)
+	if !ok {
+		return fmt.Errorf("unexpected: value watchable not found for key: %s", key)
+	}
+
+	curValue := watchable.Get()
 
 	// Both current and new are nil.
 	if curValue == nil && nv == nil {
@@ -428,17 +560,87 @@ func (c *client) update(key string, events []*clientv3.Event) error {
 
 	if nv == nil {
 		// At deletion, just update the watch to nil.
-		return w.Update(nil)
+		return watchable.Update(nil)
 	}
 
 	if curValue == nil || nv.IsNewer(curValue) {
-		return w.Update(nv)
+		return watchable.Update(nv)
 	}
 
 	return nil
 }
 
-func (c *client) tickAndStop(key string) bool {
+func (c *client[ValueType, ValueWatchType]) updateForPrefix(prefix string, events []*clientv3.Event) error {
+	var (
+		values   map[string]interface{}
+		toDelete []string
+	)
+	if len(events) == 0 {
+		var err error
+		if values, err = c.getFromKVStoreForPrefix(prefix); err != nil {
+			// This is triggered by initializing a new watch and no value available for the key.
+			return nil
+		}
+	} else {
+		values, toDelete = c.getFromEtcdEventsForPrefix(events)
+	}
+
+	c.RLock()
+	w, ok := c.watchables[prefix]
+	c.RUnlock()
+	if !ok {
+		return fmt.Errorf("unexpected: no watchable found for key: %s", prefix)
+	}
+
+	watchable, ok := any(w).(kv.PrefixWatchable)
+	if !ok {
+		return fmt.Errorf("unexpected: prefix watchable not found for path: %s", prefix)
+	}
+
+	curValues := watchable.Get()
+
+	// Both current and new are empty.
+	if len(curValues) == 0 && len(values) == 0 {
+		return nil
+	}
+
+	// combine the current and new values
+	updatedValues := make(map[string]interface{})
+	for k, v := range curValues {
+		updatedValues[k] = v
+	}
+	for k, v := range values {
+		updatedValues[k] = v
+	}
+
+	// delete the keys that are no longer present
+	for _, k := range toDelete {
+		delete(updatedValues, k)
+	}
+
+	// number of updated values is different from the current values, so we need to update the watch
+	if len(updatedValues) != len(curValues) {
+		return watchable.Update(updatedValues)
+	}
+
+	// check if any of the values were updated
+	for k, v := range values {
+		existing, ok := curValues[k]
+		if !ok {
+			return watchable.Update(updatedValues)
+		}
+
+		newValue := v.(kv.Value)
+		existingValue := existing.(kv.Value)
+		if newValue.IsNewer(existingValue) {
+			return watchable.Update(updatedValues)
+		}
+	}
+
+	return nil
+}
+
+func (c *client[ValueType, ValueWatchType]) tickAndStop(key string) bool {
 	// fast path
 	c.RLock()
 	watchable, ok := c.watchables[key]
@@ -472,7 +674,7 @@ func (c *client) tickAndStop(key string) bool {
 	return true
 }
 
-func (c *client) Set(key string, v proto.Message) (int, error) {
+func (c *client[ValueType, ValueWatchType]) Set(key string, v proto.Message) (int, error) {
 	ctx, cancel := c.context()
 	defer cancel()
 
@@ -495,7 +697,7 @@ func (c *client) Set(key string, v proto.Message) (int, error) {
 	return int(r.PrevKv.Version + 1), nil
 }
 
-func (c *client) SetIfNotExists(key string, v proto.Message) (int, error) {
+func (c *client[ValueType, ValueWatchType]) SetIfNotExists(key string, v proto.Message) (int, error) {
 	version, err := c.CheckAndSet(key, etcdVersionZero, v)
 	if err == kv.ErrVersionMismatch {
 		err = kv.ErrAlreadyExists
@@ -503,7 +705,7 @@ func (c *client) SetIfNotExists(key string, v proto.Message) (int, error) {
 	return version, err
 }
 
-func (c *client) CheckAndSet(key string, version int, v proto.Message) (int, error) {
+func (c *client[ValueType, ValueWatchType]) CheckAndSet(key string, version int, v proto.Message) (int, error) {
 	ctx, cancel := c.context()
 	defer cancel()
 
@@ -528,7 +730,7 @@ func (c *client) CheckAndSet(key string, version int, v proto.Message) (int, err
 	return version + 1, nil
 }
 
-func (c *client) Delete(key string) (kv.Value, error) {
+func (c *client[ValueType, ValueWatchType]) Delete(key string) (kv.Value, error) {
 	ctx, cancel := c.context()
 	defer cancel()
 
@@ -550,7 +752,7 @@ func (c *client) Delete(key string) (kv.Value, error) {
 	return prevKV, nil
 }
 
-func (c *client) deleteCache(key string) {
+func (c *client[ValueType, ValueWatchType]) deleteCache(key string) {
 	c.cache.Lock()
 	defer c.cache.Unlock()
 
@@ -564,7 +766,7 @@ func (c *client) deleteCache(key string) {
 	c.notifyCacheUpdate()
 }
 
-func (c *client) getCache(key string) (kv.Value, bool) {
+func (c *client[ValueType, ValueWatchType]) getCache(key string) (kv.Value, bool) {
 	c.cache.RLock()
 	v, ok := c.cache.Values[key]
 	c.cache.RUnlock()
@@ -572,7 +774,7 @@ func (c *client) getCache(key string) (kv.Value, bool) {
 	return v, ok
 }
 
-func (c *client) mergeCache(key string, v *value) {
+func (c *client[ValueType, ValueWatchType]) mergeCache(key string, v *value) {
 	c.cache.Lock()
 
 	cur, ok := c.cache.Values[key]
@@ -584,7 +786,7 @@ func (c *client) mergeCache(key string, v *value) {
 	c.cache.Unlock()
 }
 
-func (c *client) notifyCacheUpdate() {
+func (c *client[ValueType, ValueWatchType]) notifyCacheUpdate() {
 	// notify that cached data is updated
 	select {
 	case c.cacheUpdatedCh <- struct{}{}:
@@ -592,7 +794,7 @@ func (c *client) notifyCacheUpdate() {
 	}
 }
 
-func (c *client) writeCacheToFile() error {
+func (c *client[ValueType, ValueWatchType]) writeCacheToFile() error {
 	file, err := os.Create(c.cacheFile)
 	if err != nil {
 		c.m.diskWriteError.Inc(1)
@@ -619,7 +821,7 @@ func (c *client) writeCacheToFile() error {
 	return nil
 }
 
-func (c *client) createCacheDir(fm os.FileMode) error {
+func (c *client[ValueType, ValueWatchType]) createCacheDir(fm os.FileMode) error {
 	path := path.Dir(c.opts.CacheFileFn()(c.opts.Prefix()))
 	if err := os.MkdirAll(path, fm); err != nil {
 		c.m.diskWriteError.Inc(1)
@@ -638,7 +840,7 @@ func (c *client) createCacheDir(fm os.FileMode) error {
 	return nil
 }
 
-func (c *client) initCache(fm os.FileMode) error {
+func (c *client[ValueType, ValueWatchType]) initCache(fm os.FileMode) error {
 	if err := c.createCacheDir(fm); err != nil {
 		c.m.diskWriteError.Inc(1)
 		return fmt.Errorf("error creating cache directory: %s", err)
@@ -660,7 +862,7 @@ func (c *client) initCache(fm os.FileMode) error {
 	return nil
 }
 
-func (c *client) context() (context.Context, context.CancelFunc) {
+func (c *client[ValueType, ValueWatchType]) context() (context.Context, context.CancelFunc) {
 	ctx := context.Background()
 	cancel := noopCancel
 	if c.opts.RequestTimeout() > 0 {

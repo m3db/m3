@@ -23,6 +23,8 @@ package writer
 import (
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/msg/protocol/proto"
@@ -50,6 +52,8 @@ const (
 	// Using 65k which provides much better performance comparing
 	// to lower values like 1k ~ 8k.
 	defaultConnectionBufferSize = 2 << 15 // ~65kb
+	defaultAbortOnServerClose   = false
+	defaultForcedFlushTimeout   = 5 * time.Second
 
 	defaultWriterRetryInitialBackoff = time.Second * 5
 )
@@ -121,6 +125,20 @@ type ConnectionOptions interface {
 	// SetReadBufferSize sets the buffer size for read.
 	SetReadBufferSize(value int) ConnectionOptions
 
+	// AbortOnServerClose() sets SO_LINGER off to immediately clear out
+	// the sendbuf and reset the connection when a close() is invoked.
+	AbortOnServerClose() bool
+
+	// SetAbortOnServerClose() sets SO_LINGER off to immediately clear out
+	// the sendbuf and reset the connection when a close() is invoked.
+	SetAbortOnServerClose(value bool) ConnectionOptions
+
+	// ForcedFlushTimeout returns the timeout for forced flush.
+	ForcedFlushTimeout() time.Duration
+
+	// SetForcedFlushTimeout sets the timeout for forced flush.
+	SetForcedFlushTimeout(value time.Duration) ConnectionOptions
+
 	// InstrumentOptions returns the instrument options.
 	InstrumentOptions() instrument.Options
 
@@ -129,33 +147,37 @@ type ConnectionOptions interface {
 }
 
 type connectionOptions struct {
-	numConnections  int
-	dialTimeout     time.Duration
-	writeTimeout    time.Duration
-	keepAlivePeriod time.Duration
-	resetDelay      time.Duration
-	rOpts           retry.Options
-	flushInterval   time.Duration
-	writeBufferSize int
-	readBufferSize  int
-	iOpts           instrument.Options
-	dialer          xnet.ContextDialerFn
+	numConnections     int
+	dialTimeout        time.Duration
+	writeTimeout       time.Duration
+	keepAlivePeriod    time.Duration
+	resetDelay         time.Duration
+	rOpts              retry.Options
+	flushInterval      time.Duration
+	writeBufferSize    int
+	readBufferSize     int
+	abortOnServerClose bool
+	forcedFlushTimeout time.Duration
+	iOpts              instrument.Options
+	dialer             xnet.ContextDialerFn
 }
 
 // NewConnectionOptions creates ConnectionOptions.
 func NewConnectionOptions() ConnectionOptions {
 	return &connectionOptions{
-		numConnections:  defaultNumConnections,
-		dialTimeout:     defaultConnectionDialTimeout,
-		writeTimeout:    defaultConnectionWriteTimeout,
-		keepAlivePeriod: defaultConnectionKeepAlivePeriod,
-		resetDelay:      defaultConnectionResetDelay,
-		rOpts:           retry.NewOptions(),
-		flushInterval:   defaultConnectionFlushInterval,
-		writeBufferSize: defaultConnectionBufferSize,
-		readBufferSize:  defaultConnectionBufferSize,
-		iOpts:           instrument.NewOptions(),
-		dialer:          nil, // Will default to net.Dialer{}.DialContext
+		numConnections:     defaultNumConnections,
+		dialTimeout:        defaultConnectionDialTimeout,
+		writeTimeout:       defaultConnectionWriteTimeout,
+		keepAlivePeriod:    defaultConnectionKeepAlivePeriod,
+		resetDelay:         defaultConnectionResetDelay,
+		rOpts:              retry.NewOptions(),
+		flushInterval:      defaultConnectionFlushInterval,
+		writeBufferSize:    defaultConnectionBufferSize,
+		readBufferSize:     defaultConnectionBufferSize,
+		abortOnServerClose: defaultAbortOnServerClose,
+		forcedFlushTimeout: defaultForcedFlushTimeout,
+		iOpts:              instrument.NewOptions(),
+		dialer:             nil, // Will default to net.Dialer{}.DialContext
 	}
 }
 
@@ -256,6 +278,26 @@ func (opts *connectionOptions) ReadBufferSize() int {
 func (opts *connectionOptions) SetReadBufferSize(value int) ConnectionOptions {
 	o := *opts
 	o.readBufferSize = value
+	return &o
+}
+
+func (opts *connectionOptions) AbortOnServerClose() bool {
+	return opts.abortOnServerClose
+}
+
+func (opts *connectionOptions) SetAbortOnServerClose(value bool) ConnectionOptions {
+	o := *opts
+	o.abortOnServerClose = value
+	return &o
+}
+
+func (opts *connectionOptions) ForcedFlushTimeout() time.Duration {
+	return opts.forcedFlushTimeout
+}
+
+func (opts *connectionOptions) SetForcedFlushTimeout(value time.Duration) ConnectionOptions {
+	o := *opts
+	o.forcedFlushTimeout = value
 	return &o
 }
 
@@ -389,6 +431,12 @@ type Options interface {
 
 	// SetWithoutConsumerScope sets the value for WithoutConsumerScope.
 	SetWithoutConsumerScope(value bool) Options
+
+	// GracefulClose returns whether graceful close is enabled.
+	GracefulClose() bool
+
+	// SetGracefulClose sets the graceful close setting.
+	SetGracefulClose(value *atomic.Bool) Options
 }
 
 type writerOptions struct {
@@ -411,6 +459,7 @@ type writerOptions struct {
 	iOpts                             instrument.Options
 	ignoreCutoffCutover               bool
 	withoutConsumerScope              bool
+	gracefulClose                     *atomic.Bool
 }
 
 // NewOptions creates Options.
@@ -622,5 +671,18 @@ func (opts *writerOptions) WithoutConsumerScope() bool {
 func (opts *writerOptions) SetWithoutConsumerScope(value bool) Options {
 	o := *opts
 	o.withoutConsumerScope = value
+	return &o
+}
+
+func (opts *writerOptions) GracefulClose() bool {
+	if opts.gracefulClose == nil {
+		return false
+	}
+	return opts.gracefulClose.Load()
+}
+
+func (opts *writerOptions) SetGracefulClose(value *atomic.Bool) Options {
+	o := *opts
+	o.gracefulClose = value
 	return &o
 }

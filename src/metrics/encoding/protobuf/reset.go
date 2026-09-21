@@ -116,6 +116,7 @@ func resetTimedMetricWithStoragePolicyProto(pb *metricpb.TimedMetricWithStorageP
 	}
 	resetTimedMetric(&pb.TimedMetric)
 	pb.StoragePolicy.Reset()
+	pb.RoutingPolicy.Reset()
 }
 
 func resetCounter(pb *metricpb.Counter) {
@@ -186,6 +187,7 @@ func resetForwardMetadata(pb *metricpb.ForwardMetadata) {
 	pb.SourceId = 0
 	pb.NumForwardedTimes = 0
 	pb.ResendEnabled = false
+	pb.RoutingPolicy.Reset()
 }
 
 func resetTimedMetadata(pb *metricpb.TimedMetadata) {
@@ -194,4 +196,5 @@ func resetTimedMetadata(pb *metricpb.TimedMetadata) {
 	}
 	pb.AggregationId.Reset()
 	pb.StoragePolicy.Reset()
+	pb.RoutingPolicy.Reset()
 }

@@ -324,24 +324,31 @@ func genTopology(t *testing.T) gopter.Gen {
 		host := 0
 		for len(allShards) > 0 {
 			shard := allShards[0]
-			hostn := hostid(host)
-			host = (host + 1) % numHosts
-
-			// i.e host has already received too many shards, skip it
-			if len(hostShardAssignment[hostn]) > numShardsPerHost {
-				continue
-			}
-
-			hss, ok := hostShardAssignment[hostn]
-			require.True(t, ok)
-			// skip if host already has the current shard
-			if _, ok := hss[shard]; ok {
-				continue
-			}
-
-			// all good, we can assign the shard to the host
-			hss[shard] = struct{}{}
 			allShards = allShards[1:]
+
+			// find a host for the shard that doesn't already have it, preferring
+			// hosts that haven't hit numShardsPerHost yet so the assignment stays
+			// balanced. The shard is consumed from the queue up front so the loop
+			// always makes progress, otherwise a shard whose replicas are all
+			// already assigned to full hosts would spin forever.
+			placed := false
+			for i := 0; i < 2*numHosts && !placed; i++ {
+				hostn := hostid(host)
+				host = (host + 1) % numHosts
+
+				hss, ok := hostShardAssignment[hostn]
+				require.True(t, ok)
+				if _, ok := hss[shard]; ok {
+					continue
+				}
+				if i < numHosts && len(hss) > numShardsPerHost {
+					// i.e host has already received too many shards, skip it
+					continue
+				}
+				hss[shard] = struct{}{}
+				placed = true
+			}
+			require.True(t, placed, "no eligible host remaining for shard %d", shard)
 		}
 
 		// create topology map parameters
