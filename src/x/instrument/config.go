@@ -28,11 +28,11 @@ import (
 	"net/http"
 	"time"
 
-	prom "github.com/m3db/prometheus_client_golang/prometheus"
-	"github.com/uber-go/tally"
-	"github.com/uber-go/tally/m3"
-	"github.com/uber-go/tally/multi"
-	"github.com/uber-go/tally/prometheus"
+	prom "github.com/prometheus/client_golang/prometheus"
+	"github.com/uber-go/tally/v4"
+	"github.com/uber-go/tally/v4/m3"
+	"github.com/uber-go/tally/v4/multi"
+	"github.com/uber-go/tally/v4/prometheus"
 	"go.uber.org/zap"
 )
 

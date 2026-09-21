@@ -24,7 +24,7 @@ import (
 	"math"
 	"sync"
 
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"

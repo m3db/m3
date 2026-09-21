@@ -30,10 +30,9 @@ import (
 
 	lightstep "github.com/lightstep/lightstep-tracer-go"
 	"github.com/opentracing/opentracing-go"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	jaegercfg "github.com/uber/jaeger-client-go/config"
 	jaegerzap "github.com/uber/jaeger-client-go/log/zap"
-	jaegertally "github.com/uber/jaeger-lib/metrics/tally"
 	"go.opentelemetry.io/otel/attribute"
 	otelopentracing "go.opentelemetry.io/otel/bridge/opentracing"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -179,7 +178,7 @@ func (cfg *TracingConfiguration) newJaegerTracer(
 
 	tracer, jaegerCloser, err := cfg.Jaeger.NewTracer(
 		jaegercfg.Logger(jaegerzap.NewLogger(logger)),
-		jaegercfg.Metrics(jaegertally.Wrap(scope)))
+		jaegercfg.Metrics(newJaegerMetricsFactory(scope)))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize jaeger: %s", err.Error())
 	}

@@ -25,14 +25,15 @@ import (
 	"strconv"
 	"sync/atomic"
 
+	"github.com/uber-go/tally/v4"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/routing"
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 var (

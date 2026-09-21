@@ -26,7 +26,7 @@ import (
 	"sync"
 
 	"github.com/pborman/uuid"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 

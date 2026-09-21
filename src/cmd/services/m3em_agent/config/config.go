@@ -23,7 +23,7 @@ package agentmain
 import (
 	"io/ioutil"
 
-	tallym3 "github.com/uber-go/tally/m3"
+	tallym3 "github.com/uber-go/tally/v4/m3"
 	"google.golang.org/grpc/credentials"
 
 	xgrpc "github.com/m3db/m3/src/m3em/x/grpc"

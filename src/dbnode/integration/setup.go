@@ -36,7 +36,7 @@ import (
 	// nolint: gci
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"github.com/uber/tchannel-go"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"

@@ -26,8 +26,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
-	promreporter "github.com/uber-go/tally/prometheus"
+	"github.com/uber-go/tally/v4"
+	promreporter "github.com/uber-go/tally/v4/prometheus"
 )
 
 var bootstrappers = [][]string{

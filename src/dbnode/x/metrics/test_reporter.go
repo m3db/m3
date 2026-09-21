@@ -24,7 +24,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 )
 
 // TestStatsReporter is a test reporter that collects metrics and makes

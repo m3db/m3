@@ -31,11 +31,10 @@ import (
 	"os"
 	"strings"
 
-	prom "github.com/m3db/prometheus_client_golang/prometheus"
-	"github.com/m3db/prometheus_client_golang/prometheus/promhttp"
-	dto "github.com/m3db/prometheus_client_model/go"
-	extprom "github.com/prometheus/client_golang/prometheus"
-	"github.com/uber-go/tally/prometheus"
+	prom "github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/uber-go/tally/v4/prometheus"
 )
 
 // PrometheusConfiguration is a configuration for a Prometheus reporter.
@@ -106,7 +105,7 @@ type PrometheusConfigurationOptions struct {
 // to also expose as part of the handler.
 type PrometheusExternalRegistry struct {
 	// Registry is the external prometheus registry to list.
-	Registry *extprom.Registry
+	Registry *prom.Registry
 	// SubScope will add a prefix to all metric names exported by
 	// this registry.
 	SubScope string
@@ -273,96 +272,15 @@ func (g *multiGatherer) Gather() ([]*dto.MetricFamily, error) {
 			return nil, err
 		}
 
-		for _, elem := range gathered {
-			entry := &dto.MetricFamily{
-				Name:   elem.Name,
-				Help:   elem.Help,
-				Metric: make([]*dto.Metric, 0, len(elem.Metric)),
+		for _, family := range gathered {
+			if secondary.SubScope != "" && family.Name != nil {
+				scopedName := fmt.Sprintf("%s_%s", secondary.SubScope, *family.Name)
+				family.Name = &scopedName
 			}
-
-			if secondary.SubScope != "" && entry.Name != nil {
-				scopedName := fmt.Sprintf("%s_%s", secondary.SubScope, *entry.Name)
-				entry.Name = &scopedName
+			for _, metric := range family.Metric {
+				appendLabels(g.commonLabels, metric)
 			}
-
-			if v := elem.Type; v != nil {
-				metricType := dto.MetricType(*v)
-				entry.Type = &metricType
-			}
-
-			for _, metricElem := range elem.Metric {
-				metricEntry := &dto.Metric{
-					Label:       make([]*dto.LabelPair, 0, len(metricElem.Label)),
-					TimestampMs: metricElem.TimestampMs,
-				}
-
-				if v := metricElem.Gauge; v != nil {
-					metricEntry.Gauge = &dto.Gauge{
-						Value: v.Value,
-					}
-				}
-
-				if v := metricElem.Counter; v != nil {
-					metricEntry.Counter = &dto.Counter{
-						Value: v.Value,
-					}
-				}
-
-				if v := metricElem.Summary; v != nil {
-					metricEntry.Summary = &dto.Summary{
-						SampleCount: v.SampleCount,
-						SampleSum:   v.SampleSum,
-						Quantile:    make([]*dto.Quantile, 0, len(v.Quantile)),
-					}
-
-					for _, quantileElem := range v.Quantile {
-						quantileEntry := &dto.Quantile{
-							Quantile: quantileElem.Quantile,
-							Value:    quantileElem.Value,
-						}
-						metricEntry.Summary.Quantile =
-							append(metricEntry.Summary.Quantile, quantileEntry)
-					}
-				}
-
-				if v := metricElem.Untyped; v != nil {
-					metricEntry.Untyped = &dto.Untyped{
-						Value: v.Value,
-					}
-				}
-
-				if v := metricElem.Histogram; v != nil {
-					metricEntry.Histogram = &dto.Histogram{
-						SampleCount: v.SampleCount,
-						SampleSum:   v.SampleSum,
-						Bucket:      make([]*dto.Bucket, 0, len(v.Bucket)),
-					}
-
-					for _, bucketElem := range v.Bucket {
-						bucketEntry := &dto.Bucket{
-							CumulativeCount: bucketElem.CumulativeCount,
-							UpperBound:      bucketElem.UpperBound,
-						}
-						metricEntry.Histogram.Bucket =
-							append(metricEntry.Histogram.Bucket, bucketEntry)
-					}
-				}
-
-				for _, labelElem := range metricElem.Label {
-					labelEntry := &dto.LabelPair{
-						Name:  labelElem.Name,
-						Value: labelElem.Value,
-					}
-
-					metricEntry.Label = append(metricEntry.Label, labelEntry)
-				}
-
-				appendLabels(g.commonLabels, metricEntry)
-
-				entry.Metric = append(entry.Metric, metricEntry)
-			}
-
-			results = append(results, entry)
+			results = append(results, family)
 		}
 	}
 

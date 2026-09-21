@@ -29,7 +29,7 @@ import (
 	"time"
 
 	"github.com/pborman/getopt"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/credentials"
 

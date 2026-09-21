@@ -31,7 +31,7 @@ import (
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/atomic"
 
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
