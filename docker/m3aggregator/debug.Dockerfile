@@ -1,4 +1,4 @@
-FROM golang:1.25.6-alpine3.22 AS builder
+FROM golang:1.26.0-alpine3.22 AS builder
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
 # Install delve debugger - use v1.27.2 which supports Go 1.25
