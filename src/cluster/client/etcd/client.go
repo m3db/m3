@@ -79,7 +79,7 @@ type ZoneClient struct {
 
 // NewEtcdConfigServiceClient returns a new etcd-backed cluster client.
 //
-//nolint:golint
+//nolint:revive
 func NewEtcdConfigServiceClient(opts Options) (*csclient, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err

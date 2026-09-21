@@ -41,7 +41,6 @@ type authenticationConfig struct {
 }
 
 // authorizationConfig holds this configuration necessary for a simple authorization implementation.
-// nolint: maligned
 type authorizationConfig struct {
 	// This indicates whether reads should use a read whitelist.
 	ReadWhitelistEnabled bool `yaml:"readWhitelistEnabled,omitempty"`
@@ -86,7 +85,6 @@ func (a simpleAuthentication) authenticate(userID string) error {
 	return nil
 }
 
-// nolint: maligned
 type simpleAuthorization struct {
 	readWhitelistEnabled    bool
 	readWhitelistedUserIDs  []string

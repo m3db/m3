@@ -149,7 +149,6 @@ func newForwardedWriterMetrics(scope tally.Scope) forwardedWriterMetrics {
 // make sure that the list of forwarded metric values can be uniquely
 // associated with the (shard, listID) combination, which is used for value
 // deduplication during leadership re-elections on the destination server.
-// nolint: maligned
 type forwardedWriter struct {
 	shard  uint32
 	client client.AdminClient

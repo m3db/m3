@@ -45,7 +45,7 @@ import (
 var errIgnorableQuerierError = errors.New("ignorable error")
 
 // PrometheusRangeRewriteOptions are the options for the prometheus range rewriting middleware.
-type PrometheusRangeRewriteOptions struct { // nolint:maligned
+type PrometheusRangeRewriteOptions struct {
 	Enabled              bool
 	FetchOptionsBuilder  handleroptions.FetchOptionsBuilder
 	Instant              bool
@@ -311,7 +311,7 @@ func extractParams(r *http.Request, instant bool) (params, error) {
 }
 
 func maybeRewriteRangeInQuery(query string, expr parser.Node, res time.Duration, multiplier int) (string, bool) {
-	updated := false // nolint: ifshort
+	updated := false
 	parser.Inspect(expr, func(node parser.Node, path []parser.Node) error {
 		// nolint:gocritic
 		switch n := node.(type) {

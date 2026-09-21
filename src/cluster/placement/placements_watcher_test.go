@@ -142,13 +142,13 @@ func TestWatcherProcessSuccess(t *testing.T) {
 				SetOnPlacementChangedFn(
 					func(prev, curr Placement) {
 						numCalls++
-						assert.Equal(t, tc.expectedPrev, prev) // nolint: scopelint
-						assert.Equal(t, tc.expectedCurr, curr) // nolint: scopelint
+						assert.Equal(t, tc.expectedPrev, prev)
+						assert.Equal(t, tc.expectedCurr, curr)
 					})
 
 			watcher := testWatcherWithOpts(t, opts)
 			watcher.watching.Store(true)
-			if tc.expectedPrev != nil { // nolint: scopelint
+			if tc.expectedPrev != nil {
 				watcher.valuePayload.Store(payload{placement: p})
 			}
 

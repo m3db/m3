@@ -82,7 +82,6 @@ const (
 
 var _ segment.DocumentsFilter = (*mutableSegments)(nil)
 
-// nolint: maligned
 type mutableSegments struct {
 	sync.RWMutex
 

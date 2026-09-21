@@ -55,8 +55,6 @@ const (
 
 // Coordinator is an in-process implementation of resources.Coordinator for use
 // in integration tests.
-//
-//nolint:maligned
 type Coordinator struct {
 	cfg      config.Configuration
 	client   resources.CoordinatorClient
@@ -71,8 +69,6 @@ type Coordinator struct {
 }
 
 // CoordinatorOptions are options for starting a coordinator server.
-//
-//nolint:maligned
 type CoordinatorOptions struct {
 	// GeneratePorts will automatically update the config to use open ports
 	// if set to true. If false, configuration is used as-is re: ports.

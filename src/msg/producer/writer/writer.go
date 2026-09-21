@@ -67,7 +67,6 @@ func newWriterMetrics(scope tally.Scope) writerMetrics {
 	}
 }
 
-// nolint: maligned
 type writer struct {
 	sync.RWMutex
 

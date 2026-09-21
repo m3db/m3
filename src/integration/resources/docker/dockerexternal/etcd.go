@@ -91,8 +91,6 @@ func NewEtcd(
 }
 
 // EtcdNode is a single etcd node, running via a docker container.
-//
-//nolint:maligned
 type EtcdNode struct {
 	instrumentOpts instrument.Options
 	logger         *zap.Logger

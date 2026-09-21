@@ -37,7 +37,6 @@ var (
 	errSegmentIsUnsealed = errors.New("un-supported operation on an un-sealed mutable segment")
 )
 
-// nolint: maligned
 type memSegment struct {
 	offset    int
 	plPool    postings.Pool

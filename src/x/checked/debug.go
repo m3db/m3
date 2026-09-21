@@ -200,7 +200,7 @@ func (d *debugger) append(event debuggerEvent, ref int, pc []uintptr) {
 			// Shift all tracebacks back one if at end of traceback cycles
 			slice := d.entries[0]
 			for i, entry := range slice {
-				tracebackCallersPool.Put(entry.pc) // nolint: megacheck
+				tracebackCallersPool.Put(entry.pc) // nolint: staticcheck
 				entry.pc = nil
 				tracebackEntryPool.Put(entry)
 				slice[i] = nil

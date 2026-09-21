@@ -52,8 +52,6 @@ type GoalStateVerifier func(output string, err error) error
 
 // ResourceOptions returns options for creating
 // a Resource.
-//
-//nolint:maligned
 type ResourceOptions struct {
 	OverrideDefaults bool
 	Source           string

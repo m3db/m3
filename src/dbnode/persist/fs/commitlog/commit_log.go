@@ -187,7 +187,7 @@ type commitLogMetrics struct {
 
 type eventType int
 
-// nolint: varcheck, unused
+// nolint: unused
 const (
 	writeEventType eventType = iota
 	flushEventType

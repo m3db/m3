@@ -68,7 +68,7 @@ var (
 // Handler represents a generic handler for namespace endpoints.
 type Handler struct {
 	// This is used by other namespace Handlers
-	// nolint: structcheck
+	// nolint: unused
 	client         clusterclient.Client
 	clusters       m3.Clusters
 	instrumentOpts instrument.Options

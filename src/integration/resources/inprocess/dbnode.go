@@ -65,8 +65,6 @@ type DBNode struct {
 }
 
 // DBNodeOptions are options for starting a DB node server.
-//
-//nolint:maligned
 type DBNodeOptions struct {
 	// GeneratePorts will automatically update the config to use open ports
 	// if set to true. If false, configuration is used as-is re: ports.

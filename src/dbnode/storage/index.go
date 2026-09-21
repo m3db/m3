@@ -93,7 +93,6 @@ const (
 
 var allQuery = idx.NewAllQuery()
 
-// nolint: maligned
 type nsIndex struct {
 	state nsIndexState
 
