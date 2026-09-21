@@ -13,8 +13,9 @@ This docker-compose file will setup the following environment:
 
 ## Usage
 
-- Use `make docker-compatibility-test` from the base folder to run the comparator tests.
-- Use `CI=FALSE make docker-compatibility-test` from the base folder to run the comparator tests, brings up a Grafana instance and does not perform teardown, allowing manual inspection of query differences.
+- Use `make prom-compat` from the base folder to run the comparator tests locally. This brings up a Grafana instance and does not tear the containers down afterwards, allowing manual inspection of query differences.
+- Use `make docker-compatibility-test` for the CI behaviour: no Grafana, containers torn down on exit.
+- The test processes reach the containers through their published ports on `M3_TEST_HOST`, which defaults to `localhost`. Set it to `host.docker.internal` when the runner is itself a container, as the Buildkite pipeline does.
 
 ## Grafana
 

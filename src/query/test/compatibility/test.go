@@ -41,6 +41,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -90,7 +91,7 @@ func NewTest(t testutil.T, input string) (*Test, error) {
 	test := &Test{
 		T:            t,
 		cmds:         []testCommand{},
-		m3comparator: newM3ComparatorClient("host.docker.internal", 9001),
+		m3comparator: newM3ComparatorClient(testHost(), 9001),
 	}
 	err := test.parse(input)
 	if err != nil {
@@ -371,7 +372,7 @@ func newEvalCmd(expr string, start time.Time, line int) *evalCmd {
 
 		metrics:  map[uint64]labels.Labels{},
 		expected: map[uint64]entry{},
-		m3query:  newM3QueryClient("host.docker.internal", 7201),
+		m3query:  newM3QueryClient(testHost(), 7201),
 	}
 }
 
@@ -577,4 +578,14 @@ func parseNumber(s string) (float64, error) {
 		return 0, errors.Wrap(err, "error parsing number")
 	}
 	return f, nil
+}
+
+// testHost is where the compose-published ports are reachable from this
+// process: localhost on a developer machine, host.docker.internal when the
+// runner is itself a container.
+func testHost() string {
+	if h := os.Getenv("M3_TEST_HOST"); h != "" {
+		return h
+	}
+	return "localhost"
 }

@@ -1,11 +1,11 @@
-version: "3.5"
 services:
   m3comparator:
     expose:
       - "9000"
       - "9001"
+    # 9000 (gRPC) is only dialled by m3query inside the compose network; 9001
+    # (HTTP seed) is what the test process on the host needs.
     ports:
-      - "0.0.0.0:9000:9000"
       - "0.0.0.0:9001:9001"
     networks:
       - backend
@@ -20,8 +20,6 @@ services:
     networks:
       - backend
     image: "m3query:${REVISION}"
-    volumes:
-      - .:/go/src/github.com/m3db/m3
   prometheus:
     expose:
       - "9090"
@@ -31,7 +29,7 @@ services:
       - backend
     image: prom/prometheus:v2.31.2
     volumes:
-      - .:/go/src/github.com/m3db/m3
+      - "./prometheus.yml:/etc/prometheus/prometheus.yml"
   grafana:
     build:
       context: ./grafana

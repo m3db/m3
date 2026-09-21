@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 set -ex
-export COMPARATOR=$GOPATH/src/github.com/m3db/m3/scripts/comparator
+export COMPARATOR="$(cd "$(dirname "$0")" && pwd)"
 source $COMPARATOR/docker-setup.sh
 
 export REVISION=$(git rev-parse HEAD)
@@ -16,8 +16,11 @@ export DASHBOARD=$GRAFANA_PATH/dash.json.out
 
 export END=${END:-$(date +%s)}
 export START=${START:-$(( $END - 10800 ))}
-# TODO: make this a bit less hacky in the future; e.g. take from config.
-export COMPARATOR_WRITE="host.docker.internal:9001"
+# Host at which the compose-published ports are reachable from this process.
+# localhost when run on a developer machine, host.docker.internal when the
+# runner is itself a container (Buildkite).
+export M3_TEST_HOST=${M3_TEST_HOST:-localhost}
+export COMPARATOR_WRITE="$M3_TEST_HOST:9001"
 
 function generate_dash {
 	TEMPLATE=$GRAFANA_PATH/dashboard.tmpl
