@@ -396,7 +396,6 @@ func TestServiceSetMetadata(t *testing.T) {
 	var wg sync.WaitGroup
 	for _, md := range metas {
 		wg.Add(1)
-		md := md
 		go func() {
 			service.SetMetadata(md, md)
 			wg.Done()
@@ -406,7 +405,6 @@ func TestServiceSetMetadata(t *testing.T) {
 	wg.Wait()
 	for _, md := range metas {
 		wg.Add(1)
-		md := md
 		go func() {
 			meta, ok := service.Metadata(md)
 			assert.True(t, ok)
@@ -1587,7 +1585,6 @@ func TestServiceFetchTagged(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := xtest.NewController(t)
 			defer ctrl.Finish()

@@ -377,7 +377,6 @@ func (w *consumerServiceWriterImpl) Close() {
 	// Blocks until all messages consuemd.
 	var shardWriterWG sync.WaitGroup
 	for _, sw := range w.shardWriters {
-		sw := sw
 		shardWriterWG.Add(1)
 		go func() {
 			sw.Close()

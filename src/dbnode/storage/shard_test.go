@@ -452,7 +452,6 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 
 	flushed := make(map[int]struct{})
 	for i := 0; i < 2; i++ {
-		i := i
 		var expectedErr error
 		if i == 1 {
 			expectedErr = errors.New("error bar")
@@ -537,7 +536,6 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 
 	flushed := make(map[int]struct{})
 	for i := 0; i < 2; i++ {
-		i := i
 		curr := series.NewMockDatabaseSeries(ctrl)
 		curr.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
 		curr.EXPECT().IsEmpty().Return(false).AnyTimes()
@@ -843,7 +841,6 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 
 	snapshotted := make(map[int]struct{})
 	for i := 0; i < 2; i++ {
-		i := i
 		entry := series.NewMockDatabaseSeries(ctrl)
 		entry.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
 		entry.EXPECT().IsEmpty().Return(false).AnyTimes()
@@ -2007,7 +2004,6 @@ func TestSeriesRefResolverAsync(t *testing.T) {
 	)
 	start.Add(1)
 	for i := 0; i < 100; i++ {
-		i := i
 		finish.Add(1)
 		go func() {
 			start.Wait()
@@ -2110,7 +2106,6 @@ func TestFilterBlocksNeedSnapshot(t *testing.T) {
 			expectedSnapshots: []int{-1, -2, 0},
 		},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			var (
 				now           = xtime.Now()

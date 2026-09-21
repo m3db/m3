@@ -246,7 +246,6 @@ func (n Nodes) WaitForHealthy() error {
 
 	for _, node := range n {
 		wg.Add(1)
-		node := node
 		go func() {
 			defer wg.Done()
 			err := node.WaitForBootstrap()
@@ -275,7 +274,6 @@ func (a Aggregators) WaitForHealthy() error {
 
 	for _, agg := range a {
 		wg.Add(1)
-		agg := agg
 		go func() {
 			defer wg.Done()
 			err := Retry(agg.IsHealthy)

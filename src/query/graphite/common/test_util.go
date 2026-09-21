@@ -101,7 +101,6 @@ func CompareOutputsAndExpected(
 ) {
 	require.Equal(t, len(expected), len(actual), "mismatch series count")
 	for i := range expected {
-		i := i // To capture for wrapMsg.
 		e := expected[i].Data
 		a := actual[i]
 		wrapMsg := func(str string) string {

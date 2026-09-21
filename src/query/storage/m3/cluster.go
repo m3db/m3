@@ -323,7 +323,6 @@ func (c *clusters) Close() error {
 	}
 
 	for _, session := range uniqueSessions {
-		session := session // Capture for lambda
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

@@ -717,7 +717,6 @@ func (b *dbBuffer) ReadEncoded(
 	)
 
 	for _, blockStart := range b.inOrderBlockStarts {
-		blockStart := blockStart
 		if !blockStart.Before(end) || !start.Before(blockStart.Add(blockSize)) {
 			continue
 		}
@@ -843,7 +842,6 @@ func (b *dbBuffer) FetchBlocksMetadata(
 	res := b.opts.FetchBlockMetadataResultsPool().Get()
 
 	for _, blockStart := range b.inOrderBlockStarts {
-		blockStart := blockStart
 		if !blockStart.Before(end) || !start.Before(blockStart.Add(blockSize)) {
 			continue
 		}

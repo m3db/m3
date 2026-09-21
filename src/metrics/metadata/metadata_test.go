@@ -794,7 +794,6 @@ func TestStagedMetadatasIsDefault(t *testing.T) {
 	}
 
 	for _, input := range inputs {
-		input := input
 		t.Run(fmt.Sprintf("%v", input.metadatas), func(t *testing.T) {
 			require.Equal(t, input.expected, input.metadatas.IsDefault())
 		})

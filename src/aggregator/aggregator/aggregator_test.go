@@ -255,7 +255,6 @@ func TestAggregatorUpdateStagedMetadatas(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			agg, _ := testAggregator(t, ctrl)
 			agg.opts = agg.opts.SetAddToReset(tc.addToReset)

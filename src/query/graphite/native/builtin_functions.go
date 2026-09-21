@@ -170,7 +170,6 @@ func useSeriesAbove(
 	for _, newNameChunk := range chunkArrayHelper(newNames, maxConcurrency) {
 		var wg sync.WaitGroup
 		for _, newTarget := range newNameChunk {
-			newTarget := newTarget
 			wg.Add(1)
 			go func() {
 				defer wg.Done()

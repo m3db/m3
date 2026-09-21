@@ -708,7 +708,6 @@ func (b *block) AggregateIter(ctx context.Context, aggOpts AggregateResultsOptio
 	// include references to the underlying bytes from the index segment
 	// read by the readers.
 	for _, reader := range readers {
-		reader := reader // Capture for inline function.
 		ctx.RegisterFinalizer(xresource.FinalizerFn(func() {
 			b.closeAsync(reader)
 		}))

@@ -412,7 +412,6 @@ func TestEntryTryMarkIndexGarbageCollected(t *testing.T) {
 			expectedGcShardClosedCounter: 1,
 		},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := xtest.NewController(t)
 			defer ctrl.Finish()

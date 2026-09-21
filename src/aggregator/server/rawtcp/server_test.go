@@ -350,7 +350,6 @@ func TestHandle_Errors(t *testing.T) {
 	agg.EXPECT().AddPassthrough(gomock.Any(), gomock.Any()).Return(aggErr).AnyTimes()
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			core, recorded := observer.New(zapcore.InfoLevel)
 			listener, err := net.Listen("tcp", testListenAddress)

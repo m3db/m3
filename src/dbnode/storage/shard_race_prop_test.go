@@ -183,7 +183,6 @@ func testShardTickWriteRace(t *testing.T, tickBatchSize, numSeries int) {
 	}
 
 	for _, id := range ids {
-		id := id
 		go func() {
 			defer doneFn()
 			<-barrier
@@ -280,7 +279,6 @@ func TestShardTickBootstrapWriteRace(t *testing.T) {
 
 	assert.NoError(t, shard.Bootstrap(ctx, namespace.Context{ID: ident.StringID("foo")}))
 	for _, id := range writeIDs {
-		id := id
 		go func() {
 			defer doneFn()
 			<-barrier

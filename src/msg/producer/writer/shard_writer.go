@@ -240,7 +240,6 @@ func (w *replicatedShardWriter) UpdateInstances(
 	// If there are less instances for this shard, this happens when user
 	// reduced replication factor for the placement or just this shard.
 	for _, mw := range toBeClosed {
-		mw := mw
 		// This needs to be in done in a go routine as closing a message writer will
 		// block until all messages consumed.
 		go func() {

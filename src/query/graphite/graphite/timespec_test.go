@@ -59,7 +59,6 @@ func TestParseTime(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.timespec, func(t *testing.T) {
 			s := test.timespec
 			parsed, err := ParseTime(s, relativeTo, 0)

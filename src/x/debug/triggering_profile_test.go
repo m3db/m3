@@ -51,7 +51,6 @@ func TestContinuousFileProfile(t *testing.T) {
 			debug: 2,
 		},
 	} {
-		test := test
 		name := fmt.Sprintf("%s_%s_%d", test.name, test.duration, test.debug)
 		t.Run(name, func(t *testing.T) {
 			dir, err := ioutil.TempDir("", "")

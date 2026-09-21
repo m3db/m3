@@ -606,7 +606,6 @@ func (t *followerFlushTask) Run() {
 	for _, group := range t.flushersByInterval {
 		start := mgr.nowFn()
 		for _, flusherWithTime := range group.flushers {
-			flusherWithTime := flusherWithTime
 			wgWorkers.Add(1)
 			mgr.workers.Go(func() {
 				flusherWithTime.flusher.DiscardBefore(flusherWithTime.flushBeforeNanos)

@@ -78,7 +78,6 @@ func TestMiddleware(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		core, recorded := observer.New(zapcore.InfoLevel)
 		l := zap.New(core)
 		iOpts := instrument.NewOptions().SetLogger(l)

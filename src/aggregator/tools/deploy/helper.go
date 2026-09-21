@@ -187,7 +187,6 @@ func (h helper) waitUntilSafe(instances instanceMetadatas) error {
 			safe int64
 		)
 		for i := range deploymentInstances {
-			i := i
 			wg.Add(1)
 			h.workers.Go(func() {
 				defer wg.Done()
@@ -268,7 +267,6 @@ func (h helper) forEachTarget(targets deploymentTargets, workFn targetWorkFn) er
 		errCh = make(chan error, len(targets))
 	)
 	for i := range targets {
-		i := i
 		wg.Add(1)
 		h.workers.Go(func() {
 			defer wg.Done()

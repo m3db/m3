@@ -46,7 +46,6 @@ func ExampleWorkerPool() {
 
 	for i := 0; i < numRequests; i++ {
 		// Capture loop variable.
-		i := i
 
 		// Execute request on worker pool.
 		workers.Go(func() {

@@ -169,7 +169,6 @@ func TestQueryResponse(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			core, recorded := observer.New(zapcore.InfoLevel)
 			iOpts := instrument.NewOptions().SetLogger(zap.New(core))

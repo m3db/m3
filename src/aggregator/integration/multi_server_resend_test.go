@@ -79,7 +79,6 @@ func TestMultiServerResendAggregatedValues(t *testing.T) {
 	)
 	wg.Add(len(servers) / 2)
 	for i, server := range servers {
-		i, server := i, server
 		go func() {
 			if err := server.waitUntilLeader(); err == nil {
 				res := int(atomic.AddInt32(&numLeaders, 1))

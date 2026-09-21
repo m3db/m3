@@ -102,7 +102,6 @@ func TestMutableSegmentsBackgroundCompactGCReconstructCachedSearches(t *testing.
 	segs.Unlock()
 
 	for runs := 0; runs < 10; runs++ {
-		runs := runs
 		t.Run(fmt.Sprintf("run-%d", runs), func(t *testing.T) {
 			logger := result.logger.With(zap.Int("run", runs))
 

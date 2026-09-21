@@ -435,7 +435,6 @@ func (s *m3storage) fetchCompressed(
 	}
 	result := consolidators.NewMultiFetchResult(fanout, matchOpts, tagOpts, limitOpts)
 	for _, namespace := range namespaces {
-		namespace := namespace // Capture var
 
 		wg.Add(1)
 		go func() {
@@ -607,7 +606,6 @@ func (s *m3storage) CompleteTags(
 
 	wg.Add(len(namespaces))
 	for _, namespace := range namespaces {
-		namespace := namespace // Capture var
 		go func() {
 			_, span, sampled := xcontext.StartSampledTraceSpan(ctx, tracepoint.CompleteTagsAggregate)
 			defer func() {
@@ -751,7 +749,6 @@ func (s *m3storage) SearchCompressed(
 
 	wg.Add(len(namespaces))
 	for _, namespace := range namespaces {
-		namespace := namespace // Capture var
 		go func() {
 			_, span, sampled := xcontext.StartSampledTraceSpan(ctx,
 				tracepoint.SearchCompressedFetchTaggedIDs)
@@ -869,7 +866,6 @@ func (s *m3storage) Write(
 	for _, datapoint := range datapoints {
 		tagIter := tagIterator.Duplicate()
 		// capture var
-		datapoint := datapoint
 		wg.Add(1)
 
 		var (

@@ -76,7 +76,6 @@ func (p *multiReaderIteratorArrayPool) Init() {
 			continue
 		}
 
-		i := i
 		buckets[i].valuesPool = &sync.Pool{New: func() interface{} {
 			// NB: if leaking slices is ever a problem, change APIs to return *[]MultiReaderIterator
 			return p.alloc(p.sizesAsc[i].Capacity)

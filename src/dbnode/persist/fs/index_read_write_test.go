@@ -110,7 +110,6 @@ func TestIndexSimpleReadWrite(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		name, err := json.Marshal(test)
 		require.NoError(t, err)
 		t.Run(string(name), func(t *testing.T) {
@@ -245,7 +244,6 @@ func writeTestIndexSegments(
 		fileSet.EXPECT().Files().Return(files).AnyTimes()
 
 		for _, f := range s.files {
-			f := f
 			// Make sure we're actually trying to test writing out file contents
 			require.True(t, len(f.data) > 0)
 

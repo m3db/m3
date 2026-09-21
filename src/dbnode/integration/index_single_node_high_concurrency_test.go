@@ -223,13 +223,11 @@ func testIndexSingleNodeHighConcurrency(
 	workerPool.Init()
 
 	for i := 0; i < opts.concurrencyEnqueueWorker; i++ {
-		i := i
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
 			for j := 0; j < opts.enqueuePerWorker; j++ {
-				j := j
 				wg.Add(1)
 				workerPool.Go(func() {
 					defer wg.Done()
@@ -301,7 +299,6 @@ func testIndexSingleNodeHighConcurrency(
 			zap.Int("concurrency", opts.concurrencyQueryDuringWrites))
 		checkNumTotalQueryMatches = true
 		for i := 0; i < opts.concurrencyQueryDuringWrites; i++ {
-			i := i
 			queryWg.Add(1)
 			go func() {
 				defer queryWg.Done()
@@ -458,7 +455,6 @@ func testIndexSingleNodeHighConcurrency(
 		)
 		for i := 0; i < opts.concurrencyEnqueueWorker; i++ {
 			fetchWg.Add(1)
-			i := i
 			go func() {
 				defer fetchWg.Done()
 
@@ -467,7 +463,6 @@ func testIndexSingleNodeHighConcurrency(
 						continue // not meant to be indexed.
 					}
 
-					j := j
 					fetchWg.Add(1)
 					workerPool.Go(func() {
 						defer fetchWg.Done()

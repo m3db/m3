@@ -104,8 +104,6 @@ func (d *dynamicCluster) init() error {
 	)
 	// Configure watch for each cluster provided
 	for i, cfg := range d.clusterCfgs {
-		i := i
-		cfg := cfg
 
 		wg.Add(1)
 		go func() {

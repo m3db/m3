@@ -631,7 +631,6 @@ func (n *dbNamespace) Tick(c context.Cancellable, startTime xtime.UnixNano) erro
 		wg       sync.WaitGroup
 	)
 	for _, shard := range shards {
-		shard := shard
 		wg.Add(1)
 		n.tickWorkers.Go(func() {
 			defer wg.Done()
@@ -878,7 +877,6 @@ func (n *dbNamespace) PrepareBootstrap(ctx context.Context) ([]databaseShard, er
 		shards       = n.OwnedShards()
 	)
 	for _, shard := range shards {
-		shard := shard
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -1052,7 +1050,6 @@ func (n *dbNamespace) Bootstrap(
 		}
 
 		wg.Add(1)
-		shard := shard
 		workers.Go(func() {
 			err := shard.Bootstrap(ctx, nsCtx)
 
@@ -1522,7 +1519,6 @@ func (n *dbNamespace) Repair(
 	n.RUnlock()
 
 	for _, shard := range shards {
-		shard := shard
 
 		wg.Add(1)
 		workers.Go(func() {

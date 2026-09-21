@@ -156,7 +156,6 @@ func testNamespaceIndexHighConcurrentQueries(
 		blockIdx        = -1
 	)
 	for st := min; !st.After(max); st = st.Add(test.indexBlockSize) {
-		st := st
 		blockIdx++
 		blockStarts = append(blockStarts, st)
 
@@ -368,7 +367,6 @@ func testNamespaceIndexHighConcurrentQueries(
 
 			// Race closing all contexts at once.
 			for _, ctx := range timeoutContexts {
-				ctx := ctx
 				go func() {
 					ctx.BlockingClose()
 					ctxCloseWg.Done()

@@ -352,7 +352,6 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 	var enqueueWg sync.WaitGroup
 	startWg.Add(1)
 	for i := 0; i < seekConcurrency; i++ {
-		i := i
 		readyWg.Add(1)
 		enqueueWg.Add(1)
 		go func() {

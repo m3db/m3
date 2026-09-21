@@ -287,7 +287,6 @@ func (s *peersSource) readData(
 	)
 	workers.Init()
 	for shard, ranges := range shardTimeRanges.Iter() {
-		shard, ranges := shard, ranges
 		wg.Add(1)
 		workers.Go(func() {
 			defer wg.Done()

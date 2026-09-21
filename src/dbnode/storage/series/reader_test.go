@@ -450,7 +450,6 @@ var robustReaderTestCases = []readTestCase{
 
 func TestReaderFetchBlocksRobust(t *testing.T) {
 	for _, tc := range robustReaderTestCases {
-		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			ctrl := xtest.NewController(t)
 			defer ctrl.Finish()
@@ -543,7 +542,6 @@ func TestReaderFetchBlocksRobust(t *testing.T) {
 
 func TestReaderReadEncodedRobust(t *testing.T) {
 	for _, tc := range robustReaderTestCases {
-		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			ctrl := xtest.NewController(t)
 			defer ctrl.Finish()

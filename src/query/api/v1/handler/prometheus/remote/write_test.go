@@ -464,7 +464,6 @@ func TestPromWriteForwardWithShadow(t *testing.T) {
 		{1, 10000, 0},
 	} {
 		for _, h := range []string{"", "murmur3", "xxhash"} {
-			h := h
 			t.Run(fmt.Sprintf("hash='%s', params=%+v", h, tt), func(t *testing.T) {
 				testPromWriteForwardWithShadow(t, testPromWriteForwardWithShadowOptions{
 					hash:                         h,

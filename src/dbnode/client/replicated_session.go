@@ -162,7 +162,6 @@ type replicatedParams struct {
 // be performed on all sessions, however this causes an extra allocation.
 func (s replicatedSession) replicate(params replicatedParams) error {
 	for _, asyncSession := range s.asyncSessions {
-		asyncSession := asyncSession // capture var
 
 		var (
 			clonedID   = s.identifierPool.Clone(params.id)

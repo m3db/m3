@@ -243,7 +243,6 @@ func (fn testFetchFn) assertContainsTaggedResult(t *testing.T, lvls ...topology.
 	}
 
 	for _, lvl := range lvls {
-		lvl := lvl
 		// Check with level set in options.
 		checkFn(lvl, nil)
 		// Check with level set as argument.
@@ -257,7 +256,6 @@ func (fn testFetchFn) assertFailsTaggedResult(t *testing.T, lvls ...topology.Rea
 		assert.Error(t, err)
 	}
 	for _, lvl := range lvls {
-		lvl := lvl
 		// Check with level set in options.
 		checkFn(lvl, nil)
 		// Check with level set as argument.

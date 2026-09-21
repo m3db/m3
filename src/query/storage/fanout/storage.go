@@ -143,7 +143,6 @@ func (s *fanoutStorage) FetchProm(
 		_ = accumulator.Close()
 	}()
 	for _, store := range stores {
-		store := store
 		go func() {
 			defer wg.Done()
 
@@ -249,7 +248,6 @@ func (s *fanoutStorage) FetchCompressed(
 		_ = accumulator.Close()
 	}()
 	for _, store := range stores {
-		store := store
 		go func() {
 			defer wg.Done()
 			storeResult, err := store.FetchCompressed(ctx, query, options)
@@ -305,7 +303,6 @@ func (s *fanoutStorage) FetchBlocks(
 	wg.Add(len(stores))
 	resultMeta := block.NewResultMetadata()
 	for _, store := range stores {
-		store := store
 		go func() {
 			defer wg.Done()
 

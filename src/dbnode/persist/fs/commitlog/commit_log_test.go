@@ -293,8 +293,6 @@ func writeCommitLogs(
 	preWrites := getAllWrites()
 
 	for i, write := range writes {
-		i := i
-		write := write
 
 		// Wait for previous writes to enqueue
 		for getAllWrites() != preWrites+i {
