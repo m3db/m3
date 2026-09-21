@@ -1082,6 +1082,7 @@ func (m tickMetricsForMetricCategory) Report(tickResult tickResultForMetricCateg
 }
 
 type aggregatorTickMetrics struct {
+	scope            tally.Scope
 	flushTimesErrors tally.Counter
 	duration         tally.Timer
 	standard         tickMetricsForMetricCategory
@@ -1094,6 +1095,7 @@ func newAggregatorTickMetrics(scope tally.Scope) aggregatorTickMetrics {
 	forwardedScope := scope.Tagged(map[string]string{"metric-type": "forwarded"})
 	timedScope := scope.Tagged(map[string]string{"metric-type": "timed"})
 	return aggregatorTickMetrics{
+		scope:            scope,
 		flushTimesErrors: scope.Counter("flush-times-errors"),
 		duration:         scope.Timer("duration"),
 		standard:         newTickMetricsForMetricCategory(standardScope),
@@ -1107,6 +1109,9 @@ func (m aggregatorTickMetrics) Report(tickResult tickResult, duration time.Durat
 	m.standard.Report(tickResult.standard)
 	m.forwarded.Report(tickResult.forwarded)
 	m.timed.Report(tickResult.timed)
+	for source, cardinality := range tickResult.cardinalityBySource {
+		m.scope.Tagged(map[string]string{"source": source}).Counter("aggregator-cardinality").Inc(int64(cardinality))
+	}
 }
 
 type aggregatorShardsMetrics struct {
