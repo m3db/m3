@@ -272,11 +272,11 @@ func TestMergeWithIndexSeries(t *testing.T) {
 		entries            = make([]*Entry, 0, numEntries)
 	)
 
-	for entryIdx := 0; entryIdx < numEntries; entryIdx++ {
+	for entryIdx := range numEntries {
 		series := newMockSeriesWithID(ctrl, fmt.Sprint("bar", entryIdx))
 		entry := NewEntry(NewEntryOptions{Series: series})
 
-		for blockIdx := 0; blockIdx < numBlocks; blockIdx++ {
+		for blockIdx := range numBlocks {
 			blockStart := start.
 				Add(blockSize * time.Duration(blockIdx+numBlocks*entryIdx))
 

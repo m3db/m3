@@ -226,7 +226,7 @@ func (mgr *leaderFlushManager) OnFlusherAdded(
 	mgr.Lock()
 	defer mgr.Unlock()
 
-	for i := 0; i < len(mgr.flushTimes); i++ {
+	for i := range len(mgr.flushTimes) {
 		if mgr.flushTimes[i].bucketIdx == bucketIdx {
 			nextFlushNanos := mgr.computeNextFlushNanos(bucket.interval, bucket.offset)
 			if nextFlushNanos == mgr.flushTimes[i].timeNanos {

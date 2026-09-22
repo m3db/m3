@@ -23,10 +23,10 @@ package bitset
 import "testing"
 
 func BenchmarkBitSetSmallRange(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		for j := 0; j <= 64; j++ {
+	for range b.N {
+		for j := range 65 {
 			bs := New(uint(j))
-			for k := 0; k < j; k++ {
+			for k := range j {
 				bs.Set(uint(k))
 			}
 			bs.All(uint(j))
@@ -35,10 +35,10 @@ func BenchmarkBitSetSmallRange(b *testing.B) {
 }
 
 func BenchmarkBitSetLargeRange(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		for j := 65; j <= 256; j++ {
 			bs := New(uint(j))
-			for k := 0; k < j; k++ {
+			for k := range j {
 				bs.Set(uint(k))
 			}
 			bs.All(uint(j))

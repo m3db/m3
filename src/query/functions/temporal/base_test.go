@@ -280,7 +280,7 @@ func testParallelProcess(t *testing.T, warning bool) {
 	numSeries := 10
 	seriesMetas := make([]block.SeriesMeta, 0, numSeries)
 	vals := make([]float64, 0, numSeries)
-	for i := 0; i < numSeries; i++ {
+	for i := range numSeries {
 		number := fmt.Sprint(i)
 		name := []byte(fmt.Sprintf("%d_should_not_appear_after_func_applied", i))
 		meta := block.SeriesMeta{
@@ -303,7 +303,7 @@ func testParallelProcess(t *testing.T, warning bool) {
 	numBatches := 3
 	blockMetas := make([][]block.SeriesMeta, 0, numBatches)
 	blockVals := make([][]float64, 0, numBatches)
-	for i := 0; i < numBatches; i++ {
+	for range numBatches {
 		l := numSeries/numBatches + 1
 		blockMetas = append(blockMetas, make([]block.SeriesMeta, 0, l))
 		blockVals = append(blockVals, make([]float64, 0, l))
@@ -316,7 +316,7 @@ func testParallelProcess(t *testing.T, warning bool) {
 	}
 
 	batches := make([]block.SeriesIterBatch, 0, numBatches)
-	for i := 0; i < numBatches; i++ {
+	for i := range numBatches {
 		iter := &dummySeriesIter{
 			idx:   -1,
 			vals:  blockVals[i],

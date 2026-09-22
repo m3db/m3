@@ -65,7 +65,7 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 				SetInstrumentOptions(instrument.NewOptions())
 	)
 
-	for i := 0; i < int(numShards); i++ {
+	for i := range numShards {
 		shardTimeRangesToBootstrap.Set(uint32(i), bootstrapRanges)
 	}
 

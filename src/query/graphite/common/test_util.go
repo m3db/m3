@@ -119,7 +119,7 @@ func CompareOutputsAndExpected(
 		require.Equal(t, len(e), a.Len(),
 			wrapMsg(a.Name()+
 				": length of expected series does not match length of actual"))
-		for step := 0; step < a.Len(); step++ {
+		for step := range a.Len() {
 			v := a.ValueAt(step)
 			if math.IsNaN(e[step]) {
 				msg := wrapMsg(fmt.Sprintf(

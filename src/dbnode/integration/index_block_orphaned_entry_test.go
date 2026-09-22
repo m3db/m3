@@ -79,7 +79,7 @@ func TestIndexBlockOrphanedEntry(t *testing.T) {
 
 	// Write concurrent metrics to generate multiple entries for the same series
 	ids := make([]ident.ID, 0, numTestSeries)
-	for i := 0; i < numTestSeries; i++ {
+	for i := range numTestSeries {
 		fooID := ident.StringID(fmt.Sprintf("foo.%v", i))
 		ids = append(ids, fooID)
 
@@ -148,12 +148,12 @@ func writeConcurrentMetrics(
 	workerPool.Init()
 
 	mdID := setup.Namespaces()[0].ID()
-	for i := 0; i < concurrentWorkers; i++ {
+	for range concurrentWorkers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
-			for j := 0; j < writesPerWorker; j++ {
+			for j := range writesPerWorker {
 				wg.Add(1)
 				workerPool.Go(func() {
 					defer wg.Done()
@@ -304,13 +304,13 @@ func testIndexBlockOrphanedIndexValuesUpdatedAcrossTimes(
 		now = nowFn().Truncate(blockSize / 2)
 	)
 
-	for i := 0; i < writesPerWorker; i++ {
+	for i := range writesPerWorker {
 		writeTime := xtime.ToUnixNano(now.Add(time.Duration(i) * -writeInterval))
 		writeTimes = append(writeTimes, writeTime)
 	}
 
 	fns := make([]func(), 0, numIDs*writesPerWorker)
-	for i := 0; i < numIDs; i++ {
+	for i := range numIDs {
 		fooID := ident.StringID(fmt.Sprintf("foo.%v", i))
 		ids = append(ids, fooID)
 		fns = append(fns, writeConcurrentMetricsAcrossTime(t, setup, session, writeTimes, fooID)...)
@@ -318,7 +318,7 @@ func testIndexBlockOrphanedIndexValuesUpdatedAcrossTimes(
 
 	rng.Shuffle(len(fns), func(i, j int) { fns[i], fns[j] = fns[j], fns[i] })
 	var wg sync.WaitGroup
-	for i := 0; i < concurrentWriteMax; i++ {
+	for range concurrentWriteMax {
 		wg.Add(1)
 		go func() {
 			for writeFn := range writerCh {

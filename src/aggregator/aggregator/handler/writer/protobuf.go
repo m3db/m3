@@ -195,7 +195,7 @@ func (f storagePolicyFilter) Filter(m producer.Message) bool {
 	if !ok {
 		return true
 	}
-	for i := 0; i < len(f.acceptedStoragePolicies); i++ {
+	for i := range len(f.acceptedStoragePolicies) {
 		if f.acceptedStoragePolicies[i].Equivalent(msg.sp) {
 			return true
 		}

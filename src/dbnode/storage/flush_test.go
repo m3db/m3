@@ -532,7 +532,7 @@ func TestFlushManagerNamespaceFlushTimesSomeNeedFlush(t *testing.T) {
 	num := numIntervals(start, end, blockSize)
 
 	var expectedTimes []xtime.UnixNano
-	for i := 0; i < num; i++ {
+	for i := range num {
 		st := start.Add(time.Duration(i) * blockSize)
 
 		// skip 1/3 of input
@@ -568,7 +568,7 @@ func TestFlushManagerFlushSnapshot(t *testing.T) {
 		flushEnd := retention.FlushTimeEnd(ns.Options().RetentionOptions(), now)
 		num := numIntervals(start, flushEnd, blockSize)
 
-		for i := 0; i < num; i++ {
+		for i := range num {
 			st := start.Add(time.Duration(i) * blockSize)
 			ns.EXPECT().NeedsFlush(st, st).Return(false, nil)
 		}

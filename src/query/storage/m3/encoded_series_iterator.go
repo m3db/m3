@@ -171,7 +171,7 @@ func iteratorBatchingFn(
 	)
 
 	util.MemsetInt(chunkSizes, chunkSize)
-	for i := 0; i < remainder; i++ {
+	for i := range remainder {
 		chunkSizes[i] = chunkSizes[i] + 1
 	}
 

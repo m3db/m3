@@ -217,7 +217,7 @@ func assertTestSeriesAccumulatorIterator(
 	assert.Equal(t, series.nsID, iter.Namespace().String())
 	assert.Equal(t, series.start, iter.Start())
 	assert.Equal(t, series.end, iter.End())
-	for i := 0; i < len(series.expected); i++ {
+	for i := range len(series.expected) {
 		next := iter.Next()
 		if series.expectedErr != nil && i == series.expectedErr.atIdx {
 			assert.False(t, next)
@@ -234,7 +234,7 @@ func assertTestSeriesAccumulatorIterator(
 		checkTags()
 	}
 	// Ensure further calls to next false
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		assert.False(t, iter.Next())
 	}
 	if series.expectedErr == nil {

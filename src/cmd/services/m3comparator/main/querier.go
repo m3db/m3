@@ -90,7 +90,7 @@ func (q *querier) generateSeriesBlock(
 ) parser.Data {
 	numPoints := int(q.blockSize / resolution)
 	dps := make(parser.Data, 0, numPoints)
-	for i := 0; i < numPoints; i++ {
+	for i := range numPoints {
 		stamp := start.Add(resolution * time.Duration(i))
 		var value float64
 		if integerValues {
@@ -122,7 +122,7 @@ func (q *querier) generateSeries(
 	}
 
 	blocks := make([]parser.Data, 0, numBlocks)
-	for i := 0; i < numBlocks; i++ {
+	for range numBlocks {
 		blocks = append(blocks, q.generateSeriesBlock(start, resolution, integerValues))
 		start = start.Add(q.blockSize)
 	}
@@ -284,7 +284,7 @@ func (q *querier) generateSingleSeriesMetrics(
 			}
 
 			actualGens = make([]seriesGen, 0, count)
-			for i := 0; i < count; i++ {
+			for i := range count {
 				actualGens = append(actualGens, seriesGen{
 					res:  q.defaultResolution,
 					name: fmt.Sprintf("foo_%d", i),
@@ -333,7 +333,7 @@ func (q *querier) generateMultiSeriesMetrics(
 	defer unlock()
 
 	seriesList := make([]parser.IngestSeries, 0, seriesCount)
-	for id := 0; id < seriesCount; id++ {
+	for id := range seriesCount {
 		tags := multiSeriesTags(metricsName, id)
 
 		series, err := q.generateSeries(start, end, q.defaultResolution, tags, false)
@@ -363,10 +363,10 @@ func (q *querier) generateHistogramMetrics(
 	defer unlock()
 
 	seriesList := make([]parser.IngestSeries, 0, seriesCount)
-	for id := 0; id < seriesCount; id++ {
+	for id := range seriesCount {
 		le := 1.0
 		var previousSeriesBlocks []parser.Data
-		for bucket := uint(0); bucket < q.histogramBucketCount; bucket++ {
+		for bucket := range q.histogramBucketCount {
 			tags := multiSeriesTags(metricsName, id)
 			leStr := "+Inf"
 			if bucket < q.histogramBucketCount-1 {

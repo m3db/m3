@@ -59,7 +59,7 @@ func newTestShardSet(
 	}
 
 	var ids []uint32
-	for i := uint32(0); i < uint32(numShards); i++ {
+	for i := range uint32(numShards) {
 		ids = append(ids, i)
 	}
 

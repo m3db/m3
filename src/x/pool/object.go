@@ -111,7 +111,7 @@ func (p *objectPool) Init(alloc Allocator) {
 	}
 
 	p.values = make(chan interface{}, p.size)
-	for i := 0; i < cap(p.values); i++ {
+	for range cap(p.values) {
 		p.values <- alloc()
 	}
 

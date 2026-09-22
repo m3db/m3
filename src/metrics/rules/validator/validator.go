@@ -296,7 +296,7 @@ func (v *validator) validatePipeline(pipeline mpipeline.Pipeline, types []metric
 		previousRollupTags            map[string]struct{}
 		numPipelineOps                = pipeline.Len()
 	)
-	for i := 0; i < numPipelineOps; i++ {
+	for i := range numPipelineOps {
 		pipelineOp := pipeline.At(i)
 		switch pipelineOp.Type {
 		case mpipeline.AggregationOpType:
@@ -459,7 +459,7 @@ func validateNoDuplicateRollupIDIn(pipelines []mpipeline.Pipeline) error {
 	rollupOps := make([]mpipeline.RollupOp, 0, len(pipelines))
 	for _, pipeline := range pipelines {
 		numOps := pipeline.Len()
-		for i := 0; i < numOps; i++ {
+		for i := range numOps {
 			pipelineOp := pipeline.At(i)
 			if pipelineOp.Type != mpipeline.RollupOpType {
 				continue

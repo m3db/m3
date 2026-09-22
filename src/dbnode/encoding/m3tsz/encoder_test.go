@@ -536,7 +536,7 @@ func testMultiplePasses(t *testing.T, test multiplePassesTest) {
 	rng := rand.New(src)
 	maxValues := 512
 
-	for n := 0; n < 1024; n++ {
+	for n := range 1024 {
 		encoder := getTestEncoder(testStartTime)
 
 		numValues := int(rng.Int63()) % maxValues
@@ -553,7 +553,7 @@ func testMultiplePasses(t *testing.T, test multiplePassesTest) {
 			test.preEncodeAll(encoder, numValues)
 		}
 
-		for i := 0; i < numValues; i++ {
+		for range numValues {
 			now = now.Add(time.Duration(rng.Int63()) % time.Minute)
 			value := ts.Datapoint{
 				TimestampNanos: now,

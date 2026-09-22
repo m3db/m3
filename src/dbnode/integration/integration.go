@@ -170,7 +170,7 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 
 	shardSet, err := newTestShardSet(opts.NumShards(), opts.ShardSetOptions())
 	require.NoError(t, err)
-	for i := 0; i < replicas; i++ {
+	for i := range replicas {
 		var (
 			instance                                            = i
 			usingCommitLogBootstrapper                          = !setupOpts[i].DisableCommitLogBootstrapper
@@ -203,7 +203,7 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 				hostShardSets []topology.HostShardSet
 			)
 
-			for i := 0; i < replicas; i++ {
+			for i := range replicas {
 				id := fmt.Sprintf("testhost%d", i)
 				nodeAddr := fmt.Sprintf("127.0.0.1:%d", start+(i*multiAddrPortEach))
 				host := topology.NewHost(id, nodeAddr)

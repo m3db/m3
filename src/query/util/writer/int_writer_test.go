@@ -30,7 +30,7 @@ import (
 )
 
 func TestIntegerLength(t *testing.T) {
-	for i := 0; i < 18; i++ {
+	for i := range 18 {
 		small := int(math.Pow(10, float64(i)))
 		large := small*10 - 1
 		expected := i + 1

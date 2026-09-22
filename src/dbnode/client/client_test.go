@@ -177,7 +177,7 @@ func TestClientDefaultSessionMultipleSimultaneousRequests(t *testing.T) {
 	}
 
 	numRequests := 10
-	for i := 0; i < numRequests; i++ {
+	for range numRequests {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

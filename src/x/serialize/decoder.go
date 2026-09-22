@@ -234,7 +234,7 @@ func (d *decoder) Duplicate() ident.TagIterator {
 		return iter
 	}
 	iter.Reset(d.checkedData)
-	for i := 0; i < d.nextCalls; i++ {
+	for range d.nextCalls {
 		iter.Next()
 	}
 	return iter

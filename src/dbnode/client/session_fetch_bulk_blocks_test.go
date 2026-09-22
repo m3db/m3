@@ -322,7 +322,7 @@ func TestFetchBootstrapBlocksDontRetryHostNotAvailableInRetrier(t *testing.T) {
 		hostShardSets  = sessionTestHostAndShards(sessionTestShardSet())
 	)
 	// Skip the last one because it is going to be manually configured to return an error.
-	for i := 0; i < len(hostShardSets)-1; i++ {
+	for i := range len(hostShardSets) - 1 {
 		host := hostShardSets[i].Host()
 		hostQueue, client := defaultHostAndClientWithExpect(ctrl, host, opts)
 		mockHostQueues = append(mockHostQueues, hostQueue)
@@ -502,7 +502,7 @@ func fetchBlocksFromPeersTestsHelper(
 	allBlocks := make([][]testBlocks, 0, len(mockHostQueues))
 	peerBlocks := make([][]testBlocks, 0, len(mockHostQueues))
 	numBlocks := 0
-	for idx := 0; idx < len(mockHostQueues); idx++ {
+	for idx := range mockHostQueues {
 		blocks := peerScenarioFn(idx, len(mockHostQueues), start)
 
 		// Add to the expected list
@@ -1927,7 +1927,7 @@ func TestEnqueueChannelEnqueueDelayed(t *testing.T) {
 	require.Equal(t, 0, len(enqueueChInputs))
 
 	// Actually enqueue the blocks
-	for i := 0; i < numBlocks; i++ {
+	for i := range numBlocks {
 		enqueueFn(blocks[i])
 	}
 	enqueueDelayedDone()
@@ -1938,7 +1938,7 @@ func TestEnqueueChannelEnqueueDelayed(t *testing.T) {
 
 	// Process the blocks
 	require.NoError(t, err)
-	for i := 0; i < numBlocks; i++ {
+	for range numBlocks {
 		<-enqueueChInputs
 		enqueueCh.trackProcessed(1)
 	}
@@ -2007,7 +2007,7 @@ func mockHostQueuesAndClientsForFetchBootstrapBlocks(
 		clients    MockTChanNodes
 	)
 	hostShardSets := sessionTestHostAndShards(sessionTestShardSet())
-	for i := 0; i < len(hostShardSets); i++ {
+	for i := range hostShardSets {
 		host := hostShardSets[i].Host()
 		hostQueue, client := defaultHostAndClientWithExpect(ctrl, host, opts)
 		hostQueues = append(hostQueues, hostQueue)
@@ -2082,9 +2082,9 @@ func expectedRepairFetchRequestsAndResponses(
 		params: []fetchBlocksReqParam{},
 	}
 	response := []testBlocks{}
-	for idx := 0; idx < len(blocks); idx++ {
+	for idx := range blocks {
 		starts := make([]xtime.UnixNano, 0, len(blocks[idx].blocks))
-		for j := 0; j < len(blocks[idx].blocks); j++ {
+		for j := range len(blocks[idx].blocks) {
 			starts = append(starts, blocks[idx].blocks[j].start)
 		}
 		if idx != 0 && (idx%batchSize) == 0 {
@@ -2121,7 +2121,7 @@ func expectedReqsAndResultFromBlocks(
 		clientsBlocksResult [][][]testBlocks
 		blockIdx            = 0
 	)
-	for i := 0; i < clientsParticipatingLen; i++ {
+	for range clientsParticipatingLen {
 		clientsExpectReqs = append(clientsExpectReqs, []fetchBlocksReq{})
 		clientsBlocksResult = append(clientsBlocksResult, [][]testBlocks{})
 	}
@@ -2154,7 +2154,7 @@ func expectedReqsAndResultFromBlocks(
 		req := &expectReqs[len(expectReqs)-1]
 
 		starts := []xtime.UnixNano{}
-		for i := 0; i < len(currBlock.blocks); i++ {
+		for i := range len(currBlock.blocks) {
 			starts = append(starts, currBlock.blocks[i].start)
 		}
 		param := fetchBlocksReqParam{
@@ -2183,14 +2183,14 @@ func expectFetchMetadataAndReturn(
 	includeSizes := true
 
 	var calls []*gomock.Call
-	for i := 0; i < totalCalls; i++ {
+	for i := range totalCalls {
 		var (
 			ret      = &rpc.FetchBlocksMetadataRawV2Result_{}
 			beginIdx = i * batchSize
 		)
 		for j := beginIdx; j < len(result) && j < beginIdx+batchSize; j++ {
 			id := result[j].id.Bytes()
-			for k := 0; k < len(result[j].blocks); k++ {
+			for k := range len(result[j].blocks) {
 				bl := &rpc.BlockMetadataV2{}
 				bl.ID = id
 				bl.Start = int64(result[j].blocks[k].start)
@@ -2284,7 +2284,7 @@ func expectFetchBlocksAndReturn(
 	expect []fetchBlocksReq,
 	result [][]testBlocks,
 ) {
-	for i := 0; i < len(expect); i++ {
+	for i := range expect {
 		matcher := &fetchBlocksReqMatcher{req: expect[i]}
 		ret := &rpc.FetchBlocksRawResult_{}
 		for _, res := range result[i] {

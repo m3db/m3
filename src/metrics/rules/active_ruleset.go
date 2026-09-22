@@ -660,7 +660,7 @@ func (as *activeRuleSet) applyIDToPipeline(
 	matchOpts MatchOptions,
 ) (applied.Pipeline, error) {
 	operations := make([]applied.OpUnion, 0, pipeline.Len())
-	for i := 0; i < pipeline.Len(); i++ {
+	for i := range pipeline.Len() {
 		pipelineOp := pipeline.At(i)
 		var opUnion applied.OpUnion
 		switch pipelineOp.Type {
@@ -791,7 +791,7 @@ func (as *activeRuleSet) reverseMappingsForRollupID(
 		}
 
 		for _, target := range snapshot.targets {
-			for i := 0; i < target.Pipeline.Len(); i++ {
+			for i := range target.Pipeline.Len() {
 				pipelineOp := target.Pipeline.At(i)
 				if pipelineOp.Type != mpipeline.RollupOpType {
 					continue

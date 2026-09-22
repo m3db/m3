@@ -236,7 +236,7 @@ func newRollupRuleFromProto(
 		return nil, errNilRollupRuleProto
 	}
 	snapshots := make([]*rollupRuleSnapshot, 0, len(rc.Snapshots))
-	for i := 0; i < len(rc.Snapshots); i++ {
+	for i := range len(rc.Snapshots) {
 		rr, err := newRollupRuleSnapshotFromProto(rc.Snapshots[i], opts)
 		if err != nil {
 			return nil, err
@@ -398,7 +398,7 @@ func (rc *rollupRule) history() ([]view.RollupRule, error) {
 	lastIdx := len(rc.snapshots) - 1
 	views := make([]view.RollupRule, len(rc.snapshots))
 	// Snapshots are stored oldest -> newest. History should start with newest.
-	for i := 0; i < len(rc.snapshots); i++ {
+	for i := range len(rc.snapshots) {
 		rrs, err := rc.rollupRuleView(lastIdx - i)
 		if err != nil {
 			return nil, err

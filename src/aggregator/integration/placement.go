@@ -60,7 +60,7 @@ func (c *placementInstanceConfig) newPlacementInstance() placement.Instance {
 
 func newPlacement(numShards int, instances []placement.Instance) placement.Placement {
 	shards := make([]uint32, numShards)
-	for i := 0; i < numShards; i++ {
+	for i := range numShards {
 		shards[i] = uint32(i)
 	}
 	var maxShardSetID uint32

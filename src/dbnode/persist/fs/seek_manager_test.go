@@ -121,10 +121,10 @@ func TestSeekerManagerUpdateOpenLease(t *testing.T) {
 		mock := NewMockDataFileSetSeeker(ctrl)
 		// ConcurrentClone() will be called fetchConcurrency-1 times because the original can be used
 		// as one of the clones.
-		for i := 0; i < defaultTestingFetchConcurrency-1; i++ {
+		for range defaultTestingFetchConcurrency - 1 {
 			mock.EXPECT().ConcurrentClone().Return(mock, nil)
 		}
-		for i := 0; i < defaultTestingFetchConcurrency; i++ {
+		for range defaultTestingFetchConcurrency {
 			mock.EXPECT().Close().DoAndReturn(func() error {
 				mockSeekerStatsLock.Lock()
 				numMockSeekerCloses++
@@ -312,7 +312,7 @@ func TestSeekerManagerBorrowOpenSeekersLazy(t *testing.T) {
 		mock := NewMockDataFileSetSeeker(ctrl)
 		mock.EXPECT().Open(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 		mock.EXPECT().ConcurrentClone().Return(mock, nil)
-		for i := 0; i < defaultTestingFetchConcurrency; i++ {
+		for range defaultTestingFetchConcurrency {
 			mock.EXPECT().Close().Return(nil)
 			mock.EXPECT().ConcurrentIDBloomFilter().Return(nil)
 		}

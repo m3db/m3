@@ -40,7 +40,7 @@ func BenchmarkDecodeStoragePolicy(b *testing.B) {
 	buf := enc.Buffer().Bytes()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_ = dec.Decode(buf)
 		sp = dec.StoragePolicy()
 		dec.Close()

@@ -161,7 +161,7 @@ func TestIStreamRemainingBitsInCurrentByte(t *testing.T) {
 	byteStream := []byte{0xff, 0, 0x42}
 	is := NewIStream(xio.NewBytesReader64(byteStream))
 	for _, b := range byteStream {
-		for i := 0; i < 8; i++ {
+		for i := range 8 {
 			var expected uint
 			if i > 0 {
 				expected = uint(8 - i)

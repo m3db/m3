@@ -66,7 +66,7 @@ func newBufferTestProtoOptions(t *testing.T) Options {
 
 func testSetProtoAnnotation(data []DecodedTestValue) []DecodedTestValue {
 	protoIter := prototest.NewProtoMessageIterator(testProtoMessages)
-	for i := 0; i < len(data); i++ {
+	for i := range data {
 		data[i].Value = 0
 		data[i].Annotation = protoIter.Next()
 	}

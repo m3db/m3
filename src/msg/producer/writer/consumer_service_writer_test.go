@@ -670,7 +670,7 @@ func TestConsumerServiceCloseShardWritersConcurrently(t *testing.T) {
 	// Write one message to each shard, so each shard needs to tick
 	// and wait for the queue to be cleaned up.
 	b := []byte{}
-	for i := uint32(0); i < numShards; i++ {
+	for i := range numShards {
 		mm := producer.NewMockMessage(ctrl)
 		mm.EXPECT().Shard().Return(i)
 		mm.EXPECT().Bytes().Return(b).AnyTimes()

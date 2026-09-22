@@ -54,10 +54,10 @@ func BenchmarkEnqueueChannel(b *testing.B) {
 
 	var wg sync.WaitGroup
 
-	for w := 0; w < runtime.GOMAXPROCS(0); w++ {
+	for range runtime.GOMAXPROCS(0) {
 		wg.Add(1)
 		go func() {
-			for i := 0; i < workerTarget; i++ {
+			for i := range workerTarget {
 				select {
 				case q <- i + 1:
 					continue
@@ -93,7 +93,7 @@ func BenchmarkEnqueueMutex(b *testing.B) {
 
 	flushQ := func() {
 		qCopyLen := len(qCopy)
-		for i := 0; i < qCopyLen; i++ {
+		for i := range qCopyLen {
 			actual += qCopy[i]
 		}
 		qCopy = qCopy[:0]
@@ -101,10 +101,10 @@ func BenchmarkEnqueueMutex(b *testing.B) {
 
 	var wg sync.WaitGroup
 
-	for w := 0; w < runtime.GOMAXPROCS(0); w++ {
+	for range runtime.GOMAXPROCS(0) {
 		wg.Add(1)
 		go func() {
-			for i := 0; i < workerTarget; i++ {
+			for i := range workerTarget {
 				l.Lock()
 				q = append(q, i+1)
 				if len(q) == workerTarget {

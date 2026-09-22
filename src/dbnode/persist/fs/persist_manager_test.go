@@ -607,7 +607,7 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	for i := 0; i < iter; i++ {
+	for range iter {
 		// Reset
 		slept = time.Duration(0)
 

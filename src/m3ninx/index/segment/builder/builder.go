@@ -105,7 +105,7 @@ func (w *indexWorkers) registerBuilder() {
 	}
 
 	// Start the workers.
-	for i := 0; i < n; i++ {
+	for range n {
 		indexQueue := make(chan indexJob, indexQueueSize)
 		w.queues = append(w.queues, indexQueue)
 		go w.indexWorker(indexQueue)
@@ -114,7 +114,7 @@ func (w *indexWorkers) registerBuilder() {
 
 func (w *indexWorkers) indexWorker(indexQueue <-chan indexJob) {
 	for job := range indexQueue {
-		for i := 0; i < job.usedEntries; i++ {
+		for i := range job.usedEntries {
 			entry := job.entries[i]
 			terms, ok := job.shardedFields.fields.ShardedGet(job.shard, entry.field.Name)
 			if !ok {
@@ -233,7 +233,7 @@ func (b *builder) SetIndexConcurrency(value int) {
 	b.shardedFields.uniqueFields = make([][]uniqueField, 0, b.concurrency)
 	b.shardedFields.fields = newShardedFieldsMap(b.concurrency, b.opts.InitialCapacity())
 
-	for i := 0; i < b.concurrency; i++ {
+	for range b.concurrency {
 		// Give each shard a fraction of the configured initial capacity.
 		shardInitialCapacity := b.opts.InitialCapacity()
 		if shardInitialCapacity > 0 {
@@ -415,7 +415,7 @@ func (b *builder) insertBatchWithLock(batch index.Batch) *index.BatchPartialErro
 	}
 
 	// Enqueue any partially filled sharded jobs.
-	for shard := 0; shard < b.concurrency; shard++ {
+	for shard := range b.concurrency {
 		if b.shardedJobs[shard].usedEntries > 0 {
 			b.flushShardedIndexJobWithLock(shard, wg, batchErr)
 		}

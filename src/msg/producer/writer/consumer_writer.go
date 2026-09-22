@@ -217,7 +217,7 @@ func newConsumerWriter(
 	// first time fails to continue to try to write to the writer.
 	// Note: Also tests try to break a non-connected writer.
 	conns := make([]io.ReadWriteCloser, 0, connOpts.NumConnections())
-	for i := 0; i < connOpts.NumConnections(); i++ {
+	for range connOpts.NumConnections() {
 		conns = append(conns, u)
 	}
 	// NB(r): Reset at epoch since a connection failure should trigger
@@ -295,7 +295,7 @@ func (w *consumerWriterImpl) Init() {
 		w.wg.Done()
 	}()
 
-	for i := 0; i < w.connOpts.NumConnections(); i++ {
+	for i := range w.connOpts.NumConnections() {
 		idx := i
 		w.wg.Add(1)
 		go func() {
@@ -753,7 +753,7 @@ func (w *consumerWriterImpl) newConnectFn(opts connectOptions) connectAllFn {
 			numConns = w.connOpts.NumConnections()
 			conns    = make([]io.ReadWriteCloser, 0, numConns)
 		)
-		for i := 0; i < numConns; i++ {
+		for range numConns {
 			var (
 				conn io.ReadWriteCloser
 				fn   = func() error {

@@ -190,7 +190,7 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 	// NB: init total count with batch length, since each aggregated entry
 	// will have one field.
 	totalCount := len(batch)
-	for idx := 0; idx < len(batch); idx++ {
+	for idx := range batch {
 		totalCount += len(batch[idx].Terms)
 	}
 
@@ -202,7 +202,7 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 
 	// NB: already hit doc limit.
 	if remainingDocs <= 0 {
-		for idx := 0; idx < len(batch); idx++ {
+		for idx := range batch {
 			batch[idx].Field.Finalize()
 			r.aggregateOpts.AggregateUsageMetrics.IncTotalFields(1)
 			for _, term := range batch[idx].Terms {
@@ -228,7 +228,7 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) 
 		entry      AggregateResultsEntry
 	)
 
-	for idx := 0; idx < len(batch); idx++ {
+	for idx := range batch {
 		entry = batch[idx]
 		r.aggregateOpts.AggregateUsageMetrics.IncTotalFields(1)
 

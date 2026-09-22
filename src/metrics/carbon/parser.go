@@ -83,7 +83,7 @@ func ParseAndAppendPacket(mets []Metric, packet []byte) ([]Metric, int) {
 
 func parsePacket(mets []Metric, packet []byte) ([]Metric, int) {
 	var malformed, prevIdx, i int
-	for i = 0; i < len(packet); i++ {
+	for i = 0; i < len(packet); i++ { //nolint:intrange // i is read after the loop
 		if packet[i] == '\n' {
 			if (i - prevIdx) > 1 {
 				name, timestamp, value, err := Parse(packet[prevIdx:i])
@@ -121,7 +121,7 @@ func parsePacket(mets []Metric, packet []byte) ([]Metric, int) {
 // name and the remaining portion of the line.
 func ParseName(line []byte) (name []byte, rest []byte, err error) {
 	firstSepIdx := -1
-	for i := 0; i < len(line); i++ {
+	for i := range line {
 		if line[i] == ' ' && !(i != 0 && line[i-1] == ' ') {
 			firstSepIdx = i
 			break
@@ -286,7 +286,7 @@ func (s *Scanner) Err() error { return s.scanner.Err() }
 // that the function will tolerate any number of spaces on either side.
 func parseWordOffsets(b []byte) (int, int) {
 	valStart := -1
-	for i := 0; i < len(b); i++ {
+	for i := range b {
 		charByte := b[i]
 		if valStart == -1 && charByte != ' ' {
 			valStart = i

@@ -734,7 +734,7 @@ func init() {
 	}
 	testOptions.WorkerPool.Init()
 
-	for i := 0; i < numLinesInTestPacket; i++ {
+	for i := range numLinesInTestPacket {
 		var metric []byte
 
 		if i%10 == 0 {

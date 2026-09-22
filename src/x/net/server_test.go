@@ -58,7 +58,7 @@ func TestStartAcceptLoop(t *testing.T) {
 		}
 	}()
 
-	for i := 0; i < numConnections; i++ {
+	for range numConnections {
 		wgClient.Add(1)
 		go func() {
 			defer wgClient.Done()
@@ -84,7 +84,7 @@ func TestStartAcceptLoop(t *testing.T) {
 	sort.Strings(results)
 
 	var expected []string
-	for i := 0; i < numConnections; i++ {
+	for i := range numConnections {
 		expected = append(expected, fmt.Sprintf("%d", i))
 	}
 	assert.Equal(t, expected, results)

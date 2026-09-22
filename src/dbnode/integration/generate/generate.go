@@ -50,7 +50,7 @@ func Block(conf BlockConfig) SeriesBlock {
 
 	for i, name := range conf.IDs {
 		datapoints := make([]TestValue, 0, conf.NumPoints)
-		for j := 0; j < conf.NumPoints; j++ {
+		for j := range conf.NumPoints {
 			timestamp := conf.Start.Add(time.Duration(j) * time.Second)
 			if conf.AnnGen == nil {
 				datapoints = append(datapoints, TestValue{

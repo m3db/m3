@@ -97,7 +97,7 @@ func TestDeleteFiles(t *testing.T) {
 	var files []string
 	iter := 3
 
-	for i := 0; i < iter; i++ {
+	for range iter {
 		fd := createTempFile(t)
 		fd.Close()
 		files = append(files, fd.Name())
@@ -107,7 +107,7 @@ func TestDeleteFiles(t *testing.T) {
 	files = append(files, "/not/a/real/path")
 
 	require.Error(t, DeleteFiles(files))
-	for i := 0; i < iter; i++ {
+	for i := range iter {
 		require.True(t, !mustFileExists(t, files[i]))
 	}
 }
@@ -489,7 +489,7 @@ func TestFileSetFilesBefore(t *testing.T) {
 	require.Equal(t, cutoffIter, len(res))
 
 	shardDir := path.Join(dir, dataDirName, testNs1ID.String(), strconv.Itoa(int(shard)))
-	for i := 0; i < len(res); i++ {
+	for i := range res {
 		ts := xtime.UnixNano(int64(i + 1))
 		require.Equal(t, filesetPathFromTimeLegacy(shardDir, ts, InfoFileSuffix), res[i])
 	}
@@ -501,7 +501,7 @@ func TestFileSetAt(t *testing.T) {
 	dir := createDataCheckpointFilesDir(t, testNs1ID, shard, numIters)
 	defer os.RemoveAll(dir)
 
-	for i := 0; i < numIters; i++ {
+	for i := range numIters {
 		timestamp := xtime.UnixNano(int64(i))
 		res, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp, 0)
 		require.NoError(t, err)
@@ -516,7 +516,7 @@ func TestFileSetAtNonLegacy(t *testing.T) {
 	dir := createDataFiles(t, dataDirName, testNs1ID, shard, numIters, true, CheckpointFileSuffix)
 	defer os.RemoveAll(dir)
 
-	for i := 0; i < numIters; i++ {
+	for i := range numIters {
 		timestamp := xtime.UnixNano(int64(i))
 		res, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp, 0)
 		require.NoError(t, err)
@@ -533,7 +533,7 @@ func TestFileSetAtNotFirstVolumeIndex(t *testing.T) {
 		CheckpointFileSuffix, volumeIndex)
 	defer os.RemoveAll(dir)
 
-	for i := 0; i < numIters; i++ {
+	for i := range numIters {
 		timestamp := xtime.UnixNano(int64(i))
 		res, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp, volumeIndex)
 		require.NoError(t, err)
@@ -548,7 +548,7 @@ func TestFileSetAtIgnoresWithoutCheckpoint(t *testing.T) {
 	dir := createDataFlushInfoFilesDir(t, testNs1ID, shard, numIters)
 	defer os.RemoveAll(dir)
 
-	for i := 0; i < numIters; i++ {
+	for i := range numIters {
 		timestamp := xtime.UnixNano(int64(i))
 		_, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp, 0)
 		require.NoError(t, err)
@@ -562,7 +562,7 @@ func TestDeleteFileSetAt(t *testing.T) {
 	dir := createDataCheckpointFilesDir(t, testNs1ID, shard, numIters)
 	defer os.RemoveAll(dir)
 
-	for i := 0; i < numIters; i++ {
+	for i := range numIters {
 		timestamp := xtime.UnixNano(int64(i))
 		res, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp, 0)
 		require.NoError(t, err)
@@ -664,7 +664,7 @@ func TestNextSnapshotFileSetVolumeIndex(t *testing.T) {
 
 	// Check increments properly
 	curr := -1
-	for i := 0; i <= 10; i++ {
+	for range 11 {
 		index, err := NextSnapshotFileSetVolumeIndex(dir, testNs1ID,
 			shard, blockStart)
 		require.NoError(t, err)
@@ -702,7 +702,7 @@ func TestSortedSnapshotMetadataFiles(t *testing.T) {
 	require.Empty(t, metadataFiles)
 
 	// Write out a bunch of metadata files along with their corresponding checkpoints.
-	for i := 0; i < numMetadataFiles; i++ {
+	for i := range numMetadataFiles {
 		snapshotUUID := uuid.Parse("6645a373-bf82-42e7-84a6-f8452b137549")
 		require.NotNil(t, snapshotUUID)
 
@@ -776,7 +776,7 @@ func TestNextSnapshotMetadataFileIndex(t *testing.T) {
 
 	writer := NewSnapshotMetadataWriter(opts)
 	// Write out a bunch of metadata files along with their corresponding checkpoints.
-	for i := 0; i < numMetadataFiles; i++ {
+	for i := range numMetadataFiles {
 		snapshotUUID := uuid.Parse("6645a373-bf82-42e7-84a6-f8452b137549")
 		require.NotNil(t, snapshotUUID)
 
@@ -811,7 +811,7 @@ func TestNextIndexFileSetVolumeIndex(t *testing.T) {
 
 	// Check increments properly
 	curr := -1
-	for i := 0; i <= 10; i++ {
+	for range 11 {
 		index, err := NextIndexFileSetVolumeIndex(dir, testNs1ID, blockStart)
 		require.NoError(t, err)
 		require.Equal(t, curr+1, index)
@@ -838,7 +838,7 @@ func TestMultipleForBlockStart(t *testing.T) {
 
 	// Write out many files with the same blockStart, but different indices
 	ts := xtime.UnixNano(1)
-	for i := 0; i < numSnapshots; i++ {
+	for i := range numSnapshots {
 		volume := i % numSnapshotsPerBlock
 		// Periodically update the blockStart
 		if volume == 0 {
@@ -940,7 +940,7 @@ func TestSortedCommitLogFiles(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, iter, len(files))
 
-	for i := 0; i < iter; i++ {
+	for i := range iter {
 		require.Equal(
 			t,
 			path.Join(dir, "commitlogs", fmt.Sprintf("commitlog-0-%d.db", i)),
@@ -1208,7 +1208,7 @@ func createDataFilesWithVolumeIndex(t *testing.T,
 	dir := createTempDir(t)
 	shardDir := path.Join(dir, subDirName, namespace.String(), strconv.Itoa(int(shard)))
 	require.NoError(t, os.MkdirAll(shardDir, 0755))
-	for i := 0; i < iter; i++ {
+	for i := range iter {
 		ts := xtime.UnixNano(int64(i))
 		var infoFilePath string
 		if isSnapshot {
@@ -1318,7 +1318,7 @@ func createCommitLogFiles(t *testing.T, iter int) string {
 	dir := createTempDir(t)
 	commitLogsDir := path.Join(dir, commitLogsDirName)
 	assert.NoError(t, os.Mkdir(commitLogsDir, 0755))
-	for i := 0; i < iter; i++ {
+	for i := range iter {
 		filePath := CommitLogFilePath(dir, i)
 		fd, err := os.Create(filePath)
 		assert.NoError(t, err)

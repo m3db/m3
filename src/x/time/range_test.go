@@ -149,7 +149,7 @@ func TestRangeBefore(t *testing.T) {
 	expected := []bool{
 		true, true, false, false, false, false, false, false, false, false, false,
 	}
-	for i := 0; i < len(input); i++ {
+	for i := range input {
 		require.Equal(t, expected[i], input[i].r1.Before(input[i].r2))
 	}
 }
@@ -159,7 +159,7 @@ func TestRangeAfter(t *testing.T) {
 	expected := []bool{
 		false, false, false, false, false, true, true, false, false, false, false,
 	}
-	for i := 0; i < len(input); i++ {
+	for i := range input {
 		require.Equal(t, expected[i], input[i].r1.After(input[i].r2))
 	}
 }
@@ -169,14 +169,14 @@ func TestRangeContains(t *testing.T) {
 	expected := []bool{
 		false, false, true, true, false, false, false, false, false, false, true,
 	}
-	for i := 0; i < len(input); i++ {
+	for i := range input {
 		require.Equal(t, expected[i], input[i].r1.Contains(input[i].r2))
 	}
 
 	expected = []bool{
 		false, false, false, false, false, false, false, true, true, false, true,
 	}
-	for i := 0; i < len(input); i++ {
+	for i := range input {
 		require.Equal(t, input[i].r2.Contains(input[i].r1), expected[i])
 	}
 }
@@ -186,7 +186,7 @@ func TestRangeOverlaps(t *testing.T) {
 	expected := []bool{
 		false, false, true, true, true, false, false, true, true, true, true,
 	}
-	for i := 0; i < len(input); i++ {
+	for i := range input {
 		require.Equal(t, expected[i], input[i].r1.Overlaps(input[i].r2))
 	}
 }
@@ -212,7 +212,7 @@ func TestRangeDuration(t *testing.T) {
 
 func TestRangeIntersect(t *testing.T) {
 	input := testInput()
-	for i := 0; i < len(input); i++ {
+	for i := range input {
 		var (
 			r1                 = input[i].r1
 			r2                 = input[i].r2
@@ -310,7 +310,7 @@ func TestRangeMerge(t *testing.T) {
 		{testStart.Add(-5 * time.Second), testStart.Add(10 * time.Second)},
 		{testStart, testStart.Add(10 * time.Second)},
 	}
-	for i := 0; i < len(input); i++ {
+	for i := range input {
 		require.Equal(t, expected[i], input[i].r1.Merge(input[i].r2))
 	}
 }
@@ -347,7 +347,7 @@ func TestRangeSubtract(t *testing.T) {
 		},
 		nil,
 	}
-	for i := 0; i < len(input); i++ {
+	for i := range input {
 		require.Equal(t, expected[i], input[i].r1.Subtract(input[i].r2))
 	}
 }

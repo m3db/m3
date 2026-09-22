@@ -116,7 +116,7 @@ func newTestSetup(
 	require.NoError(t, err)
 
 	var producers []producer.Producer
-	for i := 0; i < numProducers; i++ {
+	for range numProducers {
 		p := testProducer(t, configService)
 		require.NoError(t, p.Init())
 		producers = append(producers, p)
@@ -157,7 +157,7 @@ func newTestConsumerService(
 		p         placement.Placement
 		err       error
 	)
-	for i := 0; i < config.instances; i++ {
+	for range config.instances {
 		c := newTestConsumer(t, &cs)
 		c.consumeAndAck(totalConsumed)
 		cs.testConsumers = append(cs.testConsumers, c)
@@ -187,8 +187,8 @@ func (s *setup) Run(
 ) {
 	numWritesPerProducer := s.ExpectedNumMessages()
 	mockData := make([]producer.Message, 0, numWritesPerProducer)
-	for i := 0; i < numberOfShards; i++ {
-		for j := 0; j < msgPerShard; j++ {
+	for i := range numberOfShards {
+		for j := range msgPerShard {
 			b := fmt.Sprintf("foo%d-%d", i, j)
 			mm := producer.NewMockMessage(ctrl)
 			mm.EXPECT().Size().Return(len(b)).AnyTimes()
@@ -205,7 +205,7 @@ func (s *setup) Run(
 		ops[num] = op.fn
 	}
 	zap.L().Sugar().Debug("producing messages")
-	for i := 0; i < numWritesPerProducer; i++ {
+	for i := range numWritesPerProducer {
 		if fn, ok := ops[i]; ok {
 			fn()
 		}

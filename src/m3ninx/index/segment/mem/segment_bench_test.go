@@ -68,7 +68,7 @@ func BenchmarkSegment(b *testing.B) {
 func benchmarkInsertSegment(docs []doc.Metadata, b *testing.B) {
 	b.ReportAllocs()
 
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		b.StopTimer()
 		s, err := NewSegment(NewOptions())
 		if err != nil {
@@ -95,7 +95,7 @@ func benchmarkMatchTermSegment(docs []doc.Metadata, b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		for _, d := range docs {
 			for _, f := range d.Fields {
 				s.matchTerm(f.Name, f.Value)
@@ -117,7 +117,7 @@ func benchmarkMatchRegexSegment(docs []doc.Metadata, b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		s.matchRegexp(benchSegmentField, benchSegmentCompiled)
 	}
 }

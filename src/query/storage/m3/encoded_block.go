@@ -84,7 +84,7 @@ func newEncodedBlock(
 ) (*encodedBlock, error) {
 	count := result.Count()
 	seriesMetas := make([]block.SeriesMeta, 0, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		iter, tags, err := result.IterTagsAtIndex(i, options.TagOptions())
 		if err != nil {
 			return nil, err

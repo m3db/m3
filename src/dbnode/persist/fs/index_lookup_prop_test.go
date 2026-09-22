@@ -271,7 +271,7 @@ func readIndexFileOffsets(shardDirPath string, numEntries int,
 	decoder.Reset(decoderStream)
 
 	summariesOffsets := map[string]int64{}
-	for read := 0; read < numEntries; read++ {
+	for range numEntries {
 		offset := int64(len(buf)) - (decoderStream.Remaining())
 		entry, err := decoder.DecodeIndexEntry(nil)
 		if err != nil {

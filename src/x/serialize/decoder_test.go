@@ -138,7 +138,7 @@ func TestDecodeAfterRewind(t *testing.T) {
 		assertFastDecode(t, d, tag.Name.String(), tag.Value.String())
 	}
 
-	for i := 0; i < count; i++ {
+	for i := range count {
 		require.True(t, d.Next())
 		readIter(d)
 		require.True(t, d.Next())

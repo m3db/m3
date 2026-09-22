@@ -57,7 +57,7 @@ PASS
 func BenchmarkPercentageFilter(b *testing.B) {
 	f := NewPercentageFilter(0.5, producer.StaticConfig)
 	var r bool
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		r = f.Function(nil)
 	}
 	filterResult = r

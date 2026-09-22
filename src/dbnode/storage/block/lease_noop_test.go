@@ -137,7 +137,7 @@ func TestNoopLeaseManager(t *testing.T) {
 		}
 
 		// Multiple calls should have consistent behavior
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			err := manager.RegisterLeaser(mockLeaser)
 			require.NoError(t, err)
 

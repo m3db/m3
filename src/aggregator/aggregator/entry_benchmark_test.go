@@ -129,7 +129,7 @@ func BenchmarkAggregationValues(b *testing.B) {
 
 	b.ResetTimer()
 	var contains bool
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		contains = vals.contains(aggregationKeys[len(aggregationKeys)-1])
 	}
 	runtime.KeepAlive(contains)

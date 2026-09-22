@@ -288,7 +288,7 @@ func (p *parseState) walk(node pql.Node) error {
 
 		argValues := make([]interface{}, 0, exprCount)
 		stringValues := make([]string, 0, exprCount)
-		for i := 0; i < numExpectedValues; i++ {
+		for i := range numExpectedValues {
 			argType := argTypes[i]
 			expr := expressions[i]
 			if argType == pql.ValueTypeScalar {

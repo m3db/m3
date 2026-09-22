@@ -88,7 +88,7 @@ func (it *testIterator) Reset(r xio.Reader64, descr namespace.SchemaDescr) {
 
 func (it *testIterator) ResetSliceOfSlices(readers xio.ReaderSliceOfSlicesIterator, descr namespace.SchemaDescr) {
 	l, _, _ := readers.CurrentReaders()
-	for i := 0; i < l; i++ {
+	for i := range l {
 		r := readers.CurrentReaderAt(i)
 		it.onReset(r, descr)
 	}
@@ -149,7 +149,7 @@ func (it *testMultiIterator) Reset(r []xio.SegmentReader, _ xtime.UnixNano,
 func (it *testMultiIterator) ResetSliceOfSlices(
 	readers xio.ReaderSliceOfSlicesIterator, _ namespace.SchemaDescr) {
 	l, _, _ := readers.CurrentReaders()
-	for i := 0; i < l; i++ {
+	for i := range l {
 		r := readers.CurrentReaderAt(i)
 		it.onReset(r)
 	}

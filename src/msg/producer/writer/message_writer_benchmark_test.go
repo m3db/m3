@@ -50,7 +50,7 @@ func BenchmarkScanMessageQueue(b *testing.B) {
 
 		w.consumerWriters = append(w.consumerWriters, noopWriter{})
 
-		for i := 0; i < 1024; i++ {
+		for range 1024 {
 			w.Write(producer.NewRefCountedMessage(emptyMessage{}, nil))
 		}
 		b.ResetTimer()
@@ -75,7 +75,7 @@ func (noopWriter) AvailableBuffer(int) int { return math.MaxInt }
 
 func BenchmarkAck(b *testing.B) {
 	ack := newAckHelper(64)
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		meta := metadata{metadataKey: metadataKey{200, uint64(b.N)}}
 		ack.add(meta, nil)
 		ack.remove(meta)

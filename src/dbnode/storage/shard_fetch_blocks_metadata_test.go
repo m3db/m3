@@ -72,7 +72,7 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyCacheAll(t *testing.T) {
 		FetchBlocksMetadataOptions: fetchOpts,
 	}
 	lastRead := xtime.Now().Add(-time.Minute)
-	for i := int64(0); i < 10; i++ {
+	for i := range int64(10) {
 		entryIndex := i + 1
 		id := ident.StringID(fmt.Sprintf("foo.%d", i))
 		tags := ident.NewTags(
@@ -117,7 +117,7 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyCacheAll(t *testing.T) {
 	require.NotNil(t, pageToken.GetActiveSeriesPhase())
 	require.Equal(t, int64(8), pageToken.GetActiveSeriesPhase().IndexCursor)
 
-	for i := 0; i < len(res.Results()); i++ {
+	for i := range len(res.Results()) {
 		require.Equal(t, ids[i], res.Results()[i].ID)
 	}
 }
@@ -184,7 +184,7 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T
 		err = writer.Open(writerOpts)
 		require.NoError(t, err)
 
-		for i := 0; i < numFlushedSeries; i++ {
+		for i := range numFlushedSeries {
 			idxBlock := time.Duration(at-start) / blockSize
 			if (idxBlock%2 == 0 && i%2 == 0) || (idxBlock%2 != 0 && i%2 != 0) {
 				continue // Every other block skip the evens and odds
@@ -218,7 +218,7 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T
 		FetchBlocksMetadataOptions: fetchOpts,
 	}
 	lastRead := xtime.Now().Add(-time.Minute)
-	for i := 0; i < numActiveSeries; i++ {
+	for i := range numActiveSeries {
 		id := ident.StringID(fmt.Sprintf("series+instance=%d", i))
 		tags := ident.NewTags(
 			ident.StringTag("instance", strconv.Itoa(i)),
@@ -342,7 +342,7 @@ func writeTestData(t *testing.T, numOfActiveSeries int, writeBatchSize int, shar
 			if numOfActiveSeries-i < writeBatchSize {
 				size = numOfActiveSeries - i
 			}
-			for j := 0; j < size; j++ {
+			for j := range size {
 				id := fmt.Sprintf("foo=%d_%d", i, j)
 				_, err := shard.Write(ctx, ident.StringID(id), xtime.ToUnixNano(nowFn()),
 					1.0, xtime.Second, nil, series.WriteOptions{})

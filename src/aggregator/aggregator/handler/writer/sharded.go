@@ -93,7 +93,7 @@ func (w *shardedWriter) Flush() error {
 	}
 
 	var multiErr xerrors.MultiError
-	for i := 0; i < w.numShards; i++ {
+	for i := range w.numShards {
 		multiErr = multiErr.Add(w.writers[i].Flush())
 	}
 
@@ -114,7 +114,7 @@ func (w *shardedWriter) Close() error {
 	w.closed = true
 
 	var multiErr xerrors.MultiError
-	for i := 0; i < w.numShards; i++ {
+	for i := range w.numShards {
 		multiErr = multiErr.Add(w.writers[i].Close())
 	}
 

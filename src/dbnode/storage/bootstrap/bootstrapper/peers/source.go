@@ -270,7 +270,7 @@ func (s *peersSource) readData(
 	defer instrCtx.bootstrapShardsCompleted()
 	if shouldPersist {
 		// Spin up persist workers.
-		for i := 0; i < s.opts.ShardPersistenceFlushConcurrency(); i++ {
+		for range s.opts.ShardPersistenceFlushConcurrency() {
 			closer, err := s.startPersistenceQueueWorkerLoop(opts,
 				persistWg, persistenceQueue, result, &resultLock)
 			if err != nil {
@@ -749,7 +749,7 @@ func (s *peersSource) readIndex(
 	})
 
 	var buildWg sync.WaitGroup
-	for i := 0; i < indexSegmentConcurrency; i++ {
+	for range indexSegmentConcurrency {
 		alloc := s.opts.ResultOptions().IndexDocumentsBuilderAllocator()
 		segBuilder, err := alloc()
 		if err != nil {

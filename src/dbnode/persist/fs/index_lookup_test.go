@@ -142,7 +142,7 @@ func testParentAndClonesSafeForConcurrentUse(t *testing.T, forceMmapMemory bool)
 
 	// Create test summary entries
 	indexSummaries := []schema.IndexSummary{}
-	for i := 0; i < numSummaries; i++ {
+	for i := range numSummaries {
 		indexSummaries = append(indexSummaries, schema.IndexSummary{
 			Index:            int64(i),
 			ID:               []byte(strconv.Itoa(i)),
@@ -154,7 +154,7 @@ func testParentAndClonesSafeForConcurrentUse(t *testing.T, forceMmapMemory bool)
 	// Create indexLookup and associated clones
 	indexLookup := newIndexLookupWithSummaries(t, indexSummaries, forceMmapMemory)
 	clones := []*nearestIndexOffsetLookup{}
-	for i := 0; i < numClones; i++ {
+	for range numClones {
 		clone, err := indexLookup.concurrentClone()
 		require.NoError(t, err)
 		clones = append(clones, clone)

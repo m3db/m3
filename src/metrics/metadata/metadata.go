@@ -168,7 +168,7 @@ func (m PipelineMetadata) ToProto(pb *metricpb.PipelineMetadata) error {
 	} else {
 		pb.StoragePolicies = make([]policypb.StoragePolicy, numStoragePolicies)
 	}
-	for i := 0; i < numStoragePolicies; i++ {
+	for i := range numStoragePolicies {
 		if err := m.StoragePolicies[i].ToProto(&pb.StoragePolicies[i]); err != nil {
 			return err
 		}
@@ -193,7 +193,7 @@ func (m *PipelineMetadata) FromProto(pb metricpb.PipelineMetadata) error {
 	} else {
 		m.StoragePolicies = make([]policy.StoragePolicy, numStoragePolicies)
 	}
-	for i := 0; i < numStoragePolicies; i++ {
+	for i := range numStoragePolicies {
 		if err := m.StoragePolicies[i].FromProto(pb.StoragePolicies[i]); err != nil {
 			return err
 		}
@@ -214,7 +214,7 @@ func (metadatas PipelineMetadatas) Equal(other PipelineMetadatas) bool {
 	if len(metadatas) != len(other) {
 		return false
 	}
-	for i := 0; i < len(metadatas); i++ {
+	for i := range metadatas {
 		if !metadatas[i].Equal(other[i]) {
 			return false
 		}
@@ -239,7 +239,7 @@ func (metadatas PipelineMetadatas) Less(i, j int) bool {
 // Clone clones the list of pipeline metadatas.
 func (metadatas PipelineMetadatas) Clone() PipelineMetadatas {
 	cloned := make(PipelineMetadatas, 0, len(metadatas))
-	for i := 0; i < len(metadatas); i++ {
+	for i := range metadatas {
 		cloned = append(cloned, metadatas[i].Clone())
 	}
 	return cloned
@@ -390,7 +390,7 @@ func (m Metadata) ToProto(pb *metricpb.Metadata) error {
 	} else {
 		pb.Pipelines = make([]metricpb.PipelineMetadata, numPipelines)
 	}
-	for i := 0; i < numPipelines; i++ {
+	for i := range numPipelines {
 		if err := m.Pipelines[i].ToProto(&pb.Pipelines[i]); err != nil {
 			return err
 		}
@@ -406,7 +406,7 @@ func (m *Metadata) FromProto(pb metricpb.Metadata) error {
 	} else {
 		m.Pipelines = make(PipelineMetadatas, numPipelines)
 	}
-	for i := 0; i < numPipelines; i++ {
+	for i := range numPipelines {
 		if err := m.Pipelines[i].FromProto(pb.Pipelines[i]); err != nil {
 			return err
 		}
@@ -577,7 +577,7 @@ func (sms StagedMetadatas) ToProto(pb *metricpb.StagedMetadatas) error {
 	} else {
 		pb.Metadatas = make([]metricpb.StagedMetadata, numMetadatas)
 	}
-	for i := 0; i < numMetadatas; i++ {
+	for i := range numMetadatas {
 		if err := sms[i].ToProto(&pb.Metadatas[i]); err != nil {
 			return err
 		}
@@ -595,7 +595,7 @@ func (sms *StagedMetadatas) FromProto(pb metricpb.StagedMetadatas) error {
 		*sms = make([]StagedMetadata, numMetadatas)
 	}
 
-	for i := 0; i < numMetadatas; i++ {
+	for i := range numMetadatas {
 		metadata := &(*sms)[i]
 		metadataPb := &pb.Metadatas[i]
 		numPipelines := len(metadataPb.Metadata.Pipelines)
@@ -609,7 +609,7 @@ func (sms *StagedMetadatas) FromProto(pb metricpb.StagedMetadatas) error {
 			metadata.Pipelines = make(PipelineMetadatas, numPipelines)
 		}
 
-		for j := 0; j < numPipelines; j++ {
+		for j := range numPipelines {
 			var (
 				pipelinePb         = &metadataPb.Metadata.Pipelines[j]
 				pipeline           = &metadata.Pipelines[j]
@@ -668,7 +668,7 @@ func (sms *StagedMetadatas) fromProto(pb metricpb.StagedMetadatas) error {
 	} else {
 		*sms = make([]StagedMetadata, numMetadatas)
 	}
-	for i := 0; i < numMetadatas; i++ {
+	for i := range numMetadatas {
 		if err := (*sms)[i].FromProto(pb.Metadatas[i]); err != nil {
 			return err
 		}

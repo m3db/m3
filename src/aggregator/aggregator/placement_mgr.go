@@ -190,7 +190,7 @@ func (mgr *placementManager) HasReplacementInstance() (bool, error) {
 			continue
 		}
 		match := true
-		for i := 0; i < len(otherShards); i++ {
+		for i := range otherShards {
 			if otherShards[i].State() != shard.Initializing ||
 				otherShards[i].ID() != currShards[i].ID() ||
 				otherShards[i].CutoverNanos() != currShards[i].CutoffNanos() {

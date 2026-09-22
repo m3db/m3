@@ -180,7 +180,7 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 		address := p.host.Address()
 
 		var wg sync.WaitGroup
-		for i := 0; i < target-poolLen; i++ {
+		for range target - poolLen {
 			wg.Add(1)
 			newConnFn := p.opts.NewConnectionFn()
 			go func() {
@@ -256,7 +256,7 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 					failed   = 0
 					checkErr error
 				)
-				for j := 0; j < attempts; j++ {
+				for range attempts {
 					if err := p.healthCheck(client, p.opts, false); err != nil {
 						checkErr = err
 						failed++

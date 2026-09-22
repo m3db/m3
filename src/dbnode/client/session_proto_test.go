@@ -48,9 +48,9 @@ var (
 
 func setFetchProtoAnnotation(fetches []testFetch) []testFetch {
 	protoIter := prototest.NewProtoMessageIterator(testProtoMessages)
-	for j := 0; j < len(fetches); j++ {
+	for j := range fetches {
 		data := fetches[j].values
-		for i := 0; i < len(data); i++ {
+		for i := range data {
 			data[i].value = 0
 			data[i].annotation = protoIter.Next()
 		}

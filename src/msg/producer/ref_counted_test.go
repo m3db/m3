@@ -189,7 +189,7 @@ func TestRefCountedMessageNoBlocking(t *testing.T) {
 
 	mm := NewMockMessage(ctrl)
 	mm.EXPECT().Size().Return(0).AnyTimes()
-	for i := 0; i < 10000; i++ {
+	for range 10000 {
 		rm := NewRefCountedMessage(mm, nil)
 		var wg sync.WaitGroup
 		wg.Add(2)

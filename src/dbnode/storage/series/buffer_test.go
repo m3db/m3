@@ -1595,7 +1595,7 @@ func TestOptimizedTimes(t *testing.T) {
 	forEachTimes = forEachTimes[:0]
 
 	// These adds should only go in the array.
-	for i := 0; i < optimizedTimesArraySize; i++ {
+	for i := range optimizedTimesArraySize {
 		tNano := xtime.UnixNano(i)
 		times.Add(tNano)
 		expectedTimes = append(expectedTimes, tNano)

@@ -211,7 +211,7 @@ func TestRawTCPServerHandleUnaggregatedProtobufEncoding(t *testing.T) {
 
 	// Now establish multiple connections and send data to the server.
 	var expectedTotalMetrics int
-	for i := 0; i < numClients; i++ {
+	for range numClients {
 		wgClient.Add(1)
 
 		// Add test metrics to expected result.

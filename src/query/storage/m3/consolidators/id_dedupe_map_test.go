@@ -170,7 +170,7 @@ func TestIDDedupeMap(t *testing.T) {
 	for _, it := range dedupeMap.list() {
 		expectedIDs = append(expectedIDs, it.tags.String())
 	}
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		ids := make([]string, 0)
 		for _, it := range dedupeMap.list() {
 			ids = append(ids, it.tags.String())

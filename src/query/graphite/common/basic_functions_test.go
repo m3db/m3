@@ -47,7 +47,7 @@ func validateOutputs(t *testing.T, step int, start time.Time, expected []TestSer
 
 		require.Equal(t, len(e), a.Len())
 
-		for step := 0; step < a.Len(); step++ {
+		for step := range a.Len() {
 			v := a.ValueAt(step)
 			assert.Equal(t, e[step], v, "invalid value for %d", step)
 		}

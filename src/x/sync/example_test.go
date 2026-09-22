@@ -44,7 +44,7 @@ func ExampleWorkerPool() {
 	wg.Add(numRequests)
 	workers.Init()
 
-	for i := 0; i < numRequests; i++ {
+	for i := range numRequests {
 		// Capture loop variable.
 
 		// Execute request on worker pool.

@@ -248,7 +248,7 @@ func testRollupRule(t *testing.T, m3 resources.M3Resources) {
 		}
 	)
 
-	for i := 0; i < numDatapoints; i++ {
+	for i := range numDatapoints {
 		err := m3.Coordinator().WriteProm(
 			metricName,
 			tags1,
@@ -261,7 +261,7 @@ func testRollupRule(t *testing.T, m3 resources.M3Resources) {
 		require.NoError(t, err)
 	}
 
-	for i := 0; i < numDatapoints; i++ {
+	for i := range numDatapoints {
 		err := m3.Coordinator().WriteProm(
 			metricName,
 			tags2,

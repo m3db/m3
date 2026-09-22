@@ -70,7 +70,7 @@ func (r *RollupRule) Equal(other *RollupRule) bool {
 	if len(r.Tags) != len(other.Tags) {
 		return false
 	}
-	for i := 0; i < len(r.Tags); i++ {
+	for i := range len(r.Tags) {
 		if !r.Tags[i].Equal(other.Tags[i]) {
 			return false
 		}
@@ -92,7 +92,7 @@ func (t rollupTargets) Equal(other rollupTargets) bool {
 	if len(t) != len(other) {
 		return false
 	}
-	for i := 0; i < len(t); i++ {
+	for i := range t {
 		if !t[i].Equal(&other[i]) {
 			return false
 		}

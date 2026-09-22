@@ -94,7 +94,7 @@ func requireValuesEqual(
 	}
 	require.Len(t, actual, len(expected),
 		"length mismatch: values=%+v", spew.Sdump(debugValues))
-	for i := 0; i < len(actual); i++ {
+	for i := range actual {
 		debugValue := struct {
 			ExpectedValue DecodedTestValue
 			ActualValue   DecodedTestValue

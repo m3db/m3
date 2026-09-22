@@ -391,7 +391,7 @@ func groupHostsWithIsolationGroupCheck(hosts []host, rf int) (groups [][]host, u
 		// When there are more than rf isolation groups available, try to make a group.
 		seenIGs := make(map[string]*group, rf)
 		g := make([]host, 0, rf)
-		for i := 0; i < rf; i++ {
+		for range rf {
 			r := heap.Pop(&rh).(*group)
 			// Move the host from the isolation group to the group.
 			// The isolation groups in the heap always have at least one host.
@@ -434,7 +434,7 @@ func groupInstancesByHostPort(hostGroups [][]host, skipPortMatching bool) ([][]p
 			}
 		} else {
 			numInstancesPerHost, instancesByHost := convertHostGroupToInstanceLists(hostGroup)
-			for i := 0; i < numInstancesPerHost; i++ {
+			for i := range numInstancesPerHost {
 				instanceGroup := make([]placement.Instance, 0, len(hostGroup))
 				for _, list := range instancesByHost {
 					instanceGroup = append(instanceGroup, list[i])

@@ -33,21 +33,21 @@ func setValues(values []float64, initialValue float64) {
 }
 func BenchmarkMemsetZeroValues(b *testing.B) {
 	values := make([]float64, 10000)
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		Memset(values, 0)
 	}
 }
 
 func BenchmarkLoopZeroValues(b *testing.B) {
 	values := make([]float64, 10000)
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		setValues(values, 0)
 	}
 }
 
 func BenchmarkMemsetNonZeroValues(b *testing.B) {
 	values := make([]float64, 10000)
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		Memset(values, 1)
 	}
 
@@ -55,7 +55,7 @@ func BenchmarkMemsetNonZeroValues(b *testing.B) {
 
 func BenchmarkLoopNonZeroValues(b *testing.B) {
 	values := make([]float64, 10000)
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		setValues(values, 1)
 	}
 }
@@ -76,28 +76,28 @@ func setIntValues(values []int, initialValue int) {
 
 func BenchmarkMemsetIntZeroValues(b *testing.B) {
 	values := make([]int, 10000)
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		MemsetInt(values, 0)
 	}
 }
 
 func BenchmarkLoopIntZeroValues(b *testing.B) {
 	values := make([]int, 10000)
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		setIntValues(values, 0)
 	}
 }
 
 func BenchmarkMemsetIntNonZeroValues(b *testing.B) {
 	values := make([]int, 10000)
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		MemsetInt(values, 1)
 	}
 }
 
 func BenchmarkLoopIntNonZeroValues(b *testing.B) {
 	values := make([]int, 10000)
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		setIntValues(values, 1)
 	}
 }

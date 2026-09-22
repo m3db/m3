@@ -73,7 +73,7 @@ func NewPlacementFromProto(p *placementpb.Placement) (Placement, error) {
 	}
 
 	shards := make([]uint32, p.NumShards)
-	for i := uint32(0); i < p.NumShards; i++ {
+	for i := range p.NumShards {
 		shards[i] = i
 	}
 	instances := make([]Instance, 0, len(p.Instances))
@@ -406,7 +406,7 @@ func validate(p Placement) error {
 			if len(existingShardIDs) != len(currShardIDs) {
 				return fmt.Errorf("instance %s and %s have the same shard set id %d but different number of shards", existingInstance.String(), instance.String(), shardSetID)
 			}
-			for i := 0; i < len(existingShardIDs); i++ {
+			for i := range existingShardIDs {
 				if existingShardIDs[i] != currShardIDs[i] {
 					return fmt.Errorf("instance %s and %s have the same shard set id %d but different shards", existingInstance.String(), instance.String(), shardSetID)
 				}

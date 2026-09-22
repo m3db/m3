@@ -396,7 +396,7 @@ func TestUnaggregatedIteratorDecodeStress(t *testing.T) {
 
 	numIter := 1000
 	enc := NewUnaggregatedEncoder(NewUnaggregatedOptions())
-	for iter := 0; iter < numIter; iter++ {
+	for range numIter {
 		for _, input := range inputs {
 			var msg encoding.UnaggregatedMessageUnion
 			switch input := input.(type) {

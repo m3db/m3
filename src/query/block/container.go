@@ -355,7 +355,7 @@ func (b *containerBlock) MultiSeriesIter(
 	// (e.g. if some contained blocks have fewer than `concurrency` series.)
 	batches := make([]SeriesIterBatch, 0, concurrency)
 	// init batch sizes.
-	for i := 0; i < concurrency; i++ {
+	for i := range concurrency {
 		// Determine container iter size.
 		size := 0
 		for _, b := range multiBatches {

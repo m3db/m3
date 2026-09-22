@@ -52,7 +52,7 @@ func benchmarkEncoder(b *testing.B, nonCustomFieldsEnabled bool) {
 	)
 	encoder.SetSchema(namespace.GetTestSchemaDescr(testVLSchema))
 
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		start = start.Add(time.Second)
 		for _, protoBytes := range messagesBytes {
 			if err := encoder.Encode(ts.Datapoint{TimestampNanos: start},
@@ -102,7 +102,7 @@ func benchmarkIterator(b *testing.B, nonCustomFieldsEnabled bool) {
 
 	iterator := NewIterator(stream, schema, encodingOpts)
 	reader := xio.NewSegmentReader(segment)
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		reader.Reset(segment)
 		iterator.Reset(reader, schema)
 		for iterator.Next() {
@@ -117,7 +117,7 @@ func testMessages(numMessages int, includeAttributes bool) ([]*dynamic.Message, 
 		messages      = make([]*dynamic.Message, 0, numMessages)
 		messagesBytes = make([][]byte, 0, numMessages)
 	)
-	for i := 0; i < numMessages; i++ {
+	for i := range numMessages {
 		m := dynamic.NewMessage(testVLSchema)
 		m.SetFieldByName("latitude", float64(i))
 		m.SetFieldByName("longitude", float64(i))

@@ -232,7 +232,7 @@ func (enc *TimestampEncoder) writeDeltaOfDeltaTimeUnitUnchanged(
 	}
 
 	buckets := tes.Buckets()
-	for i := 0; i < len(buckets); i++ {
+	for i := range buckets {
 		if deltaOfDelta >= buckets[i].Min() && deltaOfDelta <= buckets[i].Max() {
 			stream.WriteBits(buckets[i].Opcode(), buckets[i].NumOpcodeBits())
 			stream.WriteBits(uint64(deltaOfDelta), buckets[i].NumValueBits())

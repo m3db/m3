@@ -221,7 +221,7 @@ func TestWriteBatchReset(t *testing.T) {
 		writeBatch = NewWriteBatch(batchSize, namespace, nil)
 	)
 
-	for i := 0; i < numResets; i++ {
+	for i := range numResets {
 		writeBatch.Reset(batchSize, namespace)
 		for _, write := range writes {
 			writeBatch.Add(

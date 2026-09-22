@@ -210,7 +210,7 @@ func (m ResultMetadata) TopMetadataByName(limit int) map[string]*ResultMetricMet
 		return n > m
 	})
 	top := make(map[string]*ResultMetricMetadata, limit)
-	for i := 0; i < limit; i++ {
+	for i := range limit {
 		k := keys[i]
 		top[k] = m.metadataByName[k]
 	}

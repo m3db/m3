@@ -196,7 +196,7 @@ func testNamespaceIndexHighConcurrentQueries(
 			InitialCapacity: idsPerBlock,
 			IndexBlockSize:  test.indexBlockSize,
 		})
-		for i := 0; i < idsPerBlock; i++ {
+		for i := range idsPerBlock {
 			id := fmt.Sprintf("foo.block_%d.id_%d", blockIdx, i)
 			doc := doc.Metadata{
 				ID: []byte(id),
@@ -250,7 +250,7 @@ func testNamespaceIndexHighConcurrentQueries(
 
 	var enqueueWg sync.WaitGroup
 	startWg.Add(1)
-	for i := 0; i < queryConcurrency; i++ {
+	for range queryConcurrency {
 		readyWg.Add(1)
 		enqueueWg.Add(1)
 		go func() {
@@ -269,7 +269,7 @@ func testNamespaceIndexHighConcurrentQueries(
 			startWg.Wait()
 
 			rangeStart := minVal
-			for k := 0; k < len(blockStarts); k++ {
+			for k := range blockStarts {
 				rangeEnd := blockStarts[k].Add(test.indexBlockSize)
 
 				goCtx := stdctx.Background()

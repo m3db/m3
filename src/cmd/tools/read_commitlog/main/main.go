@@ -168,13 +168,13 @@ func printSummary(reader *filteringReader, top *int) error {
 		limit = *top
 	}
 	fmt.Printf("ID datapoint counts: \n") // nolint: forbidigo
-	for i := 0; i < limit; i++ {
+	for i := range limit {
 		pair := datapointCountArr[i]
 		fmt.Printf("%-10d %s\n", pair.Value, pair.ID.String()) // nolint: forbidigo
 	}
 
 	fmt.Printf("ID sizes(bytes): \n") // nolint: forbidigo
-	for i := 0; i < limit; i++ {
+	for i := range limit {
 		pair := sizeArr[i]
 		fmt.Printf("%-10d %s\n", pair.Value, pair.ID.String()) // nolint: forbidigo
 	}

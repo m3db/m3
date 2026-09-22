@@ -43,7 +43,7 @@ func countMetricPartsWithDelimiter(metric string, delim byte) int {
 	}
 
 	count := 1
-	for i := 0; i < len(metric); i++ {
+	for i := range len(metric) {
 		if metric[i] == delim {
 			count++
 		}
@@ -68,7 +68,7 @@ func ExtractNthStringPart(target string, n int, delim rune) string {
 
 	leftSide := 0
 	delimsToGo := n + 1
-	for i := 0; i < len(target); i++ {
+	for i := range len(target) {
 		if target[i] == byte(delim) {
 			delimsToGo--
 			if delimsToGo == 0 {

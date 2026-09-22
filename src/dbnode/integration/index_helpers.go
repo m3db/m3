@@ -127,7 +127,7 @@ func (w TestIndexWrites) matchesSeriesIter(t *testing.T, iter TestSeriesIterator
 	for iter.Next() {
 		count++
 		dp, _, _ := iter.Current()
-		for i := 0; i < len(w); i++ {
+		for i := range w {
 			if found[i] {
 				continue
 			}
@@ -143,7 +143,7 @@ func (w TestIndexWrites) matchesSeriesIter(t *testing.T, iter TestSeriesIterator
 	}
 	require.Equal(t, len(w), count, iter.ID().String())
 	require.NoError(t, iter.Err())
-	for i := 0; i < len(found); i++ {
+	for i := range found {
 		require.True(t, found[i], iter.ID().String())
 	}
 }
@@ -155,7 +155,7 @@ func (w TestIndexWrites) Write(t *testing.T, ns ident.ID, s client.Session) {
 
 // WriteAttempt writes test data and returns an error if encountered.
 func (w TestIndexWrites) WriteAttempt(ns ident.ID, s client.Session) error {
-	for i := 0; i < len(w); i++ {
+	for i := range w {
 		wi := w[i]
 		err := s.WriteTagged(ns, wi.ID, wi.Tags.Duplicate(), wi.Timestamp,
 			wi.Value, xtime.Second, nil)
@@ -184,7 +184,7 @@ func (w TestIndexWrites) NumIndexedWithOptions(
 	opts NumIndexedOptions,
 ) int {
 	numFound := 0
-	for i := 0; i < len(w); i++ {
+	for i := range w {
 		wi := w[i]
 		q := newQuery(t, wi.Tags)
 		iter, _, err := s.FetchTaggedIDs(ContextWithDefaultTimeout(), ns,
@@ -249,7 +249,7 @@ type TestIndexWrite struct {
 func GenerateTestIndexWrite(periodID, numWrites, numTags int, startTime, endTime xtime.UnixNano) TestIndexWrites {
 	writes := make([]TestIndexWrite, 0, numWrites)
 	step := endTime.Sub(startTime) / time.Duration(numWrites+1)
-	for i := 0; i < numWrites; i++ {
+	for i := range numWrites {
 		id, tags := genIDTags(periodID, i, numTags)
 		writes = append(writes, TestIndexWrite{
 			ID:        id,
@@ -266,7 +266,7 @@ type genIDTagsOption func(ident.Tags) ident.Tags
 func genIDTags(i int, j int, numTags int, opts ...genIDTagsOption) (ident.ID, ident.TagIterator) {
 	id := fmt.Sprintf("foo.%d.%d", i, j)
 	tags := make([]ident.Tag, 0, numTags)
-	for i := 0; i < numTags; i++ {
+	for i := range numTags {
 		tags = append(tags, ident.StringTag(
 			fmt.Sprintf("%s.tagname.%d", id, i),
 			fmt.Sprintf("%s.tagvalue.%d", id, i),

@@ -40,7 +40,7 @@ func BenchmarkM3TSZDecode(b *testing.B) {
 	)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		reader.Reset(seriesRun[i])
 		iter := NewReaderIterator(reader, DefaultIntOptimizationEnabled, encodingOpts)
 		for iter.Next() {
@@ -64,7 +64,7 @@ func prepareSampleSeriesRun(b *testing.B) [][]byte {
 		sampleSeries = append(sampleSeries, data)
 	}
 
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		seriesRun = append(seriesRun, sampleSeries[rnd.Intn(len(sampleSeries))])
 	}
 

@@ -119,7 +119,7 @@ func compareTagSets(a, b models.Tags) int {
 		l = b.Len()
 	}
 
-	for i := 0; i < l; i++ {
+	for i := range l {
 		byName := bytes.Compare(a.Tags[i].Name, b.Tags[i].Name)
 		if byName != 0 {
 			return byName

@@ -2164,7 +2164,7 @@ func TestBlockAggregateWithAggregateLimits(t *testing.T) {
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
 	// use seriesLimit instead of seriesLimit - 1 since the iterator peeks ahead to check for Done.
-	for i := 0; i < seriesLimit; i++ {
+	for i := range seriesLimit {
 		iter.EXPECT().Next().Return(true)
 		curr := []byte(fmt.Sprint(i))
 		iter.EXPECT().Current().Return([]byte("f1"), curr)
@@ -2549,9 +2549,9 @@ func TestBlockAggregateBatching(t *testing.T) {
 		batchSizeSegments = make([]*readableSeg, 0, defaultQueryDocsBatchSize)
 	)
 
-	for i := 0; i < defaultQueryDocsBatchSize; i++ {
+	for i := range defaultQueryDocsBatchSize {
 		fields := make([]string, 0, defaultQueryDocsBatchSize)
-		for j := 0; j < defaultQueryDocsBatchSize; j++ {
+		for j := range defaultQueryDocsBatchSize {
 			fields = append(fields, fmt.Sprintf("bar_%d", j))
 		}
 

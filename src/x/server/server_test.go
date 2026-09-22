@@ -127,7 +127,7 @@ func TestServerListenAndClose(t *testing.T) {
 	require.NoError(t, err)
 	listenAddr := s.listener.Addr().String()
 
-	for i := 0; i < numClients; i++ {
+	for i := range numClients {
 		conn, err := net.Dial("tcp", listenAddr)
 		require.NoError(t, err)
 
@@ -237,7 +237,7 @@ func TestTLS(t *testing.T) {
 			err := s.ListenAndServe()
 			require.NoError(t, err)
 			listenAddr := s.listener.Addr().String()
-			for i := 0; i < tt.numClients; i++ {
+			for i := range tt.numClients {
 				conn, err := tt.dialFn(i, listenAddr)
 				require.NoError(t, err)
 				waitFor(func() bool {

@@ -231,7 +231,7 @@ func TestMatchResult(t *testing.T) {
 	for _, input := range inputs {
 		require.Equal(t, input.expectedForExistingID, res.ForExistingIDAt(input.matchAtNanos))
 		require.Equal(t, len(input.expectedForNewRollupIDs), res.NumNewRollupIDs())
-		for i := 0; i < len(input.expectedForNewRollupIDs); i++ {
+		for i := range len(input.expectedForNewRollupIDs) {
 			forNewRollupID := res.ForNewRollupIDsAt(i, input.matchAtNanos)
 			require.Equal(t, input.expectedForNewRollupIDs[i], forNewRollupID)
 		}

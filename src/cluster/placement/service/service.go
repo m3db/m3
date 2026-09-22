@@ -162,7 +162,7 @@ func (ps *placementServiceImpl) BuildInitialPlacement(
 	}
 
 	ids := make([]uint32, numShards)
-	for i := 0; i < numShards; i++ {
+	for i := range numShards {
 		ids[i] = uint32(i)
 	}
 

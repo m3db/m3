@@ -367,7 +367,7 @@ func TestStandardMetricListFlushConsumingAndCollectingLocalMetrics(t *testing.T)
 	require.Equal(t, 0, len(flushed))
 	flushLock.Unlock()
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		// Move the time forward by one aggregation interval.
 		nowTs = nowTs.Add(l.resolution)
 		atomic.StoreInt64(&now, nowTs.UnixNano())
@@ -655,7 +655,7 @@ func TestTimedMetricListFlushConsumingAndCollectingTimedMetrics(t *testing.T) {
 		flushLock.Unlock()
 
 	}
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		// Move the time forward by one aggregation interval.
 		nowTs = nowTs.Add(l.resolution)
 		atomic.StoreInt64(&now, nowTs.UnixNano())
@@ -936,7 +936,7 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 	require.Equal(t, 0, len(flushed))
 	flushLock.Unlock()
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		// Move the time forward by one aggregation interval.
 		nowTs = nowTs.Add(l.resolution)
 		atomic.StoreInt64(&now, nowTs.UnixNano())
@@ -1134,7 +1134,7 @@ func TestForwardedMetricListLastStepLocalFlush(t *testing.T) {
 	require.Equal(t, 0, len(flushed))
 	flushLock.Unlock()
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		// Move the time forward by one aggregation interval.
 		nowTs = nowTs.Add(l.resolution)
 		atomic.StoreInt64(&now, nowTs.UnixNano())
@@ -1340,7 +1340,7 @@ func validateLocalFlushed(
 	flushed []aggregated.ChunkedMetricWithStoragePolicy,
 ) {
 	require.Equal(t, len(expected), len(flushed))
-	for i := 0; i < len(flushed); i++ {
+	for i := range flushed {
 		require.Equal(t, expected[i].idPrefix, flushed[i].ChunkedID.Prefix)
 		require.Equal(t, []byte(expected[i].id), flushed[i].ChunkedID.Data)
 		require.Equal(t, expected[i].idSuffix, flushed[i].ChunkedID.Suffix)

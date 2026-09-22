@@ -289,7 +289,7 @@ func writeTestSetup(t *testing.T, writeWg *sync.WaitGroup) (*writeState, *sessio
 
 	enqueueWg.Wait()
 	require.True(t, s.state.topoMap.Replicas() == sessionTestReplicas)
-	for i := 0; i < s.state.topoMap.Replicas(); i++ {
+	for i := range s.state.topoMap.Replicas() {
 		completionFn(hosts[i], nil) // maintain session state
 	}
 

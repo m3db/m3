@@ -31,7 +31,7 @@ import (
 )
 
 func TestConvertMetricPartToMatcher(t *testing.T) {
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		globAndRegex := "foo*bar[rz]*{qux|quail}"
 		expected := models.Matcher{
 			Type:  models.MatchRegexp,
@@ -47,7 +47,7 @@ func TestConvertMetricPartToMatcher(t *testing.T) {
 
 func TestConvertWildcardToMatcher(t *testing.T) {
 	metric := "*"
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		expected := models.Matcher{
 			Type: models.MatchField,
 			Name: graphite.TagName(i),
@@ -80,7 +80,7 @@ func TestConvertAlphanumericMetricPartToMatcher(t *testing.T) {
 }
 
 func TestMatcherTerminator(t *testing.T) {
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		expected := models.Matcher{
 			Type: models.MatchNotField,
 			Name: graphite.TagName(i),

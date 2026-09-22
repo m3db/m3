@@ -79,7 +79,7 @@ func TestSeriesWriteReadParallel(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		for i := 0; i < numStepsPerWorker; i++ {
+		for i := range numStepsPerWorker {
 			wasWritten, _, err := series.Write(ctx, xtime.Now(), float64(i),
 				xtime.Nanosecond, nil, WriteOptions{})
 			if err != nil {
@@ -93,10 +93,10 @@ func TestSeriesWriteReadParallel(t *testing.T) {
 	}()
 
 	// Outer loop so that reads are competing with other reads, not just writes.
-	for j := 0; j < numWorkers; j++ {
+	for range numWorkers {
 		wg.Add(1)
 		go func() {
-			for i := 0; i < numStepsPerWorker; i++ {
+			for range numStepsPerWorker {
 				now := xtime.Now()
 				_, err := series.ReadEncoded(ctx, start.Add(-time.Minute),
 					now.Add(time.Minute), namespace.Context{})

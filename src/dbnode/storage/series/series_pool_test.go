@@ -80,7 +80,7 @@ func TestDatabaseSeriesPool(t *testing.T) {
 
 		// Get and put multiple times
 		var lastSeries DatabaseSeries
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			series := p.Get()
 			require.NotNil(t, series)
 			if lastSeries != nil {
@@ -98,18 +98,18 @@ func TestDatabaseSeriesPool(t *testing.T) {
 
 		// Get series up to capacity
 		series := make([]DatabaseSeries, size)
-		for i := 0; i < size; i++ {
+		for i := range size {
 			series[i] = p.Get()
 			require.NotNil(t, series[i])
 		}
 
 		// Put all series back
-		for i := 0; i < size; i++ {
+		for i := range size {
 			p.Put(series[i])
 		}
 
 		// Get series again
-		for i := 0; i < size; i++ {
+		for range size {
 			s := p.Get()
 			require.NotNil(t, s)
 		}

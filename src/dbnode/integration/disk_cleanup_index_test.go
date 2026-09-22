@@ -81,7 +81,7 @@ func TestDiskCleanupIndex(t *testing.T) {
 	numTimes := 10
 	filesetsIdentifiers := make([]fs.FileSetFileIdentifier, numTimes)
 	now := setup.NowFn()().Truncate(idxBlockSize)
-	for i := 0; i < numTimes; i++ {
+	for i := range numTimes {
 		filesetsIdentifiers[i] = fs.FileSetFileIdentifier{
 			Namespace:  md.ID(),
 			BlockStart: now.Add(time.Duration(i) * idxBlockSize),

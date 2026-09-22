@@ -28,7 +28,7 @@ import (
 )
 
 func TestTagName(t *testing.T) {
-	for i := 0; i < 2*numPreFormattedTagNames; i++ {
+	for i := range 2 * numPreFormattedTagNames {
 		expected := []byte("__g" + fmt.Sprint(i) + "__")
 		require.Equal(t, expected, TagName(i))
 	}

@@ -118,7 +118,7 @@ func TestLongQuoteWithOffset(t *testing.T) {
 		in := []byte(tt.in)
 		bufferLen := QuotedLength(in)
 		bb := make([]byte, bufferLen*repeat)
-		for i := 0; i < repeat; i++ {
+		for i := range repeat {
 			idx := Quote(bb, in, bufferLen*i)
 			assert.Equal(t, idx, bufferLen*(i+1))
 			expected := ""
@@ -134,7 +134,7 @@ func TestLongQuoteWithOffset(t *testing.T) {
 func BenchmarkQuoteSimple(b *testing.B) {
 	src := []byte("\a\b\f\r\n\t\v\a\b\f\r\n\t\v\a\b\f\r\n\t\v")
 	dst := make([]byte, len(src)+2)
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		QuoteSimple(dst, src, 0)
 	}
 }
@@ -142,7 +142,7 @@ func BenchmarkQuoteSimple(b *testing.B) {
 func BenchmarkQuote(b *testing.B) {
 	src := []byte("\a\b\f\r\n\t\v\a\b\f\r\n\t\v\a\b\f\r\n\t\v")
 	dst := make([]byte, QuotedLength(src))
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		Quote(dst, src, 0)
 	}
 }
@@ -151,7 +151,7 @@ func BenchmarkQuoteWithOffset(b *testing.B) {
 	src := []byte("\a\b\f\r\n\t\v\a\b\f\r\n\t\v\a\b\f\r\n\t\v")
 	l := QuotedLength(src)
 	dst := make([]byte, l*100)
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		Quote(dst, src, l*(i%100))
 	}
 }

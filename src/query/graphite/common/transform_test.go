@@ -65,7 +65,7 @@ func TestAbsolute(t *testing.T) {
 	assert.Equal(t, "test vodka", abs.Name())
 
 	absVals := make([]float64, len(vals))
-	for i := 0; i < abs.Len(); i++ {
+	for i := range abs.Len() {
 		absVals[i] = abs.ValueAt(i)
 	}
 	xtest.Equalish(t, []float64{2, 0, 42, math.NaN()}, absVals)
@@ -113,7 +113,7 @@ func TestOffset(t *testing.T) {
 		assert.Equal(t, startTime, output[0].StartTime())
 		assert.Equal(t, "test foo", output[0].Name())
 
-		for step := 0; step < output[0].Len(); step++ {
+		for step := range output[0].Len() {
 			v := output[0].ValueAt(step)
 			xtest.EqualWithNaNs(t, float64(test.output[step]), float64(v), "invalid value for %d", step)
 		}
@@ -163,7 +163,7 @@ func TestScale(t *testing.T) {
 		assert.Equal(t, startTime, output[0].StartTime())
 		assert.Equal(t, "test foo", output[0].Name())
 
-		for step := 0; step < output[0].Len(); step++ {
+		for step := range output[0].Len() {
 			v := output[0].ValueAt(step)
 			xtest.EqualWithNaNs(t, float64(test.output[step]), float64(v), "invalid value for %d", step)
 		}
@@ -212,7 +212,7 @@ func TestTransformNull(t *testing.T) {
 		assert.Equal(t, startTime, output[0].StartTime())
 		assert.Equal(t, "test foo", output[0].Name())
 
-		for step := 0; step < output[0].Len(); step++ {
+		for step := range output[0].Len() {
 			v := output[0].ValueAt(step)
 			assert.Equal(t, test.output[step], v, "invalid value for %d", step)
 		}
@@ -260,7 +260,7 @@ func TestIsNonNull(t *testing.T) {
 		assert.Equal(t, startTime, output[0].StartTime())
 		assert.Equal(t, "test foo", output[0].Name())
 
-		for step := 0; step < output[0].Len(); step++ {
+		for step := range output[0].Len() {
 			v := output[0].ValueAt(step)
 			assert.Equal(t, test.output[step], v, "invalid value for %d", step)
 		}

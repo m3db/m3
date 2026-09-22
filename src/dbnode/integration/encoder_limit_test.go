@@ -68,7 +68,7 @@ func TestEncoderLimit(t *testing.T) {
 	nsID := testNamespaces[0]
 	seriesID := ident.StringID("foo")
 
-	for i := 0; i < encoderLimit+5; i++ {
+	for i := range encoderLimit + 5 {
 		err = session.Write(
 			nsID, seriesID,
 			// Write backwards so that a new encoder gets created every write.
@@ -87,7 +87,7 @@ func TestEncoderLimit(t *testing.T) {
 		}
 	}
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		err = session.Write(
 			nsID, seriesID,
 			now.Add(time.Duration(51+i)*time.Second),
@@ -105,7 +105,7 @@ func TestEncoderLimit(t *testing.T) {
 	newRuntimeOpts = mgr.Get().SetEncodersPerBlockLimit(encoderLimit)
 	mgr.Update(newRuntimeOpts)
 
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		err = session.Write(
 			nsID, seriesID,
 			now.Add(time.Duration(20-i)*time.Second),

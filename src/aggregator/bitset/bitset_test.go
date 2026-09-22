@@ -27,9 +27,9 @@ import (
 )
 
 func TestBitSetSmallRangeSetAll(t *testing.T) {
-	for i := 0; i <= 64; i++ {
+	for i := range 65 {
 		bs := New(uint(i))
-		for j := 0; j < i; j++ {
+		for j := range i {
 			bs.Set(uint(j))
 		}
 		require.True(t, bs.All(uint(i)))
@@ -38,9 +38,9 @@ func TestBitSetSmallRangeSetAll(t *testing.T) {
 
 func TestBitSetSmallRangeSetPartial(t *testing.T) {
 	for i := 1; i <= 64; i++ {
-		for skip := 0; skip < i; skip++ {
+		for skip := range i {
 			bs := New(uint(i))
-			for j := 0; j < i; j++ {
+			for j := range i {
 				if j == skip {
 					continue
 				}
@@ -54,7 +54,7 @@ func TestBitSetSmallRangeSetPartial(t *testing.T) {
 func TestBitSetLargeRangeSetAll(t *testing.T) {
 	for i := 65; i <= 256; i++ {
 		bs := New(uint(i))
-		for j := 0; j < i; j++ {
+		for j := range i {
 			bs.Set(uint(j))
 		}
 		require.True(t, bs.All(uint(i)))
@@ -63,9 +63,9 @@ func TestBitSetLargeRangeSetAll(t *testing.T) {
 
 func TestBitSetLargeRangeSetPartial(t *testing.T) {
 	for i := 65; i <= 256; i++ {
-		for skip := 0; skip < i; skip++ {
+		for skip := range i {
 			bs := New(uint(i))
-			for j := 0; j < i; j++ {
+			for j := range i {
 				if j == skip {
 					continue
 				}

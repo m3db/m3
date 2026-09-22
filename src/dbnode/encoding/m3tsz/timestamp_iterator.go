@@ -267,7 +267,7 @@ func (it *TimestampIterator) readDeltaOfDelta(
 	}
 
 	buckets := tes.Buckets()
-	for i := 0; i < len(buckets); i++ {
+	for i := range buckets {
 		nextCB, err := stream.ReadBits(1)
 		if err != nil {
 			return 0, nil

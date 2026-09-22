@@ -150,7 +150,7 @@ func TestSessionWriteTagged(t *testing.T) {
 
 	// Callback
 	enqueueWg.Wait()
-	for i := 0; i < session.state.topoMap.Replicas(); i++ {
+	for range session.state.topoMap.Replicas() {
 		completionFn(session.state.topoMap.Hosts()[0], nil)
 	}
 
@@ -206,7 +206,7 @@ func TestSessionWriteTaggedDoesNotCloneNoFinalize(t *testing.T) {
 
 	// Callback
 	enqueueWg.Wait()
-	for i := 0; i < session.state.topoMap.Replicas(); i++ {
+	for range session.state.topoMap.Replicas() {
 		completionFn(session.state.topoMap.Hosts()[0], nil)
 	}
 
@@ -413,7 +413,7 @@ func TestSessionWriteTaggedRetry(t *testing.T) {
 
 	// Callback
 	enqueueWg.Wait()
-	for i := 0; i < session.state.topoMap.Replicas(); i++ {
+	for range session.state.topoMap.Replicas() {
 		completionFn(session.state.topoMap.Hosts()[0], nil)
 	}
 
@@ -446,7 +446,7 @@ func TestSessionWriteTaggedConsistencyLevelMajority(t *testing.T) {
 	defer ctrl.Finish()
 
 	level := topology.ConsistencyLevelMajority
-	for i := 0; i <= 1; i++ {
+	for i := range 2 {
 		testWriteTaggedConsistencyLevel(t, ctrl, level, 3-i, i, outcomeSuccess)
 		testWriteTaggedConsistencyLevel(t, ctrl, level, 3-i, 0, outcomeSuccess)
 	}
@@ -460,7 +460,7 @@ func TestSessionWriteTaggedConsistencyLevelOne(t *testing.T) {
 	defer ctrl.Finish()
 
 	level := topology.ConsistencyLevelOne
-	for i := 0; i <= 2; i++ {
+	for i := range 3 {
 		testWriteTaggedConsistencyLevel(t, ctrl, level, 3-i, i, outcomeSuccess)
 		testWriteTaggedConsistencyLevel(t, ctrl, level, 3-i, 0, outcomeSuccess)
 	}
@@ -511,10 +511,10 @@ func testWriteTaggedConsistencyLevel(
 	enqueueWg.Wait()
 	host := session.state.topoMap.Hosts()[0] // any host
 	writeErr := "a specific write error"
-	for i := 0; i < success; i++ {
+	for range success {
 		completionFn(host, nil)
 	}
-	for i := 0; i < failures; i++ {
+	for range failures {
 		completionFn(host, errors.New(writeErr))
 	}
 

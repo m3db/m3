@@ -55,7 +55,7 @@ func newTopologyInitializer() topology.Initializer {
 
 func optionsWithAsyncSessions(hasSync bool, asyncCount int) Options {
 	topoInits := make([]topology.Initializer, 0, asyncCount)
-	for i := 0; i < asyncCount; i++ {
+	for range asyncCount {
 		topoInits = append(topoInits, newTopologyInitializer())
 	}
 	options := NewAdminOptions().
@@ -159,7 +159,7 @@ func (s *replicatedSessionTestSuite) TestSetAsyncSessions() {
 	s.initReplicatedSession(opts, newSessionFunc)
 
 	sessionOpts := []Options{}
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		o := NewMockAdminOptions(s.mockCtrl)
 		o.EXPECT().InstrumentOptions().AnyTimes().Return(instrument.NewOptions())
 		o.EXPECT().SetInstrumentOptions(gomock.Any()).Return(o)
@@ -286,7 +286,7 @@ func (s *replicatedSessionTestSuite) waitForAsyncSessions(asyncCount int) {
 	t := time.NewTimer(1 * time.Second)
 
 	// Allow async expectations to occur before ending test.
-	for i := 0; i < asyncCount; i++ {
+	for range asyncCount {
 		select {
 		case err := <-s.replicatedSession.outCh:
 			s.NoError(err)

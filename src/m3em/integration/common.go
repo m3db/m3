@@ -91,7 +91,7 @@ func newLargeTempFile(t *testing.T, dir string, numBytes int64) *os.File {
 	numIters := numBytes / defaultUniqueBytes
 	tmpfile, err := ioutil.TempFile(dir, "example-large-file")
 	require.NoError(t, err)
-	for i := int64(0); i < numIters; i++ {
+	for range numIters {
 		n, err := tmpfile.Write(byteStream)
 		require.NoError(t, err)
 		require.Equal(t, len(byteStream), n)
@@ -122,7 +122,7 @@ func newRandByteStream(t *testing.T, numBytes int64) []byte {
 		num  = numBytes / 8
 		r    = rand.New(rand.NewSource(rngSeed))
 	)
-	for i := int64(0); i < num; i++ {
+	for range num {
 		n := r.Int63()
 		err := binary.Write(buff, binary.LittleEndian, n)
 		require.NoError(t, err)

@@ -601,7 +601,7 @@ func (dec *Decoder) skip(numFields int) {
 		dec.err = fmt.Errorf("number of fields to skip is %d", numFields)
 		return
 	}
-	for i := 0; i < numFields; i++ {
+	for range numFields {
 		if err := dec.dec.Skip(); err != nil {
 			dec.err = err
 			return

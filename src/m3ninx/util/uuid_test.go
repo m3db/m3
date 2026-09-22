@@ -31,7 +31,7 @@ func TestNewUUID(t *testing.T) {
 		numIters = 1000
 		uuids    = make(map[string]struct{}, numIters)
 	)
-	for i := 0; i < numIters; i++ {
+	for range numIters {
 		uuid, err := NewUUID()
 		require.NoError(t, err)
 

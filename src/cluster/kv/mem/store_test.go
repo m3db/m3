@@ -221,7 +221,7 @@ func TestHistory(t *testing.T) {
 	vals, err := s.History("foo", 3, 7)
 	require.NoError(t, err)
 	require.Equal(t, 4, len(vals))
-	for i := 0; i < len(vals); i++ {
+	for i := range vals {
 		require.Equal(t, i+3, vals[i].Version())
 	}
 

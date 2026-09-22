@@ -212,7 +212,7 @@ func renderResultsJSON(
 		jw.BeginArray()
 
 		if !s.AllNaN() || opts.renderSeriesAllNaNs {
-			for i := 0; i < s.Len(); i++ {
+			for i := range s.Len() {
 				timestamp, val := s.StartTimeForStep(i), s.ValueAt(i)
 				jw.BeginArray()
 				jw.WriteFloat64(val)
@@ -251,7 +251,7 @@ func renderResultsPickle(w io.Writer, series []*ts.Series) error {
 
 		pw.WriteDictKey("values")
 		pw.BeginList()
-		for i := 0; i < s.Len(); i++ {
+		for i := range s.Len() {
 			pw.WriteFloat64(s.ValueAt(i))
 		}
 		pw.EndList()

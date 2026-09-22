@@ -182,7 +182,7 @@ func newConsistencyResultError(
 	// NB(r): if any errors are bad request errors, encapsulate that error
 	// to ensure the error itself is wholly classified as a bad request error
 	var topLevelErr error
-	for i := 0; i < len(errs); i++ {
+	for i := range errs {
 		if topLevelErr == nil {
 			topLevelErr = errs[i]
 			continue

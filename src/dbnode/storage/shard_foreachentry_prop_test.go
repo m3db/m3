@@ -132,7 +132,7 @@ func testShardConcurrentForEachTick(
 		wg.Done()
 	}()
 
-	for i := 0; i < numRoutines; i++ {
+	for range numRoutines {
 		barrier <- struct{}{}
 	}
 
@@ -172,7 +172,7 @@ func testShardConcurrentForEach(
 		}()
 	}
 
-	for i := 0; i < numRoutines; i++ {
+	for range numRoutines {
 		barrier <- struct{}{}
 	}
 

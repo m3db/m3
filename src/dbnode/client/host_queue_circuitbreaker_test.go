@@ -195,7 +195,7 @@ func TestHostQueueCircuitBreakerIntegration(t *testing.T) {
 			var actualErrs []error
 			var mu sync.Mutex // Add mutex to protect actualErrs
 
-			for i := 0; i < test.numCalls; i++ {
+			for range test.numCalls {
 				writeOp := testWriteOp(
 					"testnamespace",
 					"testid",

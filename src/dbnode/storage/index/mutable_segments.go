@@ -990,7 +990,7 @@ func (m *mutableSegments) populateCachedSearches(
 		}
 		group errgroup.Group
 	)
-	for i := 0; i < numWorkers; i++ {
+	for range numWorkers {
 		workers <- newPopulateCachedSearchesWorker()
 	}
 	for _, s := range searches {
@@ -1493,7 +1493,7 @@ func (m *mutableSegmentsCompact) allocLazyBuilderAndCompactorsWithLock(
 	if m.backgroundCompactors == nil {
 		n := numBackgroundCompactorsStandard
 		m.backgroundCompactors = make(chan *compaction.Compactor, n)
-		for i := 0; i < n; i++ {
+		for range n {
 			backgroundCompactor, err := compaction.NewCompactor(metadataPool,
 				MetadataArrayPoolCapacity,
 				m.opts.SegmentBuilderOptions(),
@@ -1518,7 +1518,7 @@ func (m *mutableSegmentsCompact) allocBackgroundCompactorsGarbageCollect() (
 	metadataPool := m.opts.MetadataArrayPool()
 	n := numBackgroundCompactorsGarbageCollect
 	compactors := make(chan *compaction.Compactor, n)
-	for i := 0; i < n; i++ {
+	for range n {
 		backgroundCompactor, err := compaction.NewCompactor(metadataPool,
 			MetadataArrayPoolCapacity,
 			m.opts.SegmentBuilderOptions(),

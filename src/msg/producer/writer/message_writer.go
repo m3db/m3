@@ -965,7 +965,7 @@ func (w *messageWriter) waitForForcedFlush(
 	defer t.Stop()
 
 waitLoop:
-	for range len(consumerWriters) {
+	for range consumerWriters {
 		select {
 		case idx := <-doneCh:
 			if idx == -1 {

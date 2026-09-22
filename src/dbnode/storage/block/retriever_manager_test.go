@@ -148,7 +148,7 @@ func TestShardBlockRetrieverManagerConcurrentAccess(t *testing.T) {
 	// Test concurrent access to the same shard
 	shard := uint32(1)
 	done := make(chan struct{})
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		go func() {
 			r := manager.ShardRetriever(shard)
 			require.NotNil(t, r)
@@ -157,7 +157,7 @@ func TestShardBlockRetrieverManagerConcurrentAccess(t *testing.T) {
 	}
 
 	// Wait for all goroutines to complete
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		<-done
 	}
 }

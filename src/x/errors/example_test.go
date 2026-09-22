@@ -30,7 +30,7 @@ import (
 func ExampleMultiError() {
 	multiErr := errors.NewMultiError()
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		// Perform some work which may fail.
 		err := fmt.Errorf("error %d", i)
 

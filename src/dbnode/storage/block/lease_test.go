@@ -406,7 +406,7 @@ func TestUpdateOpenLeasesConcurrencyTest(t *testing.T) {
 	}()
 
 	// Several goroutines calling OpenLease and OpenLatestLease.
-	for i := 0; i < numWorkers; i++ {
+	for range numWorkers {
 		wg.Add(2)
 		go func() {
 			for {

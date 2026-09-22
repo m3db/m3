@@ -192,9 +192,9 @@ func (sp StoragePolicies) Equal(other StoragePolicies) bool {
 		return false
 	}
 	// # of StoragePolicies is typically very small, so it's not worth the overhead of cloning/sorting.
-	for i := 0; i < len(sp); i++ {
+	for i := range sp {
 		found := false
-		for j := 0; j < len(other); j++ {
+		for j := range other {
 			if sp[i] == other[j] {
 				found = true
 				break
@@ -275,7 +275,7 @@ func StoragePoliciesFromProto(src []policypb.StoragePolicy, dst []StoragePolicy)
 	if len(src) != len(dst) {
 		return errStoragePolicyLengthMismatch
 	}
-	for i := 0; i < len(src); i++ {
+	for i := range src {
 		d := &dst[i]
 		if err := d.resolution.FromProto(src[i].Resolution); err != nil {
 			return err

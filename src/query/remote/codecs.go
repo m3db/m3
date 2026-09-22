@@ -70,7 +70,7 @@ func encodeFetchResult(results *storage.FetchResult) *rpc.FetchResponse {
 	for i, result := range results.SeriesList {
 		vLen := result.Len()
 		datapoints := make([]*rpc.Datapoint, vLen)
-		for j := 0; j < vLen; j++ {
+		for j := range vLen {
 			dp := result.Values().DatapointAt(j)
 			datapoints[j] = &rpc.Datapoint{
 				Timestamp: int64(dp.Timestamp),

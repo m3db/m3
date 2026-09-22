@@ -355,7 +355,7 @@ func (r *reader) readIndexAndSortByOffsetAsc() error {
 	}
 
 	r.decoder.Reset(r.indexDecoderStream)
-	for i := 0; i < r.entries; i++ {
+	for range r.entries {
 		entry, err := r.decoder.DecodeIndexEntry(nil)
 		if err != nil {
 			return err
@@ -602,7 +602,7 @@ func (r *reader) Close() error {
 	multiErr = multiErr.Add(r.bloomFilterFd.Close())
 	r.indexDecoderStream.Reset(nil)
 	r.dataReader.Reset(nil)
-	for i := 0; i < len(r.indexEntriesByOffsetAsc); i++ {
+	for i := range len(r.indexEntriesByOffsetAsc) {
 		r.indexEntriesByOffsetAsc[i].ID = nil
 	}
 	r.indexEntriesByOffsetAsc = r.indexEntriesByOffsetAsc[:0]

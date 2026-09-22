@@ -119,7 +119,7 @@ func TestDatabaseBlockPool(t *testing.T) {
 		})
 
 		// Get and put multiple times
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			block := p.Get()
 			require.Equal(t, mockBlock, block)
 			p.Put(block)
@@ -150,17 +150,17 @@ func TestDatabaseBlockPool(t *testing.T) {
 
 		// Get blocks up to capacity
 		blocks := make([]DatabaseBlock, size)
-		for i := 0; i < size; i++ {
+		for i := range size {
 			blocks[i] = p.Get()
 		}
 
 		// Put all blocks back
-		for i := 0; i < size; i++ {
+		for i := range size {
 			p.Put(blocks[i])
 		}
 
 		// Get blocks again
-		for i := 0; i < size; i++ {
+		for range size {
 			block := p.Get()
 			require.NotNil(t, block)
 		}

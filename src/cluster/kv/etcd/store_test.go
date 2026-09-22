@@ -578,7 +578,7 @@ func TestHistory(t *testing.T) {
 	res, err = store.History("k1", 6, 10)
 	require.NoError(t, err)
 	require.Equal(t, 4, len(res))
-	for i := 0; i < len(res); i++ {
+	for i := range res {
 		version := i + 6
 		value := res[i]
 		verifyValue(t, value, fmt.Sprintf("bar%d", version), version)
@@ -587,7 +587,7 @@ func TestHistory(t *testing.T) {
 	res, err = store.History("k1", 3, 7)
 	require.NoError(t, err)
 	require.Equal(t, 4, len(res))
-	for i := 0; i < len(res); i++ {
+	for i := range res {
 		version := i + 3
 		value := res[i]
 		verifyValue(t, value, fmt.Sprintf("bar%d", version), version)
@@ -596,7 +596,7 @@ func TestHistory(t *testing.T) {
 	res, err = store.History("k1", 5, 15)
 	require.NoError(t, err)
 	require.Equal(t, totalVersion-5+1, len(res))
-	for i := 0; i < len(res); i++ {
+	for i := range res {
 		version := i + 5
 		value := res[i]
 		verifyValue(t, value, fmt.Sprintf("bar%d", version), version)

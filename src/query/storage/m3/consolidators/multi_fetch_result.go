@@ -131,7 +131,7 @@ func (r *multiResult) FinalResultWithAttrs() (
 		l := iters.Len()
 		attrs = make([]storagemetadata.Attributes, 0, l)
 		if r.dedupeMap == nil {
-			for i := 0; i < l; i++ {
+			for range l {
 				attrs = append(attrs, r.seenFirstAttrs)
 			}
 		} else {

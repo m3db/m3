@@ -79,7 +79,7 @@ func (p StagedPolicies) Equals(other StagedPolicies) bool {
 	if len(currPolicies) != len(otherPolicies) {
 		return false
 	}
-	for i := 0; i < len(currPolicies); i++ {
+	for i := range currPolicies {
 		if currPolicies[i] != otherPolicies[i] {
 			return false
 		}

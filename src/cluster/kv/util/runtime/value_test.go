@@ -171,7 +171,7 @@ func TestValueWatchUnWatchMultipleTimes(t *testing.T) {
 	require.NoError(t, err)
 
 	iter := 10
-	for i := 0; i < iter; i++ {
+	for range iter {
 		require.NoError(t, rv.Watch())
 		rv.Unwatch()
 	}

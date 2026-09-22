@@ -425,7 +425,7 @@ func (b *flushBucket) Add(flusher flushingMetricList) {
 
 func (b *flushBucket) Remove(flusher flushingMetricList) error {
 	numFlushers := len(b.flushers)
-	for i := 0; i < numFlushers; i++ {
+	for i := range numFlushers {
 		if b.flushers[i] == flusher {
 			b.flushers[i] = b.flushers[numFlushers-1]
 			b.flushers = b.flushers[:numFlushers-1]

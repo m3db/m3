@@ -322,7 +322,7 @@ func TestAddWarningsPreservedFollowedByAdd(t *testing.T) {
 		Message: "qux",
 	})
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{
 			encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{
 				ID:        ident.StringID(fmt.Sprintf("series-%d", i)),

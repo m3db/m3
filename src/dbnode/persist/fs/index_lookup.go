@@ -178,7 +178,7 @@ func newNearestIndexOffsetLookupFromSummariesFile(
 	decoderStream.Reset(summariesMmap.Bytes)
 	decoder.Reset(decoderStream)
 
-	for read := 0; read < numEntries; read++ {
+	for range numEntries {
 		// We ignore the entry itself because we don't need any information from it
 		entry, summaryToken, err := decoder.DecodeIndexSummary()
 		if err != nil {

@@ -337,7 +337,7 @@ func TestAbsolute(t *testing.T) {
 	require.Equal(t, start, outputs[0].StartTime())
 	assert.Equal(t, "absolute(foo)", outputs[0].Name())
 
-	for step := 0; step < outputs[0].Len(); step++ {
+	for step := range outputs[0].Len() {
 		v := outputs[0].ValueAt(step)
 		xtest.Equalish(t, outputVals[step], v, "invalid value for %d", step)
 	}
@@ -379,7 +379,7 @@ func TestScale(t *testing.T) {
 		require.Equal(t, start, outputs[0].StartTime())
 		assert.Equal(t, fmt.Sprintf("scale(foo,"+common.FloatingPointFormat+")", test.scale), outputs[0].Name())
 
-		for step := 0; step < outputs[0].Len(); step++ {
+		for step := range outputs[0].Len() {
 			v := outputs[0].ValueAt(step)
 			xtest.Equalish(t, test.outputs[step], v, "invalid value for %d", step)
 		}
@@ -658,7 +658,7 @@ func TestPercentileOfSeries(t *testing.T) {
 		name := fmt.Sprintf("percentileOfSeries(<values>,"+common.FloatingPointFormat+")",
 			test.percentile)
 		assert.Equal(t, name, output[0].Name())
-		for step := 0; step < output[0].Len(); step++ {
+		for step := range output[0].Len() {
 			v := output[0].ValueAt(step)
 			require.NoError(t, err)
 
@@ -704,7 +704,7 @@ func TestOffset(t *testing.T) {
 		require.Equal(t, start, outputs[0].StartTime())
 		assert.Equal(t, fmt.Sprintf("offset(foo,"+common.FloatingPointFormat+")", test.factor), outputs[0].Name())
 
-		for step := 0; step < outputs[0].Len(); step++ {
+		for step := range outputs[0].Len() {
 			v := outputs[0].ValueAt(step)
 			xtest.Equalish(t, test.outputs[step], v, "invalid value for %d", step)
 		}
@@ -750,7 +750,7 @@ func TestPerSecond(t *testing.T) {
 		require.Equal(t, len(test.output), perSec[0].Len())
 		assert.Equal(t, series.StartTime(), perSec[0].StartTime())
 		assert.Equal(t, "perSecond(foo)", perSec[0].Name())
-		for i := 0; i < perSec[0].Len(); i++ {
+		for i := range perSec[0].Len() {
 			val := perSec[0].ValueAt(i)
 			xtest.Equalish(t, test.output[i], val, "invalid value for %d", i)
 		}
@@ -1350,7 +1350,7 @@ func TestIsNonNull(t *testing.T) {
 		require.Equal(t, start, outputs[0].StartTime())
 		assert.Equal(t, "isNonNull(foo)", outputs[0].Name())
 
-		for step := 0; step < outputs[0].Len(); step++ {
+		for step := range outputs[0].Len() {
 			v := outputs[0].ValueAt(step)
 			assert.Equal(t, test.outputs[step], v, "invalid value for %d", step)
 		}
@@ -1528,7 +1528,7 @@ func TestSustainedAbove(t *testing.T) {
 
 		assert.Equal(t, str, outputs[0].Name())
 
-		for step := 0; step < outputs[0].Len(); step++ {
+		for step := range outputs[0].Len() {
 			v := outputs[0].ValueAt(step)
 
 			assert.Equal(t, test.outputs[step], v, "invalid value for %d", step)
@@ -1625,7 +1625,7 @@ func TestSustainedBelow(t *testing.T) {
 		str := fmt.Sprintf("sustainedBelow(foo, %f, '%s')", test.threshold, test.interval)
 
 		assert.Equal(t, str, outputs[0].Name())
-		for step := 0; step < outputs[0].Len(); step++ {
+		for step := range outputs[0].Len() {
 			v := outputs[0].ValueAt(step)
 
 			assert.Equal(t, test.outputs[step], v, "invalid value for %d", step)
@@ -2342,7 +2342,7 @@ func TestScaleToSeconds(t *testing.T) {
 		output := r.Values
 		require.Equal(t, 1, len(output))
 		assert.Equal(t, "scaleToSeconds(<values>,2)", output[0].Name())
-		for step := 0; step < output[0].Len(); step++ {
+		for step := range output[0].Len() {
 			v := output[0].ValueAt(step)
 			assert.Equal(t, test.expected[step], v)
 		}
@@ -2397,7 +2397,7 @@ func TestAsPercentWithSeriesTotal(t *testing.T) {
 		require.Equal(t, output[0].MillisPerStep(), test.outputStep)
 		assert.Equal(t, "asPercent(<values>,<totals>)", output[0].Name())
 
-		for step := 0; step < output[0].Len(); step++ {
+		for step := range output[0].Len() {
 			v := output[0].ValueAt(step)
 			assert.Equal(t, math.Trunc(v), test.output[step])
 		}
@@ -2447,7 +2447,7 @@ func TestAsPercentWithFloatTotal(t *testing.T) {
 			test.total)
 		assert.Equal(t, expectedName, output[0].Name())
 
-		for step := 0; step < output[0].Len(); step++ {
+		for step := range output[0].Len() {
 			v := output[0].ValueAt(step)
 			xtest.Equalish(t, math.Trunc(v), test.output[step])
 		}
@@ -2487,7 +2487,7 @@ func TestAsPercentWithNilTotal(t *testing.T) {
 		expectedName := "asPercent(<values>,sumSeries(<values>))"
 		assert.Equal(t, expectedName, output[0].Name())
 
-		for step := 0; step < output[0].Len(); step++ {
+		for step := range output[0].Len() {
 			v := output[0].ValueAt(step)
 			xtest.Equalish(t, math.Trunc(v), test.output[step])
 		}
@@ -2563,11 +2563,11 @@ func TestAsPercentWithSeriesList(t *testing.T) {
 
 func requireEqual(t *testing.T, expected, results []*ts.Series) {
 	require.Equal(t, len(expected), len(results))
-	for i := 0; i < len(results); i++ {
+	for i := range results {
 		require.Equal(t, expected[i].MillisPerStep(), results[i].MillisPerStep())
 		require.Equal(t, expected[i].Len(), results[i].Len())
 		require.Equal(t, expected[i].Name(), results[i].Name())
-		for step := 0; step < results[i].Len(); step++ {
+		for step := range results[i].Len() {
 			xtest.Equalish(t, expected[i].ValueAt(step), results[i].ValueAt(step))
 		}
 	}
@@ -3198,7 +3198,7 @@ func TestConstantLine(t *testing.T) {
 	require.Equal(t, 3, testSeries[0].Len())
 	expectedName := fmt.Sprintf(common.FloatingPointFormat, testValue)
 	require.Equal(t, expectedName, testSeries[0].Name())
-	for i := 0; i < testSeries[0].Len(); i++ {
+	for i := range testSeries[0].Len() {
 		require.Equal(t, float64(testValue), testSeries[0].ValueAt(i))
 	}
 }
@@ -3216,7 +3216,7 @@ func TestIdentity(t *testing.T) {
 	require.Equal(t, testName, testSeries[0].Name())
 	require.Equal(t, 60, testSeries[0].Len())
 	expectedValue := ctx.StartTime.Unix()
-	for i := 0; i < testSeries[0].Len(); i++ {
+	for i := range testSeries[0].Len() {
 		require.Equal(t, float64(expectedValue), testSeries[0].ValueAt(i))
 		expectedValue += 60
 	}
@@ -3264,7 +3264,7 @@ func TestLimitSortStable(t *testing.T) {
 	// series is chosen deterministically each time if the results weren't
 	// already ordered.
 	var lastOrder []string
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		rand.Shuffle(len(series), func(i, j int) {
 			series[i], series[j] = series[j], series[i]
 		})
@@ -3847,7 +3847,7 @@ func testRandomWalkFunctionInternal(t *testing.T, ctx *common.Context, stepSize,
 	results := r.Values
 	require.Equal(t, 1, len(results))
 	require.Equal(t, expectedLen, results[0].Len())
-	for i := 0; i < expectedLen; i++ {
+	for i := range expectedLen {
 		v := results[0].ValueAt(i)
 		require.True(t, v >= -0.5 && v < 0.5)
 	}
@@ -3896,7 +3896,7 @@ func testAggregateLineInternal(t *testing.T, f string, expectedName string, expe
 	require.Equal(t, 1, len(results))
 	require.Equal(t, expectedName, results[0].Name())
 	require.Equal(t, 3, results[0].Len())
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		require.Equal(t, expectedVal, results[0].ValueAt(i))
 	}
 }

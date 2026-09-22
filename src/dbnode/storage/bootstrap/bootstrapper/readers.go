@@ -168,7 +168,7 @@ func newShardReaders(
 	logger.Debug("enqueue readers open data readers start", logFields...)
 	logSpan("enqueue_readers_open_data_readers_start")
 	readers := make([]fs.DataFileSetReader, 0, len(readInfoFilesResults))
-	for i := 0; i < len(readInfoFilesResults); i++ {
+	for i := range readInfoFilesResults {
 		result := readInfoFilesResults[i]
 		if err := result.Err.Error(); err != nil {
 			logger.Error("fs bootstrapper unable to read info file",

@@ -389,7 +389,7 @@ func TestServiceSetMetadata(t *testing.T) {
 	mockDB := storage.NewMockDatabase(ctrl)
 	service := NewService(mockDB, testTChannelThriftOptions).(*service)
 	metas := make([]string, 0, size)
-	for i := 0; i < size; i++ {
+	for i := range size {
 		metas = append(metas, fmt.Sprint(i))
 	}
 

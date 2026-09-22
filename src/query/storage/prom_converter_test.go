@@ -63,7 +63,7 @@ func fr(
 
 func makeTag(n, v string, count int) []*models.Tags {
 	tags := make([]*models.Tags, 0, count)
-	for i := 0; i < count; i++ {
+	for range count {
 		t := models.EmptyTags().AddTag(models.Tag{Name: []byte(n), Value: []byte(v)})
 		tags = append(tags, &t)
 	}
@@ -106,7 +106,7 @@ func verifyExpandPromSeries(
 		},
 	}
 
-	for i := 0; i < num; i++ {
+	for i := range num {
 		series := ts[i]
 		require.NotNil(t, series)
 		require.Equal(t, expectedTags, series.GetLabels())
@@ -116,7 +116,7 @@ func verifyExpandPromSeries(
 func testExpandPromSeries(t *testing.T, ex bool, pools xsync.PooledWorkerPool) {
 	ctrl := gomock.NewController(t)
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		verifyExpandPromSeries(t, ctrl, i, ex, pools)
 	}
 }

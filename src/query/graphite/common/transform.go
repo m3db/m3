@@ -193,7 +193,7 @@ func Transform(ctx *Context, in ts.SeriesList, t Transformer, renamer SeriesRena
 	for i, series := range in.Values {
 		t.Reset()
 		values := ts.NewValues(ctx, series.MillisPerStep(), series.Len())
-		for step := 0; step < series.Len(); step++ {
+		for step := range series.Len() {
 			value := series.ValueAt(step)
 			values.SetValueAt(step, t.Apply(value))
 		}
@@ -219,7 +219,7 @@ func Stdev(ctx *Context, in ts.SeriesList, points int, windowTolerance float64, 
 		validPoints := 0
 		currentSum := 0.0
 		currentSumOfSquares := 0.0
-		for index := 0; index < series.Len(); index++ {
+		for index := range series.Len() {
 			newValue := series.ValueAt(index)
 			var bootstrapping bool
 			var droppedValue float64
@@ -276,7 +276,7 @@ func PerSecond(ctx *Context, in ts.SeriesList, renamer SeriesRenamer) (ts.Series
 			secsSinceLastVal = secsPerStep
 		)
 
-		for step := 0; step < series.Len(); step++ {
+		for step := range series.Len() {
 			cur := series.ValueAt(step)
 
 			if math.IsNaN(prev) {

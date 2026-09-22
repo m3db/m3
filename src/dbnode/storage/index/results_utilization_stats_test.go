@@ -29,14 +29,14 @@ import (
 
 func TestResultsUtilizationStatsConstant(t *testing.T) {
 	r := resultsUtilizationStats{}
-	for i := 0; i < 2*consecutiveTimesUnderCapacityThreshold; i++ {
+	for i := range 2 * consecutiveTimesUnderCapacityThreshold {
 		require.True(t, r.updateAndCheck(100), strconv.Itoa(i))
 	}
 }
 
 func TestResultsUtilizationStatsIncreasing(t *testing.T) {
 	r := resultsUtilizationStats{}
-	for i := 0; i < 2*consecutiveTimesUnderCapacityThreshold; i++ {
+	for i := range 2 * consecutiveTimesUnderCapacityThreshold {
 		require.True(t, r.updateAndCheck(i), strconv.Itoa(i))
 	}
 }
@@ -60,7 +60,7 @@ func TestResultsUtilizationStatsAllSmallerThanFirst(t *testing.T) {
 
 func TestResultsUtilizationStatsAlternating(t *testing.T) {
 	r := resultsUtilizationStats{}
-	for i := 0; i < 10*consecutiveTimesUnderCapacityThreshold; i++ {
+	for i := range 10 * consecutiveTimesUnderCapacityThreshold {
 		require.True(t, r.updateAndCheck(i%5), strconv.Itoa(i))
 	}
 }

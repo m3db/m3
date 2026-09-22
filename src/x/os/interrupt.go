@@ -123,7 +123,7 @@ func NewInterruptChannel(numListeners int) <-chan error {
 	interruptCh := make(chan error, numListeners)
 	go func() {
 		err := NewInterruptError(fmt.Sprintf("%v", <-interrupt()))
-		for i := 0; i < numListeners; i++ {
+		for range numListeners {
 			interruptCh <- err
 		}
 	}()

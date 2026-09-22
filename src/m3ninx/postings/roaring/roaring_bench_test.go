@@ -30,12 +30,12 @@ func BenchmarkClone(b *testing.B) {
 	b.ReportAllocs()
 
 	initPL := roaring.New()
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		initPL.Add(uint32(i))
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		cloned := initPL.Clone()
 		if cloned.GetCardinality() != initPL.GetCardinality() {
 			b.Error("unequal duplicate size")
@@ -47,13 +47,13 @@ func BenchmarkCachedObject(b *testing.B) {
 	b.ReportAllocs()
 
 	initPL := roaring.New()
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		initPL.Add(uint32(i))
 	}
 	dst := roaring.New()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		dst.Clear()
 		dst.Or(initPL)
 		if dst.GetCardinality() != initPL.GetCardinality() {

@@ -67,7 +67,7 @@ func NewGenerator(opts Options) Generator {
 		},
 	}
 
-	for i := 0; i < opts.NumIDs(); i++ {
+	for range opts.NumIDs() {
 		idLen := g.idLength.sample(g.r)
 		g.ids = append(g.ids, randStringBytesMaskImprSrc(idLen, opts.RandSource()))
 	}

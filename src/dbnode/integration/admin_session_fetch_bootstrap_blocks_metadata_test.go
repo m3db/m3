@@ -69,7 +69,7 @@ func writeTestData(t *testing.T, testSetup TestSetup, namespace ident.ID, start 
 			if numOfSeries-i < batchSize {
 				size = numOfSeries - i
 			}
-			for j := 0; j < size; j++ {
+			for j := range size {
 				id := fmt.Sprintf("foo_%d_%d", i, j)
 				currInput := generate.BlockConfig{IDs: []string{id}, Start: start, NumPoints: 5}
 				testData := generate.Block(currInput)

@@ -119,7 +119,7 @@ func BenchmarkWriteBytes(b *testing.B) {
 		bytesPool = testBytesPool
 		o         = NewOStream(nil, false, bytesPool)
 	)
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		o.Reset(nil)
 		o.WriteBytes(bytes)
 	}

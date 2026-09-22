@@ -46,7 +46,7 @@ func TagValueFromEncodedTagsFast(
 	length := int(ByteOrder.Uint16(encodedTags[:2]))
 	encodedTags = encodedTags[2:]
 
-	for i := 0; i < length; i++ {
+	for i := range length {
 		if len(encodedTags) < 2 {
 			return nil, false, fmt.Errorf("missing size for tag name: index=%d", i)
 		}

@@ -71,7 +71,7 @@ func TestLimiterIsAllowed(t *testing.T) {
 
 	limiter := NewLimiter(allowedPerSecond)
 	require.True(t, limiter.IsAllowed(5, now))
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		now += xtime.UnixNano(100 * time.Millisecond)
 		require.True(t, limiter.IsAllowed(1, now))
 	}

@@ -162,7 +162,7 @@ func (r *blockRetriever) Open(
 	r.blockSize = ns.Options().RetentionOptions().BlockSize()
 	r.nsCacheBlocksOnRetrieve = ns.Options().CacheBlocksOnRetrieve()
 
-	for i := 0; i < r.opts.FetchConcurrency(); i++ {
+	for range r.opts.FetchConcurrency() {
 		go r.fetchLoop(seekerMgr)
 	}
 	return nil
@@ -673,7 +673,7 @@ func (r *blockRetriever) Close() error {
 	r.Unlock()
 
 	close(r.fetchLoopsShouldShutdownCh)
-	for i := 0; i < r.opts.FetchConcurrency(); i++ {
+	for range r.opts.FetchConcurrency() {
 		<-r.fetchLoopsHaveShutdownCh
 	}
 

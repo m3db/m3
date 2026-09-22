@@ -676,7 +676,7 @@ func BenchmarkIDs(b *testing.B) {
 					tags = buildTags(b, bb.tagCount, bb.tagLength, opts, false)
 				}
 
-				for i := 0; i < b.N; i++ {
+				for range b.N {
 					_ = tags.ID()
 				}
 			})

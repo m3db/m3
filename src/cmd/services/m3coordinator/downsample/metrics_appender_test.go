@@ -64,7 +64,7 @@ func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
 
 	appenderPool := newMetricsAppenderPool(poolOpts, serialize.NewTagSerializationLimits(), defaultMetricNameTagName)
 
-	for i := 0; i < count; i++ {
+	for i := range count {
 		matcher := matcher.NewMockMatcher(ctrl)
 		matcher.EXPECT().ForwardMatch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 			DoAndReturn(func(encodedID id.ID, _, _ int64, _ rules.MatchOptions) (rules.MatchResult, error) {

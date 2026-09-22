@@ -36,7 +36,7 @@ func TestMinHeapPushInDecreasingOrder(t *testing.T) {
 		require.Equal(t, iter-i, h.Len())
 	}
 	validateSort(t, *h)
-	for i := 0; i < iter; i++ {
+	for i := range iter {
 		require.Equal(t, float64(i), h.Min())
 		require.Equal(t, float64(i), h.Pop())
 		validateInvariant(t, *h, 0)
@@ -46,12 +46,12 @@ func TestMinHeapPushInDecreasingOrder(t *testing.T) {
 func TestMinHeapPushInIncreasingOrder(t *testing.T) {
 	h := &minHeap{}
 	iter := 10
-	for i := 0; i < iter; i++ {
+	for i := range iter {
 		h.Push(float64(i))
 		require.Equal(t, i+1, h.Len())
 	}
 	validateSort(t, *h)
-	for i := 0; i < iter; i++ {
+	for i := range iter {
 		require.Equal(t, float64(i), h.Min())
 		require.Equal(t, float64(i), h.Pop())
 		validateInvariant(t, *h, 0)
@@ -61,7 +61,7 @@ func TestMinHeapPushInIncreasingOrder(t *testing.T) {
 func TestMinHeapPushInRandomOrderAndSort(t *testing.T) {
 	h := &minHeap{}
 	iter := 42
-	for i := 0; i < iter; i++ {
+	for range iter {
 		h.Push(rand.ExpFloat64())
 	}
 	validateSort(t, *h)
@@ -72,7 +72,7 @@ func validateSort(t *testing.T, h minHeap) {
 	// copy heap before applying reference sort and minheap-sort
 	a := make([]float64, h.Len())
 	b := make([]float64, h.Len())
-	for i := 0; i < len(h); i++ {
+	for i := range h {
 		a[i], b[i] = h[i], h[i]
 	}
 	sort.Sort(sort.Reverse(sort.Float64Slice(a)))

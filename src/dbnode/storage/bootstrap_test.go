@@ -192,7 +192,7 @@ func TestDatabaseBootstrapBootstrapHooks(t *testing.T) {
 
 	numNamespaces := 3
 	namespaces := make([]databaseNamespace, 0, 3)
-	for i := 0; i < numNamespaces; i++ {
+	for range numNamespaces {
 		ns := NewMockdatabaseNamespace(ctrl)
 		id := ident.StringID("testBootstrap")
 		meta, err := namespace.NewMetadata(id, namespace.NewOptions())
@@ -203,7 +203,7 @@ func TestDatabaseBootstrapBootstrapHooks(t *testing.T) {
 
 		numShards := 8
 		shards := make([]databaseShard, 0, numShards)
-		for j := 0; j < numShards; j++ {
+		for j := range numShards {
 			shard := NewMockdatabaseShard(ctrl)
 			shard.EXPECT().IsBootstrapped().Return(false)
 			shard.EXPECT().IsBootstrapped().Return(true)

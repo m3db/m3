@@ -223,7 +223,7 @@ func read(
 	bounds := bl.Meta().Bounds
 	// Initialize data slices.
 	data := make([]ts.FixedResolutionMutableValues, 0, numSeries)
-	for i := 0; i < numSeries; i++ {
+	for range numSeries {
 		data = append(data, ts.NewFixedStepValues(bounds.StepSize, bounds.Steps(),
 			math.NaN(), bounds.Start))
 	}

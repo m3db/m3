@@ -211,7 +211,7 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		pushOverride   = func(fn healthCheckFn, count int) {
 			overridesMut.Lock()
 			defer overridesMut.Unlock()
-			for i := 0; i < count; i++ {
+			for range count {
 				overrides = append(overrides, fn)
 			}
 		}
@@ -333,7 +333,7 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		// and the connection actually being removed.
 		return conns.ConnectionCount() == 1
 	}, 5*time.Second)
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		nextClient, _, err := conns.NextClient()
 		require.NoError(t, err)
 		require.Equal(t, client2, nextClient)

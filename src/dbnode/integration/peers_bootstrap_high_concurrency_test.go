@@ -228,7 +228,7 @@ func generateTaggedBlockConfigs(
 	cfg generateTaggedBlockConfig,
 ) []generate.BlockConfig {
 	results := make([]generate.BlockConfig, 0, cfg.series)
-	for i := 0; i < cfg.series; i++ {
+	for i := range cfg.series {
 		id := fmt.Sprintf("series_%d", i)
 		tags := make([]ident.Tag, 0, 1+len(cfg.commonTags))
 		tags = append(tags, ident.Tag{

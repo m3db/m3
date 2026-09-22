@@ -67,7 +67,7 @@ func BenchmarkBlockWrite(b *testing.B) {
 		"cheese":    {"cheddar", "swiss", "brie", "bleu"},
 	}
 
-	for i := 0; i < 4096; i++ {
+	for i := range 4096 {
 		fields := make([]doc.Field, 0, len(fieldValues))
 		for key, values := range fieldValues {
 			fields = append(fields, doc.Field{
@@ -93,7 +93,7 @@ func BenchmarkBlockWrite(b *testing.B) {
 	b.ResetTimer()
 
 	b.StartTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		// Simulate all documents being pending on consequent
 		// write batch calls
 		for _, entry := range batch.entries {

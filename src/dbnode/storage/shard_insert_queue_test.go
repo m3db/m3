@@ -165,7 +165,7 @@ func TestShardInsertQueueRateLimit(t *testing.T) {
 	require.NoError(t, err)
 
 	// Consecutive should be all rate limited
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		_, err = q.Insert(dbShardInsert{})
 		require.Error(t, err)
 		require.Equal(t, errNewSeriesInsertRateLimitExceeded, err)
@@ -213,7 +213,7 @@ func TestShardInsertQueueFlushedOnClose(t *testing.T) {
 
 	require.NoError(t, q.Start())
 
-	for i := 0; i < numInsertExpected; i++ {
+	for range numInsertExpected {
 		_, err := q.Insert(dbShardInsert{})
 		require.NoError(t, err)
 	}

@@ -464,7 +464,7 @@ func TestDecoderStream(t *testing.T) {
 	var texts [31]string
 	str := ""
 	all := ""
-	for i := 0; i < len(texts)-1; i++ {
+	for i := range len(texts) - 1 {
 		texts[i] = str + "\n"
 		all += texts[i]
 		str += string(rune(i%26 + 'a'))
@@ -472,7 +472,7 @@ func TestDecoderStream(t *testing.T) {
 	texts[len(texts)-1] = all
 
 	buf := newReaderDecoderStream()
-	for i := 0; i < len(texts); i++ {
+	for i := range texts {
 		text := texts[i]
 		for j := 1; j <= 8; j++ {
 			buf.Reset([]byte(text))
@@ -542,7 +542,7 @@ func TestDecoderStreamUnreadByteMultiple(t *testing.T) {
 		r := newReaderDecoderStream()
 		r.Reset(data)
 		// Read n bytes.
-		for i := 0; i < n; i++ {
+		for i := range n {
 			b, err := r.ReadByte()
 			if err != nil {
 				t.Fatalf("n = %d: unexpected error on ReadByte: %v", n, err)

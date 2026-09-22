@@ -1102,7 +1102,7 @@ func TestUnaggregatedEncoderStress(t *testing.T) {
 	enc := NewUnaggregatedEncoder(opts)
 	enc.(*unaggregatedEncoder).encodeMessageSizeFn = func(size int) { sizeRes = size }
 	enc.(*unaggregatedEncoder).encodeMessageFn = func(pb metricpb.MetricWithMetadatas) error { pbRes = pb; return nil }
-	for iter := 0; iter < numIter; iter++ {
+	for range numIter {
 		for i, input := range inputs {
 			var (
 				msg           encoding.UnaggregatedMessageUnion

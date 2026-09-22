@@ -41,37 +41,37 @@ var (
 )
 
 func BenchmarkParse(b *testing.B) {
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		Parse(testCarbonLine)
 	}
 }
 
 func BenchmarkParseSpaces(b *testing.B) {
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		Parse(testCarbonLineSpaces)
 	}
 }
 
 func BenchmarkRegex(b *testing.B) {
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		regexParse(string(testCarbonLine))
 	}
 }
 
 func BenchmarkParseName(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		ParseName(testCarbonLine)
 	}
 }
 
 func BenchmarkParsePacket(b *testing.B) {
 	var test string
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		test += string(testCarbonLine) + "\n"
 	}
 	testBytes := []byte(test)
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		ParsePacket(testBytes)
 	}
 }

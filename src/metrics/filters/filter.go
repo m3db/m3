@@ -339,7 +339,7 @@ func (f *multiFilter) String() string {
 	separator := " " + string(f.op) + " "
 	var buf bytes.Buffer
 	numFilters := len(f.filters)
-	for i := 0; i < numFilters; i++ {
+	for i := range numFilters {
 		buf.WriteString(f.filters[i].String())
 		if i < numFilters-1 {
 			buf.WriteString(separator)
@@ -535,7 +535,7 @@ func (f *singleCharSetFilter) matches(val []byte) ([]byte, bool) {
 	}
 
 	match := false
-	for i := 0; i < len(f.pattern); i++ {
+	for i := range len(f.pattern) {
 		if f.backwards && val[len(val)-1] == f.pattern[i] {
 			match = true
 			break
@@ -650,7 +650,7 @@ func (f *multiChainFilter) String() string {
 	}
 
 	numFilters := len(f.filters)
-	for i := 0; i < numFilters; i++ {
+	for i := range numFilters {
 		buf.WriteString(f.filters[i].String())
 		if i < numFilters-1 {
 			buf.WriteString(separator)
@@ -680,7 +680,7 @@ func (f *multiChainFilter) Matches(val []byte) bool {
 			}
 		}
 	} else {
-		for i := 0; i < len(f.filters); i++ {
+		for i := range len(f.filters) {
 			val, match = f.filters[i].matches(val)
 			if !match {
 				return false

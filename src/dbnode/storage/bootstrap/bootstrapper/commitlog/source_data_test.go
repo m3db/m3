@@ -140,7 +140,7 @@ func TestReadOnlyOnce(t *testing.T) {
 	defer tester.Finish()
 
 	// simulate 2 passes over the commit log
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		tester.TestReadWith(src)
 		tester.TestUnfulfilledForNamespaceIsEmpty(md)
 

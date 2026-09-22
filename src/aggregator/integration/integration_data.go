@@ -187,7 +187,7 @@ var (
 
 func generateTestIDs(prefix string, numIDs int) []string {
 	ids := make([]string, numIDs)
-	for i := 0; i < numIDs; i++ {
+	for i := range numIDs {
 		ids[i] = fmt.Sprintf("%s%d", prefix, i)
 	}
 	return ids
@@ -206,7 +206,7 @@ func generateTestDataset(opts datasetGenOpts) (testDataset, error) {
 	)
 	for timestamp := opts.start; timestamp.Before(opts.stop); timestamp = timestamp.Add(opts.interval) {
 		metricWithMetadatas := make([]metricWithMetadataUnion, 0, len(opts.ids))
-		for i := 0; i < len(opts.ids); i++ {
+		for i := range len(opts.ids) {
 			var (
 				metricType = opts.typeFn(timestamp, i)
 				mu         metricUnion

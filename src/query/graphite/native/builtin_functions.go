@@ -452,7 +452,7 @@ func timeSlice(ctx *common.Context, inputPath singlePathSpec, start string, end 
 		truncatedValues := ts.NewValues(ctx, series.MillisPerStep(), series.Len())
 
 		currentTime := series.StartTime()
-		for i := 0; i < series.Len(); i++ {
+		for i := range series.Len() {
 			equalOrAfterStart := currentTime.Equal(startTime) || currentTime.After(startTime)
 			beforeOrEqualEnd := currentTime.Before(endTime) || currentTime.Equal(endTime)
 			if equalOrAfterStart && beforeOrEqualEnd {
@@ -502,7 +502,7 @@ func scaleToSeconds(
 			name    = fmt.Sprintf("scaleToSeconds(%s,%d)", series.Name(), seconds)
 			factor  = float64(seconds*1000) / float64(series.MillisPerStep()) // convert seconds to millis
 		)
-		for step := 0; step < series.Len(); step++ {
+		for step := range series.Len() {
 			value := series.ValueAt(step)
 			outvals.SetValueAt(step, value*factor)
 		}
@@ -578,7 +578,7 @@ func keepLastValue(ctx *common.Context, input singlePathSpec, limit int) (ts.Ser
 		consecutiveNaNs := 0
 		numSteps := series.Len()
 		vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
-		for i := 0; i < numSteps; i++ {
+		for i := range numSteps {
 			value := series.ValueAt(i)
 			vals.SetValueAt(i, value)
 			if i == 0 {
@@ -618,7 +618,7 @@ func roundFunction(ctx *common.Context, input singlePathSpec, precision int) (ts
 	for _, series := range input.Values {
 		numSteps := series.Len()
 		vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
-		for i := 0; i < numSteps; i++ {
+		for i := range numSteps {
 			value := series.ValueAt(i)
 			if !math.IsNaN(value) {
 				value = roundTo(value, int32(precision))
@@ -735,7 +735,7 @@ func sustainedCompare(ctx *common.Context, input singlePathSpec, threshold float
 		minSteps := intervalMillis / series.MillisPerStep()
 		currSteps := 0
 
-		for i := 0; i < numSteps; i++ {
+		for i := range numSteps {
 			value := series.ValueAt(i)
 			if comparisonFunction(value, threshold) {
 				currSteps++
@@ -1165,7 +1165,7 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 
 				steps := normalized.Values[0].Len()
 				values := ts.NewValues(ctx, millisPerStep, steps)
-				for i := 0; i < steps; i++ {
+				for i := range steps {
 					v, t := normalized.Values[0].ValueAt(i), normalized.Values[1].ValueAt(i)
 					if !math.IsNaN(v) && !math.IsNaN(t) && t != 0 {
 						values.SetValueAt(i, (v/t)*100.0)
@@ -1192,7 +1192,7 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 		for _, series := range input.Values {
 			steps := series.Len()
 			values := ts.NewValues(ctx, series.MillisPerStep(), steps)
-			for i := 0; i < steps; i++ {
+			for i := range steps {
 				v, t := series.ValueAt(i), totalArg
 				if !math.IsNaN(v) && !math.IsNaN(t) && t != 0 {
 					values.SetValueAt(i, (v/t)*100.0)
@@ -1257,7 +1257,7 @@ func asPercent(ctx *common.Context, input singlePathSpec, total genericInterface
 
 		steps := normalized.Values[0].Len()
 		values := ts.NewValues(ctx, millisPerStep, steps)
-		for i := 0; i < steps; i++ {
+		for i := range steps {
 			v, t := normalized.Values[0].ValueAt(i), normalized.Values[1].ValueAt(i)
 			if !math.IsNaN(v) && !math.IsNaN(t) && t != 0 {
 				values.SetValueAt(i, (v/t)*100.0)
@@ -1320,7 +1320,7 @@ func powHelper(ctx *common.Context, input singlePathSpec, factor float64, isInve
 		numSteps := series.Len()
 		millisPerStep := series.MillisPerStep()
 		vals := ts.NewValues(ctx, millisPerStep, numSteps)
-		for i := 0; i < numSteps; i++ {
+		for i := range numSteps {
 			vals.SetValueAt(i, math.Pow(series.ValueAt(i), factor))
 		}
 		newName := fmt.Sprintf("%s(%s, %f)", renamePrefix, series.Name(), factor)
@@ -1352,7 +1352,7 @@ func logarithm(ctx *common.Context, input singlePathSpec, base float64) (ts.Seri
 			continue
 		}
 
-		for i := 0; i < series.Len(); i++ {
+		for i := range series.Len() {
 			n := series.ValueAt(i)
 			if !math.IsNaN(n) && n > 0 {
 				vals.SetValueAt(i, math.Log10(n)/math.Log10(base))
@@ -1382,7 +1382,7 @@ func interpolate(ctx *common.Context, input singlePathSpec, limit int) (ts.Serie
 			firstNonNan     = false
 		)
 
-		for i := 0; i < numSteps; i++ {
+		for i := range numSteps {
 			value := series.ValueAt(i)
 			vals.SetValueAt(i, value)
 
@@ -1438,7 +1438,7 @@ func derivativeTemplate(ctx *common.Context, input singlePathSpec, nameTemplate 
 		derivativeValues := ts.NewValues(ctx, in.MillisPerStep(), in.Len())
 		previousValue := math.NaN()
 
-		for step := 0; step < in.Len(); step++ {
+		for step := range in.Len() {
 			value := in.ValueAt(step)
 			if math.IsNaN(value) || math.IsNaN(previousValue) {
 				derivativeValues.SetValueAt(step, math.NaN())
@@ -1471,7 +1471,7 @@ func integral(ctx *common.Context, input singlePathSpec) (ts.SeriesList, error) 
 
 		outvals := ts.NewValues(ctx, series.MillisPerStep(), series.Len())
 		var current float64
-		for i := 0; i < series.Len(); i++ {
+		for i := range series.Len() {
 			n := series.ValueAt(i)
 			if !math.IsNaN(n) {
 				current += n
@@ -1505,7 +1505,7 @@ func integralByInterval(ctx *common.Context, input singlePathSpec, intervalStrin
 			currentSum       float64
 		)
 
-		for i := 0; i < series.Len(); i++ {
+		for i := range series.Len() {
 			if stepCounter == stepsPerInterval {
 				// startNewInterval
 				stepCounter = 0
@@ -1615,7 +1615,7 @@ func percentileOfSeries(ctx *common.Context, seriesList singlePathSpec, percenti
 	}
 
 	percentiles := make([]float64, minLen)
-	for i := 0; i < minLen; i++ {
+	for i := range minLen {
 		row := make([]float64, len(seriesList.Values))
 		for j, series := range seriesList.Values {
 			row[j] = series.ValueAt(i)
@@ -1625,7 +1625,7 @@ func percentileOfSeries(ctx *common.Context, seriesList singlePathSpec, percenti
 	}
 
 	percentilesSeries := ts.NewValues(ctx, normalize.Values[0].MillisPerStep(), minLen)
-	for k := 0; k < minLen; k++ {
+	for k := range minLen {
 		percentilesSeries.SetValueAt(k, percentiles[k])
 	}
 
@@ -1744,7 +1744,7 @@ func hitCountImpl(
 		buckets := ts.NewValues(ctx, int(interval/time.Millisecond), bucketCount)
 		newStart := series.EndTime().Add(-time.Duration(bucketCount) * interval)
 
-		for i := 0; i < series.Len(); i++ {
+		for i := range series.Len() {
 			value := series.ValueAt(i)
 			if math.IsNaN(value) {
 				continue
@@ -1889,7 +1889,7 @@ func combineBootstrapWithOriginal(
 		numBootstrapValues := bootstrapLength * ratio
 		numCombinedValues := numBootstrapValues + original.Len()
 		values := ts.NewValues(ctx, original.MillisPerStep(), numCombinedValues)
-		for j := 0; j < min(bootstrap.Len(), bootstrapLength); j++ {
+		for j := range min(bootstrap.Len(), bootstrapLength) {
 			for k := j * ratio; k < (j+1)*ratio; k++ {
 				values.SetValueAt(k, bootstrap.ValueAt(j))
 			}
@@ -1917,7 +1917,7 @@ func combineBootstrapWithOriginal(
 		if currSteps := bs.Len(); needSteps > currSteps {
 			// Need to resize.
 			vals := ts.NewValues(ctx, bs.MillisPerStep(), needSteps)
-			for i := 0; i < currSteps; i++ {
+			for i := range currSteps {
 				vals.SetValueAt(i, bs.ValueAt(i))
 			}
 			bs = bs.DerivedSeries(bs.StartTime(), vals)
@@ -1937,7 +1937,7 @@ func trimBootstrap(ctx *common.Context, bootstrap, original *ts.Series) *ts.Seri
 	lengthLimit := (originalLen * original.MillisPerStep()) / bootstrap.MillisPerStep()
 	trimStart := bootstrap.EndTime().Add(-time.Duration(lengthLimit*bootstrap.MillisPerStep()) * time.Millisecond)
 	vals := ts.NewValues(ctx, bootstrap.MillisPerStep(), lengthLimit)
-	for i := 0; i < lengthLimit; i++ {
+	for i := range lengthLimit {
 		vals.SetValueAt(i, bootstrap.ValueAt(i+bootstrapLen-lengthLimit))
 	}
 	return ts.NewSeries(ctx, bootstrap.Name(), trimStart, vals)
@@ -1988,7 +1988,7 @@ func holtWintersConfidenceBandsInternal(ctx *common.Context, seriesList singlePa
 		seriesLength := forecast.Len()
 		upperBand := ts.NewValues(ctx, forecast.MillisPerStep(), seriesLength)
 		lowerBand := ts.NewValues(ctx, forecast.MillisPerStep(), seriesLength)
-		for i := 0; i < seriesLength; i++ {
+		for i := range seriesLength {
 			forecastItem := forecast.ValueAt(i)
 			deviationItem := deviation.ValueAt(i)
 			if !math.IsNaN(forecastItem) && !math.IsNaN(deviationItem) {
@@ -2043,7 +2043,7 @@ func holtWintersAberrationInternal(
 		upperBand := confidenceBands.Values[1]
 		numPoints := series.Len()
 		aberration := ts.NewValues(ctx, series.MillisPerStep(), numPoints)
-		for i := 0; i < numPoints; i++ {
+		for i := range numPoints {
 			actual := series.ValueAt(i)
 			upperVal := upperBand.ValueAt(i)
 			lowerVal := lowerBand.ValueAt(i)
@@ -2123,7 +2123,7 @@ func holtWintersAnalysis(ctx *common.Context, series *ts.Series) *holtWintersAna
 	}
 
 	nextPred := math.NaN()
-	for i := 0; i < numPoints; i++ {
+	for i := range numPoints {
 		actual := series.ValueAt(i)
 		if math.IsNaN(actual) {
 			intercepts[i] = math.NaN()
@@ -2254,7 +2254,7 @@ func randomWalkFunction(ctx *common.Context, name string, step int) (ts.SeriesLi
 	millisPerStep := step * millisPerSecond
 	numSteps := ts.NumSteps(ctx.StartTime, ctx.EndTime, millisPerStep)
 	vals := ts.NewValues(ctx, millisPerStep, numSteps)
-	for i := 0; i < numSteps; i++ {
+	for i := range numSteps {
 		vals.SetValueAt(i, r.Float64()-0.5)
 	}
 	newSeries := ts.NewSeries(ctx, name, ctx.StartTime, vals)
@@ -2510,7 +2510,7 @@ func newMovingBinaryTransform(
 					return ts.SeriesList{}, err
 				}
 
-				for i := 0; i < numSteps; i++ {
+				for i := range numSteps {
 					for j := i; j < i+currWindowPoints; j++ {
 						if j >= series.Len() {
 							continue
@@ -2752,7 +2752,7 @@ func offsetToZero(ctx *common.Context, seriesList singlePathSpec) (ts.SeriesList
 		numSteps := series.Len()
 		vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
 		if !math.IsNaN(minimum) {
-			for i := 0; i < numSteps; i++ {
+			for i := range numSteps {
 				v := series.ValueAt(i)
 				if !math.IsNaN(v) {
 					vals.SetValueAt(i, v-minimum)

@@ -1312,14 +1312,14 @@ func TestApplyOrRemoveDropPoliciesDropIfOnlyMatchMiddleIneffective(t *testing.T)
 	}
 
 	// Run test for every single insertion point
-	for i := 0; i < len(validRules)+1; i++ {
+	for i := range len(validRules) + 1 {
 		t.Run(fmt.Sprintf("test insert drop if only rule at %d", i),
 			func(t *testing.T) {
 				var (
 					cloned = append(PipelineMetadatas(nil), validRules...)
 					input  PipelineMetadatas
 				)
-				for j := 0; j < len(validRules)+1; j++ {
+				for j := range len(validRules) + 1 {
 					if j == i {
 						// Insert the drop if only match rule at this position
 						input = append(input, PipelineMetadata{

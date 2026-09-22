@@ -30,7 +30,7 @@ func TestStoppableServerListenStopAndClose(t *testing.T) {
 	require.NoError(t, err)
 	listenAddr := s.listener.Addr().String()
 
-	for i := 0; i < numClients; i++ {
+	for i := range numClients {
 		conn, err := net.Dial("tcp", listenAddr)
 		require.NoError(t, err)
 

@@ -195,7 +195,7 @@ func TestReaderIteratorNextNoAnnotation(t *testing.T) {
 		{TimestampNanos: startTime.Add(time.Second * 4200), Value: 12},
 	}
 	it := getTestReaderIterator(rawBytes)
-	for i := 0; i < len(inputs); i++ {
+	for i := range inputs {
 		require.True(t, it.Next())
 		v, u, a := it.Current()
 		require.Nil(t, a)
@@ -207,7 +207,7 @@ func TestReaderIteratorNextNoAnnotation(t *testing.T) {
 		require.False(t, it.isDone())
 	}
 
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		require.False(t, it.Next())
 		require.NoError(t, it.Err())
 		require.False(t, it.hasError())
@@ -241,7 +241,7 @@ func TestReaderIteratorNextWithAnnotation(t *testing.T) {
 		{ts.Datapoint{TimestampNanos: startTime.Add(time.Second * 4200), Value: 12}, nil},
 	}
 	it := getTestReaderIterator(rawBytes)
-	for i := 0; i < len(inputs); i++ {
+	for i := range inputs {
 		require.True(t, it.Next())
 		v, u, a := it.Current()
 		require.Equal(t, inputs[i].ant, a)
@@ -253,7 +253,7 @@ func TestReaderIteratorNextWithAnnotation(t *testing.T) {
 		require.False(t, it.isDone())
 	}
 
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		require.False(t, it.Next())
 		require.NoError(t, it.Err())
 		require.False(t, it.hasError())
@@ -292,7 +292,7 @@ func TestReaderIteratorNextWithTimeUnit(t *testing.T) {
 		{ts.Datapoint{TimestampNanos: startTime.Add(time.Second * 10), Value: 12}, xtime.Second},
 	}
 	it := getTestReaderIterator(rawBytes)
-	for i := 0; i < len(inputs); i++ {
+	for i := range inputs {
 		require.True(t, it.Next())
 		v, u, _ := it.Current()
 		require.Equal(t, inputs[i].dp.TimestampNanos, v.TimestampNanos)
@@ -304,7 +304,7 @@ func TestReaderIteratorNextWithTimeUnit(t *testing.T) {
 		require.False(t, it.isDone())
 	}
 
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		require.False(t, it.Next())
 		require.NoError(t, it.Err())
 		require.False(t, it.hasError())
@@ -363,7 +363,7 @@ func TestReaderIteratorNextWithAnnotationAndTimeUnit(t *testing.T) {
 		},
 	}
 	it := getTestReaderIterator(rawBytes)
-	for i := 0; i < len(inputs); i++ {
+	for i := range inputs {
 		require.True(t, it.Next())
 		v, u, a := it.Current()
 		require.Equal(t, inputs[i].ant, a)
@@ -376,7 +376,7 @@ func TestReaderIteratorNextWithAnnotationAndTimeUnit(t *testing.T) {
 		require.False(t, it.isDone())
 	}
 
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		require.False(t, it.Next())
 		require.NoError(t, it.Err())
 		require.False(t, it.hasError())

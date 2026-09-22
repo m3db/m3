@@ -56,7 +56,7 @@ func TestFetchBlockMetadataResultsPoolRejectLargeSliceOnPut(t *testing.T) {
 
 	// Make res a large slice
 	iter := 1024
-	for i := 0; i < iter; i++ {
+	for range iter {
 		res.Add(NewFetchBlockMetadataResult(xtime.Now(), 0, nil, 0, nil))
 	}
 	require.True(t, cap(res.Results()) > 64)
@@ -92,7 +92,7 @@ func TestFetchBlocksMetadataResultsPoolRejectLargeSliceOnPut(t *testing.T) {
 
 	// Make res a large slice
 	iter := 1024
-	for i := 0; i < iter; i++ {
+	for range iter {
 		res.Add(NewFetchBlocksMetadataResult(ident.StringID("foo"),
 			ident.EmptyTagIterator, NewFetchBlockMetadataResults()))
 	}

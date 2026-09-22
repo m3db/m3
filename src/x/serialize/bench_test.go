@@ -41,7 +41,7 @@ func BenchmarkCustomReadWrite(b *testing.B) {
 
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		dup := iter.Duplicate()
 		enc.Reset()
 		if err := enc.Encode(dup); err != nil {

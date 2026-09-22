@@ -72,7 +72,7 @@ func (c *idCompressor) Compress(aggTypes Types) (ID, error) {
 	var id ID
 	// NB(cw) it's guaranteed that len(id) == len(codes) == IDLen, we need to copy
 	// the words in bitset out because the bitset contains a slice internally.
-	for i := 0; i < IDLen; i++ {
+	for i := range IDLen {
 		id[i] = codes[i]
 	}
 	return id, nil

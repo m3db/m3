@@ -161,7 +161,7 @@ func testPromReadHandlerRead(t *testing.T, resultMeta block.ResultMetadata) {
 	s := seriesList[0]
 
 	assert.Equal(t, 5, s.Values().Len())
-	for i := 0; i < s.Values().Len(); i++ {
+	for i := range s.Values().Len() {
 		assert.Equal(t, float64(i), s.Values().ValueAt(i))
 	}
 }

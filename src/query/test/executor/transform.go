@@ -61,7 +61,7 @@ func (s *SinkNode) Process(_ *models.QueryContext, ID parser.NodeID, block block
 	steps := iter.StepCount()
 	s.Values = make([][]float64, seriesCount)
 	bulkAllocValues := make([]float64, seriesCount*steps)
-	for i := 0; i < seriesCount; i++ {
+	for i := range seriesCount {
 		s.Values[i] = bulkAllocValues[:steps]
 		bulkAllocValues = bulkAllocValues[steps:]
 	}

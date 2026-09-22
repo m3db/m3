@@ -98,12 +98,12 @@ func TestIndexMultipleNodeHighConcurrency(t *testing.T) {
 				start := time.Now()
 				log.Info("starting data write")
 
-				for i := 0; i < concurrency; i++ {
+				for i := range concurrency {
 					insertWg.Add(1)
 					idx := i
 					go func() {
 						numErrors := uint32(0)
-						for j := 0; j < writeEach; j++ {
+						for j := range writeEach {
 							id, tags := genIDTags(idx, j, numTags)
 							err := session.WriteTagged(testNamespaces[0], id, tags, now, float64(1.0), xtime.Second, nil)
 							if err != nil {
@@ -124,7 +124,7 @@ func TestIndexMultipleNodeHighConcurrency(t *testing.T) {
 					indexTimeout = 10 * time.Second
 					fetchWg      sync.WaitGroup
 				)
-				for i := 0; i < concurrency; i++ {
+				for i := range concurrency {
 					fetchWg.Add(1)
 					idx := i
 					go func() {

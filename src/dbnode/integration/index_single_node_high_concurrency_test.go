@@ -222,12 +222,12 @@ func testIndexSingleNodeHighConcurrency(
 	workerPool := xsync.NewWorkerPool(opts.concurrencyWrites)
 	workerPool.Init()
 
-	for i := 0; i < opts.concurrencyEnqueueWorker; i++ {
+	for i := range opts.concurrencyEnqueueWorker {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
-			for j := 0; j < opts.enqueuePerWorker; j++ {
+			for j := range opts.enqueuePerWorker {
 				wg.Add(1)
 				workerPool.Go(func() {
 					defer wg.Done()
@@ -298,7 +298,7 @@ func testIndexSingleNodeHighConcurrency(
 		log.Info("starting concurrent queries during writes",
 			zap.Int("concurrency", opts.concurrencyQueryDuringWrites))
 		checkNumTotalQueryMatches = true
-		for i := 0; i < opts.concurrencyQueryDuringWrites; i++ {
+		for i := range opts.concurrencyQueryDuringWrites {
 			queryWg.Add(1)
 			go func() {
 				defer queryWg.Done()
@@ -453,12 +453,12 @@ func testIndexSingleNodeHighConcurrency(
 			notIndexedErrs []error
 			notIndexedLock sync.Mutex
 		)
-		for i := 0; i < opts.concurrencyEnqueueWorker; i++ {
+		for i := range opts.concurrencyEnqueueWorker {
 			fetchWg.Add(1)
 			go func() {
 				defer fetchWg.Done()
 
-				for j := 0; j < opts.enqueuePerWorker; j++ {
+				for j := range opts.enqueuePerWorker {
 					if opts.skipWrites && j%2 == 0 {
 						continue // not meant to be indexed.
 					}

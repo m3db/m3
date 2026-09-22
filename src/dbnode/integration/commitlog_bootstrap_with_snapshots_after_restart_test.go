@@ -149,7 +149,7 @@ func getNumEntriesPerBlockStart(
 	fsOpts fs.Options,
 ) map[xtime.UnixNano]int {
 	numEntriesPerBlockStart := make(map[xtime.UnixNano]int)
-	for shard := 0; shard < numShards; shard++ {
+	for shard := range numShards {
 		infoFiles := fs.ReadInfoFiles(
 			fsOpts.FilePathPrefix(),
 			nsID,

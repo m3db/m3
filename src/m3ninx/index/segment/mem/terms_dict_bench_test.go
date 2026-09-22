@@ -69,7 +69,7 @@ func BenchmarkTermsDict(b *testing.B) {
 func benchmarkTermsDictInsert(docs []doc.Metadata, b *testing.B) {
 	b.ReportAllocs()
 
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		b.StopTimer()
 		dict := newTermsDict(NewOptions())
 		b.StartTimer()
@@ -92,7 +92,7 @@ func benchmarkTermsDictMatchTerm(docs []doc.Metadata, b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		for _, d := range docs {
 			for _, f := range d.Fields {
 				dict.MatchTerm(f.Name, f.Value)
@@ -112,7 +112,7 @@ func benchmarkTermsDictMatchRegex(docs []doc.Metadata, b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		dict.MatchRegexp(benchTermsDictField, benchTermsDictCompiled)
 	}
 }

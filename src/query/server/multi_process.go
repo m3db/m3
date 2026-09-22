@@ -129,7 +129,7 @@ func multiProcessRun(
 		wg       sync.WaitGroup
 		statuses = make([]panicmon.StatusCode, count)
 	)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

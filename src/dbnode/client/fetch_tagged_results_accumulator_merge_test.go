@@ -364,10 +364,10 @@ type testSerieses []testSeries
 
 func (ts testSerieses) nsplit(n int) []testSerieses {
 	groups := make([]testSerieses, n)
-	for i := 0; i < len(ts); i++ {
+	for i := range ts {
 		si := ts[i]
 		serieses := si.nsplit(n)
-		for j := 0; j < len(serieses); j++ {
+		for j := range serieses {
 			groups[j] = append(groups[j], serieses[j])
 		}
 	}
@@ -384,7 +384,7 @@ func (ts testSerieses) addDatapoints(numPerSeries int, start, end xtime.UnixNano
 
 func (ts testSerieses) assertMatchesEncodingIters(t *testing.T, iters encoding.SeriesIterators) {
 	require.Equal(t, len(ts), iters.Len())
-	for i := 0; i < len(ts); i++ {
+	for i := range ts {
 		ts[i].assertMatchesEncodingIter(t, iters.Iters()[i])
 	}
 }
@@ -518,7 +518,7 @@ func newTestSeriesWithInstance(inst string) testSeries {
 
 func newTestTags(i int) ident.Tags {
 	t := make([]ident.Tag, 0, i)
-	for j := 0; j < i; j++ {
+	for range i {
 		t = append(t, ident.StringTag(
 			fmt.Sprintf("tagName0%d", i),
 			fmt.Sprintf("tagValue0%d", i),
@@ -536,12 +536,12 @@ type testSeries struct {
 
 func (ts testSeries) nsplit(n int) []testSeries {
 	groups := make([]testSeries, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		groups[i] = ts
 		groups[i].datapoints = nil
 	}
 
-	for i := 0; i < len(ts.datapoints); i++ {
+	for i := range len(ts.datapoints) {
 		gn := i % n
 		groups[gn].datapoints = append(groups[gn].datapoints, ts.datapoints[i])
 	}
@@ -586,7 +586,7 @@ type testDatapoints []ts.Datapoint
 func newTestDatapoints(num int, start, end xtime.UnixNano) testDatapoints {
 	dps := make(testDatapoints, 0, num)
 	step := end.Sub(start) / time.Duration(num)
-	for i := 0; i < num; i++ {
+	for i := range num {
 		dps = append(dps, ts.Datapoint{
 			TimestampNanos: start.Add(step * time.Duration(i)),
 			Value:          float64(i),

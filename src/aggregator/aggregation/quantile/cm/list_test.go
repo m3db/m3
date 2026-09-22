@@ -51,7 +51,7 @@ func TestSampleListPushBack(t *testing.T) {
 		iter   = 10
 		inputs = make([]float64, iter)
 	)
-	for i := 0; i < iter; i++ {
+	for i := range iter {
 		inputs[i] = float64(i)
 		s := l.Acquire()
 		s.value = float64(i)
@@ -87,13 +87,13 @@ func TestSampleListRemove(t *testing.T) {
 		iter   = 10
 		inputs = make([]float64, iter)
 	)
-	for i := 0; i < iter; i++ {
+	for i := range iter {
 		inputs[i] = float64(i)
 		sample := l.Acquire()
 		sample.value = float64(i)
 		l.PushBack(sample)
 	}
-	for i := 0; i < iter; i++ {
+	for i := range iter {
 		elem := l.Front()
 		l.Remove(elem)
 		validateList(t, &l, inputs[i+1:])

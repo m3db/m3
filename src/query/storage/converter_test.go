@@ -250,9 +250,9 @@ func BenchmarkFetchResultToPromResult(b *testing.B) {
 		}
 	)
 
-	for i := 0; i < numSeries; i++ {
+	for i := range numSeries {
 		values := make(ts.Datapoints, 0, numDatapointsPerSeries)
-		for i := 0; i < numDatapointsPerSeries; i++ {
+		for i := range numDatapointsPerSeries {
 			values = append(values, ts.Datapoint{
 				Timestamp: 0,
 				Value:     float64(i),
@@ -260,7 +260,7 @@ func BenchmarkFetchResultToPromResult(b *testing.B) {
 		}
 
 		tags := models.NewTags(numTagsPerSeries, nil)
-		for i := 0; i < numTagsPerSeries; i++ {
+		for i := range numTagsPerSeries {
 			tags = tags.AddTag(models.Tag{
 				Name:  []byte(fmt.Sprintf("name-%d", i)),
 				Value: []byte(fmt.Sprintf("value-%d", i)),
@@ -273,7 +273,7 @@ func BenchmarkFetchResultToPromResult(b *testing.B) {
 		fr.SeriesList = append(fr.SeriesList, series)
 	}
 
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		benchResult = FetchResultToPromResult(fr, false)
 	}
 }

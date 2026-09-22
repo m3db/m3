@@ -238,7 +238,7 @@ func TestIndexInsertQueueFlushedOnClose(t *testing.T) {
 
 	require.NoError(t, q.Start())
 
-	for i := 0; i < numInsertExpected; i++ {
+	for range numInsertExpected {
 		_, err := q.InsertBatch(testWriteBatch(testWriteBatchEntry(testID(1),
 			testTags(1), 0, nil)))
 		require.NoError(t, err)

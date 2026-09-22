@@ -164,7 +164,7 @@ func slicesEqual(a, b reflect.Value) bool {
 	if a.Len() != b.Len() {
 		return false
 	}
-	for i := 0; i < a.Len(); i++ {
+	for i := range a.Len() {
 		ai := a.Index(i)
 		bi := b.Index(i)
 		if !fieldsEqual(ai.Interface(), bi.Interface()) {

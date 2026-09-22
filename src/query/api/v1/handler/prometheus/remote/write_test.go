@@ -440,7 +440,7 @@ func TestPromWriteLiteralIsTooLongError(t *testing.T) {
 		},
 	}
 
-	for i := 0; i < maxLiteralIsTooLongLogCount*2; i++ {
+	for range maxLiteralIsTooLongLogCount * 2 {
 		promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
 		req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
 		writer := httptest.NewRecorder()
@@ -528,7 +528,7 @@ func testPromWriteForwardWithShadow(
 	require.NoError(t, err)
 
 	promReq := &prompb.WriteRequest{}
-	for i := 0; i < testOpts.numSeries; i++ {
+	for i := range testOpts.numSeries {
 		series := prompb.TimeSeries{
 			Labels: []prompb.Label{
 				{Name: []byte("__name__"), Value: []byte(fmt.Sprintf("name_%d", i))},
@@ -539,7 +539,7 @@ func testPromWriteForwardWithShadow(
 		}
 
 		// Add some labels, unsorted.
-		for j := 0; j < 5; j++ {
+		for j := range 5 {
 			label := prompb.Label{Name: make([]byte, 16), Value: make([]byte, 16)}
 			_, err = rand.Reader.Read(label.Name)
 			require.NoError(t, err)
@@ -600,7 +600,7 @@ func BenchmarkWriteDatapoints(b *testing.B) {
 	promReqBody := test.GeneratePromWriteRequestBodyBytes(b, promReq)
 	promReqBodyReader := bytes.NewReader(nil)
 
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		promReqBodyReader.Reset(promReqBody)
 		req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBodyReader)
 		handler.ServeHTTP(httptest.NewRecorder(), req)

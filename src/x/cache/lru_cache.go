@@ -188,7 +188,7 @@ func NewLRU(opts *LRUOptions) *LRU {
 	var concurrencyLeases chan struct{}
 	if opts.MaxConcurrency > 0 {
 		concurrencyLeases = make(chan struct{}, opts.MaxConcurrency)
-		for i := 0; i < opts.MaxConcurrency; i++ {
+		for range opts.MaxConcurrency {
 			concurrencyLeases <- struct{}{}
 		}
 	}

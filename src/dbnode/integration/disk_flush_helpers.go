@@ -287,7 +287,7 @@ func checkForTime(
 			return err
 		}
 
-		for i := 0; i < reader.Entries(); i++ {
+		for range reader.Entries() {
 			id, tagsIter, data, _, err := reader.Read()
 			if err != nil {
 				return err

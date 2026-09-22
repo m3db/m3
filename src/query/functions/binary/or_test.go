@@ -104,7 +104,7 @@ func generateMetaDataWithTagsInRange(
 ) []block.SeriesMeta {
 	length := toRange - fromRange
 	meta := make([]block.SeriesMeta, length)
-	for i := 0; i < length; i++ {
+	for i := range length {
 		idx := []byte(fmt.Sprint(fromRange + i))
 		tags := test.TagSliceToTags([]models.Tag{{Name: idx, Value: idx}})
 		meta[i] = block.SeriesMeta{

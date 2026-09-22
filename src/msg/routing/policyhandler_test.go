@@ -256,9 +256,9 @@ func TestRoutingPolicyHandler_ConcurrentAccess(t *testing.T) {
 	done := make(chan bool)
 
 	// Start multiple goroutines reading traffic types
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		go func() {
-			for j := 0; j < 100; j++ {
+			for range 100 {
 				trafficTypes := handler.GetTrafficTypes()
 				assert.NotNil(t, trafficTypes)
 			}
@@ -267,7 +267,7 @@ func TestRoutingPolicyHandler_ConcurrentAccess(t *testing.T) {
 	}
 
 	// Update the policy multiple times while reads are happening
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		policy := &routingpolicypb.RoutingPolicyConfig{
 			TrafficTypes: map[string]uint64{
 				"concurrent": uint64(i + 10),
@@ -279,7 +279,7 @@ func TestRoutingPolicyHandler_ConcurrentAccess(t *testing.T) {
 	}
 
 	// Wait for all readers to complete
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		<-done
 	}
 }

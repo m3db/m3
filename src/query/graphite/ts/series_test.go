@@ -226,7 +226,7 @@ func TestConsolidateSeries(t *testing.T) {
 		require.Equal(t, consolidationEndTime, results.EndTime(), "invalid end time for %s", test.name)
 		require.Equal(t, 6, results.Len(), "invalid consolidation size for %s", test.name)
 
-		for i := 0; i < results.Len(); i++ {
+		for i := range results.Len() {
 			value := results.ValueAt(i)
 			assert.Equal(t, test.expectedValues[i], value, "invalid value for %d of %s", i, test.name)
 		}
@@ -298,7 +298,7 @@ func TestSlicing(t *testing.T) {
 		expect := NewSeries(ctx, "<nil>", input.StartTimeForStep(test.begin), test.output)
 		require.Equal(t, output.Len(), expect.Len())
 
-		for step := 0; step < output.Len(); step++ {
+		for step := range output.Len() {
 			v1 := output.ValueAt(step)
 			v2 := expect.ValueAt(step)
 			assert.Equal(t, v1, v2)
@@ -315,7 +315,7 @@ func TestAddSeries(t *testing.T) {
 	ctxEnd := ctxStart.Add(7200 * time.Millisecond)
 	stepSize := 3600
 	values := NewValues(ctx, stepSize, 3)
-	for i := 0; i < values.Len(); i++ {
+	for i := range values.Len() {
 		values.SetValueAt(i, float64(i+1))
 	}
 	series := NewSeries(ctx, "foo", seriesStart, values)
@@ -334,7 +334,7 @@ func TestIntersectAndResize(t *testing.T) {
 	seriesStart := time.Now()
 	stepSize := 1000
 	values := NewValues(ctx, stepSize, 3)
-	for i := 0; i < values.Len(); i++ {
+	for i := range values.Len() {
 		values.SetValueAt(i, float64(i+1))
 	}
 	series := NewSeries(ctx, "foo", seriesStart, values)
@@ -400,13 +400,13 @@ func buildBenchmarkDatapoints() testDatapoints {
 func BenchmarkUint64Adds(b *testing.B) {
 	nan := math.Float64bits(math.NaN())
 	datapoints := buildBenchmarkDatapoints()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		values := make([]uint64, len(datapoints))
-		for j := 0; j < len(datapoints); j++ {
+		for j := range datapoints {
 			values[j] = nan
 		}
 
-		for j := 0; j < len(datapoints); j++ {
+		for j := range datapoints {
 			startTimeMillis := benchmarkStartTime.UnixNano() / 1000000
 			millis := datapoints[j].Timestamp.UnixNano() / 1000000
 
@@ -419,13 +419,13 @@ func BenchmarkUint64Adds(b *testing.B) {
 func BenchmarkFloat64Adds(b *testing.B) {
 	nan := math.NaN()
 	datapoints := buildBenchmarkDatapoints()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		values := make([]float64, len(datapoints))
-		for j := 0; j < len(datapoints); j++ {
+		for j := range datapoints {
 			values[j] = nan
 		}
 
-		for j := 0; j < len(datapoints); j++ {
+		for j := range datapoints {
 			startTimeMillis := benchmarkStartTime.UnixNano() / 1000000
 			millis := datapoints[j].Timestamp.UnixNano() / 1000000
 
@@ -444,9 +444,9 @@ func BenchmarkConsolidation(b *testing.B) {
 	defer ctx.Close()
 
 	datapoints := buildBenchmarkDatapoints()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		consolidation := NewConsolidation(ctx, benchmarkStartTime, benchmarkEndTime, benchmarkStepInMillis, Sum)
-		for j := 0; j < len(datapoints); j++ {
+		for j := range datapoints {
 			consolidation.AddDatapoint(datapoints[j].Timestamp, datapoints[j].Value)
 		}
 		consolidation.BuildSeries("foo", Finalize)
@@ -466,7 +466,7 @@ func BenchmarkConsolidationAddSeries(b *testing.B) {
 	require.Equal(b, benchmarkStartTime, series.StartTime(), "start time not equal")
 	require.Equal(b, benchmarkEndTime, series.EndTime(), "end time not equal")
 
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		c.AddSeries(series, Sum)
 	}
 }
@@ -474,7 +474,7 @@ func BenchmarkConsolidationAddSeries(b *testing.B) {
 func BenchmarkNewSeries(b *testing.B) {
 	ctx := context.New()
 	defer ctx.Close()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		NewSeries(ctx, "a", benchmarkStartTime,
 			NewConstantValues(ctx, 3.1428, 1, 1000))
 	}

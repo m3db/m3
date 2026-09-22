@@ -890,7 +890,7 @@ func (enc *Encoder) encodeBitset(values []int32) {
 	enc.encodeVarInt(uint64(maxVal))
 
 	// Encode the bitset
-	for i := int32(0); i < maxVal; i++ {
+	for i := range maxVal {
 		wroteExists := false
 
 		for _, v := range values {
@@ -937,7 +937,7 @@ func (enc *Encoder) newBuffer(capacity int) checked.Bytes {
 var tails [256]checked.Bytes
 
 func init() {
-	for i := 0; i < 256; i++ {
+	for i := range 256 {
 		tails[i] = checked.NewBytes([]byte{byte(i)}, nil)
 	}
 }

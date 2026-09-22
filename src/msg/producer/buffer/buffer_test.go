@@ -498,7 +498,7 @@ func BenchmarkProduce(b *testing.B) {
 		SetOnFullStrategy(DropOldest),
 	)
 
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		_, err := buffer.Add(mm)
 		if err != nil {
 			b.FailNow()

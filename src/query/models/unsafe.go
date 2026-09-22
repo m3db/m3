@@ -28,7 +28,7 @@ func MustMakeTags(tag ...string) Tags {
 
 	tagLength := len(tag) / 2
 	t := NewTags(tagLength, NewTagOptions())
-	for i := 0; i < tagLength; i++ {
+	for i := range tagLength {
 		t = t.AddTag(Tag{
 			Name:  []byte(tag[i*2]),
 			Value: []byte(tag[i*2+1]),

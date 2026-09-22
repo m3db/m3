@@ -107,7 +107,7 @@ func TestMurmur32HashAggregatedShardFn(t *testing.T) {
 			expected: 950,
 		},
 	}
-	for i := 0; i < numWorkers; i++ {
+	for range numWorkers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

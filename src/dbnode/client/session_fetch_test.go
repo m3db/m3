@@ -328,7 +328,7 @@ func TestSessionFetchReadConsistencyLevelUnstrictAll(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	for i := 0; i <= 2; i++ {
+	for i := range 3 {
 		testFetchConsistencyLevel(t, ctrl, topology.ReadConsistencyLevelUnstrictAll, i, outcomeSuccess)
 	}
 	testFetchConsistencyLevel(t, ctrl, topology.ReadConsistencyLevelUnstrictAll, 3, outcomeFail)
@@ -338,7 +338,7 @@ func TestSessionFetchReadConsistencyLevelMajority(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	for i := 0; i <= 1; i++ {
+	for i := range 2 {
 		testFetchConsistencyLevel(t, ctrl, topology.ReadConsistencyLevelMajority, i, outcomeSuccess)
 	}
 	for i := 2; i <= 3; i++ {
@@ -350,7 +350,7 @@ func TestSessionFetchReadConsistencyLevelUnstrictMajority(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	for i := 0; i <= 2; i++ {
+	for i := range 3 {
 		testFetchConsistencyLevel(t, ctrl, topology.ReadConsistencyLevelUnstrictMajority, i, outcomeSuccess)
 	}
 	testFetchConsistencyLevel(t, ctrl, topology.ReadConsistencyLevelUnstrictMajority, 3, outcomeFail)
@@ -360,7 +360,7 @@ func TestSessionFetchReadConsistencyLevelOne(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	for i := 0; i <= 2; i++ {
+	for i := range 3 {
 		testFetchConsistencyLevel(t, ctrl, topology.ReadConsistencyLevelOne, i, outcomeSuccess)
 	}
 	testFetchConsistencyLevel(t, ctrl, topology.ReadConsistencyLevelOne, 3, outcomeFail)
@@ -478,7 +478,7 @@ func prepareTestFetchEnqueuesWithErrors(
 
 	var enqueueFns []testEnqueueFn
 	fetchBatchSize := session.opts.FetchBatchSize()
-	for i := 0; i < int(math.Ceil(float64(len(fetches))/float64(fetchBatchSize))); i++ {
+	for range int(math.Ceil(float64(len(fetches)) / float64(fetchBatchSize))) {
 		enqueueFns = append(enqueueFns, failureEnqueueFn)
 		enqueueFns = append(enqueueFns, successEnqueueFn)
 	}
@@ -502,7 +502,7 @@ func prepareTestFetchEnqueues(
 
 	var enqueueFns []testEnqueueFn
 	fetchBatchSize := session.opts.FetchBatchSize()
-	for i := 0; i < int(math.Ceil(float64(len(fetches))/float64(fetchBatchSize))); i++ {
+	for range int(math.Ceil(float64(len(fetches)) / float64(fetchBatchSize))) {
 		enqueueFns = append(enqueueFns, enqueueFn)
 	}
 	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, enqueueFns)

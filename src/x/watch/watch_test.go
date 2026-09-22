@@ -122,14 +122,14 @@ func TestMultiWatch(t *testing.T) {
 	subLen := 20
 	subMap := make(map[int]Watch, subLen)
 	valueMap := make(map[int]int, subLen)
-	for i := 0; i < subLen; i++ {
+	for i := range subLen {
 		_, s, err := p.Watch()
 		assert.NoError(t, err)
 		subMap[i] = s
 		valueMap[i] = -1
 	}
 
-	for i := 0; i < subLen; i++ {
+	for i := range subLen {
 		testWatchAndClose(t, p, subMap, valueMap, i)
 	}
 
@@ -171,7 +171,7 @@ func TestAsyncWatch(t *testing.T) {
 	subLen := 10
 	var wg sync.WaitGroup
 
-	for i := 0; i < subLen; i++ {
+	for range subLen {
 		_, s, err := p.Watch()
 		assert.NoError(t, err)
 
@@ -190,7 +190,7 @@ func TestAsyncWatch(t *testing.T) {
 		}()
 	}
 
-	for i := 0; i < subLen; i++ {
+	for i := range subLen {
 		err := p.Update(i)
 		assert.NoError(t, err)
 	}

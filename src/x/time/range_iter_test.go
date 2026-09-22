@@ -49,7 +49,7 @@ func TestRangeIter(t *testing.T) {
 	require.False(t, it.Next())
 
 	it = newRangeIter(getTestList())
-	for i := 0; i < len(testTimeRanges); i++ {
+	for i := range testTimeRanges {
 		require.True(t, it.Next())
 		require.Equal(t, testTimeRanges[i], it.Value())
 	}

@@ -280,7 +280,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		for _, blockStart := range blockStarts {
 			for _, volume := range volumes {
 				w, closer := newOpenTestWriter(t, fsOpts, shard, blockStart, volume)
-				for i := 0; i < idsPerShard; i++ {
+				for i := range idsPerShard {
 					idString := fmt.Sprintf("foo.%d", i)
 					shardIDStrings[shard] = append(shardIDStrings[shard], idString)
 
@@ -298,7 +298,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 					if !ok {
 						data = checked.NewBytes(nil, nil)
 						data.IncRef()
-						for j := 0; j < dataBytesPerID; j++ {
+						for range dataBytesPerID {
 							data.Append(byte(rand.Int63n(256)))
 						}
 						shardData[shard][idString][blockStartNanos] = data
@@ -351,7 +351,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 	// Setup concurrent seeks.
 	var enqueueWg sync.WaitGroup
 	startWg.Add(1)
-	for i := 0; i < seekConcurrency; i++ {
+	for i := range seekConcurrency {
 		readyWg.Add(1)
 		enqueueWg.Add(1)
 		go func() {
@@ -363,13 +363,13 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 			idOffset := i % seekConcurrency / 4
 			results := make([]streamResult, 0, len(blockStarts))
 			compare := ts.Segment{}
-			for j := 0; j < seeksEach; j++ {
+			for j := range seeksEach {
 				shard := uint32((j + shardOffset) % len(shards))
 				idIdx := uint32((j + idOffset) % len(shardIDs[shard]))
 				id := shardIDs[shard][idIdx]
 				idString := shardIDStrings[shard][idIdx]
 
-				for k := 0; k < len(blockStarts); k++ {
+				for k := range blockStarts {
 					var (
 						stream   xio.BlockReader
 						err      error
@@ -884,7 +884,7 @@ func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, 
 
 func testTagsFromIDAndVolume(seriesID string, volume int) ident.Tags {
 	tags := []ident.Tag{}
-	for j := 0; j < 5; j++ {
+	for j := range 5 {
 		tags = append(tags, ident.StringTag(
 			fmt.Sprintf("%s.tag.%d.name", seriesID, j),
 			fmt.Sprintf("%s.tag.%d.value", seriesID, j),

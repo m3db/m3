@@ -432,7 +432,7 @@ func testWithMultipleBuckets(t *testing.T, q float64) [][]float64 {
 }
 
 func TestQuantileFunctionForMultipleBuckets(t *testing.T) {
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		actual := testWithMultipleBuckets(t, 0.8)
 		expected := [][]float64{
 			{15.6, 20, math.NaN(), 2, math.NaN()},

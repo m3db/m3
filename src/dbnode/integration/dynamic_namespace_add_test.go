@@ -108,7 +108,7 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 	var wg sync.WaitGroup
 	leaser := block.NewMockLeaser(ctrl)
 	leaseState := block.LeaseState{}
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		leaseDescriptor := block.LeaseDescriptor{
 			Namespace:  ns0.ID(),
 			Shard:      uint32(0),

@@ -215,7 +215,7 @@ carbon:
 	buildNodes = func(node *graphiteNode, level int) {
 		entries := entriesPerLevelMin +
 			randGen.Intn(entriesPerLevelMax-entriesPerLevelMin)
-		for entry := 0; entry < entries; entry++ {
+		for entry := range entries {
 			name := fmt.Sprintf("lvl%02d_entry%02d", level, entry)
 
 			// Create a directory node and spawn more underneath.

@@ -46,7 +46,7 @@ func TestBlockInfo(t *testing.T) {
 	assert.Equal(t, BlockTest, doubleWrapped.BaseType())
 
 	var multiWrapped BlockInfo
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		multiWrapped = NewWrappedBlockInfo(BlockLazy, doubleWrapped)
 	}
 

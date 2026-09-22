@@ -269,7 +269,7 @@ func RenderResultsJSON(
 		}
 
 		hasData := false
-		for i := 0; i < length; i++ {
+		for i := range length {
 			dp := vals.DatapointAt(i)
 
 			// If keepNaNs is set to false and the value is NaN, drop it from the response.

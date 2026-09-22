@@ -44,7 +44,7 @@ var (
 // NewFixedPermitsManager returns a permits manager that uses a fixed size of permits.
 func NewFixedPermitsManager(size int, quotaPerPermit int64, iOpts instrument.Options) Manager {
 	fp := fixedPermits{permits: make(chan Permit, size), iOpts: iOpts}
-	for i := 0; i < size; i++ {
+	for range size {
 		fp.permits <- NewPermit(quotaPerPermit, iOpts)
 	}
 	return &fixedPermitsManager{fp: fp}

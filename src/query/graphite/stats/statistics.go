@@ -120,7 +120,7 @@ func calc(values Values) (uint, float64, float64, float64, float64, float64) {
 	sum := float64(0)
 	minVal := math.MaxFloat64
 	maxVal := -math.MaxFloat64
-	for i := 0; i < values.Len(); i++ {
+	for i := range values.Len() {
 		n := values.ValueAt(i)
 		if math.IsNaN(n) {
 			continue
@@ -144,7 +144,7 @@ func calc(values Values) (uint, float64, float64, float64, float64, float64) {
 	stddev := float64(0)
 	if count > 1 {
 		m2 := float64(0)
-		for i := 0; i < values.Len(); i++ {
+		for i := range values.Len() {
 			n := values.ValueAt(i)
 			if math.IsNaN(n) {
 				continue
