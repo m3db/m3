@@ -14,13 +14,14 @@ linters:
   # silently pulls in checks this repo never opted into. Adopting them (and
   # fixing the ~561 findings they report) is follow-up work, kept out of this
   # toolchain bump:
-  #   new since v1.56:  exptostd, iface, intrange, recvcheck
+  #   new since v1.56:  exptostd, intrange, recvcheck
   #   rules expanded:   goconst, noctx, prealloc, predeclared
-  # Re-enabled so far: copyloopvar, canonicalheader, nilnesserr.
+  # Re-enabled so far: copyloopvar, canonicalheader, nilnesserr, iface.
   enable:
     - asasalint
     - canonicalheader
     - copyloopvar
+    - iface
     - nilnesserr
     - asciicheck
     - bidichk

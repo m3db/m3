@@ -353,7 +353,7 @@ type IndexSegmentFileSet interface {
 
 // IndexSegmentFile is a file in an index segment file set.
 type IndexSegmentFile interface {
-	idxpersist.IndexSegmentFileSet
+	idxpersist.IndexSegmentFile
 }
 
 // IndexReaderOpenOptions is the index file set reader open options.
