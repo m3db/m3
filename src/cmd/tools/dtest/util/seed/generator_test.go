@@ -135,7 +135,7 @@ func (t *fileInfoExtractor) visit(fPath string, f os.FileInfo, err error) error 
 
 	num, parseErr := strconv.ParseInt(nameSplit[1], 10, 64)
 	if parseErr != nil {
-		return err
+		return parseErr
 	}
 	t.times[num] = struct{}{}
 	return nil

@@ -556,7 +556,7 @@ func deleteAggregatorShardSetIDRelatedKeys(
 		_, electionKeyErr := kvStore.Get(electionKey)
 		if electionKeyErr != nil && electionKeyErr != kv.ErrNotFound {
 			multiErr = multiErr.Add(fmt.Errorf(
-				"error checking election key exists for deleted instance: %v", err))
+				"error checking election key exists for deleted instance: %w", electionKeyErr))
 		}
 		if electionKeyErr == nil {
 			// Need to delete the election key.
