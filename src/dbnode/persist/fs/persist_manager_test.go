@@ -457,17 +457,17 @@ func TestPersistenceManagerPrepareIndexSuccess(t *testing.T) {
 			Identifier: writerOpts.Identifier,
 		}, m3test.IdentTransformer)).Return(IndexReaderOpenResult{}, nil)
 
-		file := NewMockIndexSegmentFile(ctrl)
+		fileSet := NewMockIndexSegmentFileSet(ctrl)
 		gomock.InOrder(
 			reader.EXPECT().SegmentFileSets().Return(1),
-			reader.EXPECT().ReadSegmentFileSet().Return(file, nil),
+			reader.EXPECT().ReadSegmentFileSet().Return(fileSet, nil),
 			reader.EXPECT().ReadSegmentFileSet().Return(nil, io.EOF),
 		)
 		fsSeg := m3ninxfs.NewMockSegment(ctrl)
 		pm.indexPM.newPersistentSegmentFn = func(
 			fset m3ninxpersist.IndexSegmentFileSet, opts m3ninxfs.Options,
 		) (m3ninxfs.Segment, error) {
-			require.Equal(t, file, fset)
+			require.Equal(t, fileSet, fset)
 			return fsSeg, nil
 		}
 

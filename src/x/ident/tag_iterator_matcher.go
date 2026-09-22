@@ -27,9 +27,7 @@ import (
 )
 
 // TagIterMatcher is a gomock.Matcher that matches TagIterator
-type TagIterMatcher interface {
-	gomock.Matcher
-}
+type TagIterMatcher = gomock.Matcher
 
 // NewTagIterMatcher returns a new TagIterMatcher
 func NewTagIterMatcher(iter TagIterator) TagIterMatcher {

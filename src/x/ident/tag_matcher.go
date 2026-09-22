@@ -27,9 +27,7 @@ import (
 )
 
 // TagMatcher is a gomock.Matcher that matches Tag
-type TagMatcher interface {
-	gomock.Matcher
-}
+type TagMatcher = gomock.Matcher
 
 // NewTagMatcher returns a new TagMatcher
 func NewTagMatcher(name string, value string) TagMatcher {

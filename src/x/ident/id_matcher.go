@@ -27,9 +27,7 @@ import (
 )
 
 // IDMatcher is a gomock.Matcher that matches ID
-type IDMatcher interface {
-	gomock.Matcher
-}
+type IDMatcher = gomock.Matcher
 
 // NewIDMatcher returns a new IDMatcher
 func NewIDMatcher(id string) IDMatcher {
