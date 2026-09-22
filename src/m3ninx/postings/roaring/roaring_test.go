@@ -41,9 +41,9 @@ func TestRoaringPostingsListMax(t *testing.T) {
 	require.NoError(t, d.Insert(78))
 	require.NoError(t, d.Insert(103))
 
-	max, err := d.Max()
+	maxVal, err := d.Max()
 	require.NoError(t, err)
-	require.Equal(t, postings.ID(103), max)
+	require.Equal(t, postings.ID(103), maxVal)
 
 	d = NewPostingsList()
 	_, err = d.Max()

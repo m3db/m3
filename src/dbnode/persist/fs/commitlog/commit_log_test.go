@@ -116,8 +116,8 @@ func newTestOptions(
 	return opts, scope
 }
 
-func randomByteSlice(len int) []byte {
-	arr := make([]byte, len)
+func randomByteSlice(n int) []byte {
+	arr := make([]byte, n)
 	rand.Read(arr)
 	return arr
 }

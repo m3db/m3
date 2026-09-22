@@ -110,8 +110,8 @@ func BenchmarkBootstrapIndex(b *testing.B) {
 		times.end = xtime.UnixNano(0)
 		for _, shard := range shards {
 			var (
-				min     = xtime.UnixNano(math.MaxInt64)
-				max     = xtime.UnixNano(0)
+				minVal  = xtime.UnixNano(math.MaxInt64)
+				maxVal  = xtime.UnixNano(0)
 				ranges  = xtime.NewRanges()
 				entries = fs.ReadInfoFiles(dir, testNamespace, shard,
 					0, msgpack.NewDecodingOptions(), persist.FileSetFlushType)
@@ -122,14 +122,14 @@ func BenchmarkBootstrapIndex(b *testing.B) {
 				}
 
 				start := xtime.UnixNano(entry.Info.BlockStart)
-				if start.Before(min) {
-					min = start
+				if start.Before(minVal) {
+					minVal = start
 				}
 
 				blockSize := time.Duration(entry.Info.BlockSize)
 				end := start.Add(blockSize)
-				if end.After(max) {
-					max = end
+				if end.After(maxVal) {
+					maxVal = end
 				}
 
 				ranges.AddRange(xtime.Range{Start: start, End: end})
@@ -159,11 +159,11 @@ func BenchmarkBootstrapIndex(b *testing.B) {
 
 			times.shardTimeRanges.Set(shard, ranges)
 
-			if min.Before(times.start) {
-				times.start = min
+			if minVal.Before(times.start) {
+				times.start = minVal
 			}
-			if max.After(times.end) {
-				times.end = max
+			if maxVal.After(times.end) {
+				times.end = maxVal
 			}
 		}
 	} else {

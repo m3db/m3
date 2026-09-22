@@ -107,9 +107,9 @@ func (e *encoder) Encode(tags ident.TagIterator) error {
 	defer tags.Rewind()
 
 	numTags := tags.Remaining()
-	max := int(e.opts.TagSerializationLimits().MaxNumberTags())
-	if numTags > max {
-		return fmt.Errorf("too many tags to encode (%d), limit is: %d", numTags, max)
+	maxTags := int(e.opts.TagSerializationLimits().MaxNumberTags())
+	if numTags > maxTags {
+		return fmt.Errorf("too many tags to encode (%d), limit is: %d", numTags, maxTags)
 	}
 
 	if _, err := e.buf.Write(headerMagicBytes); err != nil {
@@ -181,8 +181,8 @@ func (e *encoder) encodeTag(t ident.Tag) error {
 func (e *encoder) encodeID(i ident.ID) error {
 	d := i.Bytes()
 
-	max := int(e.opts.TagSerializationLimits().MaxTagLiteralLength())
-	if len(d) > max {
+	maxLen := int(e.opts.TagSerializationLimits().MaxTagLiteralLength())
+	if len(d) > maxLen {
 		return errTagLiteralTooLong
 	}
 

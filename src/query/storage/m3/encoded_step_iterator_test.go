@@ -592,8 +592,8 @@ func setupProf(usePools bool, iterations int) stop {
 }
 
 func benchmarkNextIteration(b *testing.B, iterations int, t iterType) {
-	bl, reset, close := setupBlock(b, iterations, t)
-	defer close()
+	bl, reset, closer := setupBlock(b, iterations, t)
+	defer closer()
 
 	if t == seriesSequential {
 		it, err := bl.SeriesIter()

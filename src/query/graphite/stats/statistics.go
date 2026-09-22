@@ -67,8 +67,8 @@ type Statistics struct {
 // Merge merges a group of statistics
 func Merge(statistics []Statistics) Statistics {
 	var (
-		count               uint
-		min, max, mean, sum float64
+		count                     uint
+		minVal, maxVal, mean, sum float64
 	)
 
 	for _, a := range statistics {
@@ -77,9 +77,9 @@ func Merge(statistics []Statistics) Statistics {
 		}
 
 		if count == 0 {
-			min, max = a.Min, a.Max
+			minVal, maxVal = a.Min, a.Max
 		} else {
-			min, max = math.Min(min, a.Min), math.Max(max, a.Max)
+			minVal, maxVal = math.Min(minVal, a.Min), math.Max(maxVal, a.Max)
 		}
 
 		priorCount := count
@@ -107,8 +107,8 @@ func Merge(statistics []Statistics) Statistics {
 	variance := ((sum1 + sum2) / float64(count))
 	return Statistics{
 		Count:  count,
-		Min:    min,
-		Max:    max,
+		Min:    minVal,
+		Max:    maxVal,
 		Mean:   mean,
 		Sum:    sum,
 		StdDev: math.Sqrt(variance),
@@ -118,8 +118,8 @@ func Merge(statistics []Statistics) Statistics {
 func calc(values Values) (uint, float64, float64, float64, float64, float64) {
 	count := uint(0)
 	sum := float64(0)
-	min := math.MaxFloat64
-	max := -math.MaxFloat64
+	minVal := math.MaxFloat64
+	maxVal := -math.MaxFloat64
 	for i := 0; i < values.Len(); i++ {
 		n := values.ValueAt(i)
 		if math.IsNaN(n) {
@@ -127,8 +127,8 @@ func calc(values Values) (uint, float64, float64, float64, float64, float64) {
 		}
 		count++
 		sum += n
-		min = math.Min(n, min)
-		max = math.Max(n, max)
+		minVal = math.Min(n, minVal)
+		maxVal = math.Max(n, maxVal)
 	}
 
 	if count == 0 {
@@ -157,16 +157,16 @@ func calc(values Values) (uint, float64, float64, float64, float64, float64) {
 		variance := m2 / float64(count-1)
 		stddev = math.Sqrt(variance)
 	}
-	return count, min, max, mean, sum, stddev
+	return count, minVal, maxVal, mean, sum, stddev
 }
 
 // Calc calculates statistics for a set of values
 func Calc(values Values) Statistics {
-	count, min, max, mean, sum, stddev := calc(values)
+	count, minVal, maxVal, mean, sum, stddev := calc(values)
 	return Statistics{
 		Count:  count,
-		Min:    min,
-		Max:    max,
+		Min:    minVal,
+		Max:    maxVal,
 		Mean:   mean,
 		Sum:    sum,
 		StdDev: stddev,

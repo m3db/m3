@@ -123,12 +123,12 @@ func (m Metadata) Compare(other Metadata) int {
 		sort.Sort(r)
 	}
 
-	min := len(l)
-	if len(r) < min {
-		min = len(r)
+	minLen := len(l)
+	if len(r) < minLen {
+		minLen = len(r)
 	}
 
-	for i := 0; i < min; i++ {
+	for i := 0; i < minLen; i++ {
 		if c := bytes.Compare(l[i].Name, r[i].Name); c != 0 {
 			return c
 		}

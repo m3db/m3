@@ -133,8 +133,8 @@ func (d *postingsList) UnionManyInPlace(others []postings.List) error {
 	return union(d.bitmap, others)
 }
 
-func (d *postingsList) AddRange(min, max postings.ID) error {
-	for i := min; i < max; i++ {
+func (d *postingsList) AddRange(minID, maxID postings.ID) error {
+	for i := minID; i < maxID; i++ {
 		_, err := d.bitmap.Add(uint64(i))
 		if err != nil {
 			return err
@@ -160,8 +160,8 @@ func (d *postingsList) AddIterator(iter postings.Iterator) error {
 	return safeIter.Close()
 }
 
-func (d *postingsList) RemoveRange(min, max postings.ID) error {
-	for i := min; i < max; i++ {
+func (d *postingsList) RemoveRange(minID, maxID postings.ID) error {
+	for i := minID; i < maxID; i++ {
 		_, err := d.bitmap.Remove(uint64(i))
 		if err != nil {
 			return err
@@ -186,8 +186,8 @@ func (d *postingsList) Max() (postings.ID, error) {
 	if d.IsEmpty() {
 		return 0, postings.ErrEmptyList
 	}
-	max := d.bitmap.Max()
-	return postings.ID(max), nil
+	maxVal := d.bitmap.Max()
+	return postings.ID(maxVal), nil
 }
 
 func (d *postingsList) Len() int {

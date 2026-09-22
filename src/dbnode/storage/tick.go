@@ -185,19 +185,19 @@ func (mgr *tickManager) Tick(forceType forceType, startTime xtime.UnixNano) erro
 	mgr.metrics.tickWorkDuration.Record(took)
 
 	vals := mgr.runtimeOpts.values()
-	min := vals.tickMinInterval
+	minInterval := vals.tickMinInterval
 
 	// Sleep in a loop so that cancellations propagate if need to
 	// wait to fulfill the tick min interval
 	interval := vals.tickCancellationCheckInterval
-	for d := time.Duration(0); d < min-took; d += interval {
+	for d := time.Duration(0); d < minInterval-took; d += interval {
 		if mgr.c.IsCancelled() {
 			break
 		}
 		mgr.sleepFn(interval)
 		// Check again at the end of each sleep to see if it
 		// has changed. Particularly useful for integration tests.
-		min = vals.tickMinInterval
+		minInterval = vals.tickMinInterval
 	}
 
 	end := mgr.nowFn()

@@ -133,23 +133,23 @@ func (ss ShardSet) ParseRange(s string) error {
 }
 
 func (ss ShardSet) addRange(matches []string) error {
-	min, err := strconv.ParseInt(matches[1], 10, 32)
+	minVal, err := strconv.ParseInt(matches[1], 10, 32)
 	if err != nil {
 		return err
 	}
 
-	max := min
+	maxVal := minVal
 	if matches[3] != "" {
-		max, err = strconv.ParseInt(matches[3], 10, 32)
+		maxVal, err = strconv.ParseInt(matches[3], 10, 32)
 		if err != nil {
 			return err
 		}
 	}
 
-	if min > max {
-		return fmt.Errorf("invalid range: %d > %d", min, max)
+	if minVal > maxVal {
+		return fmt.Errorf("invalid range: %d > %d", minVal, maxVal)
 	}
 
-	ss.AddBetween(uint32(min), uint32(max)+1)
+	ss.AddBetween(uint32(minVal), uint32(maxVal)+1)
 	return nil
 }

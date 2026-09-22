@@ -596,13 +596,13 @@ func TestClonePlacement(t *testing.T) {
 		SetIsSharded(true).
 		SetCutoverNanos(1234).
 		SetMaxShardSetID(2)
-	copy := p.Clone()
-	assert.Equal(t, p.NumInstances(), copy.NumInstances())
-	assert.Equal(t, p.Shards(), copy.Shards())
-	assert.Equal(t, p.ReplicaFactor(), copy.ReplicaFactor())
-	assert.Equal(t, p.MaxShardSetID(), copy.MaxShardSetID())
+	cloned := p.Clone()
+	assert.Equal(t, p.NumInstances(), cloned.NumInstances())
+	assert.Equal(t, p.Shards(), cloned.Shards())
+	assert.Equal(t, p.ReplicaFactor(), cloned.ReplicaFactor())
+	assert.Equal(t, p.MaxShardSetID(), cloned.MaxShardSetID())
 	for _, instance := range p.Instances() {
-		copiedInstance, exist := copy.Instance(instance.ID())
+		copiedInstance, exist := cloned.Instance(instance.ID())
 		assert.True(t, exist)
 		for _, s := range copiedInstance.Shards().All() {
 			otherS, _ := instance.Shards().Shard(s.ID())

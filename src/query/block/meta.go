@@ -192,8 +192,8 @@ func (m ResultMetadata) MetadataByNameMerged() ResultMetricMetadata {
 
 // TopMetadataByName returns the top `max` ResultMetricMetadatas by the sum of their
 // contained counters.
-func (m ResultMetadata) TopMetadataByName(max int) map[string]*ResultMetricMetadata {
-	if len(m.metadataByName) <= max {
+func (m ResultMetadata) TopMetadataByName(limit int) map[string]*ResultMetricMetadata {
+	if len(m.metadataByName) <= limit {
 		return m.metadataByName
 	}
 
@@ -209,8 +209,8 @@ func (m ResultMetadata) TopMetadataByName(max int) map[string]*ResultMetricMetad
 		// Sort in descending order
 		return n > m
 	})
-	top := make(map[string]*ResultMetricMetadata, max)
-	for i := 0; i < max; i++ {
+	top := make(map[string]*ResultMetricMetadata, limit)
+	for i := 0; i < limit; i++ {
 		k := keys[i]
 		top[k] = m.metadataByName[k]
 	}

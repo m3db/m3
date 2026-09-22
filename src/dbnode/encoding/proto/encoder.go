@@ -878,19 +878,19 @@ func (enc *Encoder) addToBytesDict(fieldIdx int, state encoderBytesFieldDictStat
 // bits to interpret as a bitset and then it encodes the provided values
 // as zero-indexed bitset.
 func (enc *Encoder) encodeBitset(values []int32) {
-	var max int32
+	var maxVal int32
 	for _, v := range values {
-		if v > max {
-			max = v
+		if v > maxVal {
+			maxVal = v
 		}
 	}
 
 	// Encode a varint that indicates how many of the remaining
 	// bits to interpret as a bitset.
-	enc.encodeVarInt(uint64(max))
+	enc.encodeVarInt(uint64(maxVal))
 
 	// Encode the bitset
-	for i := int32(0); i < max; i++ {
+	for i := int32(0); i < maxVal; i++ {
 		wroteExists := false
 
 		for _, v := range values {

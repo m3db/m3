@@ -196,8 +196,8 @@ func (r IndexResults) MarkFulfilled(
 	}
 
 	// First check fulfilled is correct
-	min, max := fulfilled.MinMax()
-	if min.Before(blockRange.Start) || max.After(blockRange.End) {
+	minVal, maxVal := fulfilled.MinMax()
+	if minVal.Before(blockRange.Start) || maxVal.After(blockRange.End) {
 		return fmt.Errorf("fulfilled range %s is outside of index block range: %s",
 			fulfilled.SummaryString(), blockRange.String())
 	}

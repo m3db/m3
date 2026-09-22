@@ -47,10 +47,10 @@ func TestShardTimeRangesAdd(t *testing.T) {
 		ranges.AddRanges(r)
 	}
 	for i, r := range sr {
-		min, max, r := r.MinMaxRange()
+		minVal, maxVal, r := r.MinMaxRange()
 		require.Equal(t, r, testBlockSize)
-		require.Equal(t, min, times[i])
-		require.Equal(t, max, times[i+1])
+		require.Equal(t, minVal, times[i])
+		require.Equal(t, maxVal, times[i+1])
 	}
 }
 

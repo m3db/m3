@@ -925,9 +925,9 @@ func (s *peersSource) processReaders(
 	var (
 		iopts          = s.opts.ResultOptions().InstrumentOptions()
 		shouldPersist  = remainingRanges.IsEmpty()
-		min, max       = requestedRanges.MinMax()
+		minVal, maxVal = requestedRanges.MinMax()
 		indexBlockSize = ns.Options().IndexOptions().BlockSize()
-		blockStart     = min.Truncate(indexBlockSize)
+		blockStart     = minVal.Truncate(indexBlockSize)
 		blockEnd       = blockStart.Add(indexBlockSize)
 		indexBlock     result.IndexBlock
 		err            error
@@ -953,7 +953,7 @@ func (s *peersSource) processReaders(
 	buildIndexLogFields := []zapcore.Field{
 		zap.Bool("shouldPersist", shouldPersist),
 		zap.Int("totalEntries", totalEntries),
-		zap.String("requestedRanges", fmt.Sprintf("%v - %v", min, max)),
+		zap.String("requestedRanges", fmt.Sprintf("%v - %v", minVal, maxVal)),
 		zap.String("timesWithErrors", fmt.Sprintf("%v", timesWithErrors)),
 		zap.String("remainingRanges", remainingRanges.SummaryString()),
 	}

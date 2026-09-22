@@ -54,9 +54,9 @@ import (
 	"testing"
 )
 
-func checkListLen(t *testing.T, l *List, len int) bool {
-	if n := l.Len(); n != len {
-		t.Errorf("l.Len() = %d, want %d", n, len)
+func checkListLen(t *testing.T, l *List, length int) bool {
+	if n := l.Len(); n != length {
+		t.Errorf("l.Len() = %d, want %d", n, length)
 		return false
 	}
 	return true

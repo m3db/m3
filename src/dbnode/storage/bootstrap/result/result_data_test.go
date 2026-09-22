@@ -360,10 +360,10 @@ func TestShardTimeRangesMinMax(t *testing.T) {
 		}),
 	}
 
-	min, max := str.MinMax()
+	minVal, maxVal := str.MinMax()
 
-	assert.True(t, min.Equal(start))
-	assert.True(t, max.Equal(start.Add(2*testBlockSize)))
+	assert.True(t, minVal.Equal(start))
+	assert.True(t, maxVal.Equal(start.Add(2*testBlockSize)))
 }
 
 func TestShardTimeRangesString(t *testing.T) {

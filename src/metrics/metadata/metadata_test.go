@@ -1316,8 +1316,8 @@ func TestApplyOrRemoveDropPoliciesDropIfOnlyMatchMiddleIneffective(t *testing.T)
 		t.Run(fmt.Sprintf("test insert drop if only rule at %d", i),
 			func(t *testing.T) {
 				var (
-					copy  = append(PipelineMetadatas(nil), validRules...)
-					input PipelineMetadatas
+					cloned = append(PipelineMetadatas(nil), validRules...)
+					input  PipelineMetadatas
 				)
 				for j := 0; j < len(validRules)+1; j++ {
 					if j == i {
@@ -1328,8 +1328,8 @@ func TestApplyOrRemoveDropPoliciesDropIfOnlyMatchMiddleIneffective(t *testing.T)
 							DropPolicy:      policy.DropIfOnlyMatch,
 						})
 					} else {
-						input = append(input, copy[0])
-						copy = copy[1:]
+						input = append(input, cloned[0])
+						cloned = cloned[1:]
 					}
 				}
 

@@ -194,23 +194,23 @@ func testStreamWithRandomSamples(t *testing.T, opts Options) {
 	maxInt64 := int64(math.MaxInt64)
 	s := NewStream(opts)
 	s.ResetSetData(testQuantiles)
-	min := math.MaxFloat64
-	max := -1.0
+	minVal := math.MaxFloat64
+	maxVal := -1.0
 
 	// NB: use a local source so the sequence stays deterministic. As of Go
 	// 1.24 rand.Seed is a no-op, so seeding the global source does nothing.
 	rnd := rand.New(rand.NewSource(100))
 	for i := 0; i < numSamples; i++ {
 		v := float64(rnd.Int63n(maxInt64))
-		min = math.Min(min, v)
-		max = math.Max(max, v)
+		minVal = math.Min(minVal, v)
+		maxVal = math.Max(maxVal, v)
 		s.Add(v)
 
 	}
 	s.Flush()
 
-	require.Equal(t, min, s.Min())
-	require.Equal(t, max, s.Max())
+	require.Equal(t, minVal, s.Min())
+	require.Equal(t, maxVal, s.Max())
 	margin := float64(maxInt64) * opts.Eps()
 	for _, q := range testQuantiles {
 		val := s.Quantile(q)

@@ -198,16 +198,16 @@ func testDatabaseShardRepairerRepair(t *testing.T, withLimit bool) {
 		expectedResults.Add(block.NewFetchBlocksMetadataResult(ident.StringID("bar"), nil, results))
 
 		var (
-			any             = gomock.Any()
+			anyArg          = gomock.Any()
 			nonNilPageToken = PageToken("non-nil-page-token")
 		)
 		// Ensure that the Repair logic will call FetchBlocksMetadataV2 in a loop until
 		// it receives a nil page token.
 		shard.EXPECT().
-			FetchBlocksMetadataV2(any, start, end, any, nil, fetchOpts).
+			FetchBlocksMetadataV2(anyArg, start, end, anyArg, nil, fetchOpts).
 			Return(nil, nonNilPageToken, nil)
 		shard.EXPECT().
-			FetchBlocksMetadataV2(any, start, end, any, nonNilPageToken, fetchOpts).
+			FetchBlocksMetadataV2(anyArg, start, end, anyArg, nonNilPageToken, fetchOpts).
 			Return(expectedResults, nil, nil)
 		shard.EXPECT().ID().Return(shardID).AnyTimes()
 
@@ -412,16 +412,16 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 	expectedResults.Add(block.NewFetchBlocksMetadataResult(ident.StringID("bar"), nil, results))
 
 	var (
-		any             = gomock.Any()
+		anyArg          = gomock.Any()
 		nonNilPageToken = PageToken("non-nil-page-token")
 	)
 	// Ensure that the Repair logic will call FetchBlocksMetadataV2 in a loop until
 	// it receives a nil page token.
 	shard.EXPECT().
-		FetchBlocksMetadataV2(any, start, end, any, nil, fetchOpts).
+		FetchBlocksMetadataV2(anyArg, start, end, anyArg, nil, fetchOpts).
 		Return(nil, nonNilPageToken, nil)
 	shard.EXPECT().
-		FetchBlocksMetadataV2(any, start, end, any, nonNilPageToken, fetchOpts).
+		FetchBlocksMetadataV2(anyArg, start, end, anyArg, nonNilPageToken, fetchOpts).
 		Return(expectedResults, nil, nil)
 	shard.EXPECT().ID().Return(shardID).AnyTimes()
 	shard.EXPECT().LoadBlocks(gomock.Any()).Return(nil)

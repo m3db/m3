@@ -60,11 +60,11 @@ func GenerateTag() ident.Tag {
 func NewMockSeriesIterSlice(
 	ctrl *gomock.Controller,
 	tagGenerator func() ident.TagIterator,
-	len int,
+	length int,
 	numValues int,
 ) []encoding.SeriesIterator {
-	iteratorList := make([]encoding.SeriesIterator, 0, len)
-	for i := 0; i < len; i++ {
+	iteratorList := make([]encoding.SeriesIterator, 0, length)
+	for i := 0; i < length; i++ {
 		mockIter := NewMockSeriesIterator(ctrl, tagGenerator, numValues)
 		iteratorList = append(iteratorList, mockIter)
 	}

@@ -284,12 +284,12 @@ func (m *merger) MergeAndCleanup(
 		return errMergeAndCleanupNotSupported
 	}
 
-	close, err := m.Merge(fileID, mergeWith, nextVolumeIndex, flushPreparer, nsCtx, onFlush)
+	closer, err := m.Merge(fileID, mergeWith, nextVolumeIndex, flushPreparer, nsCtx, onFlush)
 	if err != nil {
 		return err
 	}
 
-	if err = close(); err != nil {
+	if err = closer(); err != nil {
 		return err
 	}
 

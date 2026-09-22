@@ -1606,16 +1606,16 @@ func percentileOfSeries(ctx *common.Context, seriesList singlePathSpec, percenti
 
 	// TODO: This is wrong when MillisPerStep is different across
 	// the timeseries.
-	min := seriesList.Values[0].Len()
+	minLen := seriesList.Values[0].Len()
 	for _, series := range seriesList.Values[1:] {
 		numSteps := series.Len()
-		if numSteps < min {
-			min = numSteps
+		if numSteps < minLen {
+			minLen = numSteps
 		}
 	}
 
-	percentiles := make([]float64, min)
-	for i := 0; i < min; i++ {
+	percentiles := make([]float64, minLen)
+	for i := 0; i < minLen; i++ {
 		row := make([]float64, len(seriesList.Values))
 		for j, series := range seriesList.Values {
 			row[j] = series.ValueAt(i)
@@ -1624,8 +1624,8 @@ func percentileOfSeries(ctx *common.Context, seriesList singlePathSpec, percenti
 		percentiles[i] = common.GetPercentile(row, percentile, interpolate)
 	}
 
-	percentilesSeries := ts.NewValues(ctx, normalize.Values[0].MillisPerStep(), min)
-	for k := 0; k < min; k++ {
+	percentilesSeries := ts.NewValues(ctx, normalize.Values[0].MillisPerStep(), minLen)
+	for k := 0; k < minLen; k++ {
 		percentilesSeries.SetValueAt(k, percentiles[k])
 	}
 
@@ -1782,8 +1782,8 @@ func hitCountImpl(
 	return r
 }
 
-func safeIndex(len, index int) int {
-	return int(math.Min(float64(index), float64(len)))
+func safeIndex(length, index int) int {
+	return int(math.Min(float64(index), float64(length)))
 }
 
 // substr takes one metric or a wildcard seriesList followed by 1 or 2 integers. Prints n - length elements
@@ -1928,13 +1928,6 @@ func combineBootstrapWithOriginal(
 	r := ts.SeriesList(seriesList)
 	r.Values = newSeriesList
 	return r, nil
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // trimBootstrap trims the bootstrap period off the front of this series so it matches the original.
@@ -2390,25 +2383,25 @@ func movingAverageHelper(window []float64, vals ts.MutableValues, windowPoints i
 
 // movingMaxHelper given a slice of floats, finds the max and assigns it into vals as index i
 func movingMaxHelper(window []float64, vals ts.MutableValues, windowPoints int, i int, xFilesFactor float64) {
-	max, nans, ok := common.SafeMax(window)
+	maxVal, nans, ok := common.SafeMax(window)
 	if !ok {
 		return
 	}
 
 	if nans < windowPoints && effectiveXFF(windowPoints, nans, xFilesFactor) {
-		vals.SetValueAt(i, max)
+		vals.SetValueAt(i, maxVal)
 	}
 }
 
 // movingMinHelper given a slice of floats, finds the min and assigns it into vals as index i
 func movingMinHelper(window []float64, vals ts.MutableValues, windowPoints int, i int, xFilesFactor float64) {
-	min, nans, ok := common.SafeMin(window)
+	minVal, nans, ok := common.SafeMin(window)
 	if !ok {
 		return
 	}
 
 	if nans < windowPoints && effectiveXFF(windowPoints, nans, xFilesFactor) {
-		vals.SetValueAt(i, min)
+		vals.SetValueAt(i, minVal)
 	}
 }
 
@@ -2664,11 +2657,11 @@ func toCactiStyle(v float64) string {
 func findAllLens(seriesList ts.SeriesList) (int, int, int, int) {
 	var nameLen, lastLen, maxLen, minLen float64
 	for _, series := range seriesList.Values {
-		name, min, max, last := series.Name(), series.SafeMin(), series.SafeMax(), series.SafeLastValue()
+		name, minVal, maxVal, last := series.Name(), series.SafeMin(), series.SafeMax(), series.SafeLastValue()
 		nameLen = math.Max(nameLen, float64(len(name)))
 		lastLen = math.Max(lastLen, float64(getStatLen(last)))
-		maxLen = math.Max(maxLen, float64(getStatLen(max)))
-		minLen = math.Max(minLen, float64(getStatLen(min)))
+		maxLen = math.Max(maxLen, float64(getStatLen(maxVal)))
+		minLen = math.Max(minLen, float64(getStatLen(minVal)))
 	}
 	return int(nameLen), int(lastLen) + 3, int(maxLen) + 3, int(minLen) + 3
 }
@@ -2685,15 +2678,15 @@ func cactiStyle(_ *common.Context, seriesList singlePathSpec) (ts.SeriesList, er
 	for _, series := range seriesList.Values {
 		name := series.Name()
 		last := toCactiStyle(series.SafeLastValue())
-		max := toCactiStyle(series.SafeMax())
-		min := toCactiStyle(series.SafeMin())
+		maxVal := toCactiStyle(series.SafeMax())
+		minVal := toCactiStyle(series.SafeMin())
 
 		newName := fmt.Sprintf(
 			"%*s Current:%*s Max:%*s Min:%*s ",
 			-nameLen, name,
 			-lastLen, last,
-			-maxLen, max,
-			-minLen, min,
+			-maxLen, maxVal,
+			-minLen, minVal,
 		)
 		renamed := series.RenamedTo(newName)
 		results = append(results, renamed)

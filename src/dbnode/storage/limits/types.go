@@ -58,7 +58,7 @@ type LookbackLimit interface {
 	// Options returns the current limit options.
 	Options() LookbackLimitOptions
 	// Inc increments the recent value for the limit.
-	Inc(new int, source []byte) error
+	Inc(val int, source []byte) error
 	// Update changes the lookback limit settings.
 	Update(opts LookbackLimitOptions) error
 

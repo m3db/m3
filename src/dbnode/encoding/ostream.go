@@ -274,10 +274,3 @@ func (os *ostream) repairCheckedBytes() {
 		os.checked.Reset(os.rawBuffer)
 	}
 }
-
-func max(x, y int) int {
-	if x > y {
-		return x
-	}
-	return y
-}

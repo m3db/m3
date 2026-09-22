@@ -169,11 +169,11 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 
 	// Setup data generation.
 	var (
-		nsMeta   = testNs1Metadata(t)
-		ropts    = nsMeta.Options().RetentionOptions()
-		nsCtx    = namespace.NewContextFrom(nsMeta)
-		now      = xtime.Now().Truncate(ropts.BlockSize())
-		min, max = now.Add(-6 * ropts.BlockSize()), now.Add(-ropts.BlockSize())
+		nsMeta         = testNs1Metadata(t)
+		ropts          = nsMeta.Options().RetentionOptions()
+		nsCtx          = namespace.NewContextFrom(nsMeta)
+		now            = xtime.Now().Truncate(ropts.BlockSize())
+		minVal, maxVal = now.Add(-6 * ropts.BlockSize()), now.Add(-ropts.BlockSize())
 
 		shards         = []uint32{0, 1, 2}
 		idsPerShard    = 16
@@ -185,7 +185,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		blockStarts []xtime.UnixNano
 		volumes     = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
 	)
-	for st := min; !st.After(max); st = st.Add(ropts.BlockSize()) {
+	for st := minVal; !st.After(maxVal); st = st.Add(ropts.BlockSize()) {
 		blockStarts = append(blockStarts, st)
 	}
 

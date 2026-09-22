@@ -79,31 +79,31 @@ func sumFn(values []float64, bucket []int) float64 {
 }
 
 func minFn(values []float64, bucket []int) float64 {
-	min := math.NaN()
+	minVal := math.NaN()
 	for _, idx := range bucket {
 		v := values[idx]
 		if !math.IsNaN(v) {
-			if math.IsNaN(min) || min > v {
-				min = v
+			if math.IsNaN(minVal) || minVal > v {
+				minVal = v
 			}
 		}
 	}
 
-	return min
+	return minVal
 }
 
 func maxFn(values []float64, bucket []int) float64 {
-	max := math.NaN()
+	maxVal := math.NaN()
 	for _, idx := range bucket {
 		v := values[idx]
 		if !math.IsNaN(v) {
-			if math.IsNaN(max) || max < v {
-				max = v
+			if math.IsNaN(maxVal) || maxVal < v {
+				maxVal = v
 			}
 		}
 	}
 
-	return max
+	return maxVal
 }
 
 func averageFn(values []float64, bucket []int) float64 {

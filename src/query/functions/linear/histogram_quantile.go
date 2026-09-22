@@ -319,13 +319,13 @@ func setupBuilder(
 // Enforce monotonicity for binary search to work.
 // See https://github.com/prometheus/prometheus/commit/896f951e6846ce252d9d19fd4707a4110ceda5ee
 func ensureMonotonic(bucketValues []bucketValue) {
-	max := math.Inf(-1)
+	maxVal := math.Inf(-1)
 	for i := range bucketValues {
 		switch {
-		case bucketValues[i].value >= max:
-			max = bucketValues[i].value
-		case bucketValues[i].value < max:
-			bucketValues[i].value = max
+		case bucketValues[i].value >= maxVal:
+			maxVal = bucketValues[i].value
+		case bucketValues[i].value < maxVal:
+			bucketValues[i].value = maxVal
 		}
 	}
 }

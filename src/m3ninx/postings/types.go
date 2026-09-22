@@ -95,10 +95,10 @@ type MutableList interface {
 	AddIterator(iter Iterator) error
 
 	// AddRange adds all IDs between [min, max) to this postings list.
-	AddRange(min, max ID) error
+	AddRange(minID, maxID ID) error
 
 	// RemoveRange removes all IDs between [min, max) from this postings list.
-	RemoveRange(min, max ID) error
+	RemoveRange(minID, maxID ID) error
 
 	// Reset resets the internal state of the postings list.
 	Reset()
