@@ -28,11 +28,11 @@ import (
 	"sync"
 	"testing"
 
-	xhttp "github.com/m3db/m3/src/x/net/http"
-
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/prometheus/prometheus/storage/remote"
 	"github.com/stretchr/testify/assert"
+
+	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
 // TestPromServer is a fake http server handling prometheus remote write. Intended for test usage.
