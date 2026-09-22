@@ -548,8 +548,8 @@ func testSessionClusterConnectConsistencyLevel(
 		if atomic.AddInt32(&failingConns, 1) <= int32(failures) {
 			hostQueue.EXPECT().ConnectionCount().Return(0).AnyTimes()
 		} else {
-			min := opts.opts.MinConnectionCount()
-			hostQueue.EXPECT().ConnectionCount().Return(min).AnyTimes()
+			minConns := opts.opts.MinConnectionCount()
+			hostQueue.EXPECT().ConnectionCount().Return(minConns).AnyTimes()
 		}
 		hostQueue.EXPECT().Close().AnyTimes()
 		return hostQueue, nil

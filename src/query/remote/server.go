@@ -57,14 +57,6 @@ type grpcServer struct {
 	instrumentOpts   instrument.Options
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-
-	return b
-}
-
 // NewGRPCServer builds a grpc server which must be started later.
 func NewGRPCServer(
 	querier m3.Querier,

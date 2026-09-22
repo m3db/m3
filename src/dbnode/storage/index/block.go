@@ -1014,8 +1014,8 @@ func (b *block) addResults(
 	}
 
 	// First check fulfilled is correct
-	min, max := results.Fulfilled().MinMax()
-	if min.Before(b.blockStart) || max.After(b.blockEnd) {
+	minVal, maxVal := results.Fulfilled().MinMax()
+	if minVal.Before(b.blockStart) || maxVal.After(b.blockEnd) {
 		blockRange := xtime.Range{Start: b.blockStart, End: b.blockEnd}
 		return fmt.Errorf("fulfilled range %s is outside of index block range: %s",
 			results.Fulfilled().SummaryString(), blockRange.String())

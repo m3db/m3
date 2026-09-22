@@ -102,23 +102,23 @@ func (s *shardSet) AllIDs() []uint32 {
 }
 
 func (s *shardSet) Min() uint32 {
-	min := uint32(math.MaxUint32)
+	minVal := uint32(math.MaxUint32)
 	for _, shard := range s.ids {
-		if shard < min {
-			min = shard
+		if shard < minVal {
+			minVal = shard
 		}
 	}
-	return min
+	return minVal
 }
 
 func (s *shardSet) Max() uint32 {
-	max := uint32(0)
+	maxVal := uint32(0)
 	for _, shard := range s.ids {
-		if shard > max {
-			max = shard
+		if shard > maxVal {
+			maxVal = shard
 		}
 	}
-	return max
+	return maxVal
 }
 
 func (s *shardSet) HashFn() HashFn {

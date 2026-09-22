@@ -57,8 +57,8 @@ func parseClampArgs(args []interface{}) (float64, error) {
 	return scalar, nil
 }
 
-func clampFn(max bool, roundTo float64) block.ValueTransform {
-	if max {
+func clampFn(isMax bool, roundTo float64) block.ValueTransform {
+	if isMax {
 		return func(v float64) float64 { return math.Min(v, roundTo) }
 	}
 

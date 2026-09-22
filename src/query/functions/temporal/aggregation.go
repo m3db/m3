@@ -164,11 +164,11 @@ func countOverTime(values []float64) float64 {
 
 func minOverTime(values []float64) float64 {
 	var seenNotNaN bool
-	min := math.Inf(1)
+	minVal := math.Inf(1)
 	for _, v := range values {
 		if !math.IsNaN(v) {
 			seenNotNaN = true
-			min = math.Min(min, v)
+			minVal = math.Min(minVal, v)
 		}
 	}
 
@@ -176,16 +176,16 @@ func minOverTime(values []float64) float64 {
 		return math.NaN()
 	}
 
-	return min
+	return minVal
 }
 
 func maxOverTime(values []float64) float64 {
 	var seenNotNaN bool
-	max := math.Inf(-1)
+	maxVal := math.Inf(-1)
 	for _, v := range values {
 		if !math.IsNaN(v) {
 			seenNotNaN = true
-			max = math.Max(max, v)
+			maxVal = math.Max(maxVal, v)
 		}
 	}
 
@@ -193,7 +193,7 @@ func maxOverTime(values []float64) float64 {
 		return math.NaN()
 	}
 
-	return max
+	return maxVal
 }
 
 func sumOverTime(values []float64) float64 {

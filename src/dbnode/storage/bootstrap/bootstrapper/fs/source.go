@@ -518,8 +518,8 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				End:   beginningOfIndexRetention.Add(indexBlockSize),
 			}
 			overlapsWithInitialIndexRange = false
-			min, max                      = requestedRanges.MinMax()
-			blockStart                    = min.Truncate(indexBlockSize)
+			minVal, maxVal                = requestedRanges.MinMax()
+			blockStart                    = minVal.Truncate(indexBlockSize)
 			blockEnd                      = blockStart.Add(indexBlockSize)
 			iopts                         = s.opts.ResultOptions().InstrumentOptions()
 			indexBlock                    result.IndexBlock
@@ -565,7 +565,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			zap.Bool("noneRemaining", noneRemaining),
 			zap.Bool("overlapsWithInitialIndexRange", overlapsWithInitialIndexRange),
 			zap.Int("totalEntries", totalEntries),
-			zap.String("requestedRangesMinMax", fmt.Sprintf("%v - %v", min, max)),
+			zap.String("requestedRangesMinMax", fmt.Sprintf("%v - %v", minVal, maxVal)),
 			zap.String("remainingRangesMinMax", fmt.Sprintf("%v - %v", remainingMin, remainingMax)),
 			zap.String("remainingRanges", remainingRanges.SummaryString()),
 			zap.String("totalFulfilledRangesMinMax", fmt.Sprintf("%v - %v", fulfilledMin, fulfilledMax)),

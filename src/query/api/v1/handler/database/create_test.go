@@ -560,8 +560,8 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
-	min := minRecommendCalculateBlockSize
-	desiredBlockSize := min + 5*time.Minute
+	minVal := minRecommendCalculateBlockSize
+	desiredBlockSize := minVal + 5*time.Minute
 
 	jsonInput := xjson.Map{
 		"namespaceName": "testNamespace",

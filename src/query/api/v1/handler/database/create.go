@@ -549,8 +549,8 @@ func defaultedAggregatedNamespaceAddRequest(
 func getRecommendedBlockSize(retentionPeriod time.Duration) time.Duration {
 	// Use the maximum block size if we don't find a way to
 	// recommended one based on request parameters
-	max := recommendedBlockSizesByRetentionAsc[len(recommendedBlockSizesByRetentionAsc)-1]
-	blockSize := max.blockSize
+	maxVal := recommendedBlockSizesByRetentionAsc[len(recommendedBlockSizesByRetentionAsc)-1]
+	blockSize := maxVal.blockSize
 	for _, elem := range recommendedBlockSizesByRetentionAsc {
 		if retentionPeriod <= elem.forRetentionLessThanOrEqual {
 			blockSize = elem.blockSize

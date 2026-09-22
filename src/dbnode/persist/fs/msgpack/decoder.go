@@ -576,13 +576,13 @@ func (dec *Decoder) checkNumFieldsFor(
 	if dec.err != nil {
 		return 0, 0, false
 	}
-	min, curr := numFieldsForType(objType)
+	minFields, curr := numFieldsForType(objType)
 	if opts.override {
-		min = opts.numExpectedMinFields
+		minFields = opts.numExpectedMinFields
 		curr = opts.numExpectedCurrFields
 	}
-	if min > actual {
-		dec.err = fmt.Errorf("number of fields mismatch: expected minimum of %d actual %d", min, actual)
+	if minFields > actual {
+		dec.err = fmt.Errorf("number of fields mismatch: expected minimum of %d actual %d", minFields, actual)
 		return 0, 0, false
 	}
 

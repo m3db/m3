@@ -520,13 +520,6 @@ func testIndexSingleNodeHighConcurrency(
 		"total written + skipped mismatch")
 }
 
-func min(x, y int) int {
-	if x < y {
-		return x
-	}
-	return y
-}
-
 // isServerOverloadedErr reports whether err is the node rejecting a write
 // because it is shedding load. There are two such paths, both backpressure
 // rather than a write bug:

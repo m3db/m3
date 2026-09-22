@@ -120,7 +120,7 @@ var (
 	logMetadataHeaderErr error
 )
 
-func numFieldsForType(objType objectType) (min, curr int) {
+func numFieldsForType(objType objectType) (minFields, curr int) {
 	return minNumObjectFields[int(objType)-1], currNumObjectFields[int(objType)-1]
 }
 

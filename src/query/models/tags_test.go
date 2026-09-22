@@ -686,26 +686,26 @@ func BenchmarkIDs(b *testing.B) {
 
 func TestSerializedLength(t *testing.T) {
 	tag := Tag{Name: []byte("foo"), Value: []byte("bar")}
-	len, escaping := serializedLength(tag)
-	assert.Equal(t, 8, len)
+	length, escaping := serializedLength(tag)
+	assert.Equal(t, 8, length)
 	assert.False(t, escaping.escapeName)
 	assert.False(t, escaping.escapeValue)
 
 	tag.Name = []byte("f\ao")
-	len, escaping = serializedLength(tag)
-	assert.Equal(t, 9, len)
+	length, escaping = serializedLength(tag)
+	assert.Equal(t, 9, length)
 	assert.True(t, escaping.escapeName)
 	assert.False(t, escaping.escapeValue)
 
 	tag.Value = []byte(`b"ar`)
-	len, escaping = serializedLength(tag)
-	assert.Equal(t, 11, len)
+	length, escaping = serializedLength(tag)
+	assert.Equal(t, 11, length)
 	assert.True(t, escaping.escapeName)
 	assert.True(t, escaping.escapeValue)
 
 	tag.Name = []byte("baz")
-	len, escaping = serializedLength(tag)
-	assert.Equal(t, 10, len)
+	length, escaping = serializedLength(tag)
+	assert.Equal(t, 10, length)
 	assert.False(t, escaping.escapeName)
 	assert.True(t, escaping.escapeValue)
 }

@@ -866,13 +866,13 @@ func (w *messageWriter) chooseConsumerWriter(
 		return consumerWriters[0]
 	}
 
-	// find the consumer writer with the max available buffer.
-	max, maxBuf := w.getConsumerWriterWithMaxBuffer(consumerWriters, connIndex)
+	// find the consumer writer with the maxWriter available buffer.
+	maxWriter, maxBuf := w.getConsumerWriterWithMaxBuffer(consumerWriters, connIndex)
 
 	// if the available buffer is able to accommodate the write, return the consumer writer.
 	// This means that the consumer writer will not be blocked on the write.
 	if maxBuf >= writeLen {
-		return max
+		return maxWriter
 	}
 
 	m := w.Metrics()
@@ -896,7 +896,7 @@ func (w *messageWriter) chooseConsumerWriter(
 	// wait for first consumer writer to finish.
 	cw := w.waitForForcedFlush(doneCh, consumerWriters)
 	if cw != nil {
-		max = cw
+		maxWriter = cw
 		if cw.AvailableBuffer(connIndex) < writeLen {
 			// The consumer writer should have enough buffer to accommodate the write.
 			// if not, log and emit a metric.
@@ -912,7 +912,7 @@ func (w *messageWriter) chooseConsumerWriter(
 
 	// return the consumer writer with the max buffer or the consumer writer that
 	// returned first from the forced flush operation.
-	return max
+	return maxWriter
 }
 
 func (w *messageWriter) beginForcedFlush(
@@ -937,17 +937,17 @@ func (w *messageWriter) getConsumerWriterWithMaxBuffer(
 	consumerWriters []consumerWriter,
 	connIndex int,
 ) (consumerWriter, int) {
-	max := consumerWriters[0]
+	maxWriter := consumerWriters[0]
 	maxBufSize := consumerWriters[0].AvailableBuffer(connIndex)
 	for i := 1; i < len(consumerWriters); i++ {
 		bufSize := consumerWriters[i].AvailableBuffer(connIndex)
 		if bufSize > maxBufSize {
-			max = consumerWriters[i]
+			maxWriter = consumerWriters[i]
 			maxBufSize = bufSize
 		}
 	}
 
-	return max, maxBufSize
+	return maxWriter, maxBufSize
 }
 
 // waitForForcedFlush returns the first consumerWriter to complete

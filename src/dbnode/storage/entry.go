@@ -220,9 +220,9 @@ func (entry *Entry) IndexedForBlockStart(indexBlockStart xtime.UnixNano) bool {
 // Returns (0, 0) for an empty range.
 func (entry *Entry) IndexedRange() (xtime.UnixNano, xtime.UnixNano) {
 	entry.reverseIndex.RLock()
-	min, max := entry.reverseIndex.indexedRangeWithRLock()
+	minVal, maxVal := entry.reverseIndex.indexedRangeWithRLock()
 	entry.reverseIndex.RUnlock()
-	return min, max
+	return minVal, maxVal
 }
 
 // ReconciledOnIndexSeries attempts to retrieve the most recent index entry from the

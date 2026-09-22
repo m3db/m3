@@ -83,8 +83,8 @@ func (il *nearestIndexOffsetLookup) getNearestIndexFileOffset(
 ) (int64, error) {
 	idBytes := id.Bytes()
 
-	min := 0
-	max := len(il.summaryIDsOffsets) - 1
+	minVal := 0
+	maxVal := len(il.summaryIDsOffsets) - 1
 
 	// The summaries file only contains a fraction of the series that are in
 	// the index file itself. Because of that, the binary search that we're
@@ -99,11 +99,11 @@ func (il *nearestIndexOffsetLookup) getNearestIndexFileOffset(
 	bestMatchSoFar := int64(0)
 
 	for {
-		if min > max {
+		if minVal > maxVal {
 			return bestMatchSoFar, nil
 		}
 
-		idx := (max + min) / 2
+		idx := (maxVal + minVal) / 2
 		summaryBytesMetadata := il.summaryIDsOffsets[idx]
 		compBytes := summaryBytesMetadata.ID(il.summariesMmap.Bytes)
 		comparison := bytes.Compare(idBytes, compBytes)
@@ -122,13 +122,13 @@ func (il *nearestIndexOffsetLookup) getNearestIndexFileOffset(
 
 		// idBytes is smaller than compBytes, go left
 		if comparison == -1 {
-			max = idx - 1
+			maxVal = idx - 1
 			continue
 		}
 
 		// idBytes is larger than compBytes, go right
 		if comparison == 1 {
-			min = idx + 1
+			minVal = idx + 1
 			indexOffset, err := summaryBytesMetadata.IndexOffset(
 				il.summariesMmap.Bytes, resources.byteDecoderStream, resources.msgpackDecoder)
 			if err != nil {

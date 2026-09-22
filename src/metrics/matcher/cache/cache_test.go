@@ -130,9 +130,9 @@ func TestCacheMatchIDCachedInvalidSourceValidInvalidateAll(t *testing.T) {
 	// Wait for deletion to happen
 	conditionFn := func() bool {
 		c.list.Lock()
-		len := c.list.Len()
+		length := c.list.Len()
 		c.list.Unlock()
-		return len == 1
+		return length == 1
 	}
 	require.NoError(t, testWaitUntilWithTimeout(conditionFn, testWaitTimeout))
 
@@ -181,9 +181,9 @@ func TestCacheMatchIDCachedInvalidSourceValidInvalidateAllNoEviction(t *testing.
 	// Wait for deletion to happen
 	conditionFn := func() bool {
 		c.list.Lock()
-		len := c.list.Len()
+		length := c.list.Len()
 		c.list.Unlock()
-		return len == 1
+		return length == 1
 	}
 	require.NoError(t, testWaitUntilWithTimeout(conditionFn, testWaitTimeout))
 
@@ -229,9 +229,9 @@ func TestCacheMatchIDCachedInvalidSourceValidInvalidateOneNoEviction(t *testing.
 	// Wait for deletion to happen.
 	conditionFn := func() bool {
 		c.list.Lock()
-		len := c.list.Len()
+		length := c.list.Len()
 		c.list.Unlock()
-		return len == 2
+		return length == 2
 	}
 	require.NoError(t, testWaitUntilWithTimeout(conditionFn, testWaitTimeout))
 
@@ -289,9 +289,9 @@ func TestCacheMatchIDCachedInvalidSourceValidWithEviction(t *testing.T) {
 	}
 	conditionFn := func() bool {
 		c.list.Lock()
-		len := c.list.Len()
+		length := c.list.Len()
 		c.list.Unlock()
-		return len == c.capacity
+		return length == c.capacity
 	}
 	require.Equal(t, errTestWaitUntilTimeout, testWaitUntilWithTimeout(conditionFn, testWaitTimeout))
 	expected := []testValue{
@@ -442,9 +442,9 @@ func TestCacheRegisterNamespaceExists(t *testing.T) {
 	// Wait till the outdated cached data are deleted.
 	conditionFn := func() bool {
 		c.list.Lock()
-		len := c.list.Len()
+		length := c.list.Len()
 		c.list.Unlock()
-		return len == 0
+		return length == 0
 	}
 	require.NoError(t, testWaitUntilWithTimeout(conditionFn, testWaitTimeout))
 
@@ -544,9 +544,9 @@ func TestCacheUnregisterNamespaceExists(t *testing.T) {
 	// Wait till the namespace is deleted.
 	conditionFn := func() bool {
 		c.list.Lock()
-		len := c.list.Len()
+		length := c.list.Len()
 		c.list.Unlock()
-		return len == 0
+		return length == 0
 	}
 	require.NoError(t, testWaitUntilWithTimeout(conditionFn, testWaitTimeout))
 
@@ -590,9 +590,9 @@ func TestCacheDeleteBatching(t *testing.T) {
 	// Wait till the namespace is deleted.
 	conditionFn := func() bool {
 		c.list.Lock()
-		len := c.list.Len()
+		length := c.list.Len()
 		c.list.Unlock()
-		return len == 0
+		return length == 0
 	}
 	require.NoError(t, testWaitUntilWithTimeout(conditionFn, testWaitTimeout))
 

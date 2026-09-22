@@ -585,9 +585,9 @@ func TestNamespaceFlushNotBootstrapped(t *testing.T) {
 }
 
 func TestNamespaceFlushDontNeedFlush(t *testing.T) {
-	ns, close := newTestNamespaceWithIDOpts(t, defaultTestNs1ID,
+	ns, closer := newTestNamespaceWithIDOpts(t, defaultTestNs1ID,
 		namespace.NewOptions().SetFlushEnabled(false))
-	defer close()
+	defer closer()
 
 	ns.bootstrapState = Bootstrapped
 	err := ns.WarmFlush(xtime.Now(), nil)
@@ -692,8 +692,8 @@ func TestNamespaceSnapshotNotBootstrapped(t *testing.T) {
 	ctx := context.NewBackground()
 	defer ctx.Close()
 
-	ns, close := newTestNamespace(t)
-	defer close()
+	ns, closer := newTestNamespace(t)
+	defer closer()
 
 	ns.bootstrapState = Bootstrapping
 

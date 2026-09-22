@@ -257,7 +257,7 @@ func (r shardTimeRanges) Subtract(other ShardTimeRanges) {
 // MinMax will return the very minimum time as a start and the
 // maximum time as an end in the ranges.
 func (r shardTimeRanges) MinMax() (xtime.UnixNano, xtime.UnixNano) {
-	min, max := xtime.UnixNano(0), xtime.UnixNano(0)
+	minVal, maxVal := xtime.UnixNano(0), xtime.UnixNano(0)
 	for _, ranges := range r {
 		if ranges.IsEmpty() {
 			continue
@@ -265,21 +265,21 @@ func (r shardTimeRanges) MinMax() (xtime.UnixNano, xtime.UnixNano) {
 		it := ranges.Iter()
 		for it.Next() {
 			curr := it.Value()
-			if min.IsZero() || curr.Start.Before(min) {
-				min = curr.Start
+			if minVal.IsZero() || curr.Start.Before(minVal) {
+				minVal = curr.Start
 			}
-			if max.IsZero() || curr.End.After(max) {
-				max = curr.End
+			if maxVal.IsZero() || curr.End.After(maxVal) {
+				maxVal = curr.End
 			}
 		}
 	}
-	return min, max
+	return minVal, maxVal
 }
 
 // MinMaxRange returns the min and max times, and the duration for this range.
 func (r shardTimeRanges) MinMaxRange() (xtime.UnixNano, xtime.UnixNano, time.Duration) {
-	min, max := r.MinMax()
-	return min, max, max.Sub(min)
+	minVal, maxVal := r.MinMax()
+	return minVal, maxVal, maxVal.Sub(minVal)
 }
 
 type summaryFn func(xtime.Ranges) string

@@ -245,16 +245,16 @@ func TestDecodeDuplicateLifecycle(t *testing.T) {
 	require.NoError(t, d.Err())
 
 	oldLen := d.Remaining()
-	copy := d.Duplicate()
-	require.Equal(t, oldLen, copy.Remaining())
+	dup := d.Duplicate()
+	require.Equal(t, oldLen, dup.Remaining())
 
-	for copy.Next() {
-		tag := copy.Current() // keep looping
-		tag.Name.Bytes()      // ensure we can get values too
-		tag.Value.Bytes()     // and don't panic
+	for dup.Next() {
+		tag := dup.Current() // keep looping
+		tag.Name.Bytes()     // ensure we can get values too
+		tag.Value.Bytes()    // and don't panic
 	}
-	require.NoError(t, copy.Err())
-	copy.Close()
+	require.NoError(t, dup.Err())
+	dup.Close()
 	d.Close()
 }
 
@@ -266,16 +266,16 @@ func TestDecodeDuplicateIteration(t *testing.T) {
 	require.True(t, d.Next())
 
 	oldLen := d.Remaining()
-	copy := d.Duplicate()
-	require.Equal(t, oldLen, copy.Remaining())
+	dup := d.Duplicate()
+	require.Equal(t, oldLen, dup.Remaining())
 
-	for copy.Next() {
-		tag := copy.Current() // keep looping
-		tag.Name.Bytes()      // ensure we can get values too
-		tag.Value.Bytes()     // and don't panic
+	for dup.Next() {
+		tag := dup.Current() // keep looping
+		tag.Name.Bytes()     // ensure we can get values too
+		tag.Value.Bytes()    // and don't panic
 	}
-	require.NoError(t, copy.Err())
-	copy.Close()
+	require.NoError(t, dup.Err())
+	dup.Close()
 
 	dec := d.(*decoder)
 	require.True(t, dec.checkedData.NumRef() >= 3, fmt.Sprintf("%d", dec.checkedData.NumRef()))

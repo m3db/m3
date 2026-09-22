@@ -143,7 +143,7 @@ const (
 func (l ConnectConsistencyLevel) String() string {
 	switch l {
 	case ConnectConsistencyLevelAny:
-		return any
+		return anyStr
 	case ConnectConsistencyLevelNone:
 		return none
 	case ConnectConsistencyLevelOne:
@@ -340,7 +340,7 @@ func (l *ReadConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) error) 
 // multiple occurrences of same literal string...
 const (
 	unknown          = "unknown"
-	any              = "any"
+	anyStr           = "any"
 	all              = "all"
 	unstrictAll      = "unstrict_all"
 	one              = "one"

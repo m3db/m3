@@ -126,9 +126,9 @@ func TestClampWithArgs(t *testing.T) {
 		exMin = []float64{math.NaN(), 2, 2, 2, 3, math.Inf(1), 2}
 	)
 
-	max := runClamp(t, toArgs(2), ClampMaxType, v)
-	compare.EqualsWithNans(t, exMax, max)
+	maxVal := runClamp(t, toArgs(2), ClampMaxType, v)
+	compare.EqualsWithNans(t, exMax, maxVal)
 
-	min := runClamp(t, toArgs(2), ClampMinType, v)
-	compare.EqualsWithNans(t, exMin, min)
+	minVal := runClamp(t, toArgs(2), ClampMinType, v)
+	compare.EqualsWithNans(t, exMin, minVal)
 }

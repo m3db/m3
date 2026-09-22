@@ -90,20 +90,20 @@ func testInitialPlacementIsBalanced(replicaCount, instanceCount, shardCount int)
 	}
 
 	var (
-		min = math.MaxInt32
-		max = math.MinInt32
+		minVal = math.MaxInt32
+		maxVal = math.MinInt32
 	)
 	for _, instance := range p.Instances() {
 		n := instance.Shards().NumShards()
-		if n < min {
-			min = n
+		if n < minVal {
+			minVal = n
 		}
-		if n > max {
-			max = n
+		if n > maxVal {
+			maxVal = n
 		}
 	}
-	if max-min > 1 {
-		return false, fmt.Errorf("shard count differs by more than 1, min=%v max=%v", min, max)
+	if maxVal-minVal > 1 {
+		return false, fmt.Errorf("shard count differs by more than 1, min=%v max=%v", minVal, maxVal)
 	}
 	return true, nil
 }

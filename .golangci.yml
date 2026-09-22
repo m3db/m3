@@ -14,9 +14,13 @@ linters:
   # silently pulls in checks this repo never opted into. Adopting them (and
   # fixing the ~561 findings they report) is follow-up work, kept out of this
   # toolchain bump:
-  #   new since v1.56:  intrange, recvcheck
-  #   rules expanded:   goconst, noctx, prealloc, predeclared
-  # Re-enabled so far: copyloopvar, canonicalheader, nilnesserr, iface, exptostd.
+  #   new since v1.56:  intrange
+  #   rules expanded:   goconst, noctx, prealloc
+  # Re-enabled so far: copyloopvar, canonicalheader, nilnesserr, iface,
+  # exptostd, predeclared.
+  # recvcheck is deliberately left disabled: most of what it reports is the
+  # value-receiver Marshal* / pointer-receiver Unmarshal* pairing that YAML and
+  # JSON round-tripping requires, and the rest is not worth the churn.
   enable:
     - asasalint
     - canonicalheader
@@ -24,6 +28,7 @@ linters:
     - exptostd
     - iface
     - nilnesserr
+    - predeclared
     - asciicheck
     - bidichk
     - decorder
@@ -90,6 +95,7 @@ linters:
     - paralleltest
     - promlinter
     - protogetter
+    - recvcheck
     - revive
     - tagalign
     - tagliatelle
@@ -201,6 +207,7 @@ linters:
         path: (.+)_test\.go
     paths:
       - .*_gen.go$
+      - .*\.peg\.go$
       - generated/.*
       - eventlog/test$
       - third_party$
@@ -225,6 +232,7 @@ formatters:
     generated: lax
     paths:
       - .*_gen.go$
+      - .*\.peg\.go$
       - generated/.*
       - eventlog/test$
       - third_party$

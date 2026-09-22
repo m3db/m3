@@ -77,7 +77,7 @@ func (p *elemArrPool) Get() []elemType {
 
 func (p *elemArrPool) Put(arr []elemType) {
 	arr = p.opts.FinalizeFn(arr)
-	if max := p.opts.MaxCapacity; max > 0 && cap(arr) > max {
+	if maxCap := p.opts.MaxCapacity; maxCap > 0 && cap(arr) > maxCap {
 		return
 	}
 	p.pool.Put(arr)

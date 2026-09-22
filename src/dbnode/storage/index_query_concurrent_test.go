@@ -114,7 +114,7 @@ func testNamespaceIndexHighConcurrentQueries(
 
 	now := xtime.Now().Truncate(test.indexBlockSize)
 
-	min, max := now.Add(-6*test.indexBlockSize), now.Add(-test.indexBlockSize)
+	minVal, maxVal := now.Add(-6*test.indexBlockSize), now.Add(-test.indexBlockSize)
 
 	var timeoutValue time.Duration
 	if opts.withTimeouts {
@@ -129,7 +129,7 @@ func testNamespaceIndexHighConcurrentQueries(
 	// Make the query pool really high to improve concurrency likelihood
 	nsIdx.permitsManager = permits.NewFixedPermitsManager(1000, int64(time.Millisecond), instrument.NewOptions())
 
-	currNow := min
+	currNow := minVal
 	nowLock := &sync.Mutex{}
 	nsIdx.nowFn = func() time.Time {
 		nowLock.Lock()
@@ -155,7 +155,7 @@ func testNamespaceIndexHighConcurrentQueries(
 		blockStarts     []xtime.UnixNano
 		blockIdx        = -1
 	)
-	for st := min; !st.After(max); st = st.Add(test.indexBlockSize) {
+	for st := minVal; !st.After(maxVal); st = st.Add(test.indexBlockSize) {
 		blockIdx++
 		blockStarts = append(blockStarts, st)
 
@@ -179,7 +179,7 @@ func testNamespaceIndexHighConcurrentQueries(
 			Times(idsPerBlock)
 		onIndexSeries.EXPECT().
 			IndexedRange().
-			Return(min, max).
+			Return(minVal, maxVal).
 			AnyTimes()
 		onIndexSeries.EXPECT().
 			IndexedForBlockStart(gomock.Any()).
@@ -268,7 +268,7 @@ func testNamespaceIndexHighConcurrentQueries(
 			readyWg.Done()
 			startWg.Wait()
 
-			rangeStart := min
+			rangeStart := minVal
 			for k := 0; k < len(blockStarts); k++ {
 				rangeEnd := blockStarts[k].Add(test.indexBlockSize)
 

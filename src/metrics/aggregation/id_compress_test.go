@@ -66,12 +66,12 @@ func TestIDDecompressError(t *testing.T) {
 	_, err := decompressor.Decompress([IDLen]uint64{1})
 	require.Error(t, err)
 
-	max, err := compressor.Compress(
+	compressed, err := compressor.Compress(
 		[]Type{Last, Min, Max, Mean, Median, Count, Sum, SumSq, Stdev, P95, P99, P999, P9999, P25, P75})
 	require.NoError(t, err)
 
-	max[0] = max[0] << 1
-	_, err = decompressor.Decompress(max)
+	compressed[0] <<= 1
+	_, err = decompressor.Decompress(compressed)
 	require.Error(t, err)
 }
 

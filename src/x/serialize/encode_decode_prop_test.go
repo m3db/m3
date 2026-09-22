@@ -46,11 +46,11 @@ func TestPropertySerializationBijective(t *testing.T) {
 	properties.Property("serialization is bijiective", prop.ForAll(
 		func(x string) (bool, error) {
 			tags := ident.NewTagsIterator(ident.NewTags(ident.StringTag(x, x)))
-			copy, err := encodeAndDecode(tags)
+			decoded, err := encodeAndDecode(tags)
 			if err != nil {
 				return false, err
 			}
-			return tagItersAreEqual(tags, copy)
+			return tagItersAreEqual(tags, decoded)
 		},
 		gen.AnyString().SuchThat(func(x string) bool { return len(x) > 0 }),
 	))
@@ -62,11 +62,11 @@ func TestPropertyAnyStringsDontCollide(t *testing.T) {
 	properties.Property("no collisions during string concat", prop.ForAll(
 		func(tag ident.Tag) (bool, error) {
 			tags := ident.NewTagsIterator(ident.NewTags(tag))
-			copy, err := encodeAndDecode(tags)
+			decoded, err := encodeAndDecode(tags)
 			if err != nil {
 				return false, err
 			}
-			return tagItersAreEqual(tags, copy)
+			return tagItersAreEqual(tags, decoded)
 		}, anyTag(),
 	))
 
@@ -78,11 +78,11 @@ func TestPropertyAnyReasonableTagSlicesAreAight(t *testing.T) {
 	properties.Property("tags of reasonable length are handled fine", prop.ForAll(
 		func(tags ident.Tags) (bool, error) {
 			iter := ident.NewTagsIterator(tags)
-			copy, err := encodeAndDecode(iter)
+			decoded, err := encodeAndDecode(iter)
 			if err != nil {
 				return false, err
 			}
-			return tagItersAreEqual(iter, copy)
+			return tagItersAreEqual(iter, decoded)
 		},
 		anyTags().WithLabel("input tags"),
 	))
@@ -91,9 +91,9 @@ func TestPropertyAnyReasonableTagSlicesAreAight(t *testing.T) {
 }
 
 func encodeAndDecode(t ident.TagIterator) (ident.TagIterator, error) {
-	copy := t.Duplicate()
+	dup := t.Duplicate()
 	enc := newTagEncoder(defaultNewCheckedBytesFn, newTestEncoderOpts(), nil)
-	if err := enc.Encode(copy); err != nil {
+	if err := enc.Encode(dup); err != nil {
 		return nil, err
 	}
 	data, ok := enc.Data()

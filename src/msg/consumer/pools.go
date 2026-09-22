@@ -66,8 +66,8 @@ func (p *messagePool) Get() *message {
 }
 
 func (p *messagePool) Put(m *message) {
-	max := p.opts.MaxBufferReuseSize
-	if max > 0 && cap(m.Bytes()) > max {
+	maxSize := p.opts.MaxBufferReuseSize
+	if maxSize > 0 && cap(m.Bytes()) > maxSize {
 		// Do not return to pool if enforcing max buffer reuse size
 		return
 	}

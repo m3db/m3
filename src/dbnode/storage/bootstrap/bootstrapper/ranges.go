@@ -39,13 +39,13 @@ func NewShardTimeRangesTimeWindowGroups(
 	shardTimeRanges result.ShardTimeRanges,
 	windowSize time.Duration,
 ) []ShardTimeRangesTimeWindowGroup {
-	min, max := shardTimeRanges.MinMax()
-	estimate := int(math.Ceil(float64(max.Sub(min)) / float64(windowSize)))
+	minVal, maxVal := shardTimeRanges.MinMax()
+	estimate := int(math.Ceil(float64(maxVal.Sub(minVal)) / float64(windowSize)))
 	grouped := make([]ShardTimeRangesTimeWindowGroup, 0, estimate)
-	for t := min.Truncate(windowSize); t.Before(max); t = t.Add(windowSize) {
+	for t := minVal.Truncate(windowSize); t.Before(maxVal); t = t.Add(windowSize) {
 		currRange := xtime.Range{
 			Start: t,
-			End:   minTime(t.Add(windowSize), max),
+			End:   minTime(t.Add(windowSize), maxVal),
 		}
 
 		group := result.NewShardTimeRanges()

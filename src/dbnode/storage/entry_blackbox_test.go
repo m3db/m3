@@ -194,9 +194,9 @@ func TestEntryIndexedRange(t *testing.T) {
 	})
 
 	assertRange := func(expectedMin, expectedMax xtime.UnixNano) {
-		min, max := entry.IndexedRange()
-		assert.Equal(t, expectedMin, min)
-		assert.Equal(t, expectedMax, max)
+		minVal, maxVal := entry.IndexedRange()
+		assert.Equal(t, expectedMin, minVal)
+		assert.Equal(t, expectedMax, maxVal)
 	}
 
 	assertRange(0, 0)
@@ -296,9 +296,9 @@ func TestMergeWithIndexSeries(t *testing.T) {
 		require.True(t, mergedEntry.IndexedForBlockStart(start))
 	}
 
-	min, max := mergedEntry.IndexedRange()
-	require.Equal(t, min, start)
-	require.Equal(t, max, start.Add(blockSize*time.Duration(numEntries*numBlocks-1)))
+	minVal, maxVal := mergedEntry.IndexedRange()
+	require.Equal(t, minVal, start)
+	require.Equal(t, maxVal, start.Add(blockSize*time.Duration(numEntries*numBlocks-1)))
 }
 
 func TestEntryTryMarkIndexGarbageCollected(t *testing.T) {
