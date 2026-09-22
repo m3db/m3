@@ -52,8 +52,8 @@ func main() {
 		now = time.Now()
 
 		pQueryFile    = flag.String("input", "", "the query file")
-		pPromAddress  = flag.String("promAdress", "host.docker.internal:7201/m3query", "prom address")
-		pQueryAddress = flag.String("queryAddress", "host.docker.internal:7201/m3query", "M3 query address")
+		pPromAddress  = flag.String("promAdress", testHost()+":9090", "prom address")
+		pQueryAddress = flag.String("queryAddress", testHost()+":7201/m3query", "M3 query address")
 
 		pComparatorAddress = flag.String("comparator", "", "comparator address")
 		pRegressionDir     = flag.String("regressionDir", "", "optional directory for regression tests")
@@ -317,4 +317,14 @@ func parseResult(endpoint string) (prometheus.Response, error) {
 	}
 
 	return result, nil
+}
+
+// testHost is where the compose-published ports are reachable from this
+// process: localhost on a developer machine, host.docker.internal when the
+// runner is itself a container.
+func testHost() string {
+	if h := os.Getenv("M3_TEST_HOST"); h != "" {
+		return h
+	}
+	return "localhost"
 }

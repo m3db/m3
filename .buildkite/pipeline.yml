@@ -188,6 +188,7 @@ steps:
     env:
       CGO_ENABLED: 0
       GIMME_GO_VERSION: 1.26.0
+      M3_TEST_HOST: host.docker.internal
     plugins:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3
