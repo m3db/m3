@@ -309,12 +309,11 @@ func newFlushMetrics(scope tally.Scope) *flushMetrics {
 	}
 	// forwardTypeInvalid is a sentinel value, marking the maximum index for forwardMetricType consts
 	for i := range forwardTypeInvalid {
-		tv := i
 		m.jitteredForwardLags[i] = scope.
-			Tagged(forwardKey{fwdType: tv, jitter: true}.toTags()).
+			Tagged(forwardKey{fwdType: i, jitter: true}.toTags()).
 			Histogram("forward-lag", forwardLagBuckets)
 		m.nonJitteredForwardLags[i] = scope.
-			Tagged(forwardKey{fwdType: tv, jitter: false}.toTags()).
+			Tagged(forwardKey{fwdType: i, jitter: false}.toTags()).
 			Histogram("forward-lag", forwardLagBuckets)
 	}
 	return &m
