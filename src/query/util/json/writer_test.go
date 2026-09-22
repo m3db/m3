@@ -51,9 +51,7 @@ func TestWriteValues(t *testing.T) {
 		utf8FnTest(func(w Writer, s string) { w.WriteString(s) }),
 		utf8FnTest(func(w Writer, s string) { w.WriteBytesString([]byte(s)) }),
 	} {
-		fn := fn // Capture for lambdas.
 		for i := 0; i <= maxTestUTF8Value; i++ {
-			i := i
 			switch {
 			case i == int('"') || i == int('\\'):
 				testWrite(t, fmt.Sprintf("\"\\%c\"", rune(i)), func(w Writer) { fn(w, fmt.Sprintf("%c", rune(i))) })

@@ -274,7 +274,6 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// forwarding completes.
 	if targets := h.forwarding.Targets; len(targets) > 0 {
 		for _, target := range targets {
-			target := target // Capture for lambda.
 			forward := func() {
 				now := h.nowFn()
 

@@ -56,7 +56,6 @@ func testSource(t *testing.T, errAfter int32, closeAfter int32, watchNum int) {
 		assert.NoError(t, err)
 		assert.NotNil(t, w)
 
-		i := i
 		go func() {
 			var v interface{}
 			count := 0

@@ -134,7 +134,6 @@ func (h *renderHandler) serveHTTP(
 	meta := block.NewResultMetadata()
 	wg.Add(len(p.Targets))
 	for i, target := range p.Targets {
-		i, target := i, target
 		go func() {
 			childCtx := ctx.NewChildContext(common.NewChildContextOptions())
 			defer func() {

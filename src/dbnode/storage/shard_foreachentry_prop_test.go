@@ -118,7 +118,6 @@ func testShardConcurrentForEachTick(
 	wg.Add(numRoutines)
 
 	for _, fn := range workFns {
-		fn := fn
 		go func() {
 			<-barrier
 			shard.forEachShardEntryBatch(fn)
@@ -166,7 +165,6 @@ func testShardConcurrentForEach(
 	wg.Add(numRoutines)
 
 	for _, fn := range workFns {
-		fn := fn
 		go func() {
 			<-barrier
 			shard.forEachShardEntryBatch(fn)

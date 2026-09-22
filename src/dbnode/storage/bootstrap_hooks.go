@@ -37,7 +37,6 @@ func newBootstrapSourceEndHook(shards []databaseShard) bootstrap.Hook {
 func (h *bootstrapSourceEndHook) Run() error {
 	var wg sync.WaitGroup
 	for _, shard := range h.shards {
-		shard := shard
 		wg.Add(1)
 		go func() {
 			shard.UpdateFlushStates()

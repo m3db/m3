@@ -52,7 +52,6 @@ func ExecuteParallel(ctx context.Context, requests []Request) error {
 func processParallel(ctx context.Context, requests []Request) error {
 	g, ctx := errgroup.WithContext(ctx)
 	for _, req := range requests {
-		req := req
 		g.Go(func() error {
 			return req.Process(ctx)
 		})

@@ -147,7 +147,6 @@ func (m *Migrator) Run(ctx context.Context) error {
 			endIdx = len(candidates)
 		}
 
-		worker := worker
 		startIdx := candidateIdx // Capture current candidateIdx value for goroutine
 		wg.Add(1)
 		go func() {

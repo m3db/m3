@@ -253,7 +253,6 @@ func (c ClustersStaticConfiguration) NewStaticClusters(
 		}
 	}()
 	for _, cfg := range aggregatedClusterNamespacesCfgs {
-		cfg := cfg // Capture var
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -362,8 +361,6 @@ func (c ClustersStaticConfiguration) newDynamicClusters(
 		multiErr xerrors.MultiError
 	)
 	for i, clusterClient := range clients {
-		i := i
-		clusterClient := clusterClient
 		nsInit := clusterClient.Options().NamespaceInitializer()
 
 		// TODO(nate): move this validation to client.Options once static configuration of namespaces

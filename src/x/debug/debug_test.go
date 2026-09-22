@@ -171,7 +171,6 @@ func TestHTTPEndpoint(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, zipReader)
 		for _, f := range zipReader.File {
-			f := f
 			t.Run(f.Name, func(t *testing.T) {
 				var expectedContent string
 				switch {

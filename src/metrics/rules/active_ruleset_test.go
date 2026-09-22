@@ -587,7 +587,6 @@ func TestActiveRuleSetForwardMatchWithMappingRules(t *testing.T) {
 		testIncludeTagKeys(),
 	)
 	for i, input := range inputs {
-		input := input
 		t.Run(fmt.Sprintf("input %d", i), func(t *testing.T) {
 			res, err := as.ForwardMatch(input.ID(), input.matchFrom, input.matchTo, testMatchOptions())
 			require.NoError(t, err)
@@ -619,7 +618,6 @@ func TestActiveRuleSetForwardMatchWithAnyKeepOriginal(t *testing.T) {
 	)
 
 	for i, input := range inputs {
-		input := input
 		t.Run(fmt.Sprintf("input %d", i), func(t *testing.T) {
 			res, err := as.ForwardMatch(input.ID(), input.matchFrom, input.matchTo, testMatchOptions())
 			require.NoError(t, err)
@@ -1481,7 +1479,6 @@ func TestActiveRuleSetForwardMatchWithRollupRules(t *testing.T) {
 	)
 
 	for i, input := range inputs {
-		input := input
 		t.Run(fmt.Sprintf("input %d", i), func(t *testing.T) {
 			res, err := as.ForwardMatch(input.ID(), input.matchFrom, input.matchTo, testMatchOptions())
 			require.NoError(t, err)
@@ -2463,7 +2460,6 @@ func TestActiveRuleSetForwardMatchWithRollupRulesWithIncludeTags(t *testing.T) {
 	)
 
 	for i, input := range inputs {
-		input := input
 		t.Run(fmt.Sprintf("input %d", i), func(t *testing.T) {
 			res, err := as.ForwardMatch(input.ID(), input.matchFrom, input.matchTo, testMatchOptions())
 			require.NoError(t, err)
@@ -3705,7 +3701,6 @@ func TestActiveRuleSetForwardMatchWithMappingRulesAndRollupRules(t *testing.T) {
 		testIncludeTagKeys(),
 	)
 	for i, input := range inputs {
-		input := input
 		t.Run(fmt.Sprintf("input %d", i), func(t *testing.T) {
 			res, err := as.ForwardMatch(input.ID(), input.matchFrom, input.matchTo, testMatchOptions())
 			require.NoError(t, err)
@@ -4200,7 +4195,6 @@ func TestActiveRuleSetReverseMatchWithMappingRulesForNonRollupID(t *testing.T) {
 		testIncludeTagKeys(),
 	)
 	for i, input := range inputs {
-		input := input
 		t.Run(fmt.Sprintf("input %d", i), func(t *testing.T) {
 			res, err := as.ReverseMatch(
 				input.ID(),

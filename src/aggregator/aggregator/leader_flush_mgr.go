@@ -517,7 +517,6 @@ func (t *leaderFlushTask) Run() {
 			BufferAfterCutoff: mgr.maxBufferSize,
 			Jitter:            jitter,
 		}
-		flusher := flusher
 		wgWorkers.Add(1)
 		mgr.workers.Go(func() {
 			flusher.Flush(req)

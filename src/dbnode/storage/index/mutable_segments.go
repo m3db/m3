@@ -740,7 +740,6 @@ func (m *mutableSegments) backgroundCompactWithPlan(
 
 	var wg sync.WaitGroup
 	for i, task := range plan.Tasks {
-		i, task := i, task
 		wg.Add(1)
 		compactor := <-compactors
 		go func() {
@@ -938,7 +937,6 @@ func (m *mutableSegments) populateCachedSearches(
 
 	searches := make(map[PostingsListCacheKey]cachedPatternForCompactedSegment)
 	for i, seg := range prevSegs {
-		i := i
 		result := seg.segment.CachedSearchPatterns(func(p CachedPattern) {
 			pattern, ok := searches[p.CacheKey]
 			if !ok {
@@ -996,7 +994,6 @@ func (m *mutableSegments) populateCachedSearches(
 		workers <- newPopulateCachedSearchesWorker()
 	}
 	for _, s := range searches {
-		s := s // Capture for loop.
 
 		var totalSegmentsHasPatternSize int64
 		for i := range s.patterns {

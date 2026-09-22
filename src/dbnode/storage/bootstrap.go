@@ -267,7 +267,6 @@ func (m *bootstrapManager) bootstrap() error {
 		prepareMultiErr     xerrors.MultiError
 	)
 	for i, namespace := range namespaces {
-		i, namespace := i, namespace
 		prepareWg.Add(1)
 		go func() {
 			shards, err := namespace.PrepareBootstrap(ctx)

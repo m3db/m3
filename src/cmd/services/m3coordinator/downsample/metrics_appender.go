@@ -562,7 +562,6 @@ func (a *metricsAppender) addSamplesAppenders(originalTags *tags, stagedMetadata
 	for _, pipeline := range stagedMetadata.Pipelines {
 		// For pipeline which have tags to augment we generate and send
 		// separate IDs. Other pipelines return the same.
-		pipeline := pipeline
 		if len(pipeline.Tags) == 0 && len(pipeline.GraphitePrefix) == 0 {
 			pipelines = append(pipelines, pipeline)
 			continue

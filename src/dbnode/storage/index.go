@@ -1777,7 +1777,6 @@ func (i *nsIndex) queryWithSpan(
 	// more parallel queries, so we break out of the loop.
 	for _, blockIter := range blockIters {
 		// Capture for async query execution below.
-		blockIter := blockIter
 
 		// acquire a permit before kicking off the goroutine to process the iterator. this limits the number of
 		// concurrent goroutines to # of permits + large queries that needed multiple iterations to finish.

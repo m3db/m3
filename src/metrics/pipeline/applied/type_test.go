@@ -362,7 +362,6 @@ func TestPipelineEqual(t *testing.T) {
 	}
 
 	for _, input := range inputs {
-		input := input
 		t.Run(fmt.Sprintf("%v %v", input.p1.String(), input.p2.String()), func(t *testing.T) {
 			require.Equal(t, input.expected, input.p1.Equal(input.p2))
 			require.Equal(t, input.expected, input.p2.Equal(input.p1))

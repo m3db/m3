@@ -289,8 +289,6 @@ func (g *multiGatherer) Gather() ([]*dto.MetricFamily, error) {
 
 func appendLabels(commonLabels map[string]string, metric *dto.Metric) {
 	for name, value := range commonLabels {
-		name := name
-		value := value
 		metric.Label = append(metric.Label, &dto.LabelPair{Name: &name, Value: &value})
 	}
 }

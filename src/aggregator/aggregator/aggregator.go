@@ -694,7 +694,6 @@ func (agg *aggregator) closeShardsAsync(shards []*aggregatorShard) {
 	agg.metrics.shards.pendingClose.Update(float64(pendingClose))
 
 	for _, shard := range shards {
-		shard := shard
 		go func() {
 			shard.Close()
 			pendingClose := agg.shardsPendingClose.Add(-1)

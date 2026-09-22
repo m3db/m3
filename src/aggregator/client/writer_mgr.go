@@ -228,7 +228,6 @@ func (mgr *writerManager) Flush() error {
 			continue
 		}
 		numDirty++
-		w := w
 		wg.Add(1)
 		mgr.pool.Go(func() {
 			defer wg.Done()

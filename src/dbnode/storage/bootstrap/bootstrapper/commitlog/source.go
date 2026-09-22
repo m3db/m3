@@ -506,7 +506,6 @@ func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span op
 	// the worker channels.
 	var wg sync.WaitGroup
 	for _, worker := range workers {
-		worker := worker
 		wg.Add(1)
 		go func() {
 			s.startAccumulateWorker(worker)

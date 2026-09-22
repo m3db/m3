@@ -96,7 +96,6 @@ func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	for _, query := range tagCompletionQueries.Queries {
 		wg.Add(1)
 		// Capture variables.
-		query := query
 		go func() {
 			result, err := h.storage.CompleteTags(ctx, query, opts)
 			mu.Lock()

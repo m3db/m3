@@ -301,7 +301,6 @@ func TestMultipleClientRpc(t *testing.T) {
 
 	for _, client := range clients {
 		wg.Add(1)
-		client := client
 		go func() {
 			checkFetch(ctx, t, client, read, readOpts)
 			wg.Done()

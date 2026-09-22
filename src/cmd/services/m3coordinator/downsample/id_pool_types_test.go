@@ -303,7 +303,6 @@ func TestRollupIdProvider(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.nameTag == "" {
 				tc.nameTag = nameTag

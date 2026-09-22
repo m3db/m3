@@ -198,7 +198,6 @@ func (p deploymentPlanner) groupInstancesByShardSetID(
 		errCh = make(chan error, len(grouped))
 	)
 	for shardSetID, group := range grouped {
-		shardSetID, group := shardSetID, group
 		wg.Add(1)
 		p.workers.Go(func() {
 			defer wg.Done()

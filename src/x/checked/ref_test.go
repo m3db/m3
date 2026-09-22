@@ -260,7 +260,6 @@ func TestRefCountDelayFinalizer(t *testing.T) {
 			var startWaitingWg, startBeginWg, doneWg sync.WaitGroup
 			startBeginWg.Add(1)
 			for _, delay := range delays {
-				delay := delay
 				startWaitingWg.Add(1)
 				doneWg.Add(1)
 				go func() {
@@ -358,7 +357,6 @@ func TestRefCountDelayFinalizerPropTest(t *testing.T) {
 			startDoneWg.Add(input.numEvents)
 			doneWg.Add(input.numEvents)
 			for j := 0; j < input.numEvents; j++ {
-				j := j // Capture for lambda
 				go func() {
 					startWaitingWg.Done()
 					startBeginWg.Wait()

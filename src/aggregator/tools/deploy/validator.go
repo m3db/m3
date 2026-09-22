@@ -104,7 +104,6 @@ func (f factory) validatorForLeader(
 				found = true
 				continue
 			}
-			instance := instance
 			wg.Add(1)
 			f.workers.Go(func() {
 				defer wg.Done()

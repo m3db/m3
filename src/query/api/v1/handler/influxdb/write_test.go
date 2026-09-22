@@ -249,7 +249,6 @@ func TestInfluxDBWrite(t *testing.T) {
 	defer ctrl.Finish()
 
 	for _, testCase := range tests {
-		testCase := testCase
 		t.Run(testCase.name, func(tt *testing.T) {
 			mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
 			// For error reponses we don't expect WriteBatch to be called
@@ -304,7 +303,6 @@ func TestInfluxDBWritePrecision(t *testing.T) {
 	defer ctrl.Finish()
 
 	for _, testCase := range tests {
-		testCase := testCase
 		t.Run(testCase.name, func(tt *testing.T) {
 			var precision time.Duration
 			switch testCase.precision {

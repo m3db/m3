@@ -72,7 +72,6 @@ func TestNamespaces(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			opts := Options{
 				endpoints: []EndpointOptions{tc.endpoint},

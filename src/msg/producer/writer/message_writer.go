@@ -922,7 +922,6 @@ func (w *messageWriter) beginForcedFlush(
 ) {
 	m := w.Metrics()
 	for i := range consumerWriters {
-		i := i
 		go func(idx int) {
 			if err := consumerWriters[idx].ForcedFlush(connIndex); err != nil {
 				m.forcedFlushFailedOne.Inc(1)

@@ -154,7 +154,6 @@ func writeConcurrentMetrics(
 			defer wg.Done()
 
 			for j := 0; j < writesPerWorker; j++ {
-				j := j
 				wg.Add(1)
 				workerPool.Go(func() {
 					defer wg.Done()
@@ -431,7 +430,6 @@ func writeConcurrentMetricsAcrossTime(
 	fns := make([]func(), 0, len(writeTimes))
 
 	for j, writeTime := range writeTimes {
-		j, writeTime := j, writeTime
 		fns = append(fns, func() {
 			writeMetric(t, session, mdID, seriesID, writeTime, float64(j))
 		})

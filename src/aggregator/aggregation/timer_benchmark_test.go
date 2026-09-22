@@ -139,7 +139,6 @@ func BenchmarkTimerAddBatch(b *testing.B) {
 			},
 		},
 	} {
-		bench := bench
 		samples, q := getTimerSamples(bench.num, bench.sampleFn, testQuantiles)
 		b.Run(bench.name, func(b *testing.B) {
 			benchAddBatch(b, samples, bench.batchSize, testQuantiles, q)

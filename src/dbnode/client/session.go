@@ -2636,8 +2636,6 @@ func (s *session) streamBlocksMetadataFromPeers(
 
 	progress.metadataFetches.Update(float64(pending))
 	for idx, peer := range peers.peers {
-		idx := idx
-		peer := peer
 
 		wg.Add(1)
 		go func() {
@@ -2929,7 +2927,6 @@ func (s *session) streamBlocksFromPeers(
 	// Fetch blocks from peers as results become ready
 	peerQueues := make(peerBlocksQueues, 0, numPeers)
 	for _, peer := range peers.peers {
-		peer := peer
 		size := peerBlocksBatchSize
 		workers := s.streamBlocksWorkers
 		drainEvery := 100 * time.Millisecond

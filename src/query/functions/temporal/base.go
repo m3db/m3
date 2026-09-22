@@ -204,7 +204,6 @@ func (c *baseNode) batchProcess(
 		wg.Add(1)
 		// capture loop variables
 		loopIndex := idx
-		batch := batch
 		idx = idx + batch.Size
 		p := c.makeProcessor.initialize(c.op.duration, c.transformOpts)
 		go func() {

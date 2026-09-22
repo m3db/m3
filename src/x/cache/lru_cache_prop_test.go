@@ -71,7 +71,6 @@ func TestLRUPropertyTest(t *testing.T) {
 			notFound = atomic.NewInt64(0)
 		)
 		for _, in := range input.inputs {
-			in := in
 			wg.Add(1)
 			go func() {
 				defer wg.Done()

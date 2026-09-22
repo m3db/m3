@@ -127,7 +127,6 @@ func TestWriteQueryConverter(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			q, err := storage.NewWriteQuery(tc.input)
 			require.NoError(t, err)

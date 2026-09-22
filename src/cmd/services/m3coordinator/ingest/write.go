@@ -367,7 +367,6 @@ func (d *downsamplerAndWriter) writeToStorage(
 	)
 
 	for _, p := range storagePolicies {
-		p := p // Capture for goroutine.
 
 		wg.Add(1)
 		d.workerPool.Go(func() {
@@ -451,7 +450,6 @@ func (d *downsamplerAndWriter) WriteBatch(
 			d.metrics.written.report(value.Attributes.Source)
 
 			for _, p := range storagePolicies {
-				p := p // Capture for lambda.
 				wg.Add(1)
 				d.workerPool.Go(func() {
 					// NB(r): Allocate the write query at the top
