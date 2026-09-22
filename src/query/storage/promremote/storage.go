@@ -145,7 +145,7 @@ func (p *promStorage) writeSingle(
 	if err != nil {
 		return err
 	}
-	req.Header.Set("content-encoding", "snappy")
+	req.Header.Set(xhttp.HeaderContentEncoding, "snappy")
 	req.Header.Set(xhttp.HeaderContentType, xhttp.ContentTypeProtobuf)
 
 	start := time.Now()

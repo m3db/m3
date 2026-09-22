@@ -31,6 +31,8 @@ import (
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/prometheus/prometheus/storage/remote"
 	"github.com/stretchr/testify/assert"
+
+	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
 // TestPromServer is a fake http server handling prometheus remote write. Intended for test usage.
@@ -62,8 +64,8 @@ func NewServer(t *testing.T) *TestPromServer {
 func (s *TestPromServer) handleWrite(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	assert.Equal(s.t, r.Header.Get("content-encoding"), "snappy")
-	assert.Equal(s.t, r.Header.Get("content-type"), "application/x-protobuf")
+	assert.Equal(s.t, r.Header.Get(xhttp.HeaderContentEncoding), "snappy")
+	assert.Equal(s.t, r.Header.Get(xhttp.HeaderContentType), "application/x-protobuf")
 
 	req, err := remote.DecodeWriteRequest(r.Body)
 	if err != nil {

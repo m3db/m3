@@ -218,7 +218,7 @@ func TestAuthorizeFailure(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	req, err := http.NewRequest("Get", "/create", bytes.NewBuffer(nil))
 	require.NoError(t, err)
-	req.Header.Add("testHeader", "validUserID")
+	req.Header.Add(testConfig.Authentication.UserIDHeader, "validUserID")
 
 	wrappedCall := a.NewAuthHandler(ReadOnlyAuthorization, f, writeAPIResponse)
 	wrappedCall.ServeHTTP(recorder, req)
