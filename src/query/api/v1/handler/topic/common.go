@@ -41,7 +41,7 @@ const (
 	// DefaultTopicName is the default topic name
 	DefaultTopicName = "aggregated_metrics"
 	// HeaderTopicName is the header used to specify the topic name.
-	HeaderTopicName = "topic-name"
+	HeaderTopicName = "Topic-Name"
 
 	_topic = "/topic"
 )

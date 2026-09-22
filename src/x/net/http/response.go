@@ -33,6 +33,8 @@ import (
 const (
 	// HeaderContentType is the HTTP Content Type header.
 	HeaderContentType = "Content-Type"
+	// HeaderContentEncoding is the HTTP Content-Encoding header.
+	HeaderContentEncoding = "Content-Encoding"
 
 	// ContentTypeJSON is the Content-Type value for a JSON response.
 	ContentTypeJSON = "application/json"

@@ -251,7 +251,7 @@ func TestQueryKillOnTimeout(t *testing.T) {
 
 	req, _ := http.NewRequest("POST", server.URL, test.GeneratePromReadBody(t))
 	req.Header.Add(xhttp.HeaderContentType, xhttp.ContentTypeProtobuf)
-	req.Header.Add("timeout", "1ms")
+	req.Header.Add("Timeout", "1ms")
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()

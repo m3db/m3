@@ -68,7 +68,7 @@ func TestPlacementUpdateHandler(t *testing.T) {
 	b := bytes.NewBuffer(nil)
 	require.NoError(t, jsonMarshaler.Marshal(b, &updateProto))
 	req := httptest.NewRequest("PUT", "/topic/update", b)
-	req.Header.Add("topic-name", testTopicName)
+	req.Header.Add(HeaderTopicName, testTopicName)
 	require.NotNil(t, req)
 
 	returnTopic := topic.NewTopic().
@@ -120,7 +120,7 @@ func TestPlacementUpdateHandler(t *testing.T) {
 	b = bytes.NewBuffer(nil)
 	require.NoError(t, jsonMarshaler.Marshal(b, &updateProto))
 	req = httptest.NewRequest("PUT", "/topic/update", b)
-	req.Header.Add("topic-name", testTopicName)
+	req.Header.Add(HeaderTopicName, testTopicName)
 	require.NotNil(t, req)
 
 	returnTopic = returnTopic.SetConsumerServices([]topic.ConsumerService{})

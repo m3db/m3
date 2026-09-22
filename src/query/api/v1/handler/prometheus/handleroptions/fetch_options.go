@@ -54,6 +54,9 @@ const (
 	LookbackParam = "lookback"
 	// TimeoutParam is the timeout parameter.
 	TimeoutParam = "timeout"
+	// legacyTimeoutHeader is TimeoutParam in canonical header form. It is
+	// accepted as a header for backwards compatibility; see ParseRequestTimeout.
+	legacyTimeoutHeader = "Timeout"
 
 	requireExhaustiveParam = "requireExhaustive"
 	requireNoWaitParam     = "requireNoWait"
@@ -666,7 +669,7 @@ func ParseRequestTimeout(
 		timeout = v
 	}
 	// Note: Header should take precedence.
-	if v := r.Header.Get(TimeoutParam); v != "" {
+	if v := r.Header.Get(legacyTimeoutHeader); v != "" {
 		timeout = v
 	}
 	// Prefer the M3-Timeout header to the incorrect header using the param name. The param name should have never been

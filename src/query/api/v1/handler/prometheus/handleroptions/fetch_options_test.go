@@ -641,7 +641,7 @@ func TestParseRelatedQueryOptions(t *testing.T) {
 
 func TestTimeoutParseWithHeader(t *testing.T) {
 	req := httptest.NewRequest("POST", "/dummy", nil)
-	req.Header.Add("timeout", "1ms")
+	req.Header.Add(legacyTimeoutHeader, "1ms")
 
 	timeout, err := ParseRequestTimeout(req, time.Second)
 	assert.NoError(t, err)
@@ -652,13 +652,13 @@ func TestTimeoutParseWithHeader(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, timeout, time.Second)
 
-	req.Header.Del("timeout")
+	req.Header.Del(legacyTimeoutHeader)
 	req.Header.Del(headers.TimeoutHeader)
 	timeout, err = ParseRequestTimeout(req, 2*time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, timeout, 2*time.Minute)
 
-	req.Header.Add("timeout", "invalid")
+	req.Header.Add(legacyTimeoutHeader, "invalid")
 	_, err = ParseRequestTimeout(req, 15*time.Second)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))

@@ -212,7 +212,7 @@ func TestEncodeMetadata(t *testing.T) {
 	headers.Add("Foo", "bar")
 	headers.Add("Foo", "baz")
 	headers.Add("Foo", "abc")
-	headers.Add("lorem", "ipsum")
+	headers.Add("Lorem", "ipsum")
 	ctx := context.WithValue(context.Background(), handleroptions.RequestHeaderKey, headers)
 	requestID := "requestID"
 
