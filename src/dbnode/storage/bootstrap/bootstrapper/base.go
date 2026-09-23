@@ -80,7 +80,8 @@ func (b baseBootstrapper) Bootstrap(
 	namespaces bootstrap.Namespaces,
 	cache bootstrap.Cache,
 ) (bootstrap.NamespaceResults, error) {
-	logFields := []zapcore.Field{
+	// Keep cap == len so that callees appending to logFields get their own copy.
+	logFields := []zapcore.Field{ //nolint:prealloc
 		zap.String("bootstrapper", b.name),
 	}
 

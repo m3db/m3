@@ -117,10 +117,9 @@ func leakDetectionEnabled() bool {
 
 // DumpLeaks returns all detected leaks so far.
 func DumpLeaks() []string {
-	var r []string
-
 	leaks.RLock()
 
+	r := make([]string, 0, len(leaks.m))
 	for k, v := range leaks.m {
 		r = append(r, fmt.Sprintf("leaked %d bytes, origin:\n%s", v, k))
 	}

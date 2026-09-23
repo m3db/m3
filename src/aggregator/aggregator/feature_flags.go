@@ -66,7 +66,7 @@ func (f FeatureFlagConfiguration) parse() FeatureFlagBundleParsed {
 		var (
 			byteOrder      = binary.LittleEndian
 			buff           = make([]byte, 2)
-			tagFilterBytes []byte
+			tagFilterBytes = make([]byte, 0, 2+len(key)+2+len(value))
 		)
 
 		// Add key bytes.

@@ -157,7 +157,7 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 ) (testSetups, closeFn) {
 	var (
 		replicas        = len(setupOpts)
-		setups          []TestSetup
+		setups          = make([]TestSetup, 0, replicas)
 		cleanupFns      []func()
 		cleanupFnsMutex sync.RWMutex
 
@@ -200,7 +200,7 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 			// Setup static topology initializer
 			var (
 				start         = multiAddrPortStart
-				hostShardSets []topology.HostShardSet
+				hostShardSets = make([]topology.HostShardSet, 0, replicas)
 			)
 
 			for i := range replicas {

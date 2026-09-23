@@ -50,7 +50,7 @@ func initPools(capacities []int) {
 
 	sort.Ints(sliceCapacitiesForPools)
 
-	bytesPools = make([]*sync.Pool, 0)
+	bytesPools = make([]*sync.Pool, 0, len(sliceCapacitiesForPools))
 	for _, capacity := range sliceCapacitiesForPools {
 		bytesPools = append(bytesPools, newPool(capacity))
 	}

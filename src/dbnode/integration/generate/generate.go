@@ -108,10 +108,11 @@ func ToPointsByTime(seriesMaps SeriesBlocksByStart) SeriesDataPointsByTime {
 
 // ToDocMetadata converts a SeriesBlock to []doc.Metadata
 func ToDocMetadata(seriesBlock SeriesBlock) []doc.Metadata {
-	docs := make([]doc.Metadata, 0)
+	docs := make([]doc.Metadata, 0, len(seriesBlock))
 	for _, series := range seriesBlock {
-		fields := make([]doc.Field, 0)
-		for _, t := range series.Tags.Values() {
+		tags := series.Tags.Values()
+		fields := make([]doc.Field, 0, len(tags))
+		for _, t := range tags {
 			fields = append(fields, doc.Field{
 				Name:  t.Name.Bytes(),
 				Value: t.Value.Bytes(),

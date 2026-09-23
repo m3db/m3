@@ -178,7 +178,7 @@ func run(opts runOptions) {
 		workers.Go(func() {
 			defer wg.Done()
 
-			var readers []index.Reader
+			readers := make([]index.Reader, 0, len(readResult.Segments))
 			for _, seg := range readResult.Segments {
 				reader, err := seg.Reader()
 				if err != nil {

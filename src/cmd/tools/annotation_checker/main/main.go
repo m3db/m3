@@ -152,7 +152,7 @@ func main() {
 		}
 	}
 
-	metrics := make([]string, 0)
+	metrics := make([]string, 0, len(metricsMap))
 	for m := range metricsMap {
 		metrics = append(metrics, m)
 	}

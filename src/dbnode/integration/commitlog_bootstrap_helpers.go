@@ -82,10 +82,11 @@ func randStringRunes(n int) string {
 func generateSeriesMaps(
 	numBlocks int, updateConfig generate.UpdateBlockConfig, starts ...xtime.UnixNano,
 ) generate.SeriesBlocksByStart {
-	blockConfig := []generate.BlockConfig{}
+	blockConfig := make([]generate.BlockConfig, 0, numBlocks)
 	for range numBlocks {
-		name := []string{}
-		for range rand.Intn(10) + 1 {
+		numIDs := rand.Intn(10) + 1
+		name := make([]string, 0, numIDs)
+		for range numIDs {
 			name = append(name, randStringRunes(100))
 		}
 

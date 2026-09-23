@@ -1963,7 +1963,7 @@ func newAdminClient(
 	}
 
 	// NB: append custom options coming from run options to existing options.
-	options := []client.CustomAdminOption{
+	options := []client.CustomAdminOption{ //nolint:prealloc // literal reads better; runs once at startup
 		func(opts client.AdminOptions) client.AdminOptions {
 			return opts.SetChannelOptions(tchannelOpts).(client.AdminOptions)
 		},

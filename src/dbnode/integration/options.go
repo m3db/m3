@@ -389,7 +389,7 @@ type options struct {
 
 // NewTestOptions returns a new set of integration test options.
 func NewTestOptions(t *testing.T) TestOptions {
-	var namespaces []namespace.Metadata
+	namespaces := make([]namespace.Metadata, 0, len(testNamespaces))
 	nsOpts := namespace.NewOptions().
 		SetRepairEnabled(false).
 		SetRetentionOptions(DefaultIntegrationTestRetentionOpts)

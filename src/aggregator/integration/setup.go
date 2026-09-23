@@ -21,6 +21,7 @@
 package integration
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -522,12 +523,11 @@ type capturingWriter struct {
 func (w *capturingWriter) Write(mp aggregated.ChunkedMetricWithStoragePolicy) error {
 	w.resultLock.Lock()
 	defer w.resultLock.Unlock()
-	var fullID []byte
+	fullID := make([]byte, 0, len(mp.ChunkedID.Prefix)+len(mp.ChunkedID.Data)+len(mp.ChunkedID.Suffix))
 	fullID = append(fullID, mp.ChunkedID.Prefix...)
 	fullID = append(fullID, mp.ChunkedID.Data...)
 	fullID = append(fullID, mp.ChunkedID.Suffix...)
-	var clonedAnnotation []byte
-	clonedAnnotation = append(clonedAnnotation, mp.Annotation...)
+	clonedAnnotation := bytes.Clone(mp.Annotation)
 	metric := aggregated.Metric{
 		ID:         fullID,
 		TimeNanos:  mp.TimeNanos,

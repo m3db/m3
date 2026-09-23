@@ -35,7 +35,7 @@ func Uint32Range(from, to uint32) []uint32 {
 
 // Shards returns a slice of shards with provided ids and state `s`.
 func Shards(ids []uint32, s shard.State) []shard.Shard {
-	var shards []shard.Shard
+	shards := make([]shard.Shard, 0, len(ids))
 	for _, id := range ids {
 		shards = append(shards, shard.NewShard(id).SetState(s))
 	}
