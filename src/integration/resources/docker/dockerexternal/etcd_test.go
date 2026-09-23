@@ -68,6 +68,17 @@ func setupEtcdTest(t *testing.T) etcdTestDeps {
 	}
 }
 
+func TestClose_beforeSetup(t *testing.T) {
+	// A node whose Setup never ran (or failed before the container came up)
+	// has no resource to release. Close must be a no-op rather than a nil
+	// pointer panic, since tests defer Close before checking Setup's error.
+	ctx, cancel := newTestContext()
+	defer cancel()
+
+	node := &EtcdNode{logger: testLogger}
+	require.NoError(t, node.Close(ctx))
+}
+
 func TestCluster(t *testing.T) {
 	t.Run("starts a functioning cluster", func(t *testing.T) {
 		ctx, cancel := newTestContext()
