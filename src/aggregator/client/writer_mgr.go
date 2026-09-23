@@ -86,10 +86,10 @@ func newWriterManagerMetrics(scope tally.Scope) writerManagerMetrics {
 
 	return writerManagerMetrics{
 		instancesAdded: scope.Tagged(map[string]string{
-			"action": "add",
+			actionTag: "add",
 		}).Counter("instances"),
 		instancesRemoved: scope.Tagged(map[string]string{
-			"action": "remove",
+			actionTag: "remove",
 		}).Counter("instances"),
 		queueLen:            scope.Histogram("queue-length", buckets),
 		dirtyWritersPercent: scope.Histogram("dirty-writers-percent", percentBuckets),

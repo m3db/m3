@@ -774,25 +774,25 @@ func newAggregatorAddMetricErrorMetrics(
 ) aggregatorAddMetricErrorMetrics {
 	return aggregatorAddMetricErrorMetrics{
 		shardNotOwned: scope.Tagged(map[string]string{
-			"reason": "shard-not-owned",
+			reasonLabel: "shard-not-owned",
 		}).Counter("errors"),
 		shardNotWriteable: scope.Tagged(map[string]string{
-			"reason": "shard-not-writeable",
+			reasonLabel: "shard-not-writeable",
 		}).Counter("errors"),
 		valueRateLimitExceeded: scope.Tagged(map[string]string{
-			"reason": "value-rate-limit-exceeded",
+			reasonLabel: "value-rate-limit-exceeded",
 		}).Counter("errors"),
 		newMetricRateLimitExceeded: scope.Tagged(map[string]string{
-			"reason": "new-metric-rate-limit-exceeded",
+			reasonLabel: "new-metric-rate-limit-exceeded",
 		}).Counter("errors"),
 		arrivedTooLate: scope.Tagged(map[string]string{
-			"reason": "arrived-too-late",
+			reasonLabel: "arrived-too-late",
 		}).Counter("errors"),
 		aggregationClosed: scope.Tagged(map[string]string{
-			"reason": "aggregation-closed",
+			reasonLabel: "aggregation-closed",
 		}).Counter("errors"),
 		uncategorizedErrors: scope.Tagged(map[string]string{
-			"reason": "not-categorized",
+			reasonLabel: "not-categorized",
 		}).Counter("errors"),
 	}
 }
@@ -834,13 +834,13 @@ func newAggregatorAddUntimedErrorMetrics(
 	return aggregatorAddUntimedErrorMetrics{
 		aggregatorAddMetricErrorMetrics: newAggregatorAddMetricErrorMetrics(scope),
 		invalidMetricTypes: scope.Tagged(map[string]string{
-			"reason": "invalid-metric-types",
+			reasonLabel: "invalid-metric-types",
 		}).Counter("errors"),
 		tooFarInTheFuture: scope.Tagged(map[string]string{
-			"reason": "too-far-in-the-future",
+			reasonLabel: "too-far-in-the-future",
 		}).Counter("errors"),
 		tooFarInThePast: scope.Tagged(map[string]string{
-			"reason": "too-far-in-the-past",
+			reasonLabel: "too-far-in-the-past",
 		}).Counter("errors"),
 	}
 }
@@ -895,10 +895,10 @@ func newAggregatorAddTimedErrorMetrics(
 	return aggregatorAddTimedErrorMetrics{
 		aggregatorAddMetricErrorMetrics: newAggregatorAddMetricErrorMetrics(scope),
 		tooFarInTheFuture: scope.Tagged(map[string]string{
-			"reason": "too-far-in-the-future",
+			reasonLabel: "too-far-in-the-future",
 		}).Counter("errors"),
 		tooFarInThePast: scope.Tagged(map[string]string{
-			"reason": "too-far-in-the-past",
+			reasonLabel: "too-far-in-the-past",
 		}).Counter("errors"),
 	}
 }
@@ -1041,7 +1041,7 @@ func (m *aggregatorAddForwardedMetrics) ReportForwardingLatency(
 	latencyBuckets := tally.MustMakeLinearDurationBuckets(0, latencyBucketSize, numLatencyBuckets)
 	histogram = m.scope.Tagged(map[string]string{
 		"bucket-version":      strconv.Itoa(latencyBucketVersion),
-		"resolution":          resolution.String(),
+		resolutionLabel:       resolution.String(),
 		"num-forwarded-times": strconv.Itoa(numForwardedTimes),
 	}).Histogram("forwarding-latency", latencyBuckets)
 	m.forwardingLatency[key] = histogram
@@ -1072,7 +1072,7 @@ func (m tickMetricsForMetricCategory) Report(tickResult tickResultForMetricCateg
 		gauge, exists := m.activeElems[dur]
 		if !exists {
 			gauge = m.scope.Tagged(
-				map[string]string{"resolution": dur.String()},
+				map[string]string{resolutionLabel: dur.String()},
 			).Gauge("active-elems")
 			m.activeElems[dur] = gauge
 		}
@@ -1089,9 +1089,9 @@ type aggregatorTickMetrics struct {
 }
 
 func newAggregatorTickMetrics(scope tally.Scope) aggregatorTickMetrics {
-	standardScope := scope.Tagged(map[string]string{"metric-type": "standard"})
-	forwardedScope := scope.Tagged(map[string]string{"metric-type": "forwarded"})
-	timedScope := scope.Tagged(map[string]string{"metric-type": "timed"})
+	standardScope := scope.Tagged(map[string]string{metricTypeLabel: standardTypeStr})
+	forwardedScope := scope.Tagged(map[string]string{metricTypeLabel: forwardedTypeStr})
+	timedScope := scope.Tagged(map[string]string{metricTypeLabel: timedTypeStr})
 	return aggregatorTickMetrics{
 		flushTimesErrors: scope.Counter("flush-times-errors"),
 		duration:         scope.Timer("duration"),

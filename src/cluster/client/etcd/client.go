@@ -61,6 +61,8 @@ const (
 	_grpcMaxSendRecvBufferSize = 32 * 1024 * 1024
 )
 
+const configServiceTag = "config_service"
+
 var errInvalidNamespace = errors.New("invalid namespace")
 
 // make sure m3cluster and etcd client interfaces are implemented, and that
@@ -92,9 +94,9 @@ func NewEtcdConfigServiceClient(opts Options) (*csclient, error) {
 	return &csclient{
 		opts:    opts,
 		sdOpts:  opts.ServicesOptions(),
-		kvScope: scope.Tagged(map[string]string{"config_service": "kv"}),
-		sdScope: scope.Tagged(map[string]string{"config_service": "sd"}),
-		hbScope: scope.Tagged(map[string]string{"config_service": "hb"}),
+		kvScope: scope.Tagged(map[string]string{configServiceTag: "kv"}),
+		sdScope: scope.Tagged(map[string]string{configServiceTag: "sd"}),
+		hbScope: scope.Tagged(map[string]string{configServiceTag: "hb"}),
 		clis:    make(map[string]*clientv3.Client),
 		logger:  opts.InstrumentOptions().Logger(),
 		newFn:   newClient,

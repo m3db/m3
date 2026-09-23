@@ -57,9 +57,9 @@ type leaderFlushManagerMetrics struct {
 }
 
 func newLeaderFlushManagerMetrics(scope tally.Scope) leaderFlushManagerMetrics {
-	standardScope := scope.Tagged(map[string]string{"flusher-type": "standard"})
-	forwardedScope := scope.Tagged(map[string]string{"flusher-type": "forwarded"})
-	timedScope := scope.Tagged(map[string]string{"flusher-type": "timed"})
+	standardScope := scope.Tagged(map[string]string{flusherTypeLabel: standardTypeStr})
+	forwardedScope := scope.Tagged(map[string]string{flusherTypeLabel: forwardedTypeStr})
+	timedScope := scope.Tagged(map[string]string{flusherTypeLabel: timedTypeStr})
 	return leaderFlushManagerMetrics{
 		queueSize:             scope.Gauge("queue-size"),
 		getShardsError:        scope.Counter("get-shards-error"),

@@ -401,19 +401,19 @@ type postingsListCacheMetrics struct {
 func newPostingsListCacheMetrics(scope tally.Scope) *postingsListCacheMetrics {
 	return &postingsListCacheMetrics{
 		regexp: newPostingsListCacheMethodMetrics(scope.Tagged(map[string]string{
-			"query_type": "regexp",
+			queryTypeTag: "regexp",
 		})),
 		term: newPostingsListCacheMethodMetrics(scope.Tagged(map[string]string{
-			"query_type": "term",
+			queryTypeTag: "term",
 		})),
 		field: newPostingsListCacheMethodMetrics(scope.Tagged(map[string]string{
-			"query_type": "field",
+			queryTypeTag: "field",
 		})),
 		search: newPostingsListCacheMethodMetrics(scope.Tagged(map[string]string{
-			"query_type": "search",
+			queryTypeTag: "search",
 		})),
 		unknown: newPostingsListCacheMethodMetrics(scope.Tagged(map[string]string{
-			"query_type": "unknown",
+			queryTypeTag: "unknown",
 		})),
 		size:      scope.Gauge("size"),
 		capacity:  scope.Gauge("capacity"),

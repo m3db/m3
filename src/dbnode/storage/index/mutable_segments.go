@@ -140,7 +140,7 @@ func newMutableSegmentsMetrics(s tally.Scope) mutableSegmentsMetrics {
 		backgroundCompactionPlanRunLatency: backgroundScope.Timer("compaction-plan-run-latency"),
 		backgroundCompactionTaskRunLatency: backgroundScope.Timer("compaction-task-run-latency"),
 		activeBlockIndexNew: activeBlockScope.Tagged(map[string]string{
-			"result_type": "new",
+			resultTypeTag: "new",
 		}).Counter("index-result"),
 		activeBlockGarbageCollectSegment:                activeBlockScope.Counter("gc-segment"),
 		activeBlockGarbageCollectSeries:                 activeBlockScope.Counter("gc-series"),
@@ -164,16 +164,16 @@ func newMutableSegmentsMetrics(s tally.Scope) mutableSegmentsMetrics {
 			"eval_type": "attempt",
 		}).Counter("gc-reconstruct-cached-search-eval"),
 		activeBlockGarbageCollectReconstructCachedSearchCacheHit: backgroundScope.Tagged(map[string]string{
-			"result_type": "cache_hit",
+			resultTypeTag: "cache_hit",
 		}).Counter("gc-reconstruct-cached-search-cache-result"),
 		activeBlockGarbageCollectReconstructCachedSearchCacheMiss: backgroundScope.Tagged(map[string]string{
-			"result_type": "cache_miss",
+			resultTypeTag: "cache_miss",
 		}).Counter("gc-reconstruct-cached-search-cache-result"),
 		activeBlockGarbageCollectReconstructCachedSearchExecSuccess: backgroundScope.Tagged(map[string]string{
-			"result_type": "success",
+			resultTypeTag: "success",
 		}).Counter("gc-reconstruct-cached-search-exec-result"),
 		activeBlockGarbageCollectReconstructCachedSearchExecError: backgroundScope.Tagged(map[string]string{
-			"result_type": "error",
+			resultTypeTag: "error",
 		}).Counter("gc-reconstruct-cached-search-exec-result"),
 	}
 }

@@ -353,7 +353,7 @@ func newConnectionMetrics(scope tally.Scope) connectionMetrics {
 			Counter(errorMetric),
 		writeError: scope.Tagged(map[string]string{errorMetricType: "write"}).
 			Counter(errorMetric),
-		writeRetries: scope.Tagged(map[string]string{"action": "write"}).Counter("retries"),
+		writeRetries: scope.Tagged(map[string]string{actionTag: "write"}).Counter("retries"),
 		setKeepAliveError: scope.Tagged(map[string]string{errorMetricType: "tcp-keep-alive"}).
 			Counter(errorMetric),
 		setWriteDeadlineError: scope.Tagged(map[string]string{errorMetricType: "set-write-deadline"}).

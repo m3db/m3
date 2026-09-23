@@ -64,6 +64,20 @@ const (
 	listTypeLabel                             = "list-type"
 	resolutionLabel                           = "resolution"
 	flushTypeLabel                            = "flush-type"
+	metricTypeLabel                           = "metric-type"
+	flusherTypeLabel                          = "flusher-type"
+	entryTypeLabel                            = "entry-type"
+	writerTypeLabel                           = "writer-type"
+	actionLabel                               = "action"
+	reasonLabel                               = "reason"
+
+	// String forms of the metric category / list type enums, shared with
+	// the metric tags that partition by them.
+	standardTypeStr  = "standard"
+	untimedTypeStr   = "untimed"
+	forwardedTypeStr = "forwarded"
+	timedTypeStr     = "timed"
+	localTypeStr     = "local"
 )
 
 var (
@@ -345,7 +359,7 @@ func (f forwardKey) toTags() map[string]string {
 	if f.jitter {
 		jitter = "true"
 	}
-	fwdType := "local"
+	fwdType := localTypeStr
 	if f.fwdType == forwardTypeRemote {
 		fwdType = "remote"
 	}

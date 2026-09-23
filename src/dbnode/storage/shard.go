@@ -200,23 +200,23 @@ func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
 		closeStart:   scope.Counter("close-start"),
 		closeLatency: scope.Timer("close-latency"),
 		seriesTicked: scope.Tagged(map[string]string{
-			"shard": fmt.Sprintf("%d", shardID),
+			shardTag: fmt.Sprintf("%d", shardID),
 		}).Gauge("series-ticked"),
 		insertAsyncInsertErrors: scope.Tagged(map[string]string{
-			"error_type":    "insert-series",
-			"suberror_type": "shard-entry-insert-error",
+			errorTypeTag:    "insert-series",
+			suberrorTypeTag: "shard-entry-insert-error",
 		}).Counter(insertErrorName),
 		insertAsyncWriteInternalErrors: scope.Tagged(map[string]string{
-			"error_type":    "write-value",
-			"suberror_type": "internal-error",
+			errorTypeTag:    "write-value",
+			suberrorTypeTag: "internal-error",
 		}).Counter(insertErrorName),
 		insertAsyncWriteInvalidParamsErrors: scope.Tagged(map[string]string{
-			"error_type":    "write-value",
-			"suberror_type": "invalid-params-error",
+			errorTypeTag:    "write-value",
+			suberrorTypeTag: "invalid-params-error",
 		}).Counter(insertErrorName),
 		insertAsyncIndexErrors: scope.Tagged(map[string]string{
-			"error_type":    "reverse-index",
-			"suberror_type": "write-batch-error",
+			errorTypeTag:    "reverse-index",
+			suberrorTypeTag: "write-batch-error",
 		}).Counter(insertErrorName),
 		snapshotTotalLatency:              snapshotScope.Timer("total-latency"),
 		snapshotPrepareLatency:            snapshotScope.Timer("prepare-latency"),

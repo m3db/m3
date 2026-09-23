@@ -56,12 +56,17 @@ type writerMetrics struct {
 	numConsumerServices tally.Gauge
 }
 
+const (
+	reasonTag = "reason"
+	resultTag = "result"
+)
+
 func newWriterMetrics(scope tally.Scope) writerMetrics {
 	return writerMetrics{
 		topicUpdateSuccess: scope.Counter("topic-update-success"),
 		topicUpdateError:   scope.Counter("topic-update-error"),
 		invalidTopicUpdate: scope.Counter("invalid-topic"),
-		invalidShard: scope.Tagged(map[string]string{"reason": "invalid-shard"}).
+		invalidShard: scope.Tagged(map[string]string{reasonTag: "invalid-shard"}).
 			Counter("invalid-shard-write"),
 		numConsumerServices: scope.Gauge("num-consumer-services"),
 	}

@@ -82,10 +82,10 @@ type shardRepairerMetrics struct {
 func newShardRepairerMetrics(scope tally.Scope) shardRepairerMetrics {
 	return shardRepairerMetrics{
 		runDefault: scope.Tagged(map[string]string{
-			"repair_type": "default",
+			repairTypeTag: "default",
 		}).Counter("run"),
 		runOnlyCompare: scope.Tagged(map[string]string{
-			"repair_type": "only_compare",
+			repairTypeTag: "only_compare",
 		}).Counter("run"),
 	}
 }
@@ -403,12 +403,12 @@ func (r shardRepairer) recordDifferences(
 ) {
 	var (
 		shardScope = r.scope.Tagged(map[string]string{
-			"namespace": namespace.String(),
-			"shard":     strconv.Itoa(int(shard.ID())),
+			namespaceTag: namespace.String(),
+			shardTag:     strconv.Itoa(int(shard.ID())),
 		})
-		totalScope        = shardScope.Tagged(map[string]string{"resultType": "total"})
-		sizeDiffScope     = shardScope.Tagged(map[string]string{"resultType": "sizeDiff"})
-		checksumDiffScope = shardScope.Tagged(map[string]string{"resultType": "checksumDiff"})
+		totalScope        = shardScope.Tagged(map[string]string{resultTypeTag: "total"})
+		sizeDiffScope     = shardScope.Tagged(map[string]string{resultTypeTag: "sizeDiff"})
+		checksumDiffScope = shardScope.Tagged(map[string]string{resultTypeTag: "checksumDiff"})
 	)
 
 	// Record total number of series and total number of blocks.
@@ -696,7 +696,7 @@ func (r *dbRepairer) Repair() error {
 			leastRecentlyRepairedBlockStart               xtime.UnixNano
 			leastRecentlyRepairedBlockStartLastRepairTime xtime.UnixNano
 			namespaceScope                                = r.scope.Tagged(map[string]string{
-				"namespace": n.ID().String(),
+				namespaceTag: n.ID().String(),
 			})
 		)
 		repairRange.IterateBackward(blockSize, func(blockStart xtime.UnixNano) bool {

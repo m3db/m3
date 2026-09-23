@@ -84,9 +84,9 @@ type followerFlushManagerMetrics struct {
 }
 
 func newFollowerFlushManagerMetrics(scope tally.Scope) followerFlushManagerMetrics {
-	standardScope := scope.Tagged(map[string]string{"flusher-type": "standard"})
-	forwardedScope := scope.Tagged(map[string]string{"flusher-type": "forwarded"})
-	timedScope := scope.Tagged(map[string]string{"flusher-type": "timed"})
+	standardScope := scope.Tagged(map[string]string{flusherTypeLabel: standardTypeStr})
+	forwardedScope := scope.Tagged(map[string]string{flusherTypeLabel: forwardedTypeStr})
+	timedScope := scope.Tagged(map[string]string{flusherTypeLabel: timedTypeStr})
 	return followerFlushManagerMetrics{
 		watchCreateErrors: scope.Counter("watch-create-errors"),
 		kvUpdateFlush:     scope.Counter("kv-update-flush"),

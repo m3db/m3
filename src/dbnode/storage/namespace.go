@@ -335,7 +335,7 @@ func newDatabaseNamespace(
 	iops = iops.
 		SetLogger(logger).
 		SetMetricsScope(iops.MetricsScope().Tagged(map[string]string{
-			"namespace": id.String(),
+			namespaceTag: id.String(),
 		}))
 	opts = opts.SetInstrumentOptions(iops)
 

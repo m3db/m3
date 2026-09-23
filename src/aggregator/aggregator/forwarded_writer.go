@@ -108,33 +108,30 @@ type forwardedWriterMetrics struct {
 }
 
 func newForwardedWriterMetrics(scope tally.Scope) forwardedWriterMetrics {
-	const (
-		errorsName = "errors"
-		reasonTag  = "reason"
-	)
-	registerScope := scope.Tagged(map[string]string{"action": "register"})
-	unregisterScope := scope.Tagged(map[string]string{"action": "unregister"})
-	prepareScope := scope.Tagged(map[string]string{"action": "prepare"})
-	flushScope := scope.Tagged(map[string]string{"action": "flush"})
+	const errorsName = "errors"
+	registerScope := scope.Tagged(map[string]string{actionLabel: "register"})
+	unregisterScope := scope.Tagged(map[string]string{actionLabel: "unregister"})
+	prepareScope := scope.Tagged(map[string]string{actionLabel: "prepare"})
+	flushScope := scope.Tagged(map[string]string{actionLabel: "flush"})
 	return forwardedWriterMetrics{
 		registerSuccess: registerScope.Counter("success"),
 		registerWriterClosed: registerScope.Tagged(map[string]string{
-			reasonTag: "writer-closed",
+			reasonLabel: "writer-closed",
 		}).Counter(errorsName),
 		unregisterSuccess: unregisterScope.Counter("success"),
 		unregisterWriterClosed: unregisterScope.Tagged(map[string]string{
-			reasonTag: "writer-closed",
+			reasonLabel: "writer-closed",
 		}).Counter(errorsName),
 		unregisterMetricNotFound: unregisterScope.Tagged(map[string]string{
-			reasonTag: "metric-not-found",
+			reasonLabel: "metric-not-found",
 		}).Counter(errorsName),
 		unregisterAggregationNotFound: unregisterScope.Tagged(map[string]string{
-			reasonTag: "aggregation-not-found",
+			reasonLabel: "aggregation-not-found",
 		}).Counter(errorsName),
 		prepare:      prepareScope.Counter("prepare"),
 		flushSuccess: flushScope.Counter("success"),
 		flushErrorsClient: flushScope.Tagged(map[string]string{
-			reasonTag: "client-flush-error",
+			reasonLabel: "client-flush-error",
 		}).Counter(errorsName),
 	}
 }
@@ -164,7 +161,7 @@ func newForwardedWriter(
 	shard uint32,
 	opts Options) forwardedMetricWriter {
 	scope := opts.InstrumentOptions().MetricsScope().
-		Tagged(map[string]string{"writer-type": "forwarded"}).
+		Tagged(map[string]string{writerTypeLabel: forwardedTypeStr}).
 		SubScope("writer")
 	return &forwardedWriter{
 		shard:              shard,

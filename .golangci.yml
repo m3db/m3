@@ -9,14 +9,11 @@ run:
   issues-exit-code: 1
   tests: true
 linters:
-  # NB: the following linters are deliberately not enabled. The v1 -> v2
-  # migration expands the old `presets` blocks against v2's linter set, which
-  # silently pulls in checks this repo never opted into. Adopting them (and
-  # fixing the ~561 findings they report) is follow-up work, kept out of this
-  # toolchain bump:
-  #   rules expanded:   goconst
-  # Re-enabled so far: copyloopvar, canonicalheader, nilnesserr, iface,
-  # exptostd, predeclared, intrange, prealloc, noctx.
+  # NB: the v1 -> v2 migration (#4410) expanded the old `presets` blocks
+  # against v2's linter set, which silently pulled in checks this repo had
+  # never opted into. They were left disabled in that bump and re-enabled one
+  # per follow-up PR: copyloopvar, canonicalheader, nilnesserr, iface,
+  # exptostd, predeclared, intrange, prealloc, noctx, goconst.
   # recvcheck is deliberately left disabled: most of what it reports is the
   # value-receiver Marshal* / pointer-receiver Unmarshal* pairing that YAML and
   # JSON round-tripping requires, and the rest is not worth the churn.
@@ -25,6 +22,7 @@ linters:
     - canonicalheader
     - copyloopvar
     - exptostd
+    - goconst
     - iface
     - intrange
     - nilnesserr
@@ -134,6 +132,13 @@ linters:
     goconst:
       min-len: 3
       min-occurrences: 3
+      # Count occurrences in non-test code only; test fixtures repeat
+      # literals freely and would otherwise push production strings over
+      # the threshold.
+      ignore-tests: true
+      # Boolean and sentinel words are not meaningful constants.
+      ignore-string-values:
+        - ^(true|false|unknown|none)$
     gocritic:
       disabled-checks:
         - hugeParam
@@ -211,6 +216,10 @@ linters:
           - noctx
           - prealloc
         path: (.+)_test\.go
+      # Test fixtures and harnesses that live in non-_test.go files.
+      - linters:
+          - goconst
+        path: (^|/)(integration|stub|test)/
     paths:
       - .*_gen.go$
       - .*\.peg\.go$

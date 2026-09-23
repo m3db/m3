@@ -74,11 +74,11 @@ var validMetricCategories = []metricCategory{
 func (c metricCategory) String() string {
 	switch c {
 	case untimedMetric:
-		return "untimed"
+		return untimedTypeStr
 	case forwardedMetric:
-		return "forwarded"
+		return forwardedTypeStr
 	case timedMetric:
-		return "timed"
+		return timedTypeStr
 	default:
 		return "unknown"
 	}

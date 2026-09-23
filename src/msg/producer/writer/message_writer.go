@@ -125,18 +125,18 @@ func newMessageWriterMetricsWithConsumer(
 			Tagged(map[string]string{"error-type": "no-writers"}).
 			Counter("write-error"),
 		writeAfterCutoff: consumerScope.
-			Tagged(map[string]string{"reason": "after-cutoff"}).
+			Tagged(map[string]string{reasonTag: "after-cutoff"}).
 			Counter("invalid-write"),
 		writeBeforeCutover: consumerScope.
-			Tagged(map[string]string{"reason": "before-cutover"}).
+			Tagged(map[string]string{reasonTag: "before-cutover"}).
 			Counter("invalid-write"),
 		messageAcked:  consumerScope.Counter("message-acked"),
 		messageClosed: consumerScope.Counter("message-closed"),
 		messageDroppedBufferFull: consumerScope.Tagged(
-			map[string]string{"reason": "buffer-full"},
+			map[string]string{reasonTag: "buffer-full"},
 		).Counter("message-dropped"),
 		messageDroppedTTLExpire: consumerScope.Tagged(
-			map[string]string{"reason": "ttl-expire"},
+			map[string]string{reasonTag: "ttl-expire"},
 		).Counter("message-dropped"),
 		messageRetry:          consumerScope.Counter("message-retry"),
 		messageConsumeLatency: instrument.NewTimer(consumerScope, "message-consume-latency", opts),
@@ -150,22 +150,22 @@ func newMessageWriterMetricsWithConsumer(
 		enqueuedMessages: consumerScope.Counter("message-enqueue"),
 		dequeuedMessages: consumerScope.Counter("message-dequeue"),
 		processedWrite: consumerScope.
-			Tagged(map[string]string{"result": "write"}).
+			Tagged(map[string]string{resultTag: "write"}).
 			Counter("message-processed"),
 		processedClosed: consumerScope.
-			Tagged(map[string]string{"result": "closed"}).
+			Tagged(map[string]string{resultTag: "closed"}).
 			Counter("message-processed"),
 		processedNotReady: consumerScope.
-			Tagged(map[string]string{"result": "not-ready"}).
+			Tagged(map[string]string{resultTag: "not-ready"}).
 			Counter("message-processed"),
 		processedTTL: consumerScope.
-			Tagged(map[string]string{"result": "ttl"}).
+			Tagged(map[string]string{resultTag: "ttl"}).
 			Counter("message-processed"),
 		processedAck: consumerScope.
-			Tagged(map[string]string{"result": "ack"}).
+			Tagged(map[string]string{resultTag: "ack"}).
 			Counter("message-processed"),
 		processedDrop: consumerScope.
-			Tagged(map[string]string{"result": "drop"}).
+			Tagged(map[string]string{resultTag: "drop"}).
 			Counter("message-processed"),
 		forcedFlush:          consumerScope.Counter("forced-flush"),
 		forcedFlushTimeout:   consumerScope.Counter("forced-flush-timeout"),

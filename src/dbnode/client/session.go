@@ -202,6 +202,11 @@ type sessionMetrics struct {
 	clusterConnectLatency                            tally.Histogram
 }
 
+const (
+	errorTypeTag = "error_type"
+	reasonTag    = "reason"
+)
+
 func newSessionMetrics(scope tally.Scope) sessionMetrics {
 	return sessionMetrics{
 		writeSuccess: scope.Counter("write.success"),
@@ -209,18 +214,18 @@ func newSessionMetrics(scope tally.Scope) sessionMetrics {
 			"success_type": "leaving_initializing_as_pair",
 		}).Counter("write.success"),
 		writeErrorsBadRequest: scope.Tagged(map[string]string{
-			"error_type": "bad_request",
+			errorTypeTag: "bad_request",
 		}).Counter("write.errors"),
 		writeErrorsInternalError: scope.Tagged(map[string]string{
-			"error_type": "internal_error",
+			errorTypeTag: "internal_error",
 		}).Counter("write.errors"),
 		writeLatencyHistogram: histogramWithDurationBuckets(scope, "write.latency"),
 		fetchSuccess:          scope.Counter("fetch.success"),
 		fetchErrorsBadRequest: scope.Tagged(map[string]string{
-			"error_type": "bad_request",
+			errorTypeTag: "bad_request",
 		}).Counter("fetch.errors"),
 		fetchErrorsInternalError: scope.Tagged(map[string]string{
-			"error_type": "internal_error",
+			errorTypeTag: "internal_error",
 		}).Counter("fetch.errors"),
 		fetchLatencyHistogram:  histogramWithDurationBuckets(scope, "fetch.latency"),
 		topologyUpdatedSuccess: scope.Counter("topology.updated-success"),
@@ -471,13 +476,13 @@ func (s *session) newPeerMetadataStreamingProgressMetrics(
 		fetchBlockFinalError:       scope.Counter("fetch-block-final-error"),
 		fetchBlockFullRetry:        scope.Counter("fetch-block-full-retry"),
 		fetchBlockRetriesReqError: scope.Tagged(map[string]string{
-			"reason": "request-error",
+			reasonTag: "request-error",
 		}).Counter("fetch-block-retries"),
 		fetchBlockRetriesRespError: scope.Tagged(map[string]string{
-			"reason": "response-error",
+			reasonTag: "response-error",
 		}).Counter("fetch-block-retries"),
 		fetchBlockRetriesConsistencyLevelNotAchievedError: scope.Tagged(map[string]string{
-			"reason": "consistency-level-not-achieved-error",
+			reasonTag: "consistency-level-not-achieved-error",
 		}).Counter("fetch-block-retries"),
 		blocksEnqueueChannel: scope.Gauge("fetch-blocks-enqueue-channel-length"),
 	}
@@ -1104,10 +1109,10 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 			tags := map[string]string{"nodes": fmt.Sprintf("%d", i+1)}
 			name := "write.nodes-responding-error"
 			serverErrsSubScope := s.scope.Tagged(tags).Tagged(map[string]string{
-				"error_type": "server_error",
+				errorTypeTag: "server_error",
 			})
 			badRequestErrsSubScope := s.scope.Tagged(tags).Tagged(map[string]string{
-				"error_type": "bad_request_error",
+				errorTypeTag: "bad_request_error",
 			})
 			sc := serverErrsSubScope.Counter(name)
 			s.metrics.writeNodesRespondingErrors = append(s.metrics.writeNodesRespondingErrors, sc)
@@ -1121,10 +1126,10 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 			tags := map[string]string{"nodes": fmt.Sprintf("%d", i+1)}
 			name := "fetch.nodes-responding-error"
 			serverErrsSubScope := s.scope.Tagged(tags).Tagged(map[string]string{
-				"error_type": "server_error",
+				errorTypeTag: "server_error",
 			})
 			badRequestErrsSubScope := s.scope.Tagged(tags).Tagged(map[string]string{
-				"error_type": "bad_request_error",
+				errorTypeTag: "bad_request_error",
 			})
 			sc := serverErrsSubScope.Counter(name)
 			s.metrics.fetchNodesRespondingErrors = append(s.metrics.fetchNodesRespondingErrors, sc)
