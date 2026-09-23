@@ -21,6 +21,7 @@
 package deploy
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -88,7 +89,7 @@ func (c *client) doRequest(
 	response interface{},
 ) error {
 	url := fmt.Sprintf("http://%s%s", hostPort, path)
-	req, err := http.NewRequest(method, url, nil)
+	req, err := http.NewRequestWithContext(context.Background(), method, url, nil)
 	if err != nil {
 		return fmt.Errorf("unable to create request: %v", err)
 	}

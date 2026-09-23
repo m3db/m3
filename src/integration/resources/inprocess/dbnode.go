@@ -22,6 +22,7 @@ package inprocess
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -299,7 +300,7 @@ func (d *DBNode) FetchTagged(req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResul
 // stdout and stderr from the container.
 func (d *DBNode) Exec(commands ...string) (string, error) {
 	//nolint:gosec
-	cmd := exec.Command(commands[0], commands[1:]...)
+	cmd := exec.CommandContext(context.Background(), commands[0], commands[1:]...)
 
 	var out bytes.Buffer
 	cmd.Stdout = &out

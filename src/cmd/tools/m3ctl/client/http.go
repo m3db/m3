@@ -21,6 +21,7 @@
 package client
 
 import (
+	"context"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -41,7 +42,7 @@ func DoGet(
 	client := http.Client{
 		Timeout: timeout,
 	}
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +73,7 @@ func DoPost(
 	client := &http.Client{
 		Timeout: timeout,
 	}
-	req, err := http.NewRequest(http.MethodPost, url, data)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, data)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +103,7 @@ func DoDelete(
 	client := &http.Client{
 		Timeout: timeout,
 	}
-	req, err := http.NewRequest(http.MethodDelete, url, nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodDelete, url, nil)
 	if err != nil {
 		return nil, err
 	}

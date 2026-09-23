@@ -21,6 +21,7 @@
 package agentmain
 
 import (
+	"context"
 	"log"
 	"net/http"
 	_ "net/http/pprof" // pprof import
@@ -144,7 +145,7 @@ func hostFnMaker(mode string, cmds []m3emconfig.ExecCommand, logger *zap.Logger)
 			return nil
 		}
 		for _, cmd := range cmds {
-			osCmd := oexec.Command(cmd.Path, cmd.Args...)
+			osCmd := oexec.CommandContext(context.Background(), cmd.Path, cmd.Args...)
 			logger.Info("attempting to execute", zap.String("mode", mode), zap.Any("command", osCmd))
 			output, err := osCmd.CombinedOutput()
 			if err != nil {

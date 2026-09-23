@@ -82,7 +82,11 @@ type versionResponse struct {
 }
 
 func version3Available(endpoint string) bool {
-	resp, err := http.Get(endpoint)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, endpoint, nil)
+	if err != nil {
+		return false
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return false
 	}

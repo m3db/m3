@@ -175,7 +175,10 @@ func (c *connection) upgradeToTLS(conn net.Conn) (net.Conn, error) {
 		}
 
 		// Force immediate TLS handshake instead of lazy handshake
-		if err := tlsConn.Handshake(); err != nil {
+		handshakeCtx, cancel := context.WithDeadline(context.Background(), handshakeDeadline)
+		err := tlsConn.HandshakeContext(handshakeCtx)
+		cancel()
+		if err != nil {
 			return nil, fmt.Errorf("TLS handshake failed: %w", err)
 		}
 

@@ -21,6 +21,7 @@
 package integration
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -846,7 +847,7 @@ func (ts *testSetup) StopServerAndVerifyOpenFilesAreClosed() error {
 
 // counts open/locked files inside parent dir.
 func openFiles(parentDir string) []string {
-	cmd := exec.Command("lsof", "+D", parentDir) // nolint:gosec
+	cmd := exec.CommandContext(context.Background(), "lsof", "+D", parentDir) // nolint:gosec
 
 	out, _ := cmd.Output()
 	if len(out) == 0 {

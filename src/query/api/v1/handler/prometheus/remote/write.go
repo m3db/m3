@@ -570,7 +570,7 @@ func (h *PromWriteHandler) forward(
 		method = http.MethodPost
 	}
 	url := target.URL
-	req, err := http.NewRequest(method, url, body)
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
 		return err
 	}
@@ -594,7 +594,7 @@ func (h *PromWriteHandler) forward(
 		}
 	}
 
-	resp, err := h.forwardHTTPClient.Do(req.WithContext(ctx))
+	resp, err := h.forwardHTTPClient.Do(req)
 	if err != nil {
 		return err
 	}

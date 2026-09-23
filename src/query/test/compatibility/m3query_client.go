@@ -21,6 +21,7 @@
 package compatibility
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -43,7 +44,7 @@ func newM3QueryClient(host string, port int) *m3queryClient {
 
 func (c *m3queryClient) query(expr string, t time.Time) ([]byte, error) {
 	url := fmt.Sprintf("http://%s:%d/m3query/api/v1/query", c.host, c.port)
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
