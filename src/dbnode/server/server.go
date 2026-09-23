@@ -852,7 +852,7 @@ func Run(runOpts RunOptions) {
 		if err != nil {
 			logger.Warn("could not create handler options for debug writer", zap.Error(err))
 		} else {
-			if envConfig.Services == nil || len(envConfig.Services) == 0 {
+			if len(envConfig.Services) == 0 {
 				logger.Warn("no DynamicConfiguration set; not configuring debug writer",
 					zap.Error(err),
 				)

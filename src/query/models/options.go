@@ -69,11 +69,11 @@ func NewTagOptions() TagOptions {
 }
 
 func (o *tagOptions) Validate() error {
-	if o.metricName == nil || len(o.metricName) == 0 {
+	if len(o.metricName) == 0 {
 		return errNoName
 	}
 
-	if o.bucketName == nil || len(o.bucketName) == 0 {
+	if len(o.bucketName) == 0 {
 		return errNoBucket
 	}
 
