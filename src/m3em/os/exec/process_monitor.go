@@ -44,7 +44,7 @@ var (
 )
 
 func (m EnvMap) toSlice() []string {
-	if m == nil || len(m) == 0 {
+	if len(m) == 0 {
 		return nil
 	}
 	envVars := os.Environ()

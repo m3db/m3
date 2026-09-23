@@ -338,7 +338,7 @@ func newNamespaceIndexWithOptions(
 	logger := indexOpts.InstrumentOptions().Logger()
 
 	var doNotIndexWithFields []doc.Field
-	if m := newIndexOpts.opts.DoNotIndexWithFieldsMap(); m != nil && len(m) != 0 {
+	if m := newIndexOpts.opts.DoNotIndexWithFieldsMap(); len(m) != 0 {
 		for k, v := range m {
 			doNotIndexWithFields = append(doNotIndexWithFields, doc.Field{
 				Name:  []byte(k),

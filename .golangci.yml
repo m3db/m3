@@ -169,11 +169,6 @@ linters:
         # QF is a new family. Neither ran under v1.56.
         - -ST*
         - -QF*
-        # S1004/S1009 report pre-existing code that v1.56 did not flag. Like
-        # the linters left out of `enable` above, adopting them is follow-up
-        # work kept out of this toolchain bump.
-        - -S1004
-        - -S1009
     unparam:
       check-exported: false
   exclusions:
