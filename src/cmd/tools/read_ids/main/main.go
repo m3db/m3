@@ -57,8 +57,9 @@ func main() {
 
 	tchannelNodeAddr := *tchannelNodeAddrArg
 	namespace := *namespaceArg
-	shards := []uint32{}
-	for _, str := range strings.Split(*shardsArg, ",") {
+	shardStrs := strings.Split(*shardsArg, ",")
+	shards := make([]uint32, 0, len(shardStrs))
+	for _, str := range shardStrs {
 		value, err := strconv.Atoi(str)
 		if err != nil {
 			log.Fatalf("could not parse shard '%s': %v", str, err)

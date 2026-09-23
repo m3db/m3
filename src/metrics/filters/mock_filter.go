@@ -44,7 +44,7 @@ type mockSortedTagIterator struct {
 
 func tagsToPairs(tags []byte) []mockTagPair {
 	tagPairs := strings.Split(string(tags), mockTagPairSeparator)
-	var pairs []mockTagPair
+	pairs := make([]mockTagPair, 0, len(tagPairs))
 	for _, pair := range tagPairs {
 		p := strings.Split(pair, mockTagValueSeparator)
 		pairs = append(pairs, mockTagPair{name: []byte(p[0]), value: []byte(p[1])})

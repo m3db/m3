@@ -235,7 +235,7 @@ func (m *cleanupManager) Report() {
 }
 
 func (m *cleanupManager) deleteInactiveNamespaceFiles(namespaces []databaseNamespace) error {
-	var namespaceDirNames []string
+	namespaceDirNames := make([]string, 0, len(namespaces))
 	filePathPrefix := m.database.Options().CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	dataDirPath := fs.DataDirPath(filePathPrefix)
 
@@ -264,11 +264,12 @@ func (m *cleanupManager) deleteInactiveDataFileSetFiles(
 	multiErr := xerrors.NewMultiError()
 	filePathPrefix := m.database.Options().CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	for _, n := range namespaces {
-		var activeShards []string
+		ownedShards := n.OwnedShards()
+		activeShards := make([]string, 0, len(ownedShards))
 		namespaceDirPath := filesetFilesDirPathFn(filePathPrefix, n.ID())
 		// NB(linasn) This should list ALL shards because it will delete
 		// dirs for the shards NOT LISTED below.
-		for _, s := range n.OwnedShards() {
+		for _, s := range ownedShards {
 			shard := fmt.Sprintf("%d", s.ID())
 			activeShards = append(activeShards, shard)
 		}
@@ -337,8 +338,9 @@ func (m *cleanupManager) cleanupDuplicateIndexFiles(namespaces []databaseNamespa
 			multiErr = multiErr.Add(err)
 			continue
 		}
-		activeShards := make([]uint32, 0)
-		for _, s := range n.OwnedShards() {
+		ownedShards := n.OwnedShards()
+		activeShards := make([]uint32, 0, len(ownedShards))
+		for _, s := range ownedShards {
 			activeShards = append(activeShards, s.ID())
 		}
 		multiErr = multiErr.Add(idx.CleanupDuplicateFileSets(activeShards))

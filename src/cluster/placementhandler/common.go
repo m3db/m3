@@ -252,7 +252,7 @@ func MakeRoutes(
 	var (
 		initHandler = NewInitHandler(opts)
 		initFn      = applyMiddleware(initHandler.ServeHTTP, defaults)
-		routes      []Route
+		routes      = make([]Route, 0, 5)
 	)
 	routes = append(routes, Route{
 		Paths: []string{

@@ -75,7 +75,7 @@ type TopologyView struct {
 // Map returns the topology.Map corresponding to a TopologyView.
 func (v TopologyView) Map() (topology.Map, error) {
 	var (
-		hostShardSets []topology.HostShardSet
+		hostShardSets = make([]topology.HostShardSet, 0, len(v.Assignment))
 		allShards     []shard.Shard
 		unique        = make(map[uint32]struct{})
 	)

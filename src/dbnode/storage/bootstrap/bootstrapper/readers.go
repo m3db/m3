@@ -155,10 +155,11 @@ func newShardReaders(
 			opentracinglog.String("tr", tr.String()),
 		)
 	}
-	logFields := []zapcore.Field{
+	logFields := make([]zapcore.Field, 0, 3)
+	logFields = append(logFields,
 		zap.Uint32("shard", shard),
 		zap.String("tr", tr.String()),
-	}
+	)
 	if len(readInfoFilesResults) == 0 {
 		// No readers.
 		return ShardReaders{}

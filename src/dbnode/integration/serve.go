@@ -58,7 +58,7 @@ func newTestShardSet(
 		}
 	}
 
-	var ids []uint32
+	ids := make([]uint32, 0, numShards)
 	for i := range uint32(numShards) {
 		ids = append(ids, i)
 	}

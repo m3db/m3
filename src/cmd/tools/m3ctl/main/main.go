@@ -144,7 +144,7 @@ database creation, database init, adding a node, and replacing a node, are suppo
 				if err := unmarshaller.Unmarshal(reader, &registry); err != nil {
 					logger.Fatal("could not unmarshal response", zap.Error(err))
 				}
-				var namespaces []string
+				namespaces := make([]string, 0, len(registry.Registry.Namespaces))
 				for k := range registry.Registry.Namespaces {
 					namespaces = append(namespaces, k)
 				}

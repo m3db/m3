@@ -564,7 +564,7 @@ func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, te
 	}
 
 	// transform to slice
-	var prefixes []string
+	prefixes := make([]string, 0, len(prefixMap))
 	for p := range prefixMap {
 		prefixes = append(prefixes, p)
 	}

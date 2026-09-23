@@ -94,8 +94,8 @@ func newTestSetup(
 	configService.EXPECT().Services(gomock.Any()).Return(sd, nil).AnyTimes()
 
 	var (
-		testConsumerServices  []*testConsumerService
-		topicConsumerServices []topic.ConsumerService
+		testConsumerServices  = make([]*testConsumerService, 0, len(configs))
+		topicConsumerServices = make([]topic.ConsumerService, 0, len(configs))
 		totalConsumed         = atomic.NewInt64(0)
 	)
 	for i, config := range configs {
@@ -115,7 +115,7 @@ func newTestSetup(
 	_, err = ts.CheckAndSet(testTopic, kv.UninitializedVersion)
 	require.NoError(t, err)
 
-	var producers []producer.Producer
+	producers := make([]producer.Producer, 0, numProducers)
 	for range numProducers {
 		p := testProducer(t, configService)
 		require.NoError(t, p.Init())
@@ -153,7 +153,7 @@ func newTestConsumerService(
 		config:           config,
 	}
 	var (
-		instances []placement.Instance
+		instances = make([]placement.Instance, 0, config.instances)
 		p         placement.Placement
 		err       error
 	)

@@ -131,7 +131,7 @@ func main() {
 				allHostSeriesChecksumsForShard = append(allHostSeriesChecksumsForShard, hostShardSeriesChecksums)
 			}
 
-			allHostSeriesMapsForShard := []seriesMap{}
+			allHostSeriesMapsForShard := make([]seriesMap, 0, len(allHostSeriesChecksumsForShard))
 			for _, seriesChecksum := range allHostSeriesChecksumsForShard {
 				allHostSeriesMapsForShard = append(allHostSeriesMapsForShard, seriesChecksum.series)
 			}
@@ -263,9 +263,10 @@ func parseShards(shards string) []uint32 {
 }
 
 func parseBlockArgs(blocks string) []int64 {
-	allBlocks := []int64{}
+	blockStrs := strings.Split(blocks, ",")
+	allBlocks := make([]int64, 0, len(blockStrs))
 
-	for _, block := range strings.Split(blocks, ",") {
+	for _, block := range blockStrs {
 		block = strings.TrimSpace(block)
 		if block == "" {
 			log.Fatalf("invalid block list: '%s'", block)

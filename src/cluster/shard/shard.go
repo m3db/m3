@@ -366,8 +366,9 @@ func (ss *shards) Equals(other Shards) bool {
 }
 
 func (ss *shards) String() string {
-	var strs []string
-	for _, state := range validStates() {
+	states := validStates()
+	strs := make([]string, 0, len(states))
+	for _, state := range states {
 		shardsInState := ss.ShardsForState(state)
 		idStrs := make([]string, 0, len(shardsInState))
 		for _, shard := range shardsInState {

@@ -407,7 +407,7 @@ func newStaticShardSet(
 ) (sharding.ShardSet, []topology.HostShardSet, error) {
 	var (
 		shardSet sharding.ShardSet
-		shardIDs []uint32
+		shardIDs = make([]uint32, 0, numShards)
 		err      error
 	)
 

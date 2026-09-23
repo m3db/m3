@@ -57,7 +57,7 @@ func (ci *Info) Set(s string) error {
 }
 
 func (ci *Info) String() string {
-	o := make([]string, 0)
+	o := make([]string, 0, len(*ci))
 	for k := range *ci {
 		o = append(o, k)
 	}

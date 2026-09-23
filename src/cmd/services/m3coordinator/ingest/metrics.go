@@ -69,13 +69,16 @@ func NewLatencyBuckets() (LatencyBuckets, error) {
 	}
 	upTo24hBuckets = upTo24hBuckets[1:] // Remove the first 6h to get 1 hour aligned buckets
 
-	var writeLatencyBuckets tally.DurationBuckets
+	writeLatencyBuckets := make(tally.DurationBuckets, 0,
+		len(upTo1sBuckets)+len(upTo10sBuckets)+len(upTo60sBuckets)+len(upTo60mBuckets))
 	writeLatencyBuckets = append(writeLatencyBuckets, upTo1sBuckets...)
 	writeLatencyBuckets = append(writeLatencyBuckets, upTo10sBuckets...)
 	writeLatencyBuckets = append(writeLatencyBuckets, upTo60sBuckets...)
 	writeLatencyBuckets = append(writeLatencyBuckets, upTo60mBuckets...)
 
-	var ingestLatencyBuckets tally.DurationBuckets
+	ingestLatencyBuckets := make(tally.DurationBuckets, 0,
+		len(upTo1sBuckets)+len(upTo10sBuckets)+len(upTo60sBuckets)+len(upTo60mBuckets)+
+			len(upTo6hBuckets)+len(upTo24hBuckets))
 	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo1sBuckets...)
 	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo10sBuckets...)
 	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo60sBuckets...)

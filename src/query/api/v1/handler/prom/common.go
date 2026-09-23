@@ -70,7 +70,7 @@ type response struct {
 // Respond responds with HTTP OK status code and writes response JSON to response body.
 func Respond(w http.ResponseWriter, data interface{}, warnings promstorage.Warnings) error {
 	statusMessage := statusSuccess
-	var warningStrings []string
+	warningStrings := make([]string, 0, len(warnings))
 	for _, warning := range warnings {
 		warningStrings = append(warningStrings, warning.Error())
 	}
