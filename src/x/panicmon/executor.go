@@ -21,6 +21,7 @@
 package panicmon
 
 import (
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -167,7 +168,7 @@ func (ex *executor) execCmd(args []string) (execResult, error) {
 		return result, errors.New("args cannot be empty")
 	}
 
-	cmd := exec.Command(args[0], args[1:]...)
+	cmd := exec.CommandContext(context.Background(), args[0], args[1:]...)
 
 	if ex.stdout == nil {
 		cmd.Stdout = os.Stdout

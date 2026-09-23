@@ -14,9 +14,9 @@ linters:
   # silently pulls in checks this repo never opted into. Adopting them (and
   # fixing the ~561 findings they report) is follow-up work, kept out of this
   # toolchain bump:
-  #   rules expanded:   goconst, noctx
+  #   rules expanded:   goconst
   # Re-enabled so far: copyloopvar, canonicalheader, nilnesserr, iface,
-  # exptostd, predeclared, intrange, prealloc.
+  # exptostd, predeclared, intrange, prealloc, noctx.
   # recvcheck is deliberately left disabled: most of what it reports is the
   # value-receiver Marshal* / pointer-receiver Unmarshal* pairing that YAML and
   # JSON round-tripping requires, and the rest is not worth the churn.
@@ -28,6 +28,7 @@ linters:
     - iface
     - intrange
     - nilnesserr
+    - noctx
     - predeclared
     - prealloc
     - asciicheck
@@ -200,6 +201,7 @@ linters:
         text: 'G103: Use of unsafe calls should be audited'
       - linters:
           - goconst
+          - noctx
           - prealloc
         path: (.+)_test\.go
     paths:

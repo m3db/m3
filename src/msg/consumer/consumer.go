@@ -21,6 +21,7 @@
 package consumer
 
 import (
+	"context"
 	"net"
 	"sync"
 	"time"
@@ -48,7 +49,7 @@ func NewListener(addr string, opts Options) (Listener, error) {
 	if opts == nil {
 		opts = NewOptions()
 	}
-	lis, err := net.Listen("tcp", addr)
+	lis, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", addr)
 	if err != nil {
 		return nil, err
 	}

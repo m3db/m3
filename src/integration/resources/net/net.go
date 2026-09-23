@@ -22,6 +22,7 @@
 package net
 
 import (
+	"context"
 	"net"
 	"strconv"
 )
@@ -30,7 +31,7 @@ import (
 // delegates the port selection to the golang net library by starting a server and
 // then checking the port that the server is using.
 func GetAvailablePort() (int, error) {
-	l, err := net.Listen("tcp", ":0") // nolint: gosec
+	l, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", ":0") // nolint: gosec
 	if err != nil {
 		return 0, nil
 	}

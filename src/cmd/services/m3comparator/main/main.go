@@ -21,6 +21,7 @@
 package main
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"time"
@@ -103,7 +104,7 @@ func main() {
 
 	addr := "0.0.0.0:9000"
 	logger.Info("starting remote server", zap.String("address", addr))
-	listener, err := net.Listen("tcp", addr)
+	listener, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", addr)
 	if err != nil {
 		logger.Error("listener error", zap.Error(err))
 		return

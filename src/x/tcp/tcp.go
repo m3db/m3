@@ -22,6 +22,7 @@
 package tcp
 
 import (
+	"context"
 	"net"
 	"time"
 )
@@ -30,7 +31,7 @@ import (
 //
 // TODO(jeromefroe): Move this into the net package which covers network I/O.
 func NewTCPListener(listenAddress string, keepAlivePeriod time.Duration) (net.Listener, error) {
-	l, err := net.Listen("tcp", listenAddress)
+	l, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", listenAddress)
 	if err != nil {
 		return nil, err
 	}

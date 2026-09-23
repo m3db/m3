@@ -21,6 +21,7 @@
 package net
 
 import (
+	"context"
 	gonet "net"
 
 	"github.com/valyala/tcplisten"
@@ -71,5 +72,5 @@ func (o ListenerOptions) Listen(
 		}
 		return reusePortConfig.NewListener(protocol, address)
 	}
-	return gonet.Listen(protocol, address)
+	return (&gonet.ListenConfig{}).Listen(context.Background(), protocol, address)
 }

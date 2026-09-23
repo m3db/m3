@@ -232,7 +232,7 @@ func (n *Node) start(ctx context.Context) error {
 // details.
 // Returns the new address of the bridge, which clients should connect to.
 func (n *Node) setupBridge() (string, error) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listener, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		return "", fmt.Errorf("setting up listener for bridge: %w", err)
 	}
@@ -260,7 +260,7 @@ type dialer struct {
 }
 
 func (d dialer) Dial() (net.Conn, error) {
-	return net.Dial("tcp", d.hostport)
+	return (&net.Dialer{}).DialContext(context.Background(), "tcp", d.hostport)
 }
 
 // testingT wraps *testing.T. Allows us to not directly depend on *testing package.
