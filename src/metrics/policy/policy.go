@@ -174,7 +174,7 @@ func (p Policies) Equals(other Policies) bool {
 	if len(p) != len(other) {
 		return false
 	}
-	for i := 0; i < len(p); i++ {
+	for i := range p {
 		if p[i] != other[i] {
 			return false
 		}

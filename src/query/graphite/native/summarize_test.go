@@ -47,7 +47,7 @@ func TestSummarize(t *testing.T) {
 	// 3+4+5
 	// 6+7+8
 	// 9+10+11
-	for i := 0; i < vals.Len(); i++ {
+	for i := range vals.Len() {
 		vals.SetValueAt(i, float64(i))
 	}
 
@@ -99,7 +99,7 @@ func TestSummarize(t *testing.T) {
 		assert.Equal(t, test.expectedEnd, out.EndTime(), "incorrect end for %s", test.name)
 		require.Equal(t, len(test.expectedVals), out.Len(), "incorrect len for %s", test.name)
 
-		for i := 0; i < out.Len(); i++ {
+		for i := range out.Len() {
 			assert.Equal(t, test.expectedVals[i], out.ValueAt(i), "incorrect val %d for %s", i, test.name)
 		}
 	}
@@ -125,7 +125,7 @@ func TestSmartSummarize(t *testing.T) {
 	// 3+4+5
 	// 6+7+8
 	// 9+10+11
-	for i := 0; i < vals.Len(); i++ {
+	for i := range vals.Len() {
 		vals.SetValueAt(i, float64(i))
 	}
 
@@ -179,7 +179,7 @@ func TestSmartSummarize(t *testing.T) {
 		assert.Equal(t, test.expectedEnd, out.EndTime(), "incorrect end for %s", test.name)
 		require.Equal(t, len(test.expectedVals), out.Len(), "incorrect len for %s", test.name)
 
-		for i := 0; i < out.Len(); i++ {
+		for i := range out.Len() {
 			assert.Equal(t, test.expectedVals[i], out.ValueAt(i), "incorrect val %d for %s", i, test.name)
 		}
 	}

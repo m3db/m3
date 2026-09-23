@@ -250,7 +250,7 @@ func TestRefCountDelayFinalizer(t *testing.T) {
 			elem.DecRef()
 
 			delays := make([]xresource.SimpleCloser, 0, test.numDelay)
-			for i := 0; i < test.numDelay; i++ {
+			for range test.numDelay {
 				delays = append(delays, elem.DelayFinalizer())
 			}
 
@@ -356,7 +356,7 @@ func TestRefCountDelayFinalizerPropTest(t *testing.T) {
 			startWaitingWg.Add(input.numEvents)
 			startDoneWg.Add(input.numEvents)
 			doneWg.Add(input.numEvents)
-			for j := 0; j < input.numEvents; j++ {
+			for j := range input.numEvents {
 				go func() {
 					startWaitingWg.Done()
 					startBeginWg.Wait()

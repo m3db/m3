@@ -126,7 +126,7 @@ func TestEnableProvider_WatchConfig(t *testing.T) {
 		expectedEnabled.Store(update.enabled)
 		expectedShadowMode.Store(update.shadowMode)
 		watchChan <- struct{}{}
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			if provider.IsEnabled() == update.enabled && provider.IsShadowMode() == update.shadowMode {
 				break
 			}

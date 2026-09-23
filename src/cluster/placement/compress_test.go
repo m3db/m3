@@ -112,7 +112,7 @@ func BenchmarkCompressPlacementProto(b *testing.B) {
 
 	totalCompressedBytes := 0
 	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		compressed, err := compressPlacementProto(proto)
 		if err != nil {
 			b.FailNow()
@@ -142,7 +142,7 @@ func BenchmarkDecompressPlacementProto(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		_, err := decompressPlacementProto(compressed)
 		if err != nil {
 			b.FailNow()
@@ -159,10 +159,10 @@ func testBigRandPlacement() Placement {
 func testRandPlacement(numInstances, numShardsPerInstance int) Placement {
 	instances := make([]Instance, numInstances)
 	var shardID uint32
-	for i := 0; i < numInstances; i++ {
+	for i := range numInstances {
 		instances[i] = testRandInstance()
 		shards := make([]shard.Shard, numShardsPerInstance)
-		for j := 0; j < numShardsPerInstance; j++ {
+		for j := range numShardsPerInstance {
 			shardID++
 			shards[j] = shard.NewShard(shardID).
 				SetState(shard.Available).

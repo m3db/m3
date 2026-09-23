@@ -135,7 +135,7 @@ func TestWatchRecreate(t *testing.T) {
 	time.Sleep(4 * wh.opts.WatchChanInitTimeout())
 
 	// watch will error out but updateFn will be tried
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		if atomic.LoadInt32(updateCalled) >= int32(failTotal) {
 			break
 		}
@@ -151,7 +151,7 @@ func TestWatchRecreate(t *testing.T) {
 	_, err := ec.Put(context.Background(), "foo", "v")
 	require.NoError(t, err)
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		if atomic.LoadInt32(updateCalled) > updatesBefore {
 			break
 		}

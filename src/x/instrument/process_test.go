@@ -40,7 +40,7 @@ func TestProcessReporter(t *testing.T) {
 
 	countOpen := 32
 	closeFds := func() {}
-	for i := 0; i < countOpen; i++ {
+	for range countOpen {
 		tmpFile, err := ioutil.TempFile("", "example")
 		if err != nil {
 			require.FailNow(t, fmt.Sprintf("could not open temp file: %v", err))

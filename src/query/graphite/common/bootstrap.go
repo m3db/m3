@@ -67,7 +67,7 @@ func FetchWithBootstrap(ctx *Context, seriesList ts.SeriesList, duration time.Du
 		numBootstrapValues := bootstrap.Len() * ratio
 		numCombinedValues := numBootstrapValues + original.Len()
 		values := ts.NewValues(ctx, original.MillisPerStep(), numCombinedValues)
-		for j := 0; j < bootstrap.Len(); j++ {
+		for j := range bootstrap.Len() {
 			for k := j * ratio; k < (j+1)*ratio; k++ {
 				values.SetValueAt(k, bootstrap.ValueAt(j))
 			}

@@ -377,10 +377,10 @@ func TestPullFile(t *testing.T) {
 	)
 
 	// create testBytes 2x allowable amount
-	for i := 0; i < testMaxSize; i++ {
+	for range testMaxSize {
 		testBytes = append(testBytes, byte('a'))
 	}
-	for i := 0; i < testMaxSize; i++ {
+	for range testMaxSize {
 		testBytes = append(testBytes, byte('b'))
 		expectedBytes = append(expectedBytes, byte('b'))
 	}

@@ -517,7 +517,7 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 	// This works because the commitlog writer uses the bitset to determine if
 	// the metadata for a particular series had already been written to disk.
 	allSeries := []ts.Series{}
-	for i := 0; i < 200; i++ {
+	for i := range 200 {
 		willNotHaveMetadata := !(i%2 == 0)
 		allSeries = append(allSeries, testSeries(t, opts,
 			uint64(i),
@@ -535,7 +535,7 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 	// Generate fake writes for each of the series
 	writes := []testWrite{}
 	for _, series := range allSeries {
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			val := rand.Float64() //nolint: gosec
 			writes = append(writes, testWrite{
 				series, xtime.Now(), val,
@@ -1186,7 +1186,7 @@ func TestCommitLogBatchWriteDoesNotAddErroredOrSkippedSeries(t *testing.T) {
 		testSeries(t, opts, 3, "biz.qux", testTags3, 511),
 	}
 	alignedStart := xtime.Now().Truncate(time.Hour)
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		tt := alignedStart.Add(time.Minute * time.Duration(i))
 		tagsIter := opts.FilesystemOptions().TagDecoderPool().Get()
 		tagsIter.Reset(checked.NewBytes(testSeriesWrites[i].EncodedTags, nil))

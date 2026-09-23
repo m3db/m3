@@ -43,7 +43,7 @@ func TestObjectPoolRefillOnLowWaterMark(t *testing.T) {
 
 	assert.Equal(t, 100, len(pool.values))
 
-	for i := 0; i < 74; i++ {
+	for range 74 {
 		pool.Get()
 	}
 
@@ -129,7 +129,7 @@ func BenchmarkObjectPoolGetPut(b *testing.B) {
 	})
 
 	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		o := pool.Get().(*[]byte)
 		_ = *o
 		pool.Put(o)
@@ -189,7 +189,7 @@ func BenchmarkObjectPoolParallelGetMultiPutContended(b *testing.B) {
 				}
 				bufs[i] = o
 			}
-			for i := 0; i < len(bufs); i++ {
+			for i := range bufs {
 				o := bufs[i]
 				buf := *o
 				buf = strconv.AppendInt(buf[:0], 12344321, 10)
@@ -222,7 +222,7 @@ func BenchmarkObjectPoolParallelGetMultiPutContendedDynamic(b *testing.B) {
 				}
 				bufs[i] = o
 			}
-			for i := 0; i < len(bufs); i++ {
+			for i := range bufs {
 				o := bufs[i]
 				buf := *o
 				buf = strconv.AppendInt(buf[:0], 12344321, 10)

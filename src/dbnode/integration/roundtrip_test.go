@@ -44,7 +44,7 @@ func TestProtoRoundtrip(t *testing.T) {
 }
 
 func setProtoTestInputConfig(inputData []generate.BlockConfig) {
-	for i := 0; i < len(inputData); i++ {
+	for i := range inputData {
 		inputData[i].AnnGen = testProtoIter
 	}
 }
@@ -66,7 +66,7 @@ func assertProtoDataEqual(t *testing.T, expected, actual []generate.TestValue) b
 	if len(expected) != len(actual) {
 		return false
 	}
-	for i := 0; i < len(expected); i++ {
+	for i := range expected {
 		if !assert.Equal(t, expected[i].TimestampNanos, actual[i].TimestampNanos) {
 			return false
 		}

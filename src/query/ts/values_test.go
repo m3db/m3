@@ -34,7 +34,7 @@ import (
 func generateDatapoints(t xtime.UnixNano, times []int) Datapoints {
 	num := len(times)
 	dps := make(Datapoints, len(times))
-	for i := 0; i < num; i++ {
+	for i := range num {
 		dps[i] = Datapoint{
 			Timestamp: t.Add(time.Duration(times[i]) * time.Second),
 			Value:     float64(i),

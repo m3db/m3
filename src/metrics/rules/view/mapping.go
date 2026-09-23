@@ -53,7 +53,7 @@ func (m *MappingRule) Equal(other *MappingRule) bool {
 		return false
 	}
 
-	for i := 0; i < len(m.Tags); i++ {
+	for i := range len(m.Tags) {
 		if !m.Tags[i].Equal(other.Tags[i]) {
 			return false
 		}

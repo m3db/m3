@@ -121,7 +121,7 @@ func TestWiredListPanic(t *testing.T) {
 	filePathPrefix := testSetup.StorageOpts().CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
 	seriesStrs := make([]string, 0, numSeries)
-	for i := 0; i < numSeries; i++ {
+	for i := range numSeries {
 		seriesStrs = append(seriesStrs, fmt.Sprintf("series-%d", i))
 	}
 

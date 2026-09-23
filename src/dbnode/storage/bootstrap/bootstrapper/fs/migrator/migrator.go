@@ -119,7 +119,7 @@ func (m *Migrator) Run(ctx context.Context) error {
 	baseOpts := migration.NewTaskOptions().
 		SetFilesystemOptions(m.fsOpts).
 		SetStorageOptions(m.storageOpts)
-	for i := 0; i < numWorkers; i++ {
+	for range numWorkers {
 		// Give each worker their own persist manager so that we can write files concurrently.
 		pm, err := fs.NewPersistManager(m.fsOpts)
 		if err != nil {

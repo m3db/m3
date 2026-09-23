@@ -101,7 +101,7 @@ func TestWindowReset(t *testing.T) {
 	assert.Equal(t, -1, sw.currentBucketIndex, "expected current bucket index to be -1")
 	assert.Equal(t, -3*time.Second, sw.windowStartTimeDelta, "expected unchanged window start delta")
 	require.Len(t, sw.buckets, 4, "expected length of buckets to be unchanged")
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		assert.Equal(t, bucket{}, sw.buckets[i], "expected empty bucket")
 	}
 }
@@ -496,10 +496,10 @@ func TestCurrentBucketAndSlideIfNeeded(t *testing.T) {
 		// Simulate multiple calls with multiple goroutine to reproduce pattern
 		// from production traffic.
 		var wg sync.WaitGroup
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			wg.Add(1)
 			go func() {
-				for j := 0; j < 1000; j++ {
+				for j := range 1000 {
 					if j == 400 {
 						mockTime.updateTime(time.Unix(11, 1))
 					}
@@ -802,7 +802,7 @@ func TestParallelIncrements(t *testing.T) {
 			var wg sync.WaitGroup
 			requests := make(chan struct{}, tt.increments)
 			responses := make(chan struct{}, tt.increments)
-			for i := 0; i < 10; i++ {
+			for range 10 {
 				wg.Add(1)
 				go func() {
 					for range requests {
@@ -820,10 +820,10 @@ func TestParallelIncrements(t *testing.T) {
 
 			for _, step := range tt.relativeTime {
 				clock.updateTime(startTime.Add(time.Duration(step) * time.Second))
-				for j := 0; j < tt.increments; j++ {
+				for range tt.increments {
 					requests <- struct{}{}
 				}
-				for j := 0; j < tt.increments; j++ {
+				for range tt.increments {
 					<-responses
 				}
 			}

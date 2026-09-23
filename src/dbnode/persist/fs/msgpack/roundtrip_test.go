@@ -579,7 +579,7 @@ func TestMultiTypeRoundtripStress(t *testing.T) {
 		expected []interface{}
 		output   []interface{}
 	)
-	for i := 0; i < iter; i++ {
+	for i := range iter {
 		switch i % 5 {
 		case 0:
 			require.NoError(t, enc.EncodeIndexInfo(testIndexInfo))
@@ -600,7 +600,7 @@ func TestMultiTypeRoundtripStress(t *testing.T) {
 	}
 
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
-	for i := 0; i < iter; i++ {
+	for i := range iter {
 		switch i % 5 {
 		case 0:
 			res, err = dec.DecodeIndexInfo()

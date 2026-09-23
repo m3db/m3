@@ -38,9 +38,9 @@ func newRandPostingsLists(numPostingsLists, numElemsPer int) []*roaring.Bitmap {
 	rng := rand.New(rand.NewSource(seed))
 	elems := make([]uint64, 0, numElemsPer)
 	pls := make([]*roaring.Bitmap, 0, numPostingsLists)
-	for j := 0; j < numPostingsLists; j++ {
+	for range numPostingsLists {
 		elems = elems[:0]
-		for i := 0; i < numElemsPer; i++ {
+		for range numElemsPer {
 			elems = append(elems, rng.Uint64())
 		}
 		pls = append(pls, roaring.NewBitmap(elems...))
@@ -50,7 +50,7 @@ func newRandPostingsLists(numPostingsLists, numElemsPer int) []*roaring.Bitmap {
 
 func newSampledPostingsLists(numPostingsLists, numTotalElements int) []*roaring.Bitmap {
 	elems := make([][]uint64, numPostingsLists)
-	for i := 0; i < numTotalElements; i++ {
+	for i := range numTotalElements {
 		idx := i % numPostingsLists
 		elems[idx] = append(elems[idx], uint64(i))
 	}
@@ -65,7 +65,7 @@ func BenchmarkUnionRandPlsFastOr(b *testing.B) {
 	pls := newRandPostingsLists(numPls, numElemsPer)
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		roaring.NewBitmap().UnionInPlace(pls...)
 	}
 }
@@ -74,7 +74,7 @@ func BenchmarkUnionSampledPlsFastOr(b *testing.B) {
 	pls := newSampledPostingsLists(numPls, numTotalElems)
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		roaring.NewBitmap().UnionInPlace(pls...)
 	}
 }

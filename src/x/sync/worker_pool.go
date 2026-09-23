@@ -38,7 +38,7 @@ func NewWorkerPool(size int) WorkerPool {
 }
 
 func (p *workerPool) Init() {
-	for i := 0; i < cap(p.workCh); i++ {
+	for range cap(p.workCh) {
 		p.workCh <- struct{}{}
 	}
 }

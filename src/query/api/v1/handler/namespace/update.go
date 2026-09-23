@@ -146,7 +146,7 @@ func validateUpdateRequest(req *admin.NamespaceUpdateRequest) error {
 
 	optsVal := reflect.ValueOf(*req.Options)
 	allNonZeroFields := true
-	for i := 0; i < optsVal.NumField(); i++ {
+	for i := range optsVal.NumField() {
 		field := optsVal.Field(i)
 		fieldName := optsVal.Type().Field(i).Name
 		if field.IsZero() {
@@ -167,7 +167,7 @@ func validateUpdateRequest(req *admin.NamespaceUpdateRequest) error {
 
 	if opts := req.Options.RetentionOptions; opts != nil {
 		optsVal := reflect.ValueOf(*opts)
-		for i := 0; i < optsVal.NumField(); i++ {
+		for i := range optsVal.NumField() {
 			field := optsVal.Field(i)
 			fieldName := optsVal.Type().Field(i).Name
 			if !field.IsZero() && fieldName != fieldNameRetentionPeriod {

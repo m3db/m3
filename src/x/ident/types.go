@@ -301,7 +301,7 @@ func (t Tags) Equal(other Tags) bool {
 	if len(t.Values()) != len(other.Values()) {
 		return false
 	}
-	for i := 0; i < len(t.Values()); i++ {
+	for i := range len(t.Values()) {
 		equal := t.values[i].Name.Equal(other.values[i].Name) &&
 			t.values[i].Value.Equal(other.values[i].Value)
 		if !equal {

@@ -92,7 +92,7 @@ func newSessionTestOptions() Options {
 
 func sessionTestShardSet() sharding.ShardSet {
 	var ids []uint32
-	for i := uint32(0); i < uint32(sessionTestShards); i++ {
+	for i := range uint32(sessionTestShards) {
 		ids = append(ids, i)
 	}
 
@@ -108,7 +108,7 @@ func sessionTestHostAndShards(
 	shardSet sharding.ShardSet,
 ) []topology.HostShardSet {
 	var hosts []topology.Host
-	for i := 0; i < sessionTestReplicas; i++ {
+	for i := range sessionTestReplicas {
 		id := testHostName(i)
 		host := topology.NewHost(id, fmt.Sprintf("%s:9000", id))
 		hosts = append(hosts, host)
@@ -208,7 +208,7 @@ func TestSessionClusterConnectConsistencyLevelMajority(t *testing.T) {
 	defer ctrl.Finish()
 
 	level := topology.ConnectConsistencyLevelMajority
-	for i := 0; i <= 1; i++ {
+	for i := range 2 {
 		testSessionClusterConnectConsistencyLevel(t, ctrl, level, i, outcomeSuccess)
 	}
 	for i := 2; i <= 3; i++ {
@@ -221,7 +221,7 @@ func TestSessionClusterConnectConsistencyLevelOne(t *testing.T) {
 	defer ctrl.Finish()
 
 	level := topology.ConnectConsistencyLevelOne
-	for i := 0; i <= 2; i++ {
+	for i := range 3 {
 		testSessionClusterConnectConsistencyLevel(t, ctrl, level, i, outcomeSuccess)
 	}
 	testSessionClusterConnectConsistencyLevel(t, ctrl, level, 3, outcomeFail)
@@ -232,7 +232,7 @@ func TestSessionClusterConnectConsistencyLevelNone(t *testing.T) {
 	defer ctrl.Finish()
 
 	level := topology.ConnectConsistencyLevelNone
-	for i := 0; i <= 3; i++ {
+	for i := range 4 {
 		testSessionClusterConnectConsistencyLevel(t, ctrl, level, i, outcomeSuccess)
 	}
 }
@@ -454,7 +454,7 @@ func TestSessionClusterConnectConsistencyLevelAny(t *testing.T) {
 	defer ctrl.Finish()
 
 	level := topology.ConnectConsistencyLevelAny
-	for i := 0; i <= 3; i++ {
+	for i := range 4 {
 		testSessionClusterConnectConsistencyLevel(t, ctrl, level, i, outcomeSuccess)
 	}
 }
@@ -574,8 +574,8 @@ func setupMultipleInstanceCluster(t *testing.T, ctrl *gomock.Controller, fn func
 	shardSet := sessionTestShardSet()
 	var hostShardSets []topology.HostShardSet
 	// setup 9 hosts so there are 3 instances per replica. Each instance has a single shard.
-	for i := 0; i < sessionTestReplicas; i++ {
-		for j := 0; j < sessionTestShards; j++ {
+	for i := range sessionTestReplicas {
+		for j := range sessionTestShards {
 			id := fmt.Sprintf("testhost-%d-%d", i, j)
 			host := topology.NewHost(id, fmt.Sprintf("%s:9000", id))
 			hostShard, _ := sharding.NewShardSet([]shard.Shard{shardSet.All()[j]}, shardSet.HashFn())

@@ -41,9 +41,9 @@ func Range(ctx *Context, series ts.SeriesList, renamer SeriesListRenamer) (*ts.S
 	vals := ts.NewValues(ctx, millisPerStep, numSteps)
 	nan := math.NaN()
 
-	for i := 0; i < numSteps; i++ {
+	for i := range numSteps {
 		minVal, maxVal := nan, nan
-		for j := 0; j < numSeries; j++ {
+		for j := range numSeries {
 			v := normalized.Values[j].ValueAt(i)
 			if math.IsNaN(v) {
 				continue
@@ -85,7 +85,7 @@ var SafeAggregationFns = map[string]SafeAggregationFn{
 // SafeSort sorts the input slice and returns the number of NaNs in the input.
 func SafeSort(input []float64) int {
 	nans := 0
-	for i := 0; i < len(input); i++ {
+	for i := range input {
 		if math.IsNaN(input[i]) {
 			nans++
 		}

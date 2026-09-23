@@ -231,7 +231,7 @@ func readTestDataWithStreamingOpt(
 			assert.Equal(t, expectedM, bloomFilter.M())
 		}
 
-		for i := 0; i < r.Entries(); i++ {
+		for i := range r.Entries() {
 			switch underTest {
 			case readTestTypeData:
 				id, tags, data, checksum, err := readData(t, r)

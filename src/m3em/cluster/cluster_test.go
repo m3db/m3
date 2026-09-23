@@ -77,7 +77,7 @@ type expectNodeCallTypes struct {
 // nolint: unparam
 func newMockServiceNodes(ctrl *gomock.Controller, numNodes int, calls expectNodeCallTypes) []node.ServiceNode {
 	nodes := make([]node.ServiceNode, 0, numNodes)
-	for i := 0; i < numNodes; i++ {
+	for range numNodes {
 		mNode := newMockServiceNode(ctrl)
 		if calls.expectSetup {
 			mNode.EXPECT().Setup(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)

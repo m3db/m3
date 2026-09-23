@@ -234,7 +234,7 @@ func TestMatchWithRuleUpdatesStress(t *testing.T) {
 				},
 			}
 
-			for i := 0; i < matchIter; i++ {
+			for i := range matchIter {
 				res, err := matcher.ForwardMatch(input.idFn(i), input.fromNanos, input.toNanos, matchOpts)
 				require.NoError(t, err)
 				results = append(results, res)
@@ -246,7 +246,7 @@ func TestMatchWithRuleUpdatesStress(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			for i := 0; i < updateIter; i++ {
+			for range updateIter {
 				updateStore(t, store, stressTestRuleSetKey, ruleSet)
 			}
 		}()
@@ -262,7 +262,7 @@ func validateMatchResults(
 	ignoreVersion bool,
 ) {
 	require.Equal(t, len(expected), len(actual))
-	for i := 0; i < len(expected); i++ {
+	for i := range expected {
 		validateMatchResult(t, expected[i], actual[i], ignoreVersion)
 	}
 }

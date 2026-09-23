@@ -52,7 +52,7 @@ func BenchmarkEqualityFilter(b *testing.B) {
 	f2 := newEqualityFilter([]byte("test2"))
 
 	val := []byte("test")
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		_ = testUnionFilter(val, []Filter{f1, f2})
 	}
 }
@@ -62,7 +62,7 @@ func BenchmarkEqualityFilterByValue(b *testing.B) {
 	f2 := newTestEqualityFilter([]byte("test2"))
 
 	val := []byte("test")
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		_ = testUnionFilter(val, []Filter{f1, f2})
 	}
 }
@@ -162,7 +162,7 @@ func BenchmarkMultiRangeFilterTrieSix(b *testing.B) {
 // nolint: unparam
 func benchMultiRangeFilter(b *testing.B, patterns []byte, backwards bool, vals [][]byte) {
 	f, _ := newMultiCharSequenceFilter(patterns, backwards)
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		for _, val := range vals {
 			f.matches(val)
 		}
@@ -176,7 +176,7 @@ func benchMultiRangeFilterSelect(b *testing.B, patterns []byte, backwards bool, 
 		b.Errorf("encountered error creating filter: %v", err)
 	}
 
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		for _, val := range vals {
 			f.matches(val)
 		}
@@ -190,7 +190,7 @@ func benchMultiRangeFilterTrie(b *testing.B, patterns []byte, backwards bool, va
 		b.Errorf("encountered error creating filter: %v", err)
 	}
 
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		for _, val := range vals {
 			f.matches(val)
 		}
@@ -199,7 +199,7 @@ func benchMultiRangeFilterTrie(b *testing.B, patterns []byte, backwards bool, va
 
 func benchRangeFilterStructs(b *testing.B, pattern, val []byte, expectedMatch bool) {
 	f, _ := newSingleRangeFilter(pattern, false)
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		_, match := f.matches(val)
 		if match != expectedMatch {
 			b.FailNow()
@@ -208,7 +208,7 @@ func benchRangeFilterStructs(b *testing.B, pattern, val []byte, expectedMatch bo
 }
 
 func benchRangeFilterRange(b *testing.B, pattern, val []byte, expectedMatch bool) {
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		match, err := validateRangeByScan(pattern, val)
 		if err != nil {
 			b.Errorf("unexpected error: %v", err)
@@ -220,7 +220,7 @@ func benchRangeFilterRange(b *testing.B, pattern, val []byte, expectedMatch bool
 }
 
 func benchTagsFilter(b *testing.B, id []byte, tagsFilter TagsFilter) {
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		_, err := tagsFilter.Matches(id, testTagsMatchOptions())
 		require.NoError(b, err)
 	}
@@ -391,7 +391,7 @@ func validateRangeByScan(pattern, val []byte) (bool, error) {
 	}
 
 	match := false
-	for i := 0; i < len(pattern); i++ {
+	for i := range pattern {
 		if val[0] == pattern[i] {
 			match = true
 			break

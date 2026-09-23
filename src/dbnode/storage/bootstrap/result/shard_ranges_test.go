@@ -184,7 +184,7 @@ func createShardTimeRanges(
 	shards []uint32,
 ) ShardTimeRanges {
 	ranges := NewShardTimeRanges()
-	for i := 0; i < numBlocks; i++ {
+	for i := range numBlocks {
 		blockStart := start.Add(time.Duration(i) * blockSize)
 		ranges.AddRanges(NewShardTimeRangesFromRange(
 			blockStart,

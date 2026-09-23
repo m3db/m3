@@ -76,11 +76,11 @@ func TestIndexClaimsManagerConcurrentClaims(t *testing.T) {
 		blockSize  = md.Options().IndexOptions().BlockSize()
 		blockStart = xtime.Now().Truncate(blockSize)
 	)
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for j := 0; j < 100; j++ {
+			for range 100 {
 				volumeIndex, err := mgr.ClaimNextIndexFileSetVolumeIndex(
 					md,
 					blockStart,

@@ -101,7 +101,7 @@ func newPostingsListLRU(opts postingsListLRUOptions) (*postingsListLRU, error) {
 	}
 
 	lruShards := make([]*postingsListLRUShard, 0, shards)
-	for i := 0; i < shards; i++ {
+	for range shards {
 		lruShard := newPostingsListLRUShard(int(math.Ceil(float64(size) / float64(shards))))
 		lruShards = append(lruShards, lruShard)
 	}

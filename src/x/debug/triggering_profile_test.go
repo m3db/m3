@@ -76,7 +76,7 @@ func TestContinuousFileProfile(t *testing.T) {
 
 			require.NoError(t, profile.Start())
 
-			for i := 0; i < 10; i++ {
+			for range 10 {
 				// Make sure doesn't create files until conditional returns true
 				time.Sleep(opts.Interval)
 

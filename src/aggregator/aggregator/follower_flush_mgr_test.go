@@ -632,7 +632,7 @@ func TestFollowerFlushTaskRun(t *testing.T) {
 
 	flushedBefore := make([]int64, 3)
 	flushers := make([]flushingMetricList, 3)
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		flusher := NewMockflushingMetricList(ctrl)
 		flusher.EXPECT().
 			DiscardBefore(gomock.Any()).

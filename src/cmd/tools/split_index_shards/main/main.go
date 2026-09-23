@@ -188,7 +188,7 @@ func updateIndexInfoFile(
 		if srcShard >= srcNumShards {
 			return fmt.Errorf("unexpected source shard ID %d (must be under %d)", srcShard, srcNumShards)
 		}
-		for i := 0; i < factor; i++ {
+		for i := range factor {
 			dstShard := mapToDstShard(srcNumShards, i, srcShard)
 			newShards = append(newShards, dstShard)
 		}

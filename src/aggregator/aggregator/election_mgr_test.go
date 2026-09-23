@@ -331,7 +331,7 @@ func TestElectionManagerResignSuccess(t *testing.T) {
 	require.NoError(t, mgr.Resign(ctx))
 
 	var mgrState electionManagerState
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		mgr.RLock()
 		mgrState = mgr.state
 		mgr.RUnlock()

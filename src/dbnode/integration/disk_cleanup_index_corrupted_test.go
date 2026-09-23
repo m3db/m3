@@ -83,7 +83,7 @@ func TestDiskCleanupIndexCorrupted(t *testing.T) {
 		}
 	)
 	for _, blockStart := range blockStarts {
-		for idx := 0; idx < numVolumes; idx++ {
+		for idx := range numVolumes {
 			filesetsIdentifiers = append(filesetsIdentifiers, fs.FileSetFileIdentifier{
 				Namespace:   ns.ID(),
 				BlockStart:  blockStart,

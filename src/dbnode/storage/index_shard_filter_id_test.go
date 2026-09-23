@@ -35,7 +35,7 @@ func BenchmarkShardFilterID(b *testing.B) {
 
 	// Use a random with a fixed seed for repeatable results
 	rnd := rand.NewSource(4242)
-	for i := 0; i < shards; i++ {
+	for range shards {
 		shardActive := uint32(rnd.Int63() % int64(shards))
 		nativeMap[shardActive] = struct{}{}
 		nativeBitset.Set(uint(shardActive))
@@ -45,17 +45,17 @@ func BenchmarkShardFilterID(b *testing.B) {
 	rnd = rand.NewSource(2424)
 	accesses := make([]uint32, shards)
 	numAccesses := len(accesses)
-	for i := 0; i < numAccesses; i++ {
+	for i := range numAccesses {
 		accesses[i] = uint32(rnd.Int63() % int64(shards))
 	}
 
 	b.Run("benchmark lookups for shards in native map", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for i := range b.N {
 			_, _ = nativeMap[accesses[i%numAccesses]]
 		}
 	})
 	b.Run("benchmark lookups for shards in bitset", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for i := range b.N {
 			_ = nativeBitset.Test(uint(accesses[i%numAccesses]))
 		}
 	})

@@ -59,7 +59,7 @@ func TestDiskCleanup(t *testing.T) {
 	)
 	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
 	require.NoError(t, err)
-	for i := 0; i < numTimes; i++ {
+	for i := range numTimes {
 		fileTimes[i] = now.Add(time.Duration(i) * blockSize)
 	}
 	writeDataFileSetFiles(t, testSetup.StorageOpts(), md, shard, fileTimes)

@@ -114,7 +114,7 @@ func medianSeries(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList,
 	values := ts.NewValues(ctx, millisPerStep, numSteps)
 
 	valuesAtTime := make([]float64, len(normalized.Values))
-	for i := 0; i < numSteps; i++ {
+	for i := range numSteps {
 		for j, series := range normalized.Values {
 			valuesAtTime[j] = series.ValueAt(i)
 		}
@@ -177,7 +177,7 @@ func stddevSeries(ctx *common.Context, seriesList multiplePathSpecs) (ts.SeriesL
 	numSteps := firstSeries.Len()
 	values := ts.NewValues(ctx, firstSeries.MillisPerStep(), numSteps)
 	valuesAtTime := make([]float64, 0, numSteps)
-	for i := 0; i < numSteps; i++ {
+	for i := range numSteps {
 		valuesAtTime = valuesAtTime[:0]
 		for _, series := range seriesList.Values {
 			if l := series.Len(); l != numSteps {
@@ -209,7 +209,7 @@ func divideSeriesHelper(ctx *common.Context, dividendSeries, divisorSeries *ts.S
 	dividend, divisor := normalized.Values[0], normalized.Values[1]
 	numSteps := dividend.Len()
 	vals := ts.NewValues(ctx, lcmMillisPerStep, numSteps)
-	for i := 0; i < numSteps; i++ {
+	for i := range numSteps {
 		dividendVal := dividend.ValueAt(i)
 		divisorVal := divisor.ValueAt(i)
 		if !math.IsNaN(dividendVal) && !math.IsNaN(divisorVal) && divisorVal != 0 {
@@ -828,7 +828,7 @@ func weightedAverage(
 		}
 
 		vals := ts.NewValues(ctx, pair.values.MillisPerStep(), pair.values.Len())
-		for i := 0; i < pair.values.Len(); i++ {
+		for i := range pair.values.Len() {
 			v := pair.values.ValueAt(i)
 			w := pair.weights.ValueAt(i)
 			vals.SetValueAt(i, v*w)

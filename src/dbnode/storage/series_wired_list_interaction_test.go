@@ -148,7 +148,7 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 		}
 	)
 
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		wg.Add(1)
 		go func() {
 			blTime := getAndIncStart()

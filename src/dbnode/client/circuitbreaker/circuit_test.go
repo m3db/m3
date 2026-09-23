@@ -533,15 +533,15 @@ func TestProcessProbingState(t *testing.T) {
 				status: NewStatus(test.givenConfig),
 			}
 			setupCircuitStatus(&circuit, test.initialStatus, clock)
-			for i := 0; i < test.givenSuccessProbes; i++ {
+			for range test.givenSuccessProbes {
 				circuit.window.incSuccessfulProbeRequests()
 			}
 
-			for i := 0; i < test.givenFailedProbes; i++ {
+			for range test.givenFailedProbes {
 				circuit.window.incFailedProbeRequests()
 			}
 
-			for i := 0; i < test.givenTotalRequests; i++ {
+			for range test.givenTotalRequests {
 				circuit.window.incTotalRequests()
 			}
 
@@ -571,15 +571,15 @@ func TestProcessProbingState(t *testing.T) {
 		circuit.status.probeRatioIndex = 1
 		circuit.status.clock = clock
 		circuit.window.clock = clock
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			circuit.window.incSuccessfulProbeRequests()
 		}
 
-		for i := 0; i < 1; i++ {
+		for range 1 {
 			circuit.window.incFailedProbeRequests()
 		}
 
-		for i := 0; i < 200; i++ {
+		for range 200 {
 			circuit.window.incTotalRequests()
 		}
 
@@ -690,7 +690,7 @@ func TestProcessHealthyState(t *testing.T) {
 			},
 		},
 	}
-	for _, test := range tests {
+	for _, test := range tests { //nolint:dupl // same table-driven shape as the other state transition tests
 		t.Run(test.description, func(t *testing.T) {
 			circuit := Circuit{
 				config: test.givenConfig,
@@ -703,15 +703,15 @@ func TestProcessHealthyState(t *testing.T) {
 			circuit.status.probeRatioIndex = test.initialStatus.probeRatioIndex
 			circuit.status.clock = clock
 			circuit.window.clock = clock
-			for i := 0; i < test.givenSuccessRequests; i++ {
+			for range test.givenSuccessRequests {
 				circuit.window.incSuccessfulRequests()
 			}
 
-			for i := 0; i < test.givenFailedRequests; i++ {
+			for range test.givenFailedRequests {
 				circuit.window.incFailedRequests()
 			}
 
-			for i := 0; i < test.givenTotalRequests; i++ {
+			for range test.givenTotalRequests {
 				circuit.window.incTotalRequests()
 			}
 
@@ -961,27 +961,27 @@ func TestReportRequestStatus(t *testing.T) {
 			circuit.status.clock = clock
 			circuit.window.clock = clock
 
-			for i := 0; i < int(test.givenSuccessRequests); i++ {
+			for range test.givenSuccessRequests {
 				circuit.window.incSuccessfulRequests()
 			}
 
-			for i := 0; i < int(test.givenFailedRequests); i++ {
+			for range test.givenFailedRequests {
 				circuit.window.incFailedRequests()
 			}
 
-			for i := 0; i < int(test.givenTotalRequests); i++ {
+			for range test.givenTotalRequests {
 				circuit.window.incTotalRequests()
 			}
 
-			for i := 0; i < int(test.givenTotalProbes); i++ {
+			for range test.givenTotalProbes {
 				circuit.window.incTotalProbeRequests()
 			}
 
-			for i := 0; i < int(test.givenSuccessProbes); i++ {
+			for range test.givenSuccessProbes {
 				circuit.window.incSuccessfulProbeRequests()
 			}
 
-			for i := 0; i < int(test.givenFailedProbes); i++ {
+			for range test.givenFailedProbes {
 				circuit.window.incFailedProbeRequests()
 			}
 
@@ -1191,7 +1191,7 @@ func TestTransitionStateIfNeeded(t *testing.T) {
 			},
 		},
 	}
-	for _, test := range tests {
+	for _, test := range tests { //nolint:dupl // same table-driven shape as the other state transition tests
 		t.Run(test.description, func(t *testing.T) {
 			circuit := Circuit{
 				config: test.givenConfig,
@@ -1205,15 +1205,15 @@ func TestTransitionStateIfNeeded(t *testing.T) {
 			circuit.status.clock = clock
 			circuit.window.clock = clock
 
-			for i := 0; i < int(test.givenTotalRequests); i++ {
+			for range test.givenTotalRequests {
 				circuit.window.incTotalRequests()
 			}
 
-			for i := 0; i < int(test.givenTotalProbes); i++ {
+			for range test.givenTotalProbes {
 				circuit.window.incTotalProbeRequests()
 			}
 
-			for i := 0; i < int(test.givenSuccessProbes); i++ {
+			for range test.givenSuccessProbes {
 				circuit.window.incSuccessfulProbeRequests()
 			}
 
@@ -1510,15 +1510,15 @@ func TestIsRequestAllowed(t *testing.T) {
 			circuit.status.clock = clock
 			circuit.window.clock = clock
 
-			for i := 0; i < int(test.givenTotalRequests); i++ {
+			for range test.givenTotalRequests {
 				circuit.window.incTotalRequests()
 			}
 
-			for i := 0; i < int(test.givenTotalProbes); i++ {
+			for range test.givenTotalProbes {
 				circuit.window.incTotalProbeRequests()
 			}
 
-			for i := 0; i < int(test.givenSuccessProbes); i++ {
+			for range test.givenSuccessProbes {
 				circuit.window.incSuccessfulProbeRequests()
 			}
 
@@ -1702,7 +1702,7 @@ func TestE2E(t *testing.T) {
 
 		requestWithErr := make(chan bool)
 		var wg sync.WaitGroup
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			wg.Add(1)
 			// Go routine acts as request handler, which receives request from
 			// the request channel.
@@ -1718,7 +1718,7 @@ func TestE2E(t *testing.T) {
 		}
 
 		numberOfSuccessRequests := step.totalReqs - int(float64(step.totalReqs)*step.reportErrRate)
-		for j := 0; j < step.totalReqs; j++ {
+		for j := range step.totalReqs {
 			requestWithErr <- (j < numberOfSuccessRequests)
 		}
 

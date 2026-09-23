@@ -116,7 +116,7 @@ func processBlockBucketAtColumn(
 	// unless updated with valid values
 	currentColumnLength := currentBucketBlock.columnLength
 	currentBucketBlock.columns[columnIndex] = make(bucketColumn, currentColumnLength)
-	for i := 0; i < currentColumnLength; i++ {
+	for range currentColumnLength {
 		util.Memset(currentBucketBlock.columns[columnIndex], math.NaN())
 	}
 
@@ -237,7 +237,7 @@ func (n *countValuesNode) ProcessBlock(
 		return nil, err
 	}
 
-	for columnIndex := 0; columnIndex < stepCount; columnIndex++ {
+	for columnIndex := range stepCount {
 		for _, bucketBlock := range intermediateBlock {
 			valsToAdd := padValuesWithNaNs(
 				bucketBlock.columns[columnIndex],
@@ -255,7 +255,7 @@ func (n *countValuesNode) ProcessBlock(
 // pads vals with enough NaNs to match size
 func padValuesWithNaNs(vals bucketColumn, size int) bucketColumn {
 	numToPad := size - len(vals)
-	for i := 0; i < numToPad; i++ {
+	for range numToPad {
 		vals = append(vals, math.NaN())
 	}
 

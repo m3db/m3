@@ -184,7 +184,7 @@ func testDatabaseShardRepairerRepair(t *testing.T, withLimit bool) {
 		shard.EXPECT().LoadBlocks(gomock.Any()).Return(nil)
 	}
 
-	for i := 0; i < numIters; i++ {
+	for range numIters {
 		expectedResults := block.NewFetchBlocksMetadataResults()
 		results := block.NewFetchBlockMetadataResults()
 		results.Add(block.NewFetchBlockMetadataResult(now.Add(30*time.Minute),

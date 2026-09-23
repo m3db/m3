@@ -171,7 +171,7 @@ func TestAddDBResultResponseHeadersMetadataByName(t *testing.T) {
 	meta = block.NewResultMetadata()
 	numStats := fetchOpts.MaxMetricMetadataStats + 2
 	totalCount := 0
-	for i := 0; i < numStats; i++ {
+	for i := range numStats {
 		count := i + 1
 		meta.ByName([]byte(fmt.Sprintf("metric_%v", i))).Unaggregated = count
 		totalCount += count

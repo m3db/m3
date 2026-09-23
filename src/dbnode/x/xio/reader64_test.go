@@ -35,7 +35,7 @@ func TestBytesReader64(t *testing.T) {
 		r    = NewBytesReader64(nil)
 	)
 
-	for l := 0; l < len(data); l++ {
+	for l := range data {
 		testBytesReader64(t, r, data[:l])
 	}
 }

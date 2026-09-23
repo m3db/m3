@@ -65,7 +65,7 @@ func (w *IndexWriter) Write(id postings.ID, offset uint64) error {
 		if id <= w.prev {
 			return fmt.Errorf("postings IDs must be monotonically increasing: received %v but previous ID was %v", id, w.prev)
 		}
-		for i := 0; i < int(id-w.prev)-1; i++ {
+		for range int(id-w.prev) - 1 {
 			w.enc.PutUint64(emptyID)
 		}
 	}

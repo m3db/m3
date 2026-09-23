@@ -247,7 +247,7 @@ func generateDatapoints(
 	start xtime.UnixNano, numPoints int, ig *idGen, annGen annotationGenerator,
 ) dataPointsInTimeOrder {
 	var points dataPointsInTimeOrder
-	for i := 0; i < numPoints; i++ {
+	for i := range numPoints {
 		t := start.Add(time.Duration(i) * time.Minute)
 		if annGen == nil {
 			points = append(points,

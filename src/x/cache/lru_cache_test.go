@@ -55,7 +55,7 @@ func TestLRU_Get_SingleLoadPerKey(t *testing.T) {
 
 	keys := []string{"key-0", "key-1"}
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		key := keys[i%len(keys)]
 		wgReady.Add(1)
 		wgDone.Add(1)
@@ -121,7 +121,7 @@ func TestLRU_Get_HonorsContext(t *testing.T) {
 	// These will block until the main goroutine completes or the context is done.
 	var wg sync.WaitGroup
 	ctx, cancel := context.WithTimeout(context.Background(), time.Hour*24)
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -210,7 +210,7 @@ func TestLRU_Get_EvictsExpiredEntriesPriorToLoading(t *testing.T) {
 	tt.now = tt.now.Add(time.Minute * 5)
 
 	// Access the oldest expiring entry to make sure that access does not affect expiration
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		val, err = tt.c.Get(ctx, "key-0", tt.defaultLoad)
 		require.NoError(t, err)
 		require.Equal(t, "key-0-00001", val)
@@ -452,7 +452,7 @@ func TestLRU_Get_CacheLoadErrors(t *testing.T) {
 	require.EqualError(t, err, "this failed")
 
 	// Access it a few more times - the error should be cached
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		_, err = c.Get(context.Background(), "key-1", loader)
 		require.EqualError(t, err, "this failed")
 	}
@@ -468,7 +468,7 @@ func TestLRU_Get_CacheLoadErrors(t *testing.T) {
 	_, err = c.Get(context.Background(), "non-existent", loader)
 	require.Equal(t, ErrEntryNotFound, err)
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		_, err = c.Get(context.Background(), "non-existent", loader)
 		require.Equal(t, ErrEntryNotFound, err)
 	}
@@ -483,7 +483,7 @@ func TestLRU_Get_CacheLoadErrors(t *testing.T) {
 
 	// Load a key that results in an error that we are explicitly not caching - should constantly
 	// attempt to reload that key
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		_, err = c.Get(context.Background(), "key-3", loader)
 		require.EqualError(t, err, "this also failed")
 		require.False(t, errors.As(err, &UncachedError{})) // should have been unwrapped
@@ -513,7 +513,7 @@ func TestLRU_Get_DontCacheLoadErrors(t *testing.T) {
 	}
 
 	// No matter how many times we access the erroring key, we'll keep going back to the loader
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		_, err := c.Get(context.Background(), "key-1", loader)
 		require.EqualError(t, err, "this failed")
 		require.False(t, errors.As(err, &UncachedError{}))
@@ -522,7 +522,7 @@ func TestLRU_Get_DontCacheLoadErrors(t *testing.T) {
 	assert.Equal(t, 10, loadAttempts["key-1"])
 
 	// Allow explicit caching even when caching is disabled by default
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		_, err := c.Get(context.Background(), "always-cached", loader)
 		require.EqualError(t, err, "this failed")
 		require.False(t, errors.As(err, &UncachedError{}))
@@ -531,7 +531,7 @@ func TestLRU_Get_DontCacheLoadErrors(t *testing.T) {
 	assert.Equal(t, 1, loadAttempts["always-cached"])
 
 	// Still unwrap uncached errors even when caching is disabled
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		_, err := c.Get(context.Background(), "always-uncached", loader)
 		require.EqualError(t, err, "this failed")
 		require.False(t, errors.As(err, &UncachedError{}))
@@ -559,7 +559,7 @@ func TestLRU_GetWithTTL_AllowEntrySpecificTTLs(t *testing.T) {
 
 	// Repeatedly load, returning a custom TTL, advancing time past the "default" TTL but
 	// still within the TTL returned from the load function - should not reload
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		val, err := c.GetWithTTL(context.Background(), "my-key", loader)
 		require.NoError(t, err)
 		assert.Equal(t, "my-key-00001", val)
@@ -656,7 +656,7 @@ func TestLRU_PutAboveLimit(t *testing.T) {
 		lru        = NewLRU(&LRUOptions{MaxEntries: maxEntries, TTL: time.Second, Now: time.Now})
 	)
 
-	for i := 0; i < 3*maxEntries; i++ {
+	for i := range 3 * maxEntries {
 		key, value := strconv.Itoa(i), fmt.Sprintf("value for %d", i)
 		lru.Put(key, value)
 

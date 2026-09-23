@@ -125,11 +125,11 @@ func setup(mocks *gomock.Controller) (
 	db := storage.NewMockdatabase(mocks)
 
 	// 10 series IDs
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		id := ident.StringID(fmt.Sprintf("seriesId_%d", i))
 		var blockReaders [][]xio.BlockReader
 		// 10 block readers per series
-		for j := 0; j < 10; j++ {
+		for range 10 {
 			blockReaders = append(blockReaders, []xio.BlockReader{})
 		}
 		db.EXPECT().ReadEncoded(ctx, nsID, id, start, end).Return(&series.FakeBlockReaderIter{

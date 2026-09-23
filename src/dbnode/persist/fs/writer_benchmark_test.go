@@ -127,7 +127,7 @@ func benchmarkCreateEmptyFilesets(b *testing.B, parallelism, numShards int) {
 	workerPool.Init()
 
 	var wg sync.WaitGroup
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		wg.Add(1)
 
 		writerOpts := DataWriterOpenOptions{

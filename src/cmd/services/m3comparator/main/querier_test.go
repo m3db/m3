@@ -398,7 +398,7 @@ func setupQuerier(ctrl *gomock.Controller, query *storage.FetchQuery) *querier {
 	)
 
 	iters := make([]encoding.SeriesIterator, 0, predefinedSeriesCount)
-	for i := 0; i < predefinedSeriesCount; i++ {
+	for i := range predefinedSeriesCount {
 		m := metricsTag
 		if i > 5 {
 			m = metricsTag2

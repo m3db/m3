@@ -54,7 +54,7 @@ func LTTB(b *Series, start time.Time, end time.Time, millisPerStep int) *Series 
 	bucketStart := seriesStart + 1
 	bucketCenter := bucketStart + int(math.Floor(every)) + 1
 
-	for i := 0; i < threshold-2; i++ {
+	for i := range threshold - 2 {
 		bucketEnd := bucketCenter + int(math.Floor(every))
 
 		// Calculate point average for next bucket (containing c)

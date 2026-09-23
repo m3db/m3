@@ -778,7 +778,7 @@ func (m *seekerManager) seekersAndBloomFromSeeker(
 	borrowableSeekers := make([]borrowableSeeker, 0, m.fetchConcurrency)
 	borrowableSeekers = append(borrowableSeekers, borrowableSeeker{seeker: seeker})
 	// Clone remaining seekers from the original - No need to release the lock, cloning is cheap.
-	for i := 0; i < m.fetchConcurrency-1; i++ {
+	for range m.fetchConcurrency - 1 {
 		clone, err := seeker.ConcurrentClone()
 		if err != nil {
 			multiErr := xerrors.NewMultiError()

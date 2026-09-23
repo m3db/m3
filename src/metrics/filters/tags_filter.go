@@ -174,7 +174,7 @@ func (f *tagsFilter) String() string {
 			buf.WriteString(separator)
 		}
 	}
-	for i := 0; i < numTagFilters; i++ {
+	for i := range numTagFilters {
 		buf.WriteString(f.tagFilters[i].String())
 		if i < numTagFilters-1 {
 			buf.WriteString(separator)

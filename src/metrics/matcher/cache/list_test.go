@@ -143,7 +143,7 @@ func TestListPushFront(t *testing.T) {
 		iter   = 10
 		inputs = make([]testValue, iter)
 	)
-	for i := 0; i < iter; i++ {
+	for i := range iter {
 		namespace := []byte(fmt.Sprintf("namespace%d", i))
 		id := []byte(fmt.Sprintf("foo%d", i))
 		result := testValidResults[i%2]
@@ -174,7 +174,7 @@ func TestListPushBack(t *testing.T) {
 		iter   = 10
 		inputs = make([]testValue, iter)
 	)
-	for i := 0; i < iter; i++ {
+	for i := range iter {
 		namespace := []byte(fmt.Sprintf("namespace%d", i))
 		id := []byte(fmt.Sprintf("foo%d", i))
 		result := testValidResults[i%2]
@@ -205,7 +205,7 @@ func TestListRemove(t *testing.T) {
 		iter   = 10
 		inputs = make([]testValue, iter)
 	)
-	for i := 0; i < iter; i++ {
+	for i := range iter {
 		namespace := []byte(fmt.Sprintf("namespace%d", i))
 		id := []byte(fmt.Sprintf("foo%d", i))
 		result := testValidResults[i%2]
@@ -227,7 +227,7 @@ func TestListRemove(t *testing.T) {
 		deleted:   true,
 	})
 
-	for i := 0; i < iter; i++ {
+	for i := range iter {
 		elem := l.Front()
 		l.Remove(elem)
 		require.Nil(t, elem.prev)
@@ -242,7 +242,7 @@ func TestListMoveToFront(t *testing.T) {
 		iter   = 10
 		inputs = make([]testValue, iter)
 	)
-	for i := 0; i < iter; i++ {
+	for i := range iter {
 		namespace := []byte(fmt.Sprintf("namespace%d", i))
 		id := []byte(fmt.Sprintf("foo%d", i))
 		result := testValidResults[i%2]

@@ -84,7 +84,7 @@ func prepareData(b *testing.B) []encodedTagsWithTagName {
 		result = make([]encodedTagsWithTagName, 0, b.N)
 		rnd    = rand.New(rand.NewSource(42)) //nolint:gosec
 	)
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		tagName := tagNames[rnd.Intn(len(tagNames))]
 		encodedTags, err = base64.StdEncoding.DecodeString(samples[rnd.Intn(len(samples))])
 		require.NoError(b, err)

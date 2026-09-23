@@ -405,7 +405,7 @@ func (s *commitLogSource) readCommitLog(namespaces bootstrap.Namespaces, span op
 		numWorkers = s.opts.AccumulateConcurrency()
 		workers    = make([]*accumulateWorker, 0, numWorkers)
 	)
-	for i := 0; i < numWorkers; i++ {
+	for range numWorkers {
 		worker := &accumulateWorker{
 			inputCh: make(chan accumulateArg, workerChannelSize),
 		}
@@ -975,7 +975,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		return worker.readSeriesBlocks(ctx)
 	})
 
-	for i := 0; i < numWorkers; i++ {
+	for range numWorkers {
 		errs.Go(func() error {
 			return s.loadBlocks(worker.dataCh, writeType)
 		})

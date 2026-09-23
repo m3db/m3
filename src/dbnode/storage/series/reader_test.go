@@ -56,7 +56,7 @@ func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
 
 	var blockReaders []xio.BlockReader
 	curStart := start
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		reader := xio.NewMockSegmentReader(ctrl)
 		blockReaders = append(blockReaders, xio.BlockReader{
 			SegmentReader: reader,

@@ -304,8 +304,8 @@ func genTopology(t *testing.T) gopter.Gen {
 		// create a slice of all shards, i.e. [0, numShards) * rf
 		numTotalShards := rf * numShards
 		allShards := make([]uint32, 0, numTotalShards)
-		for i := 0; i < rf; i++ {
-			for j := 0; j < numShards; j++ {
+		for range rf {
+			for j := range numShards {
 				allShards = append(allShards, uint32(j))
 			}
 		}
@@ -315,7 +315,7 @@ func genTopology(t *testing.T) gopter.Gen {
 		// initialize host -> shard map
 		numShardsPerHost := divceil(numTotalShards, numHosts)
 		hostShardAssignment := make(map[string]map[uint32]struct{}, numHosts)
-		for i := 0; i < numHosts; i++ {
+		for i := range numHosts {
 			hostShardAssignment[hostid(i)] = make(map[uint32]struct{}, numShardsPerHost)
 		}
 

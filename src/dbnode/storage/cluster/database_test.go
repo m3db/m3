@@ -195,7 +195,7 @@ func TestDatabaseMarksShardAsAvailableOnReshard(t *testing.T) {
 	// Wait for the update to propagate, consume the first notification
 	// from the initial read and then the second that should come after
 	// enqueing the view just prior to this read
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		<-props.propogateViewsCh
 	}
 
@@ -349,7 +349,7 @@ func TestDatabaseOpenUpdatesShardSetBeforeOpen(t *testing.T) {
 	// Wait for the update to propagate, consume the first notification
 	// from the initial read and then the second that should come after
 	// enqueing the view just prior to this read
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		<-props.propogateViewsCh
 	}
 

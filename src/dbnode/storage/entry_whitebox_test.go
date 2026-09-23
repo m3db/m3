@@ -42,7 +42,7 @@ func TestEntryIndexAttemptRotatesSlice(t *testing.T) {
 	defer ctrl.Finish()
 
 	e := NewEntry(NewEntryOptions{Series: newMockSeries(ctrl)})
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		ti := newTime(i)
 		require.True(t, e.NeedsIndexUpdate(ti))
 		require.Equal(t, i+1, e.IndexedBlockCount())

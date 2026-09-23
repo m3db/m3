@@ -292,9 +292,9 @@ func TestMultiServerResendAggregatedValues(t *testing.T) {
 			8,
 		},
 	}
-	for spIdx := 0; spIdx < len(storagePolicies); spIdx++ {
+	for spIdx := range storagePolicies {
 		storagePolicy := storagePolicies[spIdx]
-		for i := 0; i < len(expectedValuesList[spIdx]); i++ {
+		for i := range len(expectedValuesList[spIdx]) {
 			if math.IsNaN(expectedValuesList[spIdx][i]) {
 				continue
 			}
@@ -312,7 +312,7 @@ func TestMultiServerResendAggregatedValues(t *testing.T) {
 	}
 
 	var expectedResultsFlattened []aggregated.MetricWithStoragePolicy
-	for i := 0; i < len(storagePolicies); i++ {
+	for i := range storagePolicies {
 		expectedDatapointsByID := datapointsByID{
 			expectedMetricKeyList[i]: expectedValuesByTimeList[i],
 		}

@@ -339,7 +339,7 @@ func benchmarkSingleBlock(b *testing.B, withPools bool) {
 		opts = withPool(b, opts)
 	}
 
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		for _, tt := range consolidatedStepIteratorTests {
 			b.StopTimer()
 			blocks, _ := generateBlocks(b, tt.stepSize, opts)
@@ -450,12 +450,12 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset, s
 		namespaceID  = ident.StringID("namespace")
 	)
 
-	for i := 0; i < seriesCount; i++ {
+	for i := range seriesCount {
 		encoder := m3tsz.NewEncoder(start, checked.NewBytes(nil, nil),
 			m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 
 		timestamp := start
-		for j := 0; j < iterations; j++ {
+		for j := range iterations {
 			timestamp = timestamp.Add(time.Duration(j) * stepSize)
 			dp := ts.Datapoint{TimestampNanos: timestamp, Value: float64(j)}
 			err := encoder.Encode(dp, xtime.Second, nil)
@@ -468,7 +468,7 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset, s
 			iter    encoding.MultiReaderIterator
 		}, replicasCount)
 		replicasIters := make([]encoding.MultiReaderIterator, replicasCount)
-		for j := 0; j < replicasCount; j++ {
+		for j := range replicasCount {
 			readers := []xio.SegmentReader{xio.NewSegmentReader(data)}
 			replicas[j].readers = readers
 
@@ -600,7 +600,7 @@ func benchmarkNextIteration(b *testing.B, iterations int, t iterType) {
 		require.NoError(b, err)
 
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			reset()
 			for it.Next() {
 			}
@@ -617,7 +617,7 @@ func benchmarkNextIteration(b *testing.B, iterations int, t iterType) {
 
 		var wg sync.WaitGroup
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			reset()
 
 			for _, batch := range batches {
@@ -644,7 +644,7 @@ func benchmarkNextIteration(b *testing.B, iterations int, t iterType) {
 	require.NoError(b, err)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		reset()
 		for it.Next() {
 		}

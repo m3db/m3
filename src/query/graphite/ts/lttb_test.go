@@ -37,7 +37,7 @@ func TestLTTB(t *testing.T) {
 	seriesStart := time.Now()
 	stepSize := 1000
 	values := NewValues(ctx, stepSize, 10)
-	for i := 0; i < values.Len(); i++ {
+	for i := range values.Len() {
 		values.SetValueAt(i, float64(i+1))
 	}
 	series := NewSeries(ctx, "foo", seriesStart, values)
@@ -118,7 +118,7 @@ func TestLTTBWithNull(t *testing.T) {
 	seriesStart := time.Now()
 	stepSize := 1000
 	values := NewValues(ctx, stepSize, len(data)/50)
-	for i := 0; i < values.Len(); i++ {
+	for i := range values.Len() {
 		values.SetValueAt(i, data[i].Y)
 	}
 
@@ -667,12 +667,12 @@ func BenchmarkLTTB(b *testing.B) {
 	seriesStart := time.Now()
 	stepSize := 1000
 	values := NewValues(ctx, stepSize, len(data))
-	for i := 0; i < values.Len(); i++ {
+	for i := range values.Len() {
 		values.SetValueAt(i, data[i].Y)
 	}
 	series := NewSeries(ctx, "foo", seriesStart, values)
 
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		LTTB(series, series.StartTime(), series.EndTime(), 5000)
 	}
 }
@@ -684,12 +684,12 @@ func BenchmarkAverage(b *testing.B) {
 	seriesStart := time.Now()
 	stepSize := 1000
 	values := NewValues(ctx, stepSize, len(data))
-	for i := 0; i < values.Len(); i++ {
+	for i := range values.Len() {
 		values.SetValueAt(i, data[i].Y)
 	}
 	series := NewSeries(ctx, "foo", seriesStart, values)
 
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		series.IntersectAndResize(series.StartTime(), series.EndTime(), 5000, Avg)
 	}
 }

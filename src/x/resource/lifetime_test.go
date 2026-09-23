@@ -33,7 +33,7 @@ func TestCancellableLifetime(t *testing.T) {
 
 	checkouts := 42
 
-	for i := 0; i < checkouts; i++ {
+	for range checkouts {
 		ok := l.TryCheckout()
 		require.True(t, ok)
 	}
@@ -45,7 +45,7 @@ func TestCancellableLifetime(t *testing.T) {
 		cancelDone.Store(true)
 	}()
 
-	for i := 0; i < checkouts; i++ {
+	for range checkouts {
 		time.Sleep(2 * time.Millisecond)
 
 		// Ensure not done yet until final release

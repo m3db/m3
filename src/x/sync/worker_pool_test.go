@@ -41,7 +41,7 @@ func TestGo(t *testing.T) {
 	p.Init()
 
 	var wg sync.WaitGroup
-	for i := 0; i < testWorkerPoolSize*2; i++ {
+	for range testWorkerPoolSize * 2 {
 		wg.Add(1)
 		p.Go(func() {
 			atomic.AddUint32(&count, 1)
@@ -62,7 +62,7 @@ func TestGoIfAvailable(t *testing.T) {
 	start := make(chan struct{})
 
 	var wg sync.WaitGroup
-	for i := 0; i < testWorkerPoolSize; i++ {
+	for range testWorkerPoolSize {
 		wg.Add(1)
 		p.Go(func() {
 			<-start
@@ -98,7 +98,7 @@ func TestGoWithTimeout(t *testing.T) {
 	start := make(chan struct{})
 
 	var wg sync.WaitGroup
-	for i := 0; i < testWorkerPoolSize; i++ {
+	for range testWorkerPoolSize {
 		wg.Add(1)
 		p.Go(func() {
 			<-start

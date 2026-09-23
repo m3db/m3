@@ -125,7 +125,7 @@ func anyIDs() gopter.Gen {
 	return gen.IntRange(0, 20).
 		Map(func(n int) []ident.ID {
 			ids := make([]ident.ID, 0, n)
-			for i := 0; i < n; i++ {
+			for i := range n {
 				ids = append(ids, ident.StringID(fmt.Sprintf("foo.%d", i)))
 			}
 			return ids
@@ -163,7 +163,7 @@ func testShardTickWriteRace(t *testing.T, tickBatchSize, numSeries int) {
 	}()
 
 	ids := []ident.ID{}
-	for i := 0; i < numSeries; i++ {
+	for i := range numSeries {
 		ids = append(ids, ident.StringID(fmt.Sprintf("foo.%d", i)))
 	}
 
@@ -208,7 +208,7 @@ func testShardTickWriteRace(t *testing.T, tickBatchSize, numSeries int) {
 		assert.NoError(t, err)
 	}()
 
-	for i := 0; i < numRoutines; i++ {
+	for range numRoutines {
 		barrier <- struct{}{}
 	}
 
@@ -239,7 +239,7 @@ func TestShardTickBootstrapWriteRace(t *testing.T) {
 	var writeIDs []ident.ID
 	bootstrapResult := result.NewMap(result.MapOptions{})
 
-	for i := 0; i < 30; i++ {
+	for i := range 30 {
 		id := ident.StringID(fmt.Sprintf("foo.%d", i))
 		// existing ids
 		if i < 20 {
@@ -305,7 +305,7 @@ func TestShardTickBootstrapWriteRace(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	for i := 0; i < numRoutines; i++ {
+	for range numRoutines {
 		barrier <- struct{}{}
 	}
 

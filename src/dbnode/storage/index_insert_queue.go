@@ -328,7 +328,7 @@ func newNsIndexInsertBatch(
 		nowFn:     nowFn,
 	}
 	numCores := xsync.NumCores()
-	for i := 0; i < numCores; i++ {
+	for i := range numCores {
 		b.insertsByCPUCore = append(b.insertsByCPUCore, &nsIndexInsertsByCPUCore{
 			metrics: newNamespaceIndexInsertsByCPUCoreMetrics(i, scope),
 		})

@@ -252,7 +252,7 @@ func NewClusterFromSpecification(
 		etcdCfg.ETCDClusters[0].Endpoints = etcdEndpoints
 		etcdCfg.ETCDClusters[0].AutoSyncInterval = -1
 	}
-	for i := 0; i < len(specs.Configs.DBNodes); i++ {
+	for i := range len(specs.Configs.DBNodes) {
 		var node resources.Node
 		updateEtcdEndpoints(specs.Configs.DBNodes[i].DB.Discovery.Config.Services[0].Service)
 		node, err = NewDBNode(specs.Configs.DBNodes[i], specs.Options.DBNode[i])
@@ -454,7 +454,7 @@ func GenerateDBNodeConfigsForCluster(
 		cfgs     = make([]dbcfg.Configuration, 0, numNodes)
 		nodeOpts = make([]DBNodeOptions, 0, numNodes)
 	)
-	for i := 0; i < int(numNodes); i++ {
+	for i := range numNodes {
 		cfg, err := defaultDBNodesCfg.DeepCopy()
 		if err != nil {
 			return nil, nil, environment.Configuration{}, err
@@ -521,7 +521,7 @@ func GenerateAggregatorConfigsForCluster(
 	}
 
 	cfgs := make([]aggcfg.Configuration, 0, int(opts.NumInstances))
-	for i := 0; i < int(opts.NumInstances); i++ {
+	for i := range opts.NumInstances {
 		cfg, err := configs.Aggregator.DeepCopy()
 		if err != nil {
 			return nil, err

@@ -292,7 +292,7 @@ func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
 		start      = xtime.Now().Truncate(blockSize)
 		numVolumes = 3
 	)
-	for i := 0; i < numVolumes; i++ {
+	for i := range numVolumes {
 		writer.Open(fs.DataWriterOpenOptions{
 			FileSetType: persist.FileSetFlushType,
 			Identifier: fs.FileSetFileIdentifier{
@@ -451,7 +451,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 	flush.EXPECT().PrepareData(prepareOpts).Return(prepared, nil)
 
 	flushed := make(map[int]struct{})
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		var expectedErr error
 		if i == 1 {
 			expectedErr = errors.New("error bar")
@@ -473,7 +473,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 	flushErr := s.WarmFlush(blockStart, flush, namespace.Context{})
 
 	require.Equal(t, len(flushed), 2)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		_, ok := flushed[i]
 		require.True(t, ok)
 	}
@@ -535,7 +535,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	flush.EXPECT().PrepareData(prepareOpts).Return(prepared, nil)
 
 	flushed := make(map[int]struct{})
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		curr := series.NewMockDatabaseSeries(ctrl)
 		curr.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
 		curr.EXPECT().IsEmpty().Return(false).AnyTimes()
@@ -553,7 +553,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	err := s.WarmFlush(blockStart, flush, namespace.Context{})
 
 	require.Equal(t, len(flushed), 2)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		_, ok := flushed[i]
 		require.True(t, ok)
 	}
@@ -840,7 +840,7 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 	snapshotPreparer.EXPECT().PrepareData(prepareOpts).Return(prepared, nil)
 
 	snapshotted := make(map[int]struct{})
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		entry := series.NewMockDatabaseSeries(ctrl)
 		entry.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
 		entry.EXPECT().IsEmpty().Return(false).AnyTimes()
@@ -861,7 +861,7 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 
 	_, err := s.Snapshot(blockStart, blockStart, snapshotPreparer, namespace.Context{})
 	require.Equal(t, len(snapshotted), 2)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		_, ok := snapshotted[i]
 		require.True(t, ok)
 	}
@@ -895,7 +895,7 @@ func addTestSeriesWithCount(shard *dbShard, id ident.ID, count int32) series.Dat
 	entry := NewEntry(NewEntryOptions{
 		Series: seriesEntry,
 	})
-	for i := int32(0); i < count; i++ {
+	for range count {
 		entry.IncrementReaderWriterCount()
 	}
 	shard.insertNewShardEntryWithLock(entry)
@@ -1503,7 +1503,7 @@ func TestForEachShardEntry(t *testing.T) {
 	opts := DefaultTestOptions()
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		addTestSeries(shard, ident.StringID(fmt.Sprintf("foo.%d", i)))
 	}
 
@@ -2003,7 +2003,7 @@ func TestSeriesRefResolverAsync(t *testing.T) {
 		finish sync.WaitGroup
 	)
 	start.Add(1)
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		finish.Add(1)
 		go func() {
 			start.Wait()

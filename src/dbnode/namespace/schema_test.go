@@ -120,7 +120,7 @@ func TestInvalidSchemaOptions(t *testing.T) {
 
 	// reverse the list (so that it is not topologically sorted)
 	dlistR := make([][]byte, len(dlist))
-	for i := 0; i < len(dlist); i++ {
+	for i := range dlist {
 		dlistR[i] = dlist[len(dlist)-i-1]
 	}
 

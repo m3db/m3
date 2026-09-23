@@ -109,7 +109,7 @@ func TestHashBadInput(t *testing.T) {
 }
 
 func BenchmarkHash(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		Hash(42, 132)
 	}
 }

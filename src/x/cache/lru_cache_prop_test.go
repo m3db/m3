@@ -197,12 +197,12 @@ func genPropTestOperations(opts genPropTestInputOptions) gopter.Gen {
 
 		return gopter.CombineGens().Map(func(input interface{}) *generatedPropTestOperations {
 			operations := make([]propTestOperation, 0, numKeys)
-			for i := 0; i < numKeys; i++ {
+			for i := range numKeys {
 				key := fmt.Sprintf("key-%d", i)
 				value := fmt.Sprintf("value-%d", i)
 				base := opts.opsPerKeyMin
 				n := randGen.Intn(opts.opsPerKeyMax - base)
-				for j := 0; j < base+n; j++ {
+				for range base + n {
 					var op propTestOperationType
 					dice := randGen.Float64()
 					if dice < opts.getPutRatio {

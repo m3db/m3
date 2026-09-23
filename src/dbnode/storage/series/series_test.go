@@ -1039,7 +1039,7 @@ func TestSeriesFetchBlocks(t *testing.T) {
 
 	expectedTimes := []xtime.UnixNano{starts[2], starts[0], starts[1]}
 	require.Equal(t, len(expectedTimes), len(res))
-	for i := 0; i < len(starts); i++ {
+	for i := range starts {
 		assert.Equal(t, expectedTimes[i], res[i].Start)
 		if i == 1 {
 			assert.NotNil(t, res[i].Blocks)
@@ -1120,7 +1120,7 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 		{starts[2], 0, nil, 0, false},
 	}
 	require.Equal(t, len(expected), len(metadata))
-	for i := 0; i < len(expected); i++ {
+	for i := range expected {
 		require.True(t, expected[i].start.Equal(metadata[i].Start))
 		require.Equal(t, expected[i].size, metadata[i].Size)
 		if expected[i].checksum == nil {
@@ -1169,11 +1169,11 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		Options:  opts,
 	}).(*dbSeries)
 
-	for iter := 0; iter < numBlocks; iter++ {
+	for range numBlocks {
 		start := now
 		value := startValue
 
-		for i := 0; i < numPoints; i++ {
+		for range numPoints {
 			wasWritten, _, err := series.Write(ctx, start, value, xtime.Second, nil, WriteOptions{})
 			require.NoError(t, err)
 			assert.True(t, wasWritten)
@@ -1185,7 +1185,7 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		// Perform out-of-order writes
 		start = now
 		value = startValue
-		for i := 0; i < numPoints/2; i++ {
+		for range numPoints / 2 {
 			wasWritten, _, err := series.Write(ctx, start, value, xtime.Second, nil, WriteOptions{})
 			require.NoError(t, err)
 			assert.True(t, wasWritten)

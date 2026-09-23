@@ -287,7 +287,7 @@ func TestDatabaseBlockMergeRace(t *testing.T) {
 				require.NoError(t, iter.Err())
 			}
 
-			for i := 0; i < numRoutines; i++ {
+			for range numRoutines {
 				go blockFn(block1)
 			}
 

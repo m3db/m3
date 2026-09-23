@@ -303,7 +303,7 @@ func (op RollupOp) SameTransform(other RollupOp) bool {
 	sort.Strings(clonedTags)
 	otherClonedTags := xbytes.ArraysToStringArray(other.Tags)
 	sort.Strings(otherClonedTags)
-	for i := 0; i < len(clonedTags); i++ {
+	for i := range clonedTags {
 		if clonedTags[i] != otherClonedTags[i] {
 			return false
 		}
@@ -640,7 +640,7 @@ func (p Pipeline) Equal(other Pipeline) bool {
 	if len(p.operations) != len(other.operations) {
 		return false
 	}
-	for i := 0; i < len(p.operations); i++ {
+	for i := range len(p.operations) {
 		if !p.operations[i].Equal(other.operations[i]) {
 			return false
 		}

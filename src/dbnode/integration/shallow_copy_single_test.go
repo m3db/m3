@@ -79,7 +79,7 @@ func TestShallowCopySingleSeries(t *testing.T) {
 
 	id := ident.StringID("foo")
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		ts := now.Truncate(time.Second).Add(time.Duration(i * int(time.Second)))
 		writeErr := session.Write(testNamespaces[0], id, ts, float64(i), xtime.Second, nil)
 		require.NoError(t, writeErr)

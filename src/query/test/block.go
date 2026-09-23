@@ -91,7 +91,7 @@ func (m multiSeriesBlock) MultiSeriesIter(
 	}
 
 	batches := make([]ts.SeriesList, 0, concurrency)
-	for i := 0; i < concurrency; i++ {
+	for range concurrency {
 		batches = append(batches, make(ts.SeriesList, 0, 10))
 	}
 

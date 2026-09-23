@@ -101,7 +101,7 @@ func TestMutableSegmentsBackgroundCompactGCReconstructCachedSearches(t *testing.
 	segsBackground := len(segs.backgroundSegments)
 	segs.Unlock()
 
-	for runs := 0; runs < 10; runs++ {
+	for runs := range 10 {
 		t.Run(fmt.Sprintf("run-%d", runs), func(t *testing.T) {
 			logger := result.logger.With(zap.Int("run", runs))
 
@@ -118,7 +118,7 @@ func TestMutableSegmentsBackgroundCompactGCReconstructCachedSearches(t *testing.
 				batch := NewWriteBatch(WriteBatchOptions{
 					IndexBlockSize: blockSize,
 				})
-				for i := 0; i < 128; i++ {
+				for range 128 {
 					onIndexSeries := doc.NewMockOnIndexSeries(ctrl)
 					onIndexSeries.EXPECT().
 						TryMarkIndexGarbageCollected().
@@ -153,7 +153,7 @@ func TestMutableSegmentsBackgroundCompactGCReconstructCachedSearches(t *testing.
 			// executing background compact GC.
 			doneCh := make(chan struct{}, 2)
 			defer close(doneCh)
-			for i := 0; i < 2; i++ {
+			for range 2 {
 				go func() {
 					for {
 						select {
@@ -199,8 +199,8 @@ func testDocSearches(
 	t *testing.T,
 	segs *mutableSegments,
 ) {
-	for i := 0; i < len(testDocBucket0Values); i++ {
-		for j := 0; j < len(testDocBucket1Values); j++ {
+	for i := range testDocBucket0Values {
+		for j := range testDocBucket1Values {
 			readers, err := segs.AddReaders(nil)
 			assert.NoError(t, err)
 

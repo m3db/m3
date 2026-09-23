@@ -46,7 +46,7 @@ func TestAggregateResultsAccumulatorAnyResponseShouldTerminateConsistencyLevelOn
 	})
 
 	// any response should satisfy consistency lvl one
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		testFetchStateWorkflow{
 			t:       t,
 			topoMap: topoMap,
@@ -457,7 +457,7 @@ func TestAggregateResultsAccumulatorReadConsitencyLevelMajority(t *testing.T) {
 	})
 
 	// any single success response should not satisfy consistency majority
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		testFetchStateWorkflow{
 			t:       t,
 			topoMap: topoMap,

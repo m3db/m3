@@ -217,7 +217,7 @@ func TestMetricToProto(t *testing.T) {
 	var pb metricpb.TimedMetric
 	inputs := []Metric{testMetric1, testMetric2}
 	expected := []metricpb.TimedMetric{testMetric1Proto, testMetric2Proto}
-	for i := 0; i < len(inputs); i++ {
+	for i := range inputs {
 		require.NoError(t, inputs[i].ToProto(&pb))
 		require.Equal(t, expected[i], pb)
 	}
@@ -232,7 +232,7 @@ func TestMetricFromProto(t *testing.T) {
 	var m Metric
 	inputs := []metricpb.TimedMetric{testMetric1Proto, testMetric2Proto}
 	expected := []Metric{testMetric1, testMetric2}
-	for i := 0; i < len(inputs); i++ {
+	for i := range inputs {
 		require.NoError(t, m.FromProto(inputs[i]))
 		require.Equal(t, expected[i], m)
 	}
@@ -249,7 +249,7 @@ func TestCounterRoundTrip(t *testing.T) {
 		res Metric
 	)
 	inputs := []Metric{testMetric1, testMetric2}
-	for i := 0; i < len(inputs); i++ {
+	for i := range inputs {
 		require.NoError(t, inputs[i].ToProto(&pb))
 		require.NoError(t, res.FromProto(pb))
 		require.Equal(t, inputs[i], res)

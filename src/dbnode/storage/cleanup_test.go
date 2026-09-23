@@ -284,7 +284,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 
 			namespaces := make([]databaseNamespace, 0, 3)
 			shards := make([]databaseShard, 0, 3)
-			for i := 0; i < 3; i++ {
+			for i := range 3 {
 				shard := NewMockdatabaseShard(ctrl)
 				shard.EXPECT().ID().Return(uint32(i)).AnyTimes()
 				shard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
@@ -294,7 +294,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 				shards = append(shards, shard)
 			}
 
-			for i := 0; i < 3; i++ {
+			for i := range 3 {
 				ns := NewMockdatabaseNamespace(ctrl)
 				ns.EXPECT().ID().Return(ident.StringID(fmt.Sprintf("ns%d", i))).AnyTimes()
 				ns.EXPECT().Options().Return(nsOpts).AnyTimes()

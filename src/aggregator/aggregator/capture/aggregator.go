@@ -231,7 +231,7 @@ func cloneStagedMetadata(sm metadata.StagedMetadata) metadata.StagedMetadata {
 	}
 	pipelines := sm.Pipelines
 	cloned := make([]metadata.PipelineMetadata, len(pipelines))
-	for i := 0; i < len(pipelines); i++ {
+	for i := range pipelines {
 		storagePolicies := make([]policy.StoragePolicy, len(pipelines[i].StoragePolicies))
 		copy(storagePolicies, pipelines[i].StoragePolicies)
 		pipeline := pipelines[i].Pipeline.Clone()
@@ -255,7 +255,7 @@ func cloneStagedMetadatas(sm metadata.StagedMetadatas) metadata.StagedMetadatas 
 		return sm
 	}
 	cloned := make(metadata.StagedMetadatas, len(sm))
-	for i := 0; i < len(sm); i++ {
+	for i := range sm {
 		cloned[i] = cloneStagedMetadata(sm[i])
 	}
 	return cloned

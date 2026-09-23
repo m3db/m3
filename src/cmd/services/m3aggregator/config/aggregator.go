@@ -941,7 +941,7 @@ func (c *AggregatorConfiguration) newPassthroughWriter(
 	}
 
 	writers := make([]writer.Writer, 0, count)
-	for i := 0; i < count; i++ {
+	for range count {
 		writer, err := flushHandler.NewWriter(iOpts.MetricsScope())
 		if err != nil {
 			return nil, err

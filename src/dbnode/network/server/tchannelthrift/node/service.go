@@ -2724,7 +2724,7 @@ func (r *writeBatchPooledReq) nextPooledID(idBytes []byte) (ident.ID, bool) {
 
 func (r *writeBatchPooledReq) Finalize() {
 	// Reset the pooledIDsUsed and decrement the ref counts
-	for i := 0; i < r.pooledIDsUsed; i++ {
+	for i := range r.pooledIDsUsed {
 		r.pooledIDs[i].bytes.DecRef()
 	}
 	r.pooledIDsUsed = 0

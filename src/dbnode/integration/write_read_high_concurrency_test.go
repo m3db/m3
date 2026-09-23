@@ -96,14 +96,14 @@ func TestWriteReadHighConcurrencyTestMultiNS(t *testing.T) {
 			return id
 		}
 	}
-	for i := 0; i < concurrency; i++ {
+	for i := range concurrency {
 		insertWg.Add(2)
 		idx := i
 		ns1GenIDs := newNs1GenIDs(idx)
 		ns2GenIDs := newNs2GenIDs(idx)
 		go func() {
 			defer insertWg.Done()
-			for j := 0; j < writeEach; j++ {
+			for j := range writeEach {
 				id := ns1GenIDs(j)
 				err := session.Write(testNamespaces[0], id, now, float64(1.0), xtime.Second, nil)
 				if err != nil {
@@ -113,7 +113,7 @@ func TestWriteReadHighConcurrencyTestMultiNS(t *testing.T) {
 		}()
 		go func() {
 			defer insertWg.Done()
-			for j := 0; j < writeEach; j++ {
+			for j := range writeEach {
 				id := ns2GenIDs(j)
 				err := session.Write(testNamespaces[1], id, now, float64(1.0), xtime.Second, nil)
 				if err != nil {
@@ -127,12 +127,12 @@ func TestWriteReadHighConcurrencyTestMultiNS(t *testing.T) {
 	log.Info("test data written", zap.Duration("took", time.Since(start)))
 
 	var fetchWg sync.WaitGroup
-	for i := 0; i < concurrency; i++ {
+	for i := range concurrency {
 		fetchWg.Add(2)
 		idx := i
 		verify := func(genID func(j int) ident.ID, ns ident.ID) {
 			defer fetchWg.Done()
-			for j := 0; j < writeEach; j++ {
+			for j := range writeEach {
 				id := genID(j)
 				found := xclock.WaitUntil(func() bool {
 					iter, err := session.Fetch(ns, id, now.Add(-time.Hour), now.Add(time.Hour))

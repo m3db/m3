@@ -140,7 +140,7 @@ func TranslateQueryToMatchersWithTerminator(
 	// Add space for a terminator character.
 	matchersLength := metricLength + 1
 	matchers := make(models.Matchers, matchersLength)
-	for i := 0; i < metricLength; i++ {
+	for i := range metricLength {
 		metric := graphite.ExtractNthMetricPart(query, i)
 		if len(metric) > 0 {
 			m, err := convertMetricPartToMatcher(i, metric)

@@ -83,9 +83,9 @@ func generateSeriesMaps(
 	numBlocks int, updateConfig generate.UpdateBlockConfig, starts ...xtime.UnixNano,
 ) generate.SeriesBlocksByStart {
 	blockConfig := []generate.BlockConfig{}
-	for i := 0; i < numBlocks; i++ {
+	for range numBlocks {
 		name := []string{}
-		for j := 0; j < rand.Intn(10)+1; j++ {
+		for range rand.Intn(10) + 1 {
 			name = append(name, randStringRunes(100))
 		}
 

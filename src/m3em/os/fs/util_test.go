@@ -56,7 +56,7 @@ func TestRemoveContents(t *testing.T) {
 	)
 
 	// create a random files
-	for i := 0; i < numFilesToTest; i++ {
+	for range numFilesToTest {
 		tmpfile := newTempFile(t, tmpdir, content)
 		tmpfile.Close()
 	}

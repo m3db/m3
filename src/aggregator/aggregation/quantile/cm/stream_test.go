@@ -157,7 +157,7 @@ func testStreamWithIncreasingSamples(t *testing.T, opts Options) {
 	numSamples := 100000
 	s := NewStream(opts)
 	s.ResetSetData(testQuantiles)
-	for i := 0; i < numSamples; i++ {
+	for i := range numSamples {
 		s.Add(float64(i))
 	}
 	s.Flush()
@@ -200,7 +200,7 @@ func testStreamWithRandomSamples(t *testing.T, opts Options) {
 	// NB: use a local source so the sequence stays deterministic. As of Go
 	// 1.24 rand.Seed is a no-op, so seeding the global source does nothing.
 	rnd := rand.New(rand.NewSource(100))
-	for i := 0; i < numSamples; i++ {
+	for range numSamples {
 		v := float64(rnd.Int63n(maxInt64))
 		minVal = math.Min(minVal, v)
 		maxVal = math.Max(maxVal, v)
@@ -221,7 +221,7 @@ func testStreamWithRandomSamples(t *testing.T, opts Options) {
 func testStreamWithSkewedDistribution(t *testing.T, opts Options) {
 	s := NewStream(opts)
 	s.ResetSetData(testQuantiles)
-	for i := 0; i < 10000; i++ {
+	for range 10000 {
 		s.Add(1.0)
 	}
 

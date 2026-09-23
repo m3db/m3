@@ -255,7 +255,7 @@ func TestEntryIncDecWriter(t *testing.T) {
 		wg         sync.WaitGroup
 	)
 
-	for i := 0; i < numWriters; i++ {
+	for range numWriters {
 		wg.Add(1)
 		go func() {
 			e.IncWriter()
@@ -265,7 +265,7 @@ func TestEntryIncDecWriter(t *testing.T) {
 	wg.Wait()
 	require.Equal(t, int32(numWriters), e.numWriters.Load())
 
-	for i := 0; i < numWriters; i++ {
+	for range numWriters {
 		wg.Add(1)
 		go func() {
 			e.DecWriter()
@@ -342,7 +342,7 @@ func TestEntryCounterRateLimiting(t *testing.T) {
 	limitPerSecond := 10
 	runtimeOpts := runtime.NewOptions().SetWriteValuesPerMetricLimitPerSecond(int64(limitPerSecond))
 	e.SetRuntimeOptions(runtimeOpts)
-	for i := 0; i < limitPerSecond; i++ {
+	for range limitPerSecond {
 		require.NoError(t, e.AddUntimed(testCounter, testDefaultStagedMetadatas))
 	}
 	require.Equal(t, errWriteValueRateLimitExceeded, e.AddUntimed(testCounter, testDefaultStagedMetadatas))
@@ -351,7 +351,7 @@ func TestEntryCounterRateLimiting(t *testing.T) {
 	limitPerSecond = 100
 	runtimeOpts = runtime.NewOptions().SetWriteValuesPerMetricLimitPerSecond(int64(limitPerSecond))
 	e.SetRuntimeOptions(runtimeOpts)
-	for i := 0; i < limitPerSecond; i++ {
+	for range limitPerSecond {
 		require.NoError(t, e.AddUntimed(testCounter, testDefaultStagedMetadatas))
 	}
 	require.Equal(t, errWriteValueRateLimitExceeded, e.AddUntimed(testCounter, testDefaultStagedMetadatas))
@@ -1495,7 +1495,7 @@ func TestEntryTimedRateLimiting(t *testing.T) {
 	limitPerSecond := 10
 	runtimeOpts := runtime.NewOptions().SetWriteValuesPerMetricLimitPerSecond(int64(limitPerSecond))
 	e.SetRuntimeOptions(runtimeOpts)
-	for i := 0; i < limitPerSecond; i++ {
+	for range limitPerSecond {
 		require.NoError(t, e.AddTimed(testTimedMetric, testTimedMetadata))
 	}
 	require.Equal(t, errWriteValueRateLimitExceeded, e.AddTimed(testTimedMetric, testTimedMetadata))
@@ -1504,7 +1504,7 @@ func TestEntryTimedRateLimiting(t *testing.T) {
 	limitPerSecond = 100
 	runtimeOpts = runtime.NewOptions().SetWriteValuesPerMetricLimitPerSecond(int64(limitPerSecond))
 	e.SetRuntimeOptions(runtimeOpts)
-	for i := 0; i < limitPerSecond; i++ {
+	for range limitPerSecond {
 		require.NoError(t, e.AddTimed(testTimedMetric, testTimedMetadata))
 	}
 	require.Equal(t, errWriteValueRateLimitExceeded, e.AddTimed(testTimedMetric, testTimedMetadata))
@@ -1875,7 +1875,7 @@ func TestEntryForwardedRateLimiting(t *testing.T) {
 	limitPerSecond := 10
 	runtimeOpts := runtime.NewOptions().SetWriteValuesPerMetricLimitPerSecond(int64(limitPerSecond))
 	e.SetRuntimeOptions(runtimeOpts)
-	for i := 0; i < limitPerSecond; i++ {
+	for range limitPerSecond {
 		require.NoError(t, e.AddForwarded(testForwardedMetric, testForwardMetadata))
 	}
 	require.Equal(t, errWriteValueRateLimitExceeded, e.AddForwarded(testForwardedMetric, testForwardMetadata))
@@ -1884,7 +1884,7 @@ func TestEntryForwardedRateLimiting(t *testing.T) {
 	limitPerSecond = 100
 	runtimeOpts = runtime.NewOptions().SetWriteValuesPerMetricLimitPerSecond(int64(limitPerSecond))
 	e.SetRuntimeOptions(runtimeOpts)
-	for i := 0; i < limitPerSecond; i++ {
+	for range limitPerSecond {
 		require.NoError(t, e.AddForwarded(testForwardedMetric, testForwardMetadata))
 	}
 	require.Equal(t, errWriteValueRateLimitExceeded, e.AddForwarded(testForwardedMetric, testForwardMetadata))
@@ -2181,7 +2181,7 @@ func TestAggregationValues(t *testing.T) {
 		},
 	}
 	vals := make(aggregationValues, len(aggregationKeys))
-	for i := 0; i < len(aggregationKeys); i++ {
+	for i := range aggregationKeys {
 		vals[i] = aggregationValue{key: aggregationKeys[i]}
 	}
 
@@ -2444,7 +2444,7 @@ func aggregationKeys(pipelines []metadata.PipelineMetadata) []aggregationKey {
 	curr := 0
 	for i := 0; i < len(aggregationKeys); i++ {
 		found := false
-		for j := 0; j < i; j++ {
+		for j := range i {
 			if aggregationKeys[i].Equal(aggregationKeys[j]) {
 				found = true
 				break

@@ -113,7 +113,7 @@ func validateIntConversions(t *testing.T, numConv, numDig, numDec int, neg bool)
 	if neg {
 		sign = -1.0
 	}
-	for i := 0; i < numConv; i++ {
+	for range numConv {
 		var val float64
 		dig := rand.Int() % digMod
 		dec := rand.Int() % decMod
@@ -136,7 +136,7 @@ func testFloatConversions(t *testing.T, numConv, numDig, numDec int) {
 	digMod := int(math.Pow10(numDig))
 	decMod := int(math.Pow10(numDec))
 
-	for i := 0; i < numConv; i++ {
+	for range numConv {
 		dig := rand.Int() % digMod
 		dec := rand.Int() % decMod
 

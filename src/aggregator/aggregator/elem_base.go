@@ -308,13 +308,12 @@ func newFlushMetrics(scope tally.Scope) *flushMetrics {
 		valuesExpired:   scope.Counter("values-expired"),
 	}
 	// forwardTypeInvalid is a sentinel value, marking the maximum index for forwardMetricType consts
-	for i := 0; i < int(forwardTypeInvalid); i++ {
-		tv := forwardType(i)
+	for i := range forwardTypeInvalid {
 		m.jitteredForwardLags[i] = scope.
-			Tagged(forwardKey{fwdType: tv, jitter: true}.toTags()).
+			Tagged(forwardKey{fwdType: i, jitter: true}.toTags()).
 			Histogram("forward-lag", forwardLagBuckets)
 		m.nonJitteredForwardLags[i] = scope.
-			Tagged(forwardKey{fwdType: tv, jitter: false}.toTags()).
+			Tagged(forwardKey{fwdType: i, jitter: false}.toTags()).
 			Histogram("forward-lag", forwardLagBuckets)
 	}
 	return &m
@@ -377,8 +376,8 @@ func newElemMetrics(scope tally.Scope) *elemMetrics {
 		flush: make(map[flushKey]*flushMetrics),
 	}
 	// invalidMetricListType is a sentinel value, marking the maximum index for metricListType consts
-	for i := 0; i < int(invalidMetricListType); i++ {
-		m.write[i] = newWriteMetrics(scope.Tagged(map[string]string{listTypeLabel: (metricListType)(i).String()}))
+	for i := range invalidMetricListType {
+		m.write[i] = newWriteMetrics(scope.Tagged(map[string]string{listTypeLabel: i.String()}))
 	}
 	return &m
 }
@@ -686,7 +685,7 @@ func newParsedPipeline(pipeline applied.Pipeline) (parsedPipeline, error) {
 		transformationDerivativeOrder int
 		numSteps                      = pipeline.Len()
 	)
-	for i := 0; i < numSteps; i++ {
+	for i := range numSteps {
 		pipelineOp := pipeline.At(i)
 		if pipelineOp.Type != mpipeline.TransformationOpType && pipelineOp.Type != mpipeline.RollupOpType {
 			err := fmt.Errorf("pipeline %v step %d has invalid operation type %v", pipeline, i, pipelineOp.Type)
@@ -733,7 +732,7 @@ func newParsedPipeline(pipeline applied.Pipeline) (parsedPipeline, error) {
 	}
 
 	transformations := make([]transformation.Op, 0, transformPipeline.Len())
-	for i := 0; i < transformPipeline.Len(); i++ {
+	for i := range transformPipeline.Len() {
 		op, err := transformPipeline.At(i).Transformation.Type.NewOp()
 		if err != nil {
 			err := fmt.Errorf("transform could not construct op: %v", err)

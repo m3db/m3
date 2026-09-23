@@ -48,7 +48,7 @@ func TestTracebackReadAfterFree(t *testing.T) {
 	SetTracebackCycles(2)
 	defer SetTracebackCycles(defaultTracebackCycles)
 
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		elem := &struct {
 			RefCount
 			x int
@@ -105,7 +105,7 @@ func TestTracebackDoubleWrite(t *testing.T) {
 	SetTracebackCycles(2)
 	defer SetTracebackCycles(defaultTracebackCycles)
 
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		elem := &struct {
 			RefCount
 			x int

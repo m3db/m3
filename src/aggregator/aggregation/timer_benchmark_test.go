@@ -51,7 +51,7 @@ func BenchmarkTimerValues(b *testing.B) {
 	for i := 1; i <= 2500; i++ {
 		timer.Add(_now, float64(i), nil)
 	}
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		timer.Sum()
 		timer.SumSq()
 		timer.Mean()
@@ -68,7 +68,7 @@ func BenchmarkTimerValues(b *testing.B) {
 
 func BenchmarkTimerValueOf(b *testing.B) {
 	timer := getTimer()
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		for _, aggType := range testAggTypes {
 			timer.ValueOf(aggType)
 		}

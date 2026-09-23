@@ -74,7 +74,7 @@ func TestConcurrentQueries(t *testing.T) {
 			)
 			wg.Add(numConcurrentWorkers)
 
-			for i := 0; i < numConcurrentWorkers; i++ {
+			for range numConcurrentWorkers {
 				go func() {
 					defer wg.Done()
 					fstDocs, err := fstExec.Execute(ctx, q)

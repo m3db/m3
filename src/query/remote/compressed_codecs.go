@@ -74,7 +74,7 @@ func compressedSegmentsFromReaders(
 		segments.Merged = segment
 	} else {
 		unmerged := make([]*rpc.M3Segment, 0, l)
-		for i := 0; i < l; i++ {
+		for i := range l {
 			br := readers.CurrentReaderAt(i)
 			segment, err := compressedSegmentFromBlockReader(br)
 			if err != nil {

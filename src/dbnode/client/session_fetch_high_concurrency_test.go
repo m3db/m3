@@ -62,7 +62,7 @@ func TestSessionFetchIDsHighConcurrency(t *testing.T) {
 		{numIDs: 32},
 	}
 	for i := range fetchAllTypes {
-		for j := 0; j < fetchAllTypes[i].numIDs; j++ {
+		for j := range fetchAllTypes[i].numIDs {
 			fetchAllTypes[i].ids = append(fetchAllTypes[i].ids, fmt.Sprintf("foo.%d", j))
 		}
 		if fetchAllTypes[i].numIDs > maxIDs {
@@ -124,8 +124,8 @@ func TestSessionFetchIDsHighConcurrency(t *testing.T) {
 	shardAssignments := make([][]shard.Shard, numHosts)
 	allShards := shardSet.All()
 	host := 0
-	for i := 0; i < numReplicas; i++ {
-		for shard := 0; shard < numShards; shard++ {
+	for range numReplicas {
+		for shard := range numShards {
 			placed := false
 			for !placed {
 				unique := true
@@ -174,13 +174,13 @@ func TestSessionFetchIDsHighConcurrency(t *testing.T) {
 
 	var wg, startWg sync.WaitGroup
 	startWg.Add(1)
-	for i := 0; i < concurrency; i++ {
+	for range concurrency {
 		wg.Add(1)
 		go func() {
 			startWg.Wait()
 			defer wg.Done()
 
-			for j := 0; j < fetchAllEach; j++ {
+			for j := range fetchAllEach {
 				ids := fetchAllTypes[j%len(fetchAllTypes)].ids
 				iters, err := session.FetchIDs(ident.StringID(testNamespaceName),
 					ident.NewStringIDsSliceIterator(ids), start, end)

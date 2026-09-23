@@ -193,7 +193,7 @@ func TestIndexActiveBlockRotate(t *testing.T) {
 	require.Equal(t, 0, numGCSeries)
 
 	prevLog := log
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		log = prevLog.With(zap.Int("checkIteration", i))
 
 		// Progress to next time just before a flush and freeze (using setTime).

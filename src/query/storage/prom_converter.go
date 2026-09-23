@@ -134,7 +134,7 @@ func toPromSequentially(
 	meta := block.NewResultMetadata()
 	count := fetchResult.Count()
 	seriesList := make([]*prompb.TimeSeries, 0, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		iter, tags, err := fetchResult.IterTagsAtIndex(i, tagOptions)
 		if err != nil {
 			return PromResult{}, err
@@ -186,7 +186,7 @@ func toPromConcurrently(
 	)
 
 	fastWorkerPool := readWorkerPool.FastContextCheck(100)
-	for i := 0; i < count; i++ {
+	for i := range count {
 
 		iter, tags, err := fetchResult.IterTagsAtIndex(i, tagOptions)
 		if err != nil {

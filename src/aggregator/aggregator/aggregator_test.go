@@ -229,7 +229,7 @@ func TestAggregatorOpenSuccess(t *testing.T) {
 	require.True(t, agg.shardSetOpen)
 	require.Equal(t, aggregatorOpen, agg.state)
 	require.Equal(t, []uint32{0, 1, 2, 3}, agg.shardIDs)
-	for i := 0; i < testNumShards; i++ {
+	for i := range testNumShards {
 		require.NotNil(t, agg.shards[i])
 	}
 	require.NotNil(t, agg.currPlacement)
@@ -342,7 +342,7 @@ func TestAggregatorInstanceNotFoundThenFoundThenNotFound(t *testing.T) {
 	require.True(t, agg.shardSetOpen)
 	require.Equal(t, aggregatorOpen, agg.state)
 	require.Equal(t, []uint32{0, 1, 2, 3}, agg.shardIDs)
-	for i := 0; i < testNumShards; i++ {
+	for i := range testNumShards {
 		require.NotNil(t, agg.shards[i])
 	}
 	require.Equal(t, int64(testPlacementCutover), agg.currPlacement.CutoverNanos())
@@ -1032,7 +1032,7 @@ func TestAggregatorOwnedShards(t *testing.T) {
 	sort.Sort(uint32Ascending(shardIDs))
 	require.Equal(t, expectedShardIDs, agg.shardIDs)
 
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		if i == 1 {
 			require.Nil(t, agg.shards[i])
 		} else {
@@ -1434,7 +1434,7 @@ func testStagedPlacementProtoWithNumShards(
 	numShards int,
 ) *placementpb.PlacementSnapshots {
 	shardSet := make([]shard.Shard, numShards)
-	for i := 0; i < numShards; i++ {
+	for i := range numShards {
 		shardSet[i] = shard.NewShard(uint32(i)).
 			SetState(shard.Initializing).
 			SetCutoverNanos(0).

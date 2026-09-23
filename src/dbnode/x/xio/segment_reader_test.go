@@ -121,8 +121,8 @@ func TestSegmentReader64(t *testing.T) {
 		data[i] = 100 + byte(i)
 	}
 
-	for headLen := 0; headLen < len(data); headLen++ {
-		for tailLen := 0; tailLen < len(data)-headLen; tailLen++ {
+	for headLen := range data {
+		for tailLen := range len(data) - headLen {
 			testSegmentReader64(t, data[:headLen], data[headLen:headLen+tailLen])
 		}
 	}

@@ -308,7 +308,7 @@ type forwardedAggregationWithKey struct {
 
 func (agg *forwardedAggregationWithKey) reset() {
 	agg.currRefCnt = 0
-	for i := 0; i < len(agg.buckets); i++ {
+	for i := range len(agg.buckets) {
 		agg.buckets[i].values = agg.buckets[i].values[:0]
 		agg.buckets[i].prevValues = agg.buckets[i].prevValues[:0]
 		agg.buckets[i].annotation = agg.buckets[i].annotation[:0]
@@ -321,7 +321,7 @@ func (agg *forwardedAggregationWithKey) reset() {
 func (agg *forwardedAggregationWithKey) add(timeNanos xtime.UnixNano, value float64, prevValue float64,
 	annotation []byte, resendEnabled bool, routePolicy policy.RoutingPolicy) {
 	var idx int
-	for idx = 0; idx < len(agg.buckets); idx++ {
+	for idx = 0; idx < len(agg.buckets); idx++ { //nolint:intrange // idx is read after the loop
 		if agg.buckets[idx].timeNanos == timeNanos {
 			break
 		}
@@ -400,7 +400,7 @@ func (agg *forwardedAggregation) onAggregationKeyDoneFn() onForwardedAggregation
 func (agg *forwardedAggregation) clear() { *agg = forwardedAggregation{} }
 
 func (agg *forwardedAggregation) reset() {
-	for i := 0; i < len(agg.byKey); i++ {
+	for i := range len(agg.byKey) {
 		agg.byKey[i].reset()
 	}
 }

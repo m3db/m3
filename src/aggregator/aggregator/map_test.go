@@ -494,7 +494,7 @@ func TestMetricMapDeleteExpired(t *testing.T) {
 
 	// Insert some live entries and some expired entries.
 	numEntries := 500
-	for i := 0; i < numEntries; i++ {
+	for i := range numEntries {
 		key := entryKey{
 			metricType: metricType(metric.CounterType),
 			idHash:     hash.Murmur3Hash128([]byte(fmt.Sprintf("%d", i))),

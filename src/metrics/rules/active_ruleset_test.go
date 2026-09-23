@@ -1486,7 +1486,7 @@ func TestActiveRuleSetForwardMatchWithRollupRules(t *testing.T) {
 			require.True(t, cmp.Equal(input.forExistingIDResult, res.ForExistingIDAt(0), testStagedMetadatasCmptOpts...))
 			require.Equal(t, len(input.forNewRollupIDsResult), res.NumNewRollupIDs())
 			require.Equal(t, input.keepOriginal, res.KeepOriginal())
-			for i := 0; i < len(input.forNewRollupIDsResult); i++ {
+			for i := range len(input.forNewRollupIDsResult) {
 				rollup := res.ForNewRollupIDsAt(i, 0)
 				require.True(t, cmp.Equal(input.forNewRollupIDsResult[i], rollup, testIDWithMetadatasCmpOpts...))
 			}
@@ -2467,7 +2467,7 @@ func TestActiveRuleSetForwardMatchWithRollupRulesWithIncludeTags(t *testing.T) {
 			require.True(t, cmp.Equal(input.forExistingIDResult, res.ForExistingIDAt(0), testStagedMetadatasCmptOpts...))
 			require.Equal(t, len(input.forNewRollupIDsResult), res.NumNewRollupIDs())
 			require.Equal(t, input.keepOriginal, res.KeepOriginal())
-			for i := 0; i < len(input.forNewRollupIDsResult); i++ {
+			for i := range len(input.forNewRollupIDsResult) {
 				rollup := res.ForNewRollupIDsAt(i, 0)
 				require.True(t, cmp.Equal(input.forNewRollupIDsResult[i], rollup, testIDWithMetadatasCmpOpts...))
 			}
@@ -3708,7 +3708,7 @@ func TestActiveRuleSetForwardMatchWithMappingRulesAndRollupRules(t *testing.T) {
 			require.True(t, cmp.Equal(input.forExistingIDResult, res.ForExistingIDAt(0), testStagedMetadatasCmptOpts...))
 			require.Equal(t, len(input.forNewRollupIDsResult), res.NumNewRollupIDs())
 			require.Equal(t, input.keepOriginal, res.KeepOriginal())
-			for i := 0; i < len(input.forNewRollupIDsResult); i++ {
+			for i := range len(input.forNewRollupIDsResult) {
 				rollup := res.ForNewRollupIDsAt(i, 0)
 				require.True(t, cmp.Equal(input.forNewRollupIDsResult[i], rollup, testIDWithMetadatasCmpOpts...))
 			}

@@ -48,7 +48,7 @@ func BenchmarkMetadata_IsDefault(b *testing.B) {
 			},
 		},
 	}
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		if !isDefault(m) {
 			b.Fail()
 		}
@@ -70,7 +70,7 @@ func BenchmarkMetadata_FromProto(b *testing.B) {
 		testSmallStagedMetadatasWithLargeStoragePoliciesProto.Metadatas...)
 
 	b.Run("large metadatas", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			if err := m.FromProto(testLargeStagedMetadatasProto); err != nil {
 				b.Fail()
 			}
@@ -78,7 +78,7 @@ func BenchmarkMetadata_FromProto(b *testing.B) {
 	})
 
 	b.Run("small metadatas", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			if err := m.FromProto(testSmallStagedMetadatasProto); err != nil {
 				b.Fail()
 			}
@@ -86,7 +86,7 @@ func BenchmarkMetadata_FromProto(b *testing.B) {
 	})
 
 	b.Run("storage policies", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			if err := m.FromProto(
 				testSmallStagedMetadatasWithLargeStoragePoliciesProto,
 			); err != nil {
@@ -96,7 +96,7 @@ func BenchmarkMetadata_FromProto(b *testing.B) {
 	})
 
 	b.Run("all", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			if err := m.FromProto(testAllPayload); err != nil {
 				b.Fail()
 			}
@@ -104,7 +104,7 @@ func BenchmarkMetadata_FromProto(b *testing.B) {
 	})
 
 	b.Run("reference, large metadatas", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			if err := m.fromProto(testLargeStagedMetadatasProto); err != nil {
 				b.Fail()
 			}
@@ -112,7 +112,7 @@ func BenchmarkMetadata_FromProto(b *testing.B) {
 	})
 
 	b.Run("reference, small metadatas", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			if err := m.fromProto(testSmallStagedMetadatasProto); err != nil {
 				b.Fail()
 			}
@@ -120,7 +120,7 @@ func BenchmarkMetadata_FromProto(b *testing.B) {
 	})
 
 	b.Run("reference, storage policies", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			if err := m.fromProto(testSmallStagedMetadatasWithLargeStoragePoliciesProto); err != nil {
 				b.Fail()
 			}
@@ -128,7 +128,7 @@ func BenchmarkMetadata_FromProto(b *testing.B) {
 	})
 
 	b.Run("reference, all", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			if err := m.fromProto(testAllPayload); err != nil {
 				b.Fail()
 			}

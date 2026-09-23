@@ -90,7 +90,7 @@ func (n *timeNode) Execute(queryCtx *models.QueryContext) error {
 		return err
 	}
 
-	for i := 0; i < steps; i++ {
+	for i := range steps {
 		t, err := bounds.TimeForIndex(i)
 		if err != nil {
 			return err

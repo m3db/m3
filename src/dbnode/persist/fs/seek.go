@@ -614,7 +614,7 @@ func newSimpleBytesPool() pool.BytesPool {
 }
 
 func (s *simpleBytesPool) Init() {
-	for i := 0; i < s.maxPoolSize; i++ {
+	for range s.maxPoolSize {
 		s.pool = append(s.pool, make([]byte, 0, s.maxByteSliceSize))
 	}
 }

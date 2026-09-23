@@ -47,7 +47,7 @@ func newHeapPool() heapPool {
 		sz = _initialHeapBucketSize
 	)
 
-	for i := 0; i < _heapSizeBuckets; i++ {
+	for i := range _heapSizeBuckets {
 		size := sz
 
 		p.sizes[i] = size
@@ -86,7 +86,7 @@ makeNew:
 
 func (p heapPool) Put(value minHeap) {
 	size := cap(value)
-	for i := 0; i < len(p.sizes); i++ {
+	for i := range len(p.sizes) {
 		if p.sizes[i] < size {
 			continue
 		}

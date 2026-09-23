@@ -390,7 +390,7 @@ func newDbShardInsertBatch(
 		wg:    &sync.WaitGroup{},
 	}
 	numCores := xsync.NumCores()
-	for i := 0; i < numCores; i++ {
+	for i := range numCores {
 		b.insertsByCPUCore = append(b.insertsByCPUCore, &dbShardInsertsByCPUCore{
 			wg:      b.wg,
 			metrics: newDBShardInsertsByCPUCoreMetrics(i, scope),

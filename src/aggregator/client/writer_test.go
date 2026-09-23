@@ -268,7 +268,7 @@ func TestWriterWriteUntimedBatchTimerNoBatchSizeLimit(t *testing.T) {
 
 	numValues := 65536
 	timerValues := make([]float64, numValues)
-	for i := 0; i < numValues; i++ {
+	for i := range numValues {
 		timerValues[i] = float64(i)
 	}
 	testLargeBatchTimer := unaggregated.MetricUnion{
@@ -345,7 +345,7 @@ func TestWriterWriteUntimedBatchTimerLargeBatchSize(t *testing.T) {
 
 	numValues := 65536
 	timerValues := make([]float64, numValues)
-	for i := 0; i < numValues; i++ {
+	for i := range numValues {
 		timerValues[i] = float64(i)
 	}
 	testLargeBatchTimer := unaggregated.MetricUnion{
@@ -398,7 +398,7 @@ func TestWriterWriteUntimedBatchTimerLargeBatchSize(t *testing.T) {
 		expectedValues    [][]float64
 		expectedMetadatas []metadata.StagedMetadatas
 	)
-	for i := 0; i < expectedNumBatches; i++ {
+	for i := range expectedNumBatches {
 		start := i * maxBatchSize
 		end := start + maxBatchSize
 		if end > numValues {
@@ -422,7 +422,7 @@ func TestWriterWriteUntimedLargeBatchTimerUsesMultipleBuffers(t *testing.T) {
 	)
 
 	timerValues := make([]float64, numValues)
-	for i := 0; i < numValues; i++ {
+	for i := range numValues {
 		timerValues[i] = float64(i)
 	}
 
@@ -477,7 +477,7 @@ func TestWriterWriteUntimedBatchTimerWriteError(t *testing.T) {
 
 	numValues := 7
 	timerValues := make([]float64, numValues)
-	for i := 0; i < numValues; i++ {
+	for i := range numValues {
 		timerValues[i] = float64(i)
 	}
 	testLargeBatchTimer := unaggregated.MetricUnion{
@@ -778,7 +778,7 @@ func TestWriterFlushPartialError(t *testing.T) {
 		encoderIdx++
 		return &lockedEncoder{UnaggregatedEncoder: encoder}
 	}
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		w.encodersByShard[uint32(i)] = w.newLockedEncoderFn(opts.EncoderOptions())
 	}
 	err := w.Flush()
@@ -852,7 +852,7 @@ func testWriterConcurrentWriteStress(
 	)
 
 	// Construct metrics input.
-	for i := 0; i < numIter; i++ {
+	for i := range numIter {
 		counters[i] = unaggregated.Counter{
 			ID:    []byte(fmt.Sprintf("counter%d", i)),
 			Value: int64(i),
@@ -914,7 +914,7 @@ func testWriterConcurrentWriteStress(
 	go func() {
 		defer wg.Done()
 
-		for i := 0; i < numIter; i++ {
+		for i := range numIter {
 			mu := unaggregated.MetricUnion{
 				Type:       metric.CounterType,
 				ID:         counters[i].ID,
@@ -935,7 +935,7 @@ func testWriterConcurrentWriteStress(
 	go func() {
 		defer wg.Done()
 
-		for i := 0; i < numIter; i++ {
+		for i := range numIter {
 			mu := unaggregated.MetricUnion{
 				Type:          metric.TimerType,
 				ID:            timers[i].ID,
@@ -956,7 +956,7 @@ func testWriterConcurrentWriteStress(
 	go func() {
 		defer wg.Done()
 
-		for i := 0; i < numIter; i++ {
+		for i := range numIter {
 			mu := unaggregated.MetricUnion{
 				Type:     metric.GaugeType,
 				ID:       gauges[i].ID,
@@ -977,7 +977,7 @@ func testWriterConcurrentWriteStress(
 	go func() {
 		defer wg.Done()
 
-		for i := 0; i < numIter; i++ {
+		for i := range numIter {
 			payload := payloadUnion{
 				payloadType: forwardedType,
 				forwarded: forwardedPayload{
@@ -993,7 +993,7 @@ func testWriterConcurrentWriteStress(
 	go func() {
 		defer wg.Done()
 
-		for i := 0; i < numIter; i++ {
+		for i := range numIter {
 			payload := payloadUnion{
 				payloadType: passthroughType,
 				passthrough: passthroughPayload{
@@ -1016,7 +1016,7 @@ func testWriterConcurrentWriteStress(
 		resForwarded     = make([]aggregated.ForwardedMetric, 0, numIter)
 		resPassthroughed = make([]aggregated.Metric, 0, numIter)
 	)
-	for i := 0; i < len(results); i++ {
+	for i := range results {
 		buf := bytes.NewBuffer(results[i])
 		iter := protobuf.NewUnaggregatedIterator(buf, protobuf.NewUnaggregatedOptions())
 		for iter.Next() {
@@ -1068,7 +1068,7 @@ func testWriterConcurrentWriteStress(
 	// Merge timers if necessary for comparison since they may be split into multiple batches.
 	mergedResTimers := make([]unaggregated.BatchTimer, 0, numIter)
 	curr := 0
-	for i := 0; i < len(resTimers); i++ {
+	for i := range resTimers {
 		if bytes.Equal(resTimers[curr].ID, resTimers[i].ID) {
 			continue
 		}

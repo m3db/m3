@@ -200,7 +200,7 @@ func (o PlannerOptions) Validate() error {
 		return errLevelsUndefined
 	}
 	sort.Sort(ByMinSize(o.Levels))
-	for i := 0; i < len(o.Levels); i++ {
+	for i := range len(o.Levels) {
 		current := o.Levels[i]
 		if current.MaxSizeExclusive <= current.MinSizeInclusive {
 			return fmt.Errorf("illegal size levels definition, MaxSize <= MinSize (%+v)", current)

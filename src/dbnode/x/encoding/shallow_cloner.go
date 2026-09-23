@@ -109,7 +109,7 @@ func (s shallowCloner) cloneMultiReaderIterator(
 	for next := true; next; next = readers.Next() {
 		currLen, currStart, currBlockSize := readers.CurrentReaders()
 		currentCopies := make([]xio.BlockReader, 0, currLen)
-		for i := 0; i < currLen; i++ {
+		for i := range currLen {
 			currReader := readers.CurrentReaderAt(i)
 			currCopy, err := s.cloneBlockReaderFn(currReader, currStart, currBlockSize)
 			if err != nil {

@@ -61,7 +61,7 @@ var (
 )
 
 func init() {
-	for i := 0; i < numPreFormattedTagNames; i++ {
+	for i := range numPreFormattedTagNames {
 		name := generateTagName(i)
 		preFormattedTagNames = append(preFormattedTagNames, name)
 		preFormattedTagNameIDs = append(preFormattedTagNameIDs, ident.BytesID(name))

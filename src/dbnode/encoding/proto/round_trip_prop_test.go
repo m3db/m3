@@ -308,7 +308,7 @@ func TestBijectivityProp(t *testing.T) {
 
 		// First verify that if the same input byte slices are passed then the same stream will always
 		// be generated.
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			enc.Reset(start, 0, schemaDescr)
 			for j, mBytes := range messageBytes {
 				err := enc.Encode(ts.Datapoint{TimestampNanos: messageTimes[j]}, xtime.Nanosecond, mBytes)
@@ -339,7 +339,7 @@ func TestBijectivityProp(t *testing.T) {
 
 		// Next verify that re-encoding a stream (after decoding/iterating it) will also always generate the
 		// same original stream.
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			originalStream.Reset(originalSegment)
 			iter.Reset(originalStream, schemaDescr)
 			enc.Reset(start, 0, schemaDescr)
@@ -770,7 +770,7 @@ func newBuilderFieldType(
 			enumFieldName = fmt.Sprintf("_enum_%d", fieldNum)
 			enumBuilder   = builder.NewEnum(enumFieldName)
 		)
-		for j := 0; j < maxNumEnumValues; j++ {
+		for j := range maxNumEnumValues {
 			enumValueName := fmt.Sprintf("_enum_value_%d", j)
 			enumBuilder.AddValue(builder.NewEnumValue(enumValueName))
 		}
@@ -825,7 +825,7 @@ func interfaceSlice(slice interface{}) []interface{} {
 
 	ret := make([]interface{}, s.Len())
 
-	for i := 0; i < s.Len(); i++ {
+	for i := range s.Len() {
 		ret[i] = s.Index(i).Interface()
 	}
 

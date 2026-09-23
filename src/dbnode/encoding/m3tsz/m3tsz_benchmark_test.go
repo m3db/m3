@@ -35,19 +35,19 @@ const (
 )
 
 func BenchmarkMathPow(b *testing.B) {
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		_ = smallDpFloat * math.Pow10(1)
 	}
 }
 
 func BenchmarkManualMult(b *testing.B) {
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		_ = smallDpFloat * 10.0
 	}
 }
 
 func BenchmarkSliceLookup(b *testing.B) {
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		_ = largeDpFloat * multipliers[6]
 	}
 }
@@ -65,19 +65,19 @@ func BenchmarkBoolCheckFalse(b *testing.B) {
 }
 
 func BenchmarkMathModf(b *testing.B) {
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		math.Modf(largeDpFloat)
 	}
 }
 
 func BenchmarkMathNextafter(b *testing.B) {
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		math.Nextafter(largeDpFloat, 2)
 	}
 }
 
 func BenchmarkFormatFloat(b *testing.B) {
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		strconv.FormatFloat(largeDpFloat, 'f', -1, 64)
 	}
 }
@@ -127,45 +127,45 @@ func BenchmarkStringConversionLargeConst(b *testing.B) {
 }
 
 func benchMathConversion(b *testing.B, val float64) {
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		convertToIntFloat(val, 0)
 	}
 }
 
 func benchMathConstConversion(b *testing.B, val float64) {
 	var dec uint8
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		_, dec, _, _ = convertToIntFloat(val, dec)
 	}
 }
 
 func benchStringConstConversion(b *testing.B, val float64) {
 	var dec uint8
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		_, dec, _ = convertToIntString(val, dec)
 	}
 }
 
 func benchStringConversion(b *testing.B, val float64) {
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		convertToIntString(val, 0)
 	}
 }
 
 func benchNoCheckConversion(b *testing.B, val float64) {
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		convertToIntFloatIntNoCheck(val, 0)
 	}
 }
 
 func benchPointer(b *testing.B, f writeFunc) {
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		f(largeDpFloat)
 	}
 }
 
 func benchBoolCheck(b *testing.B, enabled bool) {
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		if enabled {
 			funcNormal(largeDpFloat)
 		} else {

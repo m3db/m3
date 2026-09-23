@@ -61,8 +61,8 @@ func TestInitialPlacementIsBalancedPropTest(t *testing.T) {
 
 func testInitialPlacementIsBalanced(replicaCount, instanceCount, shardCount int) (bool, error) {
 	instances := make([]placement.Instance, 0)
-	for i := 0; i < replicaCount; i++ {
-		for j := 0; j < instanceCount; j++ {
+	for i := range replicaCount {
+		for j := range instanceCount {
 			var (
 				instanceID     = fmt.Sprintf("instance-%d-%03d", i, j)
 				isolationGroup = fmt.Sprintf("iso-%d", i)

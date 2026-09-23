@@ -54,7 +54,7 @@ func TestWriterManagerAddInstancesSingleRef(t *testing.T) {
 	mgr := mustMakeInstanceWriterManager(testOptions())
 
 	// Add instance lists twice and assert the writer refcount matches expectation.
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		require.NoError(t, mgr.AddInstances([]placement.Instance{testPlacementInstance}))
 	}
 	mgr.Lock()
@@ -77,7 +77,7 @@ func TestWriterManagerRemoveInstancesSuccess(t *testing.T) {
 	mgr := mustMakeInstanceWriterManager(testOptions())
 
 	// Add instance lists twice.
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		require.NoError(t, mgr.AddInstances([]placement.Instance{testPlacementInstance}))
 	}
 	mgr.Lock()
@@ -125,7 +125,7 @@ func TestWriterManagerRemoveInstancesNonBlocking(t *testing.T) {
 	mgr.Unlock()
 
 	data := []byte("foo")
-	for i := 0; i < opts.InstanceQueueSize(); i++ {
+	for range opts.InstanceQueueSize() {
 		require.NoError(t, w.queue.Enqueue(testNewBuffer(data)))
 	}
 

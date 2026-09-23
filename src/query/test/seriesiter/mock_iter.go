@@ -64,7 +64,7 @@ func NewMockSeriesIterSlice(
 	numValues int,
 ) []encoding.SeriesIterator {
 	iteratorList := make([]encoding.SeriesIterator, 0, length)
-	for i := 0; i < length; i++ {
+	for range length {
 		mockIter := NewMockSeriesIterator(ctrl, tagGenerator, numValues)
 		iteratorList = append(iteratorList, mockIter)
 	}
@@ -91,7 +91,7 @@ func NewMockSeriesIteratorFromBase(
 	mockIter.EXPECT().Next().Return(true).MaxTimes(numValues)
 	mockIter.EXPECT().Next().Return(false).MaxTimes(1)
 	now := xtime.Now()
-	for i := 0; i < numValues; i++ {
+	for i := range numValues {
 		mockIter.EXPECT().Current().Return(
 			m3ts.Datapoint{
 				TimestampNanos: now.Add(time.Duration(i*10) * time.Second),

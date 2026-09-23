@@ -281,7 +281,7 @@ func (b *Series) SafeLastValue() float64 {
 func (b *Series) SafeValues() []float64 {
 	numPoints := b.Len()
 	vals := make([]float64, 0, numPoints)
-	for i := 0; i < numPoints; i++ {
+	for i := range numPoints {
 		v := b.ValueAt(i)
 		if !math.IsNaN(v) {
 			vals = append(vals, v)

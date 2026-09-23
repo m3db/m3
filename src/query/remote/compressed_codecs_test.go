@@ -75,7 +75,7 @@ func validateSeriesInternals(t *testing.T, it encoding.SeriesIterator) {
 			require.Equal(t, expectedReaders[i], l)
 			assert.Equal(t, expectedStarts[i], s)
 			assert.Equal(t, blockSize, size)
-			for j := 0; j < l; j++ {
+			for j := range l {
 				block := readers.CurrentReaderAt(j)
 				assert.Equal(t, expectedStarts[i], block.Start)
 				assert.Equal(t, blockSize, block.BlockSize)
@@ -90,7 +90,7 @@ func expectedValues() []float64 {
 	for i := 2; i < 30; i++ {
 		expectedValues[i] = float64(i) + 1
 	}
-	for i := 0; i < 30; i++ {
+	for i := range 30 {
 		expectedValues[i+30] = float64(i) + 101
 	}
 	return expectedValues[2:]

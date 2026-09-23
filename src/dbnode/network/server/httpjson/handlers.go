@@ -84,7 +84,7 @@ func RegisterHandlers(mux *http.ServeMux, service interface{}, opts ServerOption
 	t := v.Type()
 	contextFn := opts.ContextFn()
 	postResponseFn := opts.PostResponseFn()
-	for i := 0; i < t.NumMethod(); i++ {
+	for i := range t.NumMethod() {
 		method := t.Method(i)
 
 		// Ensure this method is of either:

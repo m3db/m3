@@ -61,7 +61,7 @@ func BenchmarkActiveRuleSet_ReverseMatch(b *testing.B) {
 			b.ResetTimer()
 
 			var benchResult MatchResult
-			for i := 0; i < b.N; i++ {
+			for range b.N {
 				r, _ := deps.RuleSet.ReverseMatch(
 					mid,
 					0,
@@ -155,13 +155,13 @@ func newTestRuleName(ruleType string, idx int) string {
 
 func newBenchmarkMappingRules(t testing.TB, numRules int, numSnapshotsPerRule int) []*mappingRule {
 	rules := make([]*mappingRule, 0, numRules)
-	for i := 0; i < numRules; i++ {
+	for i := range numRules {
 
 		// TODO: offset/interleave this with the rollup rules. Use a globally advancing clock.
 		cutoverStart := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 
 		snapshots := make([]*mappingRuleSnapshot, 0, numSnapshotsPerRule)
-		for j := 0; j < numSnapshotsPerRule; j++ {
+		for j := range numSnapshotsPerRule {
 			snapshot := newBenchmarkMappingRuleSnapshot(t)
 			snapshot.cutoverNanos = cutoverStart.Add(time.Duration(j) * time.Hour).UnixNano()
 
@@ -212,11 +212,11 @@ func newBenchmarkRollupRules(t testing.TB, numRules int, numSnapshotsPerRule int
 	cutoverStart := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	rules := make([]*rollupRule, 0, numRules)
-	for i := 0; i < numRules; i++ {
+	for i := range numRules {
 		ruleName := newTestRuleName("rollup", i)
 
 		snapshots := make([]*rollupRuleSnapshot, 0, numSnapshotsPerRule)
-		for j := 0; j < numSnapshotsPerRule; j++ {
+		for j := range numSnapshotsPerRule {
 			snapshots = append(
 				snapshots,
 				newTestRollupRuleSnapshot(t, ruleName, func(snapshot *rollupRuleSnapshot) {

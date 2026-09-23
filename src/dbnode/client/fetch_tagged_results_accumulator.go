@@ -502,7 +502,7 @@ func (results fetchTaggedIDResults) forEachID(fn forEachFetchTaggedIDFn) {
 		startIdx = 0
 		lastID   []byte
 	)
-	for i := 0; i < len(results); i++ {
+	for i := range results {
 		elem := results[i]
 		if !bytes.Equal(elem.ID, lastID) {
 			lastID = elem.ID
@@ -553,7 +553,7 @@ func (results aggregateResults) forEachTag(fn forEachAggregateFn) {
 		startIdx    = 0
 		lastTagName []byte
 	)
-	for i := 0; i < len(results); i++ {
+	for i := range results {
 		elem := results[i]
 		if !bytes.Equal(elem.TagName, lastTagName) {
 			lastTagName = elem.TagName

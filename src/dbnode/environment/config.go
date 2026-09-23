@@ -411,7 +411,7 @@ func newStaticShardSet(
 		err      error
 	)
 
-	for i := uint32(0); i < uint32(numShards); i++ {
+	for i := range uint32(numShards) {
 		shardIDs = append(shardIDs, i)
 	}
 
@@ -441,8 +441,8 @@ func generatePlacement(hosts []topology.HostShardConfig, numShards int, rf int) 
 	hostShards := make([][]shard.Shard, numHosts)
 	hostIdx := 0
 	// Round robin assign shard replicas to hosts.
-	for shardInt := uint32(0); shardInt < uint32(numShards); shardInt++ {
-		for replica := 0; replica < rf; replica++ {
+	for shardInt := range uint32(numShards) {
+		for range rf {
 			newShard := shard.NewShard(shardInt).SetState(shard.Available)
 			hostShards[hostIdx] = append(hostShards[hostIdx], newShard)
 			hostIdx = (hostIdx + 1) % numHosts

@@ -166,7 +166,7 @@ func TestDownsamplerFlushHandlerHighConcurrencyNoTagMixing(t *testing.T) {
 	fooBytes := graphiteTags(t, "foo", encPool)
 
 	var wg sync.WaitGroup
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		wg.Add(1)
 		xData := append(make([]byte, 0, len(xBytes)), xBytes...)
 		fooData := append(make([]byte, 0, len(fooBytes)), fooBytes...)

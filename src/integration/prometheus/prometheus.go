@@ -551,7 +551,7 @@ func testQueryLimitsApplied(
 		})
 
 	// Test writes to prep for testing returned series metadata limits
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		err := coordinator.WriteProm("metadata_test_series", map[string]string{
 			"metadata_test_label": fmt.Sprintf("series_label_%d", i),
 		}, []prompb.Sample{
@@ -1397,7 +1397,7 @@ func testGlobalAggregateLimits(
 	logger.Info("test global aggregate limits")
 	metricName := fmt.Sprintf("aggregate_limits_%v", xtime.Now().Seconds())
 	numMetrics := 60
-	for i := 0; i < numMetrics; i++ {
+	for i := range numMetrics {
 		require.NoError(t, coordinator.WriteProm(metricName, map[string]string{
 			metricName: strconv.Itoa(i),
 		}, []prompb.Sample{
@@ -1525,7 +1525,7 @@ func testReplace(
 				return fmt.Errorf("expected %d results, got %d", numMetrics, len(res))
 			}
 
-			for i := 0; i < numMetrics; i++ {
+			for i := range numMetrics {
 				expectedVal := fmt.Sprintf("bar_%d", i)
 				if val, ok := res[i].Metric["foo"]; !ok || string(val) != expectedVal {
 					return fmt.Errorf("expected %s, got %s", expectedVal, val)
@@ -1563,7 +1563,7 @@ func testEmptyMatcher(
 			}
 
 			metricsCount := make(map[string]int)
-			for i := 0; i < numMetrics; i++ {
+			for i := range numMetrics {
 				if _, ok := res[i].Metric[model.LabelName(matchedTag)]; ok {
 					metricsCount[matchedTag]++
 				}
@@ -1651,7 +1651,7 @@ func writeCorrectnessTestMetrics(
 	if extraTag == "" {
 		extraTag = "default"
 	}
-	for i := 0; i < numMetrics; i++ {
+	for i := range numMetrics {
 		err := coordinator.WriteProm(metricName, map[string]string{
 			extraTag: "extra",
 			"val":    strconv.Itoa(i),

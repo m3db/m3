@@ -267,9 +267,9 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 			float64(numIDs),
 		},
 	}
-	for spIdx := 0; spIdx < len(storagePolicies); spIdx++ {
+	for spIdx := range storagePolicies {
 		storagePolicy := storagePolicies[spIdx]
-		for i := 0; i < len(expectedValuesList[spIdx]); i++ {
+		for i := range len(expectedValuesList[spIdx]) {
 			if discardNaNAggregatedValues && math.IsNaN(expectedValuesList[spIdx][i]) {
 				continue
 			}
@@ -283,7 +283,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	}
 
 	var expectedResultsFlattened []aggregated.MetricWithStoragePolicy
-	for i := 0; i < len(storagePolicies); i++ {
+	for i := range storagePolicies {
 		expectedDatapointsByID := datapointsByID{
 			expectedMetricKeyList[i]: expectedValuesByTimeList[i],
 		}

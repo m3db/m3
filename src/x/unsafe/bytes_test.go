@@ -34,7 +34,7 @@ func TestWithStringSmallString(t *testing.T) {
 
 func TestWithStringLargeString(t *testing.T) {
 	var buf bytes.Buffer
-	for i := 0; i < 65536; i++ {
+	for i := range 65536 {
 		buf.WriteByte(byte(i % 256))
 	}
 	str := buf.Bytes()
@@ -48,7 +48,7 @@ func TestWithStringAndArgSmallString(t *testing.T) {
 
 func TestWithStringAndArgLargeString(t *testing.T) {
 	var buf bytes.Buffer
-	for i := 0; i < 65536; i++ {
+	for i := range 65536 {
 		buf.WriteByte(byte(i % 256))
 	}
 	str := buf.Bytes()

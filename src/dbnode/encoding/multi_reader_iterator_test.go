@@ -349,7 +349,7 @@ func assertTestMultiReaderIterator(
 	slicesIter := newTestReaderSliceOfSlicesIterator(blocks)
 	iter.ResetSliceOfSlices(slicesIter, nil)
 
-	for i := 0; i < len(test.expected); i++ {
+	for i := range len(test.expected) {
 		next := iter.Next()
 		if test.expectedErr != nil && i == test.expectedErr.atIdx {
 			assert.Equal(t, false, next)
@@ -365,7 +365,7 @@ func assertTestMultiReaderIterator(
 	}
 
 	// Ensure further calls to next false
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		assert.Equal(t, false, iter.Next())
 	}
 

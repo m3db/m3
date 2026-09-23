@@ -124,9 +124,9 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 
 	// Pre-generate tag sets, but not too many to reduce heap size.
 	tagSets := make([]ident.Tags, 0, numTagSets)
-	for i := 0; i < numTagSets; i++ {
+	for i := range numTagSets {
 		tags := ident.NewTags()
-		for j := 0; j < numTags; j++ {
+		for j := range numTags {
 			tag := ident.Tag{
 				Name:  ident.StringID(fmt.Sprintf("series.%d.tag.%d", i, j)),
 				Value: ident.StringID(fmt.Sprintf("series.%d.tag-value.%d", i, j)),
@@ -156,8 +156,8 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 	numHexBytes := make([]byte, hex.EncodedLen(len(numBytes)))
 	tagEncoderPool := commitLogOpts.FilesystemOptions().TagEncoderPool()
 	tagSliceIter := ident.NewTagsIterator(ident.Tags{})
-	for i := 0; i < numPoints; i++ {
-		for j := 0; j < numSeries; j++ {
+	for i := range numPoints {
+		for j := range numSeries {
 			checkedBytes := checked.NewBytes(nil, nil)
 			seriesID := ident.BinaryID(checkedBytes)
 

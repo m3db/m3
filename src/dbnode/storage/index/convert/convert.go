@@ -224,7 +224,7 @@ func FromSeriesIDAndEncodedTags(id ident.BytesID, encodedTags ts.EncodedTags) (d
 		expectedStart = firstTagBytesPosition
 	)
 
-	for i := 0; i < length; i++ {
+	for i := range length {
 		if len(encodedTags) < 2 {
 			return doc.Metadata{}, fmt.Errorf("missing size for tag name: index=%d", i)
 		}

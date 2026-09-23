@@ -58,7 +58,7 @@ func (bs *BitSet) All(maxExclusive uint) bool {
 		mask := uint64((1 << maxExclusive) - 1)
 		return (bs.val & mask) == mask
 	}
-	for i := uint(0); i < maxExclusive; i++ {
+	for i := range maxExclusive {
 		if !bs.bs.Test(i) {
 			return false
 		}

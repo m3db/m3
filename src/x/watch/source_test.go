@@ -50,7 +50,7 @@ func testSource(t *testing.T, errAfter int32, closeAfter int32, watchNum int) {
 	var wg sync.WaitGroup
 
 	// Create a few watches.
-	for i := 0; i < watchNum; i++ {
+	for i := range watchNum {
 		wg.Add(1)
 		_, w, err := s.Watch()
 		assert.NoError(t, err)

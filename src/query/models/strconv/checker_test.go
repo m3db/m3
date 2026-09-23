@@ -77,7 +77,7 @@ func TestIsAlphaNumeric(t *testing.T) {
 func TestEachNonAlphaNumeric(t *testing.T) {
 	// NB: generate every character then remove any alphanumeric
 	charMap := make(map[int]string, 256)
-	for i := 0; i < 256; i++ {
+	for i := range 256 {
 		charMap[i] = string(byte(i))
 	}
 

@@ -55,7 +55,7 @@ func TestFetchResultMapWrapper(t *testing.T) {
 		return it
 	}
 
-	for i := 0; i < size*2; i++ {
+	for i := range size * 2 {
 		fetchMap.set(tags(i), multiResultSeries{iter: series(i)})
 	}
 

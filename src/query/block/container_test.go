@@ -125,7 +125,7 @@ func buildStepBlock(ctrl *gomock.Controller, v float64, first bool) Block {
 	it.EXPECT().Err().Return(nil).AnyTimes()
 	it.EXPECT().Next().Return(true).Times(numSteps)
 	it.EXPECT().Next().Return(false)
-	for i := 0; i < numSteps; i++ {
+	for i := range numSteps {
 		s := NewMockStep(ctrl)
 		if first {
 			s.EXPECT().Time().Return(now.Add(time.Duration(i) * step))
@@ -198,7 +198,7 @@ func buildUnconsolidatedSeriesBlock(ctrl *gomock.Controller,
 	it.EXPECT().Next().Return(true)
 	it.EXPECT().Next().Return(false)
 	vals := make(ts.Datapoints, 0, numSteps)
-	for i := 0; i < numSteps; i++ {
+	for i := range numSteps {
 		tt := now.Add(time.Duration(i) * step)
 		vals = append(vals,
 			ts.Datapoint{Timestamp: tt, Value: v},
@@ -219,7 +219,7 @@ func buildUnconsolidatedSeriesBlock(ctrl *gomock.Controller,
 
 func buildExpected(v float64) ts.Datapoints {
 	expected := make(ts.Datapoints, 0, numSteps)
-	for i := 0; i < numSteps; i++ {
+	for i := range numSteps {
 		expected = append(expected, ts.Datapoint{
 			Timestamp: now.Add(time.Duration(i) * step),
 			Value:     float64(v),
@@ -282,14 +282,14 @@ func buildMultiSeriesBlock(
 
 	b.EXPECT().Meta().Return(meta).AnyTimes()
 	batches := make([]SeriesIterBatch, 0, concurrency)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		it := NewMockSeriesIter(ctrl)
 		it.EXPECT().Close()
 		it.EXPECT().Err().Return(nil).AnyTimes()
 		it.EXPECT().Next().Return(true)
 		it.EXPECT().Next().Return(false)
 		vals := make(ts.Datapoints, 0, numSteps)
-		for i := 0; i < numSteps; i++ {
+		for i := range numSteps {
 			tt := now.Add(time.Duration(i) * step)
 			vals = append(vals,
 				ts.Datapoint{Timestamp: tt, Value: v},

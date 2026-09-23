@@ -279,7 +279,7 @@ func (s *fileSystemSource) shardAvailabilityWithInfoFiles(
 	readInfoFilesResults []fs.ReadInfoFileResult,
 ) xtime.Ranges {
 	tr := xtime.NewRanges()
-	for i := 0; i < len(readInfoFilesResults); i++ {
+	for i := range readInfoFilesResults {
 		result := readInfoFilesResults[i]
 		if err := result.Err.Error(); err != nil {
 			s.log.Error("unable to read info files in shardAvailability",
@@ -840,7 +840,7 @@ func (s *fileSystemSource) read(
 	bootstrapFromReadersRunResult := newRunResult()
 
 	var buildWg sync.WaitGroup
-	for i := 0; i < indexSegmentConcurrency; i++ {
+	for range indexSegmentConcurrency {
 		alloc := s.opts.ResultOptions().IndexDocumentsBuilderAllocator()
 		segBuilder, err := alloc()
 		if err != nil {

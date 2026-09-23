@@ -293,7 +293,7 @@ func TestGeneratePlacement(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var hosts []topology.HostShardConfig
-			for i := 0; i < test.numHosts; i++ {
+			for i := range test.numHosts {
 				hosts = append(hosts, topology.HostShardConfig{
 					HostID:        fmt.Sprintf("id%d", i),
 					ListenAddress: fmt.Sprintf("id%d", i),
@@ -348,7 +348,7 @@ func TestGeneratePlacementConsistency(t *testing.T) {
 		hosts     = make([]topology.HostShardConfig, 0, numHosts)
 	)
 
-	for i := 0; i < numHosts; i++ {
+	for i := range numHosts {
 		hosts = append(hosts, topology.HostShardConfig{
 			HostID:        fmt.Sprintf("id%d", i),
 			ListenAddress: fmt.Sprintf("id%d", i),
@@ -356,7 +356,7 @@ func TestGeneratePlacementConsistency(t *testing.T) {
 	}
 
 	var pl []topology.HostShardSet
-	for i := 0; i < iters; i++ {
+	for i := range iters {
 		rand.Shuffle(len(hosts), func(i, j int) {
 			hosts[i], hosts[j] = hosts[j], hosts[i]
 		})

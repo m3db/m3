@@ -84,7 +84,7 @@ func TestBuilderFields(t *testing.T) {
 		require.NoError(t, builder.Close())
 	}()
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		builder.Reset()
 
 		knownsFields := map[string]struct{}{}
@@ -114,7 +114,7 @@ func TestBuilderTerms(t *testing.T) {
 		require.NoError(t, builder.Close())
 	}()
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		builder.Reset()
 
 		knownsFields := map[string]map[string]struct{}{}

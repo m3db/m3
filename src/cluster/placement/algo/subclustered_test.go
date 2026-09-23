@@ -251,7 +251,7 @@ func TestSubclusteredAlgorithm_InitialPlacement(t *testing.T) {
 
 			// Generate instances dynamically
 			instances := make([]placement.Instance, tt.totalInstances)
-			for i := 0; i < tt.totalInstances; i++ {
+			for i := range tt.totalInstances {
 				instances[i] = placement.NewInstance().
 					SetID(fmt.Sprintf("I%d", i)).
 					SetIsolationGroup(fmt.Sprintf("R%d", i%tt.replicaFactor)).
@@ -262,7 +262,7 @@ func TestSubclusteredAlgorithm_InitialPlacement(t *testing.T) {
 
 			// Generate shards dynamically
 			shards := make([]uint32, tt.totalShards)
-			for i := 0; i < tt.totalShards; i++ {
+			for i := range tt.totalShards {
 				shards[i] = uint32(i)
 			}
 
@@ -358,7 +358,7 @@ func TestSubclusteredAlgorithm_InitialPlacement_ErrorCases(t *testing.T) {
 			algo := subclusteredPlacementAlgorithm{opts: opts}
 			// Generate instances dynamically
 			instances := make([]placement.Instance, tt.totalInstances)
-			for i := 0; i < tt.totalInstances; i++ {
+			for i := range tt.totalInstances {
 				instances[i] = placement.NewInstance().
 					SetID(fmt.Sprintf("I%d", i)).
 					SetIsolationGroup(fmt.Sprintf("R%d", i%tt.replicaFactor)).
@@ -369,7 +369,7 @@ func TestSubclusteredAlgorithm_InitialPlacement_ErrorCases(t *testing.T) {
 
 			// Generate shards dynamically
 			shards := make([]uint32, tt.totalShards)
-			for i := 0; i < tt.totalShards; i++ {
+			for i := range tt.totalShards {
 				shards[i] = uint32(i)
 			}
 
@@ -433,7 +433,7 @@ func TestAddInstancesValidCases(t *testing.T) {
 			algo := subclusteredPlacementAlgorithm{opts: opts}
 
 			initialInstances := make([]placement.Instance, tt.instancesPerSubcluster)
-			for i := 0; i < tt.instancesPerSubcluster; i++ {
+			for i := range tt.instancesPerSubcluster {
 				initialInstances[i] = placement.NewInstance().
 					SetID(fmt.Sprintf("I%d", i)).
 					SetIsolationGroup(fmt.Sprintf("R%d", i%tt.replicaFactor)).
@@ -443,7 +443,7 @@ func TestAddInstancesValidCases(t *testing.T) {
 			}
 
 			initialShards := make([]uint32, tt.totalShards)
-			for i := 0; i < tt.totalShards; i++ {
+			for i := range tt.totalShards {
 				initialShards[i] = uint32(i)
 			}
 
@@ -453,7 +453,7 @@ func TestAddInstancesValidCases(t *testing.T) {
 			assert.NoError(t, placement.Validate(result))
 
 			instancesToAdd := make([]placement.Instance, tt.instancesToAdd)
-			for i := 0; i < tt.instancesToAdd; i++ {
+			for i := range tt.instancesToAdd {
 				instancesToAdd[i] = placement.NewInstance().
 					SetID(fmt.Sprintf("I%d", tt.instancesPerSubcluster+i)).
 					SetIsolationGroup(fmt.Sprintf("R%d", i%tt.replicaFactor)).
@@ -462,7 +462,7 @@ func TestAddInstancesValidCases(t *testing.T) {
 					SetShards(shard.NewShards(nil))
 			}
 			currentPlacement := result.Clone()
-			for i := 0; i < tt.instancesToAdd; i++ {
+			for i := range tt.instancesToAdd {
 				instance := instancesToAdd[i]
 				newPlacement, err := algo.AddInstances(currentPlacement, []placement.Instance{instance})
 				assert.NoError(t, err)
@@ -541,7 +541,7 @@ func TestAddInstancesErrorCases(t *testing.T) {
 			algo := subclusteredPlacementAlgorithm{opts: opts}
 
 			initialInstances := make([]placement.Instance, tt.instancesPerSubcluster)
-			for i := 0; i < tt.instancesPerSubcluster; i++ {
+			for i := range tt.instancesPerSubcluster {
 				initialInstances[i] = placement.NewInstance().
 					SetID(fmt.Sprintf("I%d", i)).
 					SetIsolationGroup(fmt.Sprintf("R%d", i%tt.replicaFactor)).
@@ -552,7 +552,7 @@ func TestAddInstancesErrorCases(t *testing.T) {
 
 			totalShards := 128
 			shards := make([]uint32, totalShards)
-			for i := 0; i < totalShards; i++ {
+			for i := range totalShards {
 				shards[i] = uint32(i)
 			}
 
@@ -616,7 +616,7 @@ func TestRemoveInstancesValidCases(t *testing.T) {
 			algo := subclusteredPlacementAlgorithm{opts}
 
 			initialInstances := make([]placement.Instance, tt.instancesPerSubcluster*tt.initialSubClusters)
-			for i := 0; i < tt.instancesPerSubcluster*tt.initialSubClusters; i++ {
+			for i := range tt.instancesPerSubcluster * tt.initialSubClusters {
 				initialInstances[i] = placement.NewInstance().
 					SetID(fmt.Sprintf("I%d", i)).
 					SetIsolationGroup(fmt.Sprintf("R%d", i%tt.replicaFactor)).
@@ -626,7 +626,7 @@ func TestRemoveInstancesValidCases(t *testing.T) {
 			}
 
 			initialShards := make([]uint32, tt.totalShards)
-			for i := 0; i < tt.totalShards; i++ {
+			for i := range tt.totalShards {
 				initialShards[i] = uint32(i)
 			}
 
@@ -686,7 +686,7 @@ func TestPartialSubclustersRemoveOperation(t *testing.T) {
 			algo := subclusteredPlacementAlgorithm{opts: opts}
 
 			initialInstances := make([]placement.Instance, tt.instancesPerSubcluster)
-			for i := 0; i < tt.instancesPerSubcluster; i++ {
+			for i := range tt.instancesPerSubcluster {
 				initialInstances[i] = placement.NewInstance().
 					SetID(fmt.Sprintf("I%d", i)).
 					SetIsolationGroup(fmt.Sprintf("R%d", i%tt.replicaFactor)).
@@ -696,7 +696,7 @@ func TestPartialSubclustersRemoveOperation(t *testing.T) {
 			}
 
 			initialShards := make([]uint32, tt.totalShards)
-			for i := 0; i < tt.totalShards; i++ {
+			for i := range tt.totalShards {
 				initialShards[i] = uint32(i)
 			}
 
@@ -711,7 +711,7 @@ func TestPartialSubclustersRemoveOperation(t *testing.T) {
 			assert.NoError(t, placement.Validate(currentPlacement))
 
 			instancesToAdd := make([]placement.Instance, tt.instancesToAdd)
-			for i := 0; i < tt.instancesToAdd; i++ {
+			for i := range tt.instancesToAdd {
 				instancesToAdd[i] = placement.NewInstance().
 					SetID(fmt.Sprintf("I%d", tt.instancesPerSubcluster+i)).
 					SetIsolationGroup(fmt.Sprintf("R%d", i%tt.replicaFactor)).
@@ -720,7 +720,7 @@ func TestPartialSubclustersRemoveOperation(t *testing.T) {
 					SetShards(shard.NewShards(nil))
 			}
 
-			for i := 0; i < tt.instancesToAdd; i++ {
+			for i := range tt.instancesToAdd {
 				instance := instancesToAdd[i]
 				newPlacement, err := algo.AddInstances(currentPlacement, []placement.Instance{instance})
 				assert.NoError(t, err)
@@ -765,7 +765,7 @@ func TestPartialSubclustersRemoveOperation(t *testing.T) {
 
 func TestPartialSubclustersAddOperation(t *testing.T) {
 	shards := make([]uint32, 1024)
-	for i := 0; i < 1024; i++ {
+	for i := range 1024 {
 		shards[i] = uint32(i)
 	}
 
@@ -864,7 +864,7 @@ func TestReplaceInstancesValidCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create initial test instances
 			instances := make([]placement.Instance, tt.totalInstances)
-			for i := 0; i < tt.totalInstances; i++ {
+			for i := range tt.totalInstances {
 				instances[i] = placement.NewInstance().
 					SetID(fmt.Sprintf("I%d", i)).
 					SetIsolationGroup(fmt.Sprintf("R%d", i%tt.rf)).
@@ -875,7 +875,7 @@ func TestReplaceInstancesValidCases(t *testing.T) {
 
 			// Generate shard IDs from 0 to shards-1
 			shardIDs := make([]uint32, tt.shards)
-			for i := 0; i < tt.shards; i++ {
+			for i := range tt.shards {
 				shardIDs[i] = uint32(i)
 			}
 
@@ -1026,7 +1026,7 @@ func TestRemoveInstancesErrorCases(t *testing.T) {
 				algo := subclusteredPlacementAlgorithm{opts: opts}
 
 				instances := make([]placement.Instance, 6)
-				for i := 0; i < 6; i++ {
+				for i := range 6 {
 					instances[i] = placement.NewInstance().
 						SetID(fmt.Sprintf("I%d", i)).
 						SetIsolationGroup(fmt.Sprintf("R%d", i%3)).
@@ -1037,7 +1037,7 @@ func TestRemoveInstancesErrorCases(t *testing.T) {
 				}
 
 				shards := make([]uint32, 128)
-				for i := 0; i < 128; i++ {
+				for i := range 128 {
 					shards[i] = uint32(i)
 				}
 
@@ -1079,7 +1079,7 @@ func TestRemoveInstancesErrorCases(t *testing.T) {
 				algo := newSubclusteredAlgorithm(opts)
 
 				instances := make([]placement.Instance, 6)
-				for i := 0; i < 6; i++ {
+				for i := range 6 {
 					instances[i] = placement.NewInstance().
 						SetID(fmt.Sprintf("I%d", i)).
 						SetIsolationGroup(fmt.Sprintf("R%d", i%3)).
@@ -1089,7 +1089,7 @@ func TestRemoveInstancesErrorCases(t *testing.T) {
 				}
 
 				shards := make([]uint32, 128)
-				for i := 0; i < 128; i++ {
+				for i := range 128 {
 					shards[i] = uint32(i)
 				}
 
@@ -1122,7 +1122,7 @@ func TestRemoveInstancesErrorCases(t *testing.T) {
 				algo := newSubclusteredAlgorithm(opts)
 
 				instances := make([]placement.Instance, 12)
-				for i := 0; i < 12; i++ {
+				for i := range 12 {
 					subclusterID := uint32(i/6 + 1)
 					instances[i] = placement.NewInstance().
 						SetID(fmt.Sprintf("I%d", i)).
@@ -1134,7 +1134,7 @@ func TestRemoveInstancesErrorCases(t *testing.T) {
 				}
 
 				shards := make([]uint32, 128)
-				for i := 0; i < 128; i++ {
+				for i := range 128 {
 					shards[i] = uint32(i)
 				}
 
@@ -1159,7 +1159,7 @@ func TestRemoveInstancesErrorCases(t *testing.T) {
 
 				// Create instances with one subcluster having fewer instances than instancesPerSubcluster
 				instances := make([]placement.Instance, 6)
-				for i := 0; i < 6; i++ {
+				for i := range 6 {
 					instances[i] = placement.NewInstance().
 						SetID(fmt.Sprintf("I%d", i)).
 						SetIsolationGroup(fmt.Sprintf("R%d", i%3)).
@@ -1169,7 +1169,7 @@ func TestRemoveInstancesErrorCases(t *testing.T) {
 				}
 
 				shards := make([]uint32, 128)
-				for i := 0; i < 128; i++ {
+				for i := range 128 {
 					shards[i] = uint32(i)
 				}
 
@@ -1179,7 +1179,7 @@ func TestRemoveInstancesErrorCases(t *testing.T) {
 				}
 
 				instances = make([]placement.Instance, 3)
-				for i := 0; i < 3; i++ {
+				for i := range 3 {
 					instances[i] = placement.NewInstance().
 						SetID(fmt.Sprintf("I%d", i+6)).
 						SetIsolationGroup(fmt.Sprintf("R%d", (i+6)%3)).
@@ -1208,7 +1208,7 @@ func TestRemoveInstancesErrorCases(t *testing.T) {
 
 				// Create instances with consistent weights first
 				instances := make([]placement.Instance, 12)
-				for i := 0; i < 12; i++ {
+				for i := range 12 {
 					subclusterID := uint32(i/6 + 1)
 					instances[i] = placement.NewInstance().
 						SetID(fmt.Sprintf("I%d", i)).
@@ -1220,7 +1220,7 @@ func TestRemoveInstancesErrorCases(t *testing.T) {
 				}
 
 				shards := make([]uint32, 128)
-				for i := 0; i < 128; i++ {
+				for i := range 128 {
 					shards[i] = uint32(i)
 				}
 
@@ -1268,7 +1268,7 @@ func TestRemoveInstancesErrorCases(t *testing.T) {
 				algo := subclusteredPlacementAlgorithm{opts: opts}
 
 				instances := make([]placement.Instance, 12)
-				for i := 0; i < 12; i++ {
+				for i := range 12 {
 					subclusterID := uint32(i/6 + 1)
 					instances[i] = placement.NewInstance().
 						SetID(fmt.Sprintf("I%d", i)).
@@ -1280,7 +1280,7 @@ func TestRemoveInstancesErrorCases(t *testing.T) {
 				}
 
 				shards := make([]uint32, 128)
-				for i := 0; i < 128; i++ {
+				for i := range 128 {
 					shards[i] = uint32(i)
 				}
 
@@ -1334,7 +1334,7 @@ func TestReclaimLeavingInstance(t *testing.T) {
 	algo := newSubclusteredAlgorithm(opts)
 
 	instances := make([]placement.Instance, 12)
-	for i := 0; i < 12; i++ {
+	for i := range 12 {
 		instances[i] = placement.NewInstance().
 			SetID(fmt.Sprintf("I%d", i)).
 			SetIsolationGroup(fmt.Sprintf("R%d", i%3)).
@@ -1344,7 +1344,7 @@ func TestReclaimLeavingInstance(t *testing.T) {
 	}
 
 	shards := make([]uint32, 32)
-	for i := 0; i < 32; i++ {
+	for i := range 32 {
 		shards[i] = uint32(i)
 	}
 

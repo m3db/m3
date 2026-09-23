@@ -167,7 +167,7 @@ func (os *ostream) WriteBytes(bytes []byte) {
 		return
 	}
 
-	for i := 0; i < len(bytes); i++ {
+	for i := range bytes {
 		os.WriteByte(bytes[i])
 	}
 }

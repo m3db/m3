@@ -126,7 +126,7 @@ func (n *absentNode) ProcessBlock(
 			return nil, err
 		}
 
-		for i := 0; i < idx; i++ {
+		for i := range idx {
 			if err := builder.AppendValue(i, math.NaN()); err != nil {
 				return nil, err
 			}

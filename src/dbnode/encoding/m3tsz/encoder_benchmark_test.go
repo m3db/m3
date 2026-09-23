@@ -55,7 +55,7 @@ func BenchmarkM3TSZEncode(b *testing.B) {
 
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		run := seriesRun[i]
 		encoder.Reset(run[0].TimestampNanos, len(run), nil)
 

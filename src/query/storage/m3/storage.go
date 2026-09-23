@@ -141,7 +141,7 @@ func findReservedLabel(labels []prompb.Label, target []byte) []byte {
 	}
 
 	foundReservedLabels := false
-	for idx := 0; idx < len(labels); idx++ {
+	for idx := range labels {
 		label := labels[idx]
 		if !bytes.HasPrefix(label.Name, reservedLabelPrefix) {
 			if foundReservedLabels {

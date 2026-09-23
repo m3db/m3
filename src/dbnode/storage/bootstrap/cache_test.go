@@ -94,7 +94,7 @@ func TestCacheReadInfoFiles(t *testing.T) {
 	require.Equal(t, 2, len(filesByShard))
 
 	// Ensure each shard has three info files (one for each fileset written).
-	for shard := uint32(0); shard < 2; shard++ {
+	for shard := range uint32(2) {
 		infoFiles, err := cache.InfoFilesForShard(md1, shard)
 		require.NoError(t, err)
 		require.Equal(t, 3, len(infoFiles))

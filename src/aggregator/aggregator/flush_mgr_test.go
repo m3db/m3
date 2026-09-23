@@ -159,13 +159,13 @@ func TestFlushManagerRegisterStandardFlushingMetricList(t *testing.T) {
 		},
 	}
 	require.Equal(t, len(expectedNewBuckets), len(mgr.buckets))
-	for i := 0; i < len(expectedNewBuckets); i++ {
+	for i := range expectedNewBuckets {
 		require.Equal(t, expectedNewBuckets[i].bucketID, mgr.buckets[i].bucketID)
 		require.Equal(t, expectedNewBuckets[i].interval, mgr.buckets[i].interval)
 		require.Equal(t, expectedNewBuckets[i].offset, mgr.buckets[i].offset)
 		require.Equal(t, expectedNewBuckets[i].flushers, mgr.buckets[i].flushers)
 	}
-	for i := 0; i < len(expectedNewBuckets); i++ {
+	for i := range expectedNewBuckets {
 		require.Equal(t, i, newBucketIndices[i])
 		require.Equal(t, expectedNewBuckets[i].bucketID, newBuckets[i].bucketID)
 		require.Equal(t, expectedNewBuckets[i].interval, newBuckets[i].interval)
@@ -180,7 +180,7 @@ func TestFlushManagerRegisterStandardFlushingMetricList(t *testing.T) {
 		expectedNewBuckets[2],
 	}
 	require.Equal(t, len(expectedNewFlusherBuckets), len(newFlusherBuckets))
-	for i := 0; i < len(expectedNewFlusherBuckets); i++ {
+	for i := range expectedNewFlusherBuckets {
 		require.Equal(t, expectedNewFlusherBuckets[i].bucketID, newFlusherBuckets[i].bucketID)
 		require.Equal(t, expectedNewFlusherBuckets[i].interval, newFlusherBuckets[i].interval)
 		require.Equal(t, expectedNewFlusherBuckets[i].offset, newFlusherBuckets[i].offset)
@@ -281,13 +281,13 @@ func TestFlushManagerRegisterForwardedFlushingMetricList(t *testing.T) {
 		},
 	}
 	require.Equal(t, len(expectedNewBuckets), len(mgr.buckets))
-	for i := 0; i < len(expectedNewBuckets); i++ {
+	for i := range expectedNewBuckets {
 		require.Equal(t, expectedNewBuckets[i].bucketID, mgr.buckets[i].bucketID)
 		require.Equal(t, expectedNewBuckets[i].interval, mgr.buckets[i].interval)
 		require.Equal(t, expectedNewBuckets[i].offset, mgr.buckets[i].offset)
 		require.Equal(t, expectedNewBuckets[i].flushers, mgr.buckets[i].flushers)
 	}
-	for i := 0; i < len(expectedNewBuckets); i++ {
+	for i := range expectedNewBuckets {
 		require.Equal(t, i, newBucketIndices[i])
 		require.Equal(t, expectedNewBuckets[i].bucketID, newBuckets[i].bucketID)
 		require.Equal(t, expectedNewBuckets[i].interval, newBuckets[i].interval)
@@ -302,7 +302,7 @@ func TestFlushManagerRegisterForwardedFlushingMetricList(t *testing.T) {
 		expectedNewBuckets[1],
 	}
 	require.Equal(t, len(expectedNewFlusherBuckets), len(newFlusherBuckets))
-	for i := 0; i < len(expectedNewFlusherBuckets); i++ {
+	for i := range expectedNewFlusherBuckets {
 		require.Equal(t, expectedNewFlusherBuckets[i].bucketID, newFlusherBuckets[i].bucketID)
 		require.Equal(t, expectedNewFlusherBuckets[i].interval, newFlusherBuckets[i].interval)
 		require.Equal(t, expectedNewFlusherBuckets[i].offset, newFlusherBuckets[i].offset)

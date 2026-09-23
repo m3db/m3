@@ -192,7 +192,7 @@ func (t *OptimizedTimes) Len() int {
 
 // Contains returns whether the target time is in this OptimizedTimes.
 func (t *OptimizedTimes) Contains(target xtime.UnixNano) bool {
-	for i := 0; i < t.arrIdx; i++ {
+	for i := range t.arrIdx {
 		if t.arr[i].Equal(target) {
 			return true
 		}

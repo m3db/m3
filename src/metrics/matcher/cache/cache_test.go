@@ -378,7 +378,7 @@ func TestCacheMatchParallel(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		v := input[i%2]
 		wg.Add(1)
 		go func() {
@@ -567,7 +567,7 @@ func TestCacheDeleteBatching(t *testing.T) {
 	var elemMaps []*elemMap
 	for _, value := range testValues {
 		m := newElemMap(elemMapOptions{})
-		for i := 0; i < 37; i++ {
+		for i := range 37 {
 			elem := &element{
 				namespace:   value.namespace,
 				id:          []byte(fmt.Sprintf("%s%d", value.id, i)),
@@ -601,7 +601,7 @@ func TestCacheDeleteBatching(t *testing.T) {
 
 	// Assert we have slept 7 times.
 	require.Equal(t, 7, len(intervals))
-	for i := 0; i < 7; i++ {
+	for i := range 7 {
 		require.Equal(t, deletionThrottleInterval, intervals[i])
 	}
 }

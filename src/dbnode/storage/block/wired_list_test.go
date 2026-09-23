@@ -93,7 +93,7 @@ func TestWiredListInsertsAndUpdatesWiredBlocks(t *testing.T) {
 	l.Start()
 
 	var blocks []*dbBlock
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		bl := newTestUnwireableBlock(ctrl, fmt.Sprintf("foo.%d", i), opts)
 		blocks = append(blocks, bl)
 	}
@@ -128,7 +128,7 @@ func TestWiredListRemovesUnwiredBlocks(t *testing.T) {
 	l.Start()
 
 	var blocks []*dbBlock
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		bl := newTestUnwireableBlock(ctrl, fmt.Sprintf("foo.%d", i), opts)
 		blocks = append(blocks, bl)
 	}
@@ -187,7 +187,7 @@ func TestWiredListUpdateNoopsAfterStop(t *testing.T) {
 	l.Start()
 
 	var blocks []*dbBlock
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		bl := newTestUnwireableBlock(ctrl, fmt.Sprintf("foo.%d", i), opts)
 		blocks = append(blocks, bl)
 	}

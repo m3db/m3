@@ -49,7 +49,7 @@ var (
 
 func init() {
 	// Generate test data.
-	for i := 0; i < numTestPlEntries; i++ {
+	for i := range numTestPlEntries {
 		var (
 			segmentUUID = uuid.Parse(
 				fmt.Sprintf("00000000-0000-0000-0000-000000000%03d", i))
@@ -134,7 +134,7 @@ func TestPurgeSegment(t *testing.T) {
 	require.NoError(t, err)
 
 	// Write many entries with the same segment UUID.
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		if testPlEntries[i].key.PatternType == PatternTypeRegexp {
 			plCache.PutRegexp(
 				testPlEntries[0].segmentUUID,
@@ -162,7 +162,7 @@ func TestPurgeSegment(t *testing.T) {
 
 	// All entries related to the purged segment should be gone.
 	require.Equal(t, size-100, plCache.lru.Len())
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		if testPlEntries[i].key.PatternType == PatternTypeRegexp {
 			_, ok := plCache.GetRegexp(
 				testPlEntries[0].segmentUUID,
@@ -218,7 +218,7 @@ func testConcurrency(t *testing.T, size int, purge bool, verify bool) {
 	for i := range testPlEntries {
 		wg.Add(1)
 		go func(i int) {
-			for j := 0; j < 100; j++ {
+			for range 100 {
 				putEntry(t, plCache, i)
 			}
 			wg.Done()
@@ -229,7 +229,7 @@ func testConcurrency(t *testing.T, size int, purge bool, verify bool) {
 	for i := range testPlEntries {
 		wg.Add(1)
 		go func(i int) {
-			for j := 0; j < 100; j++ {
+			for j := range 100 {
 				getEntry(t, plCache, j)
 			}
 			wg.Done()

@@ -110,7 +110,7 @@ func (it *multiReaderIterator) moveToNext() {
 
 	// Add all readers to current iterators heap
 	currentLen, _, _ := it.slicesIter.CurrentReaders()
-	for i := 0; i < currentLen; i++ {
+	for i := range currentLen {
 		var (
 			reader = it.slicesIter.CurrentReaderAt(i)
 			iter   = it.iteratorAlloc(reader, it.schemaDesc)

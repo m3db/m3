@@ -118,7 +118,7 @@ func convertM3DBSegmentedBlockIterators(
 	)
 
 	count := result.Count()
-	for i := 0; i < count; i++ {
+	for i := range count {
 		iter, tags, err := result.IterTagsAtIndex(i, opts.TagOptions())
 		if err != nil {
 			return nil, err
@@ -178,7 +178,7 @@ func blockReplicasFromSeriesIterator(
 		for next := true; next; next = perBlockSliceReaders.Next() {
 			l, start, bs := perBlockSliceReaders.CurrentReaders()
 			readers := make([]xio.SegmentReader, l)
-			for i := 0; i < l; i++ {
+			for i := range l {
 				reader := perBlockSliceReaders.CurrentReaderAt(i)
 				// NB(braskin): important to clone the reader as we need its position reset before
 				// we use the contents of it again

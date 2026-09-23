@@ -50,7 +50,7 @@ func (e emptyMessage) Finalize(_ producer.FinalizeReason) {}
 func BenchmarkMessageAtomics(b *testing.B) {
 	rm := producer.NewRefCountedMessage(emptyMessage{}, nil)
 	msg := newMessage()
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		msg.Set(metadata{}, rm, 500)
 		rm.IncRef()
 		msg.Ack()
@@ -62,7 +62,7 @@ func BenchmarkMessageAtomics(b *testing.B) {
 }
 
 func BenchmarkMessageAtomicsAllocs(b *testing.B) {
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		rm := producer.NewRefCountedMessage(emptyMessage{}, nil)
 		msg := newMessage()
 		msg.Set(metadata{}, rm, 500)

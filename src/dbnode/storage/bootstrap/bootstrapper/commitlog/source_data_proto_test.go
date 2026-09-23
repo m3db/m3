@@ -59,7 +59,7 @@ func testProtoNsMetadata(t *testing.T) namespace.Metadata {
 
 func setProtoAnnotation(value testValues) testValues {
 	protoIter := prototest.NewProtoMessageIterator(testProtoMessages)
-	for i := 0; i < len(value); i++ {
+	for i := range value {
 		value[i].v = 0
 		value[i].a = protoIter.Next()
 	}

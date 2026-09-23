@@ -73,7 +73,7 @@ func validateOutputs(t *testing.T, step int, start time.Time, expected []testSer
 
 		require.Equal(t, len(e), a.Len())
 
-		for step := 0; step < a.Len(); step++ {
+		for step := range a.Len() {
 			v := a.ValueAt(step)
 			xtest.Equalish(t, e[step], v, "invalid value for %d", step)
 		}
@@ -149,7 +149,7 @@ func TestSortSeriesStable(t *testing.T) {
 	// Check that if input order is random that the same equal "lowest"
 	// series is chosen deterministically each time.
 	var lastOrder []string
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		rand.Shuffle(len(series), func(i, j int) {
 			series[i], series[j] = series[j], series[i]
 		})

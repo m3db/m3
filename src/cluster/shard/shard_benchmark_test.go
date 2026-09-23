@@ -30,7 +30,7 @@ func BenchmarkNewShards(b *testing.B) {
 	for i := 16; i <= 4096; i *= 4 {
 		rndShards := makeTestShards(i)
 		b.Run(fmt.Sprintf("%d shards", i), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
+			for range b.N {
 				res := NewShards(rndShards)
 				runtime.KeepAlive(res)
 			}
@@ -45,7 +45,7 @@ func BenchmarkShardsAllShards(b *testing.B) {
 
 		b.Run(fmt.Sprintf("%d shards", i), func(b *testing.B) {
 			var res []Shard
-			for i := 0; i < b.N; i++ {
+			for range b.N {
 				res = shards.All()
 			}
 			runtime.KeepAlive(res)
@@ -60,7 +60,7 @@ func BenchmarkShardsAllShardIDs(b *testing.B) {
 
 		b.Run(fmt.Sprintf("%d shards", i), func(b *testing.B) {
 			var res []uint32
-			for i := 0; i < b.N; i++ {
+			for range b.N {
 				res = shards.AllIDs()
 			}
 			runtime.KeepAlive(res)
@@ -72,9 +72,9 @@ func BenchmarkShardsAdd(b *testing.B) {
 	for i := 16; i <= 4096; i *= 4 {
 		rndShards := makeTestShards(i)
 		b.Run(fmt.Sprintf("%d shards", i), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
+			for range b.N {
 				res := NewShards(nil)
-				for j := 0; j < len(rndShards); j++ {
+				for j := range rndShards {
 					res.Add(rndShards[j])
 				}
 				if res.NumShards() != len(rndShards) {
@@ -93,7 +93,7 @@ func BenchmarkShardsEquals(b *testing.B) {
 
 		b.Run(fmt.Sprintf("%d shards", i), func(b *testing.B) {
 			var res bool
-			for i := 0; i < b.N; i++ {
+			for range b.N {
 				shards.Equals(clone)
 			}
 			runtime.KeepAlive(res)
@@ -108,7 +108,7 @@ func BenchmarkShardsNumShardsForState(b *testing.B) {
 
 		b.Run(fmt.Sprintf("%d shards", i), func(b *testing.B) {
 			var res int
-			for i := 0; i < b.N; i++ {
+			for range b.N {
 				res = shards.NumShardsForState(defaultShardState)
 			}
 			runtime.KeepAlive(res)
@@ -124,7 +124,7 @@ func BenchmarkShardsShard(b *testing.B) {
 
 		b.Run(fmt.Sprintf("%d shards", i), func(b *testing.B) {
 			var res Shard
-			for i := 0; i < b.N; i++ {
+			for i := range b.N {
 				res, _ = shards.Shard(ids[i%len(ids)])
 			}
 			runtime.KeepAlive(res)
@@ -140,7 +140,7 @@ func BenchmarkShardsContains(b *testing.B) {
 
 		b.Run(fmt.Sprintf("%d shards", i), func(b *testing.B) {
 			var res bool
-			for i := 0; i < b.N; i++ {
+			for i := range b.N {
 				res = shards.Contains(ids[i%len(ids)])
 			}
 			runtime.KeepAlive(res)

@@ -51,7 +51,7 @@ func TestSnapshotMetadataWriteAndRead(t *testing.T) {
 		reader = NewSnapshotMetadataReader(opts)
 		writer = NewSnapshotMetadataWriter(opts)
 	)
-	for i := 0; i < numMetadataFiles; i++ {
+	for i := range numMetadataFiles {
 		snapshotUUID := uuid.Parse("6645a373-bf82-42e7-84a6-f8452b137549")
 		require.NotNil(t, snapshotUUID)
 

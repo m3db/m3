@@ -443,7 +443,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 
 	// Finally, process and deliver staged metadata resulting from rollup rules.
 	numRollups := matchResult.NumNewRollupIDs()
-	for i := 0; i < numRollups; i++ {
+	for i := range numRollups {
 		rollup := matchResult.ForNewRollupIDsAt(i, nowNanos)
 
 		a.debugLogMatch("downsampler applying matched rollup rule",

@@ -362,7 +362,7 @@ func TestRoundRobinClientRpc(t *testing.T) {
 	attempts := 20
 
 	hitHost, hitErrHost := false, false
-	for i := 0; i < attempts; i++ {
+	for range attempts {
 		fetch, err := client.FetchProm(ctx, read, readOpts)
 		if err != nil {
 			assert.Equal(t, errRead.Error(), grpc.ErrorDesc(err))
@@ -399,7 +399,7 @@ func TestBatchedFetch(t *testing.T) {
 			cleaned = false
 		)
 
-		for i := 0; i < size; i++ {
+		for i := range size {
 			id := fmt.Sprintf("%s_%d", seriesID, i)
 			it, err := test.BuildTestSeriesIterator(id)
 			require.NoError(t, err, msg)
@@ -467,7 +467,7 @@ func TestBatchedSearch(t *testing.T) {
 			return nil
 		}
 
-		for i := 0; i < size; i++ {
+		for i := range size {
 			name := fmt.Sprintf("%s_%d", seriesID, i)
 			tag := consolidators.MultiTagResult{
 				ID: ident.StringID(name),
@@ -532,7 +532,7 @@ func TestBatchedCompleteTags(t *testing.T) {
 				tags = make([]consolidators.CompletedTag, 0, size)
 			)
 
-			for i := 0; i < size; i++ {
+			for i := range size {
 				name := fmt.Sprintf("%s_%d", seriesID, i)
 				tag := consolidators.CompletedTag{
 					Name: []byte(name),

@@ -29,9 +29,9 @@ func BenchmarkIsRollupID(b *testing.B) {
 	b.ResetTimer()
 
 	loopResult := false
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		result := false
-		for j := 0; j < 100_000; j++ {
+		for range 100_000 {
 			result = IsRollupID(name, tags)
 		}
 		loopResult = result

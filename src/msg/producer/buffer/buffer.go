@@ -79,7 +79,7 @@ func newCounterPerNumRefBuckets(
 	n int,
 ) counterPerNumRefBuckets {
 	buckets := make([]counterPerNumRefBucket, 0, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		buckets = append(buckets, counterPerNumRefBucket{
 			numRef: i,
 			counter: scope.Tagged(map[string]string{

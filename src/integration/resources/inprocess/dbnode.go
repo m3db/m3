@@ -344,7 +344,7 @@ func (d *DBNode) Close() error {
 		}
 	}()
 
-	for i := 0; i < d.cfg.Components(); i++ {
+	for range d.cfg.Components() {
 		select {
 		case d.interruptCh <- xos.NewInterruptError("in-process node being shut down"):
 		case <-time.After(interruptTimeout):
@@ -352,7 +352,7 @@ func (d *DBNode) Close() error {
 		}
 	}
 
-	for i := 0; i < d.cfg.Components(); i++ {
+	for range d.cfg.Components() {
 		select {
 		case <-d.shutdownCh:
 		case <-time.After(shutdownTimeout):

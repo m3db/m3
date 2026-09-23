@@ -500,7 +500,7 @@ func toSlice(iter fieldsAndTermsIterator) ([]pair, error) {
 
 func requireSlicesEqual(t *testing.T, a, b []pair) {
 	require.Equal(t, len(a), len(b))
-	for i := 0; i < len(a); i++ {
+	for i := range a {
 		require.Equal(t, a[i], b[i])
 	}
 }

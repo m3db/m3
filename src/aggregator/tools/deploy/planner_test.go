@@ -395,11 +395,11 @@ func validateDeploymentPlan(
 	expected, actual deploymentPlan,
 ) {
 	require.Equal(t, len(expected.Steps), len(actual.Steps))
-	for i := 0; i < len(expected.Steps); i++ {
+	for i := range len(expected.Steps) {
 		expectedTargets := expected.Steps[i].Targets
 		actualTargets := actual.Steps[i].Targets
 		require.Equal(t, len(expectedTargets), len(actualTargets))
-		for j := 0; j < len(expectedTargets); j++ {
+		for j := range expectedTargets {
 			expectedTarget := expectedTargets[j].Instance
 			actualTarget := actualTargets[j].Instance
 			require.Equal(t, expectedTarget, actualTarget)

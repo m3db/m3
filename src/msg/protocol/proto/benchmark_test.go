@@ -40,7 +40,7 @@ func BenchmarkBaseEncodeDecodeRoundTrip(b *testing.B) {
 	decodeMsg := msgpb.Message{}
 	b.ReportAllocs()
 	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
+	for n := range b.N {
 		encodeMsg.Metadata.Id = uint64(n)
 		err := encoder.Encode(&encodeMsg)
 		if err != nil {

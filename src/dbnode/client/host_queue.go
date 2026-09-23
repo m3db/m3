@@ -294,7 +294,7 @@ func (q *queue) drain() {
 
 	for ops := range q.drainIn {
 		opsLen := len(ops)
-		for i := 0; i < opsLen; i++ {
+		for i := range opsLen {
 			switch v := ops[i].(type) {
 			case *writeOperation:
 				if q.serverSupportsV2APIs {
@@ -832,7 +832,7 @@ func (q *queue) asyncFetch(op *fetchBatchOp) {
 
 		resultLen := len(result.Elements)
 		opLen := op.Size()
-		for i := 0; i < opLen; i++ {
+		for i := range opLen {
 			if !(i < resultLen) {
 				// No results for this entry, in practice should never occur
 				op.complete(i, nil, errQueueFetchNoResponse(q.host.ID()))
@@ -886,7 +886,7 @@ func (q *queue) asyncFetchV2(
 		resultIdx := -1
 		for _, op := range ops {
 			fetchOp := op.(*fetchBatchOp)
-			for j := 0; j < fetchOp.Size(); j++ {
+			for j := range fetchOp.Size() {
 				resultIdx++
 				if resultIdx >= len(result.Elements) {
 					// No results for this entry, in practice should never occur.

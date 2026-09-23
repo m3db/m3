@@ -198,7 +198,7 @@ func (p Pipeline) Equal(other Pipeline) bool {
 		return false
 	}
 
-	for i := 0; i < len(p.Operations); i++ {
+	for i := range len(p.Operations) {
 		if p.Operations[i].Type != other.Operations[i].Type {
 			return false
 		}
@@ -257,7 +257,7 @@ func (p Pipeline) ToProto(pb *pipelinepb.AppliedPipeline) error {
 	} else {
 		pb.Ops = make([]pipelinepb.AppliedPipelineOp, numOps)
 	}
-	for i := 0; i < numOps; i++ {
+	for i := range numOps {
 		if err := p.Operations[i].ToProto(&pb.Ops[i]); err != nil {
 			return err
 		}
@@ -273,7 +273,7 @@ func (p *Pipeline) FromProto(pb pipelinepb.AppliedPipeline) error {
 	} else {
 		p.Operations = make([]OpUnion, numOps)
 	}
-	for i := 0; i < numOps; i++ {
+	for i := range numOps {
 		if err := p.Operations[i].FromProto(pb.Ops[i]); err != nil {
 			return err
 		}
@@ -310,7 +310,7 @@ func OperationsFromProto(pb []pipelinepb.AppliedPipelineOp, ops []OpUnion) error
 	if numOps != len(ops) {
 		return errOperationsLengthMismatch
 	}
-	for i := 0; i < numOps; i++ {
+	for i := range numOps {
 		u := &ops[i]
 		u.Type = pipeline.OpType(pb[i].Type + 1)
 		switch u.Type {

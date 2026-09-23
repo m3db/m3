@@ -130,7 +130,7 @@ func TestMemTrackerWaitForDec(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		for i := 0; i < numIterations; i++ {
+		for range numIterations {
 			memTracker.MarkLoadedAsPending()
 		}
 	}()
@@ -139,7 +139,7 @@ func TestMemTrackerWaitForDec(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		for i := 0; i < numIterations; i++ {
+		for range numIterations {
 			memTracker.WaitForDec()
 		}
 	}()

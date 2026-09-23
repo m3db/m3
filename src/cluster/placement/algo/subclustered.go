@@ -59,7 +59,7 @@ func (a subclusteredPlacementAlgorithm) InitialPlacement(
 		return nil, err
 	}
 
-	for i := 0; i < rf; i++ {
+	for range rf {
 		err := ph.placeShards(newShards(shards), nil, ph.Instances())
 		if err != nil {
 			return nil, err

@@ -34,7 +34,7 @@ func TestWithBytesSmallString(t *testing.T) {
 
 func TestWithBytesLargeString(t *testing.T) {
 	var buf bytes.Buffer
-	for i := 0; i < 65536; i++ {
+	for i := range 65536 {
 		buf.WriteByte(byte(i % 256))
 	}
 	str := buf.String()
@@ -48,7 +48,7 @@ func TestWithBytesAndArgSmallString(t *testing.T) {
 
 func TestWithBytesAndArgLargeString(t *testing.T) {
 	var buf bytes.Buffer
-	for i := 0; i < 65536; i++ {
+	for i := range 65536 {
 		buf.WriteByte(byte(i % 256))
 	}
 	str := buf.String()
@@ -58,7 +58,7 @@ func TestWithBytesAndArgLargeString(t *testing.T) {
 var withBytesBenchSink ImmutableBytes
 
 func BenchmarkWithBytes(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		WithBytes("foobar", func(b ImmutableBytes) {
 			withBytesBenchSink = b
 		})

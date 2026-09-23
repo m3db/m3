@@ -38,28 +38,28 @@ var (
 
 func BenchmarkStagedPoliciesAsStruct(b *testing.B) {
 	sp := NewStagedPolicies(testNowNanos, false, testPolicies)
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		validatePolicyByValue(b, sp)
 	}
 }
 
 func BenchmarkStagedPoliciesAsPointer(b *testing.B) {
 	sp := NewStagedPolicies(testNowNanos, false, testPolicies)
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		validatePolicyByPointer(b, &sp)
 	}
 }
 
 func BenchmarkStagedPoliciesAsInterface(b *testing.B) {
 	sp := &testStagedPolicies{cutoverNanos: testNowNanos, policies: testPolicies}
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		validatePolicyByInterface(b, sp)
 	}
 }
 
 func BenchmarkStagedPoliciesAsStructExported(b *testing.B) {
 	sp := testStagedPolicies{cutoverNanos: testNowNanos, policies: testPolicies}
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		validatePolicyByStructExported(b, sp)
 	}
 }

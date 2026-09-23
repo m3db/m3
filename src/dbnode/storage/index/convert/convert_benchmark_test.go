@@ -195,7 +195,7 @@ func prepareIDAndEncodedTags(b *testing.B) ([]idWithEncodedTags, error) {
 		result = make([]idWithEncodedTags, 0, b.N)
 	)
 
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		k := rnd.Intn(len(samples))
 		id := clone([]byte(samples[k].id))
 		tags, err := b64.DecodeString(samples[k].tags)

@@ -93,7 +93,7 @@ func (i *termsIterFromSegments) setField(field []byte) error {
 
 	// Alloc any required terms iter containers
 	numTermsIterAlloc := len(i.segments) - len(i.termsIters)
-	for j := 0; j < numTermsIterAlloc; j++ {
+	for range numTermsIterAlloc {
 		i.termsIters = append(i.termsIters, &termsKeyIter{})
 	}
 

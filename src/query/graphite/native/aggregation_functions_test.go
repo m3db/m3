@@ -82,7 +82,7 @@ func testAggregatedSeries(
 	require.Equal(t, consolidationTestSeries[2].EndTime(), series[0].EndTime())
 	require.Equal(t, 12, series[0].Len())
 	require.Equal(t, 10000, series[0].MillisPerStep())
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		n := series[0].ValueAt(i)
 		assert.Equal(t, ev1, n, errorMessage, i)
 	}
@@ -117,7 +117,7 @@ func testAggregatedSeries(
 
 	series = r.Values
 	require.Equal(t, singleSeries[0].Len(), series[0].Len())
-	for i := 0; i < series[0].Len(); i++ {
+	for i := range series[0].Len() {
 		assert.Equal(t, singleSeries[0].ValueAt(i), series[0].ValueAt(i))
 	}
 }
@@ -195,7 +195,7 @@ func TestPowSeries(t *testing.T) {
 	if err != nil {
 		fmt.Println(err)
 	}
-	for i := 0; i < result.Values[0].Len(); i++ {
+	for i := range result.Values[0].Len() {
 		require.Equal(t, result.Values[0].ValueAt(i), expectedValues[i])
 	}
 }

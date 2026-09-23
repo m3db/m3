@@ -87,7 +87,7 @@ func NewPooledWorkerPool(size int, opts PooledWorkerPoolOptions) (PooledWorkerPo
 func (p *pooledWorkerPool) Init() {
 	rng := pcg.NewPCG64() // Just use default seed here
 	for _, workCh := range p.workChs {
-		for i := 0; i < cap(workCh); i++ {
+		for range cap(workCh) {
 			p.spawnWorker(rng.Random(), nil, workCh, true)
 		}
 	}

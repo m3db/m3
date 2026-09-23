@@ -122,18 +122,19 @@ func (sm simpleMarshaler) ID() string {
 //
 // It is intended to replace tests of the form:
 //
-// func TestMyTypeRoundtrips(t *testing.T) {
-// 	type MyType struct{}
-// 	mt := MyType{}
-// 	d, err := json.Marshal(mt)
-// 	require.NoError(t, err)
+//	func TestMyTypeRoundtrips(t *testing.T) {
+//		type MyType struct{}
+//		mt := MyType{}
+//		d, err := json.Marshal(mt)
+//		require.NoError(t, err)
 //
-// 	var revived MyType
-// 	require.NoError(t, json.Unmarshal(d, &revived))
-// 	assert.Equal(t, mt, revived)
-// }
+//		var revived MyType
+//		require.NoError(t, json.Unmarshal(d, &revived))
+//		assert.Equal(t, mt, revived)
+//	}
 //
 // with:
+//
 //	func TestMyTypeRoundtrips(t *testing.T) {
 //		type MyType struct{}
 //		testmarshal.AssertMarshalingRoundtrips(t, testmarshal.JSONMarshaler, MyType{})
@@ -238,7 +239,7 @@ func TestMarshalersRoundtrip(t *testing.T, examples interface{}, marshallers []M
 			}
 
 			// taken from https://stackoverflow.com/questions/14025833/range-over-interface-which-stores-a-slice
-			for i := 0; i < v.Len(); i++ {
+			for i := range v.Len() {
 				example := v.Index(i).Interface()
 				Require(t, AssertMarshalingRoundtrips(t, m, example))
 			}

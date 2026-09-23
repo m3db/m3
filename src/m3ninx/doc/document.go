@@ -128,7 +128,7 @@ func (m Metadata) Compare(other Metadata) int {
 		minLen = len(r)
 	}
 
-	for i := 0; i < minLen; i++ {
+	for i := range minLen {
 		if c := bytes.Compare(l[i].Name, r[i].Name); c != 0 {
 			return c
 		}

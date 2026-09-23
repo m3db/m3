@@ -38,7 +38,7 @@ import (
 func TestCountsRoundTrip(t *testing.T) {
 	numPoints := 1000
 	numIterations := 100
-	for i := 0; i < numIterations; i++ {
+	for range numIterations {
 		testRoundTrip(t, generateCounterDatapoints(numPoints))
 	}
 }
@@ -46,7 +46,7 @@ func TestCountsRoundTrip(t *testing.T) {
 func TestTimerRoundTrip(t *testing.T) {
 	numPoints := 1000
 	numIterations := 100
-	for i := 0; i < numIterations; i++ {
+	for range numIterations {
 		testRoundTrip(t, generateTimerDatapoints(numPoints))
 	}
 }
@@ -54,7 +54,7 @@ func TestTimerRoundTrip(t *testing.T) {
 func TestSmallGaugeRoundTrip(t *testing.T) {
 	numPoints := 1000
 	numIterations := 100
-	for i := 0; i < numIterations; i++ {
+	for range numIterations {
 		testRoundTrip(t, generateSmallFloatDatapoints(numPoints))
 	}
 }
@@ -62,7 +62,7 @@ func TestSmallGaugeRoundTrip(t *testing.T) {
 func TestPreciseGaugeRoundTrip(t *testing.T) {
 	numPoints := 1000
 	numIterations := 100
-	for i := 0; i < numIterations; i++ {
+	for range numIterations {
 		testRoundTrip(t, generatePreciseFloatDatapoints(numPoints))
 	}
 }
@@ -70,7 +70,7 @@ func TestPreciseGaugeRoundTrip(t *testing.T) {
 func TestNegativeGaugeFloatsRoundTrip(t *testing.T) {
 	numPoints := 1000
 	numIterations := 100
-	for i := 0; i < numIterations; i++ {
+	for range numIterations {
 		testRoundTrip(t, generateNegativeFloatDatapoints(numPoints))
 	}
 }
@@ -78,7 +78,7 @@ func TestNegativeGaugeFloatsRoundTrip(t *testing.T) {
 func TestMixedGaugeIntRoundTrip(t *testing.T) {
 	numPoints := 1000
 	numIterations := 100
-	for i := 0; i < numIterations; i++ {
+	for range numIterations {
 		testRoundTrip(t, generateMixSignIntDatapoints(numPoints))
 	}
 }
@@ -87,7 +87,7 @@ func TestMixedRoundTrip(t *testing.T) {
 	timeUnit := time.Second
 	numPoints := 1000
 	numIterations := 100
-	for i := 0; i < numIterations; i++ {
+	for range numIterations {
 		testRoundTrip(t, generateMixedDatapoints(numPoints, timeUnit))
 	}
 }
@@ -99,7 +99,7 @@ func TestPrecision(t *testing.T) {
 		timestamp = xtime.Now()
 	)
 
-	for i := 0; i < num; i++ {
+	for range num {
 		input = append(input, ts.Datapoint{TimestampNanos: timestamp, Value: 187.80131100000006})
 		timestamp = timestamp.Add(time.Minute)
 	}

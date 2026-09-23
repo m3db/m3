@@ -141,7 +141,7 @@ func TestMappingRuleNotEqual(t *testing.T) {
 			Tags: []models.Tag{{Name: []byte("name_1"), Value: []byte("val_1")}},
 		},
 	}
-	for i := 0; i < len(rules); i++ {
+	for i := range rules {
 		for j := i + 1; j < len(rules); j++ {
 			require.False(t, rules[i].Equal(&rules[j]))
 		}

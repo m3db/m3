@@ -133,7 +133,7 @@ func (d Datapoints) alignToBounds(
 	dpIdx := 0
 	stepSize := bounds.StepSize
 	t := bounds.Start
-	for i := 0; i < steps; i++ {
+	for i := range steps {
 		if stepValues[i] == nil {
 			stepValues[i] = make(Datapoints, 0, 10)
 		} else {
@@ -247,7 +247,7 @@ func (b *fixedResolutionValues) AlignToBounds(
 		values = values[:0]
 	}
 
-	for i := 0; i < b.Len(); i++ {
+	for i := range b.Len() {
 		values = append(values, Datapoints{b.DatapointAt(i)})
 	}
 

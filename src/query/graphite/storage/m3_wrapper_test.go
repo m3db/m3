@@ -142,7 +142,7 @@ func buildResult(
 	unconsolidatedSeries := make([]block.UnconsolidatedSeries, 0, size)
 	resos := make([]time.Duration, 0, size)
 	metas := make([]block.SeriesMeta, 0, size)
-	for i := 0; i < size; i++ {
+	for i := range size {
 		resos = append(resos, resolution)
 		meta := block.SeriesMeta{Name: []byte(fmt.Sprint("a", i))}
 		metas = append(metas, meta)

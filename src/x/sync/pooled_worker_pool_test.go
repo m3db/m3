@@ -39,7 +39,7 @@ func TestPooledWorkerPoolGo(t *testing.T) {
 	p.Init()
 
 	var wg sync.WaitGroup
-	for i := 0; i < testWorkerPoolSize*2; i++ {
+	for range testWorkerPoolSize * 2 {
 		wg.Add(1)
 		p.Go(func() {
 			atomic.AddUint32(&count, 1)
@@ -65,7 +65,7 @@ func TestPooledWorkerPoolGoWithContext(t *testing.T) {
 	cancel()
 
 	var aborted uint32
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		go func() {
 			result := wp.GoWithContext(ctx, func() {
 				time.Sleep(time.Second)
@@ -102,7 +102,7 @@ func TestPooledWorkerPoolGoWithTimeout(t *testing.T) {
 	// the workers.
 	totalEnqueue := workers * 2
 	now := time.Now()
-	for i := 0; i < totalEnqueue; i++ {
+	for i := range totalEnqueue {
 		// Set now in such a way that independent shards are selected.
 		shardNowSelect := now.
 			Truncate(time.Duration(totalEnqueue) * time.Nanosecond).
@@ -121,7 +121,7 @@ func TestPooledWorkerPoolGoWithTimeout(t *testing.T) {
 	pooledWorkerPool.nowFn = time.Now
 
 	// Now ensure all further enqueues time out.
-	for i := 0; i < workers; i++ {
+	for range workers {
 		result := p.GoWithTimeout(func() {
 			wg.Wait()
 		}, 100*time.Millisecond)
@@ -149,7 +149,7 @@ func TestPooledWorkerPoolGrowOnDemand(t *testing.T) {
 	)
 	wg.Add(numIters)
 
-	for i := 0; i < numIters; i++ {
+	for range numIters {
 		// IfGoOrGrow did not allocate new goroutines then
 		// this test would never complete this loop as the
 		// anonymous Work function below would not complete
@@ -184,7 +184,7 @@ func TestPooledWorkerPoolGoOrGrowKillWorker(t *testing.T) {
 	)
 	wg.Add(numIters)
 
-	for i := 0; i < numIters; i++ {
+	for range numIters {
 		// IfGoOrGrow did not allocate new goroutines then
 		// this test would never complete this loop as the
 		// anonymous Work function below would not complete
@@ -212,7 +212,7 @@ func TestPooledWorkerPoolGoKillWorker(t *testing.T) {
 	p.Init()
 
 	var wg sync.WaitGroup
-	for i := 0; i < testWorkerPoolSize*2; i++ {
+	for range testWorkerPoolSize * 2 {
 		wg.Add(1)
 		p.Go(func() {
 			atomic.AddUint32(&count, 1)

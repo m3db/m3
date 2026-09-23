@@ -211,7 +211,7 @@ func TestShardsToProto(t *testing.T) {
 	reconstructed, err := NewShardsFromProto(proto)
 	require.NoError(t, err)
 	require.Equal(t, shards.NumShards(), reconstructed.NumShards())
-	for i := 0; i < shards.NumShards(); i++ {
+	for i := range shards.NumShards() {
 		shardID := uint32(i)
 		expected, found := shards.Shard(shardID)
 		require.True(t, found)
@@ -251,7 +251,7 @@ func TestShardAdd(t *testing.T) {
 	for i := 1; i < 500; i++ {
 		rndShards := makeTestShards(i)
 		shards := NewShards(nil)
-		for j := 0; j < len(rndShards); j++ {
+		for j := range rndShards {
 			id := rndShards[j].ID()
 			require.False(t, shards.Contains(id))
 
@@ -270,7 +270,7 @@ func TestShardRemove(t *testing.T) {
 	for i := 1; i < 500; i++ {
 		rndShards := makeTestShards(i)
 		shards := NewShards(rndShards)
-		for j := 0; j < len(rndShards); j++ {
+		for j := range rndShards {
 			id := rndShards[j].ID()
 			require.True(t, shards.Contains(id))
 			shards.Remove(id)
@@ -285,7 +285,7 @@ func randomIDs(seed int64, num int) []uint32 {
 	rnd := rand.New(rand.NewSource(seed)) // #nosec
 	ids := make([]uint32, num)
 
-	for i := uint32(0); i < uint32(num); i++ {
+	for i := range uint32(num) {
 		ids[i] = i
 	}
 

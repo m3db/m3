@@ -104,7 +104,7 @@ func main() {
 	}
 
 	metrics := make([]string, 0, *numMetrics)
-	for i := 0; i < *numMetrics; i++ {
+	for i := range *numMetrics {
 		metrics = append(metrics, fmt.Sprintf("%s.%d", *metric, i))
 	}
 
@@ -116,7 +116,7 @@ func main() {
 		numError           int
 		closeCh            = make(chan struct{})
 	)
-	for n := 0; n < *numWorkers; n++ {
+	for range *numWorkers {
 		wg.Add(1)
 		go func() {
 			nSuccess, nError := startWorker(

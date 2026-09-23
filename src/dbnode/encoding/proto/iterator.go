@@ -740,7 +740,7 @@ func (it *iterator) readBitset() error {
 		return err
 	}
 
-	for i := uint64(0); i < bitsetLengthBits; i++ {
+	for i := range bitsetLengthBits {
 		bit, err := it.stream.ReadBit()
 		if err != nil {
 			return fmt.Errorf("%s error reading bitset: %v", itErrPrefix, err)

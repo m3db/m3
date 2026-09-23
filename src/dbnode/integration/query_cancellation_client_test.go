@@ -119,7 +119,7 @@ func TestQueryCancellationAndDeadlinesClient(t *testing.T) {
 	session, err := testSetup.M3DBClient().DefaultSession()
 	require.NoError(t, err)
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		var (
 			metricName = fmt.Sprintf("metric_%v", i)
 			tags       = ident.StringTag("shared", "shared")

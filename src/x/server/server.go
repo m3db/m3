@@ -275,7 +275,7 @@ func (s *server) removeConnection(conn net.Conn) {
 	defer s.Unlock()
 
 	numConns := len(s.conns)
-	for i := 0; i < numConns; i++ {
+	for i := range numConns {
 		if s.conns[i] == conn {
 			// Move the last connection to i and reduce the number of connections by 1.
 			s.conns[i] = s.conns[numConns-1]

@@ -111,7 +111,7 @@ func Dump(cfg interface{}, dst io.Writer) error {
 // slice of strings.
 func deprecationCheck(cfg interface{}, df []string) []string {
 	n := reflect.TypeOf(cfg).NumField()
-	for i := 0; i < n; i++ {
+	for i := range n {
 		v := reflect.ValueOf(cfg).Field(i)
 		if v.Kind() == reflect.Struct {
 			df = deprecationCheck(v.Interface(), df)

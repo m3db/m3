@@ -90,7 +90,7 @@ func summarizeTimeSeries(
 		buckets         = make(map[int]*summarizeBucket)
 	)
 
-	for i := 0; i < series.Len(); i++ {
+	for i := range series.Len() {
 		timestamp, n := int(series.StartTimeForStep(i).Unix()), series.ValueAt(i)
 		if math.IsNaN(n) {
 			continue

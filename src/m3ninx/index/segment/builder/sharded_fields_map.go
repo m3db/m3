@@ -29,7 +29,7 @@ func newShardedFieldsMap(
 	shardInitialCapacity int,
 ) *shardedFieldsMap {
 	data := make([]*fieldsMap, 0, numShards)
-	for i := 0; i < numShards; i++ {
+	for range numShards {
 		data = append(data, newFieldsMap(fieldsMapOptions{
 			InitialSize: shardInitialCapacity,
 		}))

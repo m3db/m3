@@ -161,7 +161,7 @@ func (s testService) PingList(ping *testpb.PingRequest, stream testpb.TestServic
 	if ping.ErrorCodeReturned != 0 {
 		return status.Errorf(codes.Code(ping.ErrorCodeReturned), "an_error")
 	}
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		stream.Send(&testpb.PingResponse{Value: ping.Value, Counter: int32(i)})
 	}
 	return nil

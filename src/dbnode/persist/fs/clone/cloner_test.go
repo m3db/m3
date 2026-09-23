@@ -147,7 +147,7 @@ func writeTestData(t *testing.T, bs time.Duration, src FileSetID, opts Options) 
 		},
 	}
 	require.NoError(t, w.Open(writerOpts))
-	for i := 0; i < numTestSeries; i++ {
+	for i := range numTestSeries {
 		id := ident.StringID(fmt.Sprintf("test-series.%d", i))
 		var tags ident.Tags
 		if i%2 == 0 {

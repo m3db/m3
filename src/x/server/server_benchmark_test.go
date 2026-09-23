@@ -102,7 +102,7 @@ func benchmarkServer(tlsMode xtls.ServerMode, mTLSEnabled bool, b *testing.B) {
 	require.NoError(b, err)
 	cert, err := tls.LoadX509KeyPair("./testdata/client.crt", "./testdata/client.key")
 	require.NoError(b, err)
-	for n := 0; n < b.N; n++ {
+	for n := range b.N {
 		conn, err := dial(server.listener.Addr().String(), tlsMode, []tls.Certificate{cert})
 		require.NoError(b, err)
 		msg := fmt.Sprintf("msg%d", n)
@@ -135,7 +135,7 @@ func benchmarkKeepAliveServer(tlsMode xtls.ServerMode, mTLSEnabled bool, b *test
 	require.NoError(b, err)
 	conn, err := dial(server.listener.Addr().String(), tlsMode, []tls.Certificate{cert})
 	require.NoError(b, err)
-	for n := 0; n < b.N; n++ {
+	for n := range b.N {
 		msg := fmt.Sprintf("msg%d", n)
 		_, err = conn.Write([]byte(msg))
 		require.NoError(b, err)

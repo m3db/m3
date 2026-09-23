@@ -66,7 +66,7 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 	nsMetadata, err := namespace.NewMetadata(testNamespaceID, nsOpts)
 	require.NoError(t, err)
 
-	for i := 0; i < int(numShards); i++ {
+	for i := range numShards {
 		shardTimeRangesToBootstrap.Set(uint32(i), bootstrapRanges)
 	}
 

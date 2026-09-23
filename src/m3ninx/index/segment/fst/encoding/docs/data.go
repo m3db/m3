@@ -112,7 +112,7 @@ func (r *DataReader) Read(offset uint64) (doc.Metadata, error) {
 		Fields: make([]doc.Field, n),
 	}
 
-	for i := 0; i < n; i++ {
+	for i := range n {
 		name, err := dec.Bytes()
 		if err != nil {
 			return doc.Metadata{}, err
@@ -186,7 +186,7 @@ func (r *EncodedDocumentReader) Read(encoded doc.Encoded) (doc.Metadata, error) 
 	n := int(x)
 
 	var name, val []byte
-	for i := 0; i < n; i++ {
+	for range n {
 		name, buf, err = encoding.ReadBytes(buf)
 		if err != nil {
 			return doc.Metadata{}, err

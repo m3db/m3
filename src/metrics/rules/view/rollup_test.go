@@ -213,7 +213,7 @@ func TestRollupTargetNotEqual(t *testing.T) {
 		},
 	}
 
-	for i := 0; i < len(targets); i++ {
+	for i := range targets {
 		for j := i + 1; j < len(targets); j++ {
 			require.False(t, targets[i].Equal(&targets[j]))
 		}
@@ -468,7 +468,7 @@ func TestRollupRuleNotEqual(t *testing.T) {
 		},
 	}
 
-	for i := 0; i < len(rules); i++ {
+	for i := range rules {
 		for j := i + 1; j < len(rules); j++ {
 			require.False(t, rules[i].Equal(&rules[j]))
 		}
@@ -716,7 +716,7 @@ func TestRollupTargetsNotEqual(t *testing.T) {
 		},
 	}
 
-	for i := 0; i < len(targetsList); i++ {
+	for i := range targetsList {
 		for j := i + 1; j < len(targetsList); j++ {
 			require.False(t, targetsList[i].Equal(targetsList[j]))
 		}

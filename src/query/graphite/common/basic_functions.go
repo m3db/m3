@@ -103,7 +103,7 @@ func Identity(ctx *Context, name string) (ts.SeriesList, error) {
 	numSteps := int(ctx.EndTime.Sub(ctx.StartTime) / time.Minute)
 	vals := ts.NewValues(ctx, millisPerStep, numSteps)
 	curTimeInSeconds := ctx.StartTime.Unix()
-	for i := 0; i < vals.Len(); i++ {
+	for i := range vals.Len() {
 		vals.SetValueAt(i, float64(curTimeInSeconds))
 		curTimeInSeconds += SecondsPerMinute
 	}
@@ -242,7 +242,7 @@ func RemoveEmpty(ctx *Context, input ts.SeriesList, xFilesFactor float64) (ts.Se
 			continue
 		}
 		nonNulls := 0
-		for i := 0; i < series.Len(); i++ {
+		for i := range series.Len() {
 			v := series.ValueAt(i)
 			if !math.IsNaN(v) {
 				nonNulls++
@@ -265,7 +265,7 @@ func Changed(ctx *Context, seriesList ts.SeriesList, renamer SeriesRenamer) (ts.
 		previous := nan
 		numSteps := series.Len()
 		vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
-		for i := 0; i < numSteps; i++ {
+		for i := range numSteps {
 			v := series.ValueAt(i)
 			if math.IsNaN(previous) {
 				previous = v

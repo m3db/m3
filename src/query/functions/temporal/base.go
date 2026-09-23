@@ -285,7 +285,7 @@ func parallelProcess(
 		}
 
 		values = values[:0]
-		for i := 0; i < blockMeta.steps; i++ {
+		for range blockMeta.steps {
 			iterBounds := iterationBounds{
 				start: start,
 				end:   end,
@@ -395,7 +395,7 @@ func (c *baseNode) singleProcess(
 			decodeDuration += stats.DecodeDuration
 		}
 
-		for i := 0; i < m.steps; i++ {
+		for i := range m.steps {
 			iterBounds := iterationBounds{
 				start: start,
 				end:   end,

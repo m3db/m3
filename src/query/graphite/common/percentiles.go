@@ -136,7 +136,7 @@ func RemoveByPercentile(
 		vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
 		if percentileSeries.Len() == 1 {
 			percentile := percentileSeries.Values[0].ValueAt(0)
-			for i := 0; i < numSteps; i++ {
+			for i := range numSteps {
 				v := series.ValueAt(i)
 				if !tc(v, percentile) {
 					vals.SetValueAt(i, v)

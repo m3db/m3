@@ -280,7 +280,7 @@ func newMappingRuleFromProto(
 		return nil, errNilMappingRuleProto
 	}
 	snapshots := make([]*mappingRuleSnapshot, 0, len(mc.Snapshots))
-	for i := 0; i < len(mc.Snapshots); i++ {
+	for i := range len(mc.Snapshots) {
 		mr, err := newMappingRuleSnapshotFromProto(mc.Snapshots[i], opts)
 		if err != nil {
 			return nil, err
@@ -447,7 +447,7 @@ func (mc *mappingRule) history() ([]view.MappingRule, error) {
 	lastIdx := len(mc.snapshots) - 1
 	views := make([]view.MappingRule, len(mc.snapshots))
 	// Snapshots are stored oldest -> newest. History should start with newest.
-	for i := 0; i < len(mc.snapshots); i++ {
+	for i := range len(mc.snapshots) {
 		mrs, err := mc.mappingRuleView(lastIdx - i)
 		if err != nil {
 			return nil, err

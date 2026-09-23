@@ -90,7 +90,7 @@ func testMultiClientOneType(t *testing.T, metadataFn metadataFn) {
 		numClients = 10
 		clients    = make([]*client, numClients)
 	)
-	for i := 0; i < numClients; i++ {
+	for i := range numClients {
 		clients[i] = testServer.newClient(t)
 		require.NoError(t, clients[i].connect())
 	}
@@ -128,7 +128,7 @@ func testMultiClientOneType(t *testing.T, metadataFn metadataFn) {
 	clock.SetNow(finalTime)
 	time.Sleep(waitForDataToFlush)
 
-	for i := 0; i < numClients; i++ {
+	for i := range numClients {
 		require.NoError(t, clients[i].close())
 	}
 
