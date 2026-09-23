@@ -563,7 +563,7 @@ func (c *CoordinatorClient) WriteCarbon(
 		zap.String("at time", time.Now().String()),
 		zap.String("at ts", t.String()))
 
-	con, err := (&net.Dialer{}).DialContext(context.Background(), "tcp", url)
+	con, err := net.Dial("tcp", url)
 	if err != nil {
 		logger.Error("could not dial", zap.Error(err))
 		return err

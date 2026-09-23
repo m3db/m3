@@ -21,7 +21,6 @@
 package cluster
 
 import (
-	stdctx "context"
 	"net"
 	"net/http"
 
@@ -67,7 +66,7 @@ func (s *server) ListenAndServe() (ns.Close, error) {
 		return nil, err
 	}
 
-	listener, err := (&net.ListenConfig{}).Listen(stdctx.Background(), "tcp", s.address)
+	listener, err := net.Listen("tcp", s.address)
 	if err != nil {
 		return nil, err
 	}

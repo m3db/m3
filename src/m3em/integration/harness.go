@@ -24,7 +24,6 @@
 package integration
 
 import (
-	"context"
 	"io"
 	"net"
 	"os"
@@ -102,7 +101,7 @@ func newTestHarnessWithHearbeatOptions(t *testing.T, hbOpts node.HeartbeatOption
 	})
 
 	// create agent listener
-	agentListener, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
+	agentListener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	th.agentListener = agentListener
 	th.addCloser(func() error {
@@ -131,7 +130,7 @@ func newTestHarnessWithHearbeatOptions(t *testing.T, hbOpts node.HeartbeatOption
 
 	// if provided valid heartbeat options, create heartbeating resources
 	if hbOpts != nil {
-		heartbeatListener, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
+		heartbeatListener, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
 		th.heartbeatListener = heartbeatListener
 		th.addCloser(func() error {

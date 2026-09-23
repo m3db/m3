@@ -1253,7 +1253,7 @@ func startGRPCServer(
 	logger.Info("gRPC server reflection configured",
 		zap.Bool("enabled", opts.ReflectionEnabled()))
 
-	listener, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", opts.ServeAddress())
+	listener, err := net.Listen("tcp", opts.ServeAddress())
 	if err != nil {
 		return nil, err
 	}

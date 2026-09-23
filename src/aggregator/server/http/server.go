@@ -21,7 +21,6 @@
 package http
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -62,7 +61,7 @@ func NewServer(
 }
 
 func (s *server) ListenAndServe() error {
-	listener, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", s.address)
+	listener, err := net.Listen("tcp", s.address)
 	if err != nil {
 		return err
 	}

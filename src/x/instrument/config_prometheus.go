@@ -213,7 +213,7 @@ func (c PrometheusConfiguration) NewReporter(
 		if listener == nil {
 			// Address must be specified if server was nil.
 			var err error
-			listener, err = (&net.ListenConfig{}).Listen(context.Background(), "tcp", addr)
+			listener, err = net.Listen("tcp", addr)
 			if err != nil {
 				return nil, nil, fmt.Errorf(
 					"prometheus handler listen address error: %v", err)

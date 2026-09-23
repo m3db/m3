@@ -22,7 +22,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"math/rand"
@@ -55,7 +54,7 @@ func startWorker(
 		}
 
 		// Establish initial connection and reestablish if we get disconnected.
-		conn, err := (&net.Dialer{}).DialContext(context.Background(), "tcp", target)
+		conn, err := net.Dial("tcp", target)
 		if err != nil {
 			fmt.Printf("dial error: %v, reconnecting in one second\n", err)
 			time.Sleep(1 * time.Second)

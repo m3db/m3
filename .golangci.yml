@@ -199,6 +199,13 @@ linters:
         text: 'G404: Use of weak random number generator (math/rand instead of crypto/rand)'
       - path: (.+)\.go$
         text: 'G103: Use of unsafe calls should be audited'
+      # net.Listen / net.Dial only take a context via ListenConfig / Dialer,
+      # and none of the call sites have one to pass: the replacement would be
+      # (&net.ListenConfig{}).Listen(context.Background(), ...), which is
+      # exactly what net.Listen already does. Keep the plain calls.
+      - linters:
+          - noctx
+        text: '^net\.(Listen|Dial|DialTimeout) must not be called'
       - linters:
           - goconst
           - noctx
