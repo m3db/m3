@@ -39,9 +39,15 @@ common: &common
   agents:
     queue: "buildkite-gcp"
   retry:
-    # Automatically retry failures one time.
     automatic:
-      limit: 1
+      # Exit status -1 means the agent was lost mid-job (the node running the
+      # pod was terminated), not that the step failed. These arrive in bursts
+      # that can take out the first retry too, so allow a few more attempts.
+      - exit_status: -1
+        limit: 3
+      # Automatically retry genuine failures one time.
+      - exit_status: "*"
+        limit: 1
     # Allow manual retries.
     manual: true
 
