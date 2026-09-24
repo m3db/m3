@@ -1,5 +1,9 @@
 # stage 1: build
-FROM golang:1.26.0-alpine3.22 AS builder
+# Build on the host platform and cross-compile for the target platform so
+# multi-arch builds (docker buildx --platform) do not run Go under QEMU.
+FROM --platform=$BUILDPLATFORM golang:1.26.0-alpine3.22 AS builder
+ARG TARGETOS
+ARG TARGETARCH
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
 # Install deps
@@ -12,10 +16,10 @@ ADD . /go/src/github.com/m3db/m3
 # Build m3coordinator binary
 RUN cd /go/src/github.com/m3db/m3/ && \
     git submodule update --init      && \
-    make m3coordinator-linux-amd64
+    GOOS=$TARGETOS GOARCH=$TARGETARCH make m3coordinator
 
 # stage 2: lightweight "release"
-FROM alpine:3.14
+FROM alpine:3.20
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
 # Provide timezone data to allow TZ environment variable to be set
