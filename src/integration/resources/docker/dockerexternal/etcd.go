@@ -293,8 +293,13 @@ func (c *EtcdNode) waitForHealth(ctx context.Context, memberCli memberClient) er
 	return fmt.Errorf("waiting for etcd to become healthy: %w", err)
 }
 
-// Close stops the etcd node, and removes it.
+// Close stops the etcd node, and removes it. Closing a node whose Setup
+// never succeeded is a no-op, so that a deferred Close in a test does not
+// turn a startup failure into a nil pointer panic that hides the real error.
 func (c *EtcdNode) Close(ctx context.Context) error {
+	if c.resource == nil {
+		return nil
+	}
 	var err xerrors.MultiError
 	err = err.
 		Add(c.resource.Close())
