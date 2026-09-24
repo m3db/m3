@@ -88,13 +88,15 @@ type promReadMetrics struct {
 	fetchTimerSuccess tally.Timer
 }
 
+const statusCodeTag = "code"
+
 func newPromReadMetrics(scope tally.Scope) promReadMetrics {
 	return promReadMetrics{
 		fetchSuccess: scope.
 			Counter("fetch.success"),
-		fetchErrorsServer: scope.Tagged(map[string]string{"code": "5XX"}).
+		fetchErrorsServer: scope.Tagged(map[string]string{statusCodeTag: "5XX"}).
 			Counter("fetch.errors"),
-		fetchErrorsClient: scope.Tagged(map[string]string{"code": "4XX"}).
+		fetchErrorsClient: scope.Tagged(map[string]string{statusCodeTag: "4XX"}).
 			Counter("fetch.errors"),
 		fetchTimerSuccess: scope.Timer("fetch.success.latency"),
 	}

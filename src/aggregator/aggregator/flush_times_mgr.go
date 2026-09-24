@@ -344,9 +344,9 @@ type flushTimesCheckerMetrics struct {
 }
 
 func newFlushTimesCheckerMetrics(scope tally.Scope) flushTimesCheckerMetrics {
-	standardScope := scope.Tagged(map[string]string{"metric-type": "standard"})
-	forwardedScope := scope.Tagged(map[string]string{"metric-type": "forwarded"})
-	timedScope := scope.Tagged(map[string]string{"metric-type": "timed"})
+	standardScope := scope.Tagged(map[string]string{metricTypeLabel: standardTypeStr})
+	forwardedScope := scope.Tagged(map[string]string{metricTypeLabel: forwardedTypeStr})
+	timedScope := scope.Tagged(map[string]string{metricTypeLabel: timedTypeStr})
 	return flushTimesCheckerMetrics{
 		noFlushTimes:             scope.Counter("no-flush-times"),
 		shardNotFound:            scope.Counter("shard-not-found"),

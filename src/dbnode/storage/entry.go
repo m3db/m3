@@ -70,49 +70,69 @@ type EntryMetrics struct {
 	duplicateNeedsReconcile tally.Counter
 }
 
+// Metric tag keys shared across the storage package.
+const (
+	reasonTag           = "reason"
+	pathTag             = "path"
+	reconcileTag        = "reconcile"
+	errorTypeTag        = "error_type"
+	suberrorTypeTag     = "suberror_type"
+	stageTag            = "stage"
+	statusTag           = "status"
+	statTag             = "stat"
+	resultTag           = "result"
+	exhaustiveTag       = "exhaustive"
+	segmentTypeTag      = "segment_type"
+	blockSegmentTypeTag = "segment-type"
+	namespaceTag        = "namespace"
+	shardTag            = "shard"
+	resultTypeTag       = "resultType"
+	repairTypeTag       = "repair_type"
+)
+
 // NewEntryMetrics builds an entry metrics.
 func NewEntryMetrics(scope tally.Scope) *EntryMetrics {
 	return &EntryMetrics{
 		gcNoReconcile: scope.Tagged(map[string]string{
-			"reconcile": "no_reconcile",
-			"path":      "gc",
+			reconcileTag: "no_reconcile",
+			pathTag:      "gc",
 		}).Counter("count"),
 		gcNeedsReconcile: scope.Tagged(map[string]string{
-			"reconcile": "needs_reconcile",
-			"path":      "gc",
+			reconcileTag: "needs_reconcile",
+			pathTag:      "gc",
 		}).Counter("count"),
 		gcSuccessShardClosed: scope.Tagged(map[string]string{
-			"reason": "shard_closed",
-			"path":   "gc",
+			reasonTag: "shard_closed",
+			pathTag:   "gc",
 		}).Counter("gc_count"),
 		gcSuccessEmpty: scope.Tagged(map[string]string{
-			"reason": "empty",
-			"path":   "gc",
+			reasonTag: "empty",
+			pathTag:   "gc",
 		}).Counter("gc_count"),
 		noGcNil: scope.Tagged(map[string]string{
-			"reason": "nil",
-			"path":   "gc",
+			reasonTag: "nil",
+			pathTag:   "gc",
 		}).Counter("no_gc_count"),
 		noGcErr: scope.Tagged(map[string]string{
-			"reason": "error",
-			"path":   "gc",
+			reasonTag: "error",
+			pathTag:   "gc",
 		}).Counter("no_gc_count"),
 		noGcHasReaders: scope.Tagged(map[string]string{
-			"reason": "has_readers",
-			"path":   "gc",
+			reasonTag: "has_readers",
+			pathTag:   "gc",
 		}).Counter("no_gc_count"),
 		noGcNotEmptySeries: scope.Tagged(map[string]string{
-			"reason": "not_empty_series",
-			"path":   "gc",
+			reasonTag: "not_empty_series",
+			pathTag:   "gc",
 		}).Counter("no_gc_count"),
 
 		duplicateNoReconcile: scope.Tagged(map[string]string{
-			"reconcile": "no_reconcile",
-			"path":      "duplicate",
+			reconcileTag: "no_reconcile",
+			pathTag:      "duplicate",
 		}).Counter("count"),
 		duplicateNeedsReconcile: scope.Tagged(map[string]string{
-			"reconcile": "needs_reconcile",
-			"path":      "duplicate",
+			reconcileTag: "needs_reconcile",
+			pathTag:      "duplicate",
 		}).Counter("count"),
 	}
 }

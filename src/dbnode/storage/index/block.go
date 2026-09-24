@@ -173,6 +173,14 @@ type blockMetrics struct {
 	entryUnreconciledOnQuery        tally.Counter
 }
 
+// Metric tag keys shared across the index package.
+const (
+	resultTag     = "result"
+	skipTypeTag   = "skip_type"
+	resultTypeTag = "result_type"
+	queryTypeTag  = "query_type"
+)
+
 func newBlockMetrics(s tally.Scope) blockMetrics {
 	segmentFreeMmap := "segment-free-mmap"
 	buckets := append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(100, 2, 16)...)
@@ -181,16 +189,16 @@ func newBlockMetrics(s tally.Scope) blockMetrics {
 		rotateActiveSegmentAge:  s.Timer("rotate-active-segment-age"),
 		rotateActiveSegmentSize: s.Histogram("rotate-active-segment-size", buckets),
 		segmentFreeMmapSuccess: s.Tagged(map[string]string{
-			"result":    "success",
-			"skip_type": "none",
+			resultTag:   "success",
+			skipTypeTag: "none",
 		}).Counter(segmentFreeMmap),
 		segmentFreeMmapError: s.Tagged(map[string]string{
-			"result":    "error",
-			"skip_type": "none",
+			resultTag:   "error",
+			skipTypeTag: "none",
 		}).Counter(segmentFreeMmap),
 		segmentFreeMmapSkipNotImmutable: s.Tagged(map[string]string{
-			"result":    "skip",
-			"skip_type": "not-immutable",
+			resultTag:   "skip",
+			skipTypeTag: "not-immutable",
 		}).Counter(segmentFreeMmap),
 
 		querySeriesMatched:       s.Histogram("query-series-matched", buckets),

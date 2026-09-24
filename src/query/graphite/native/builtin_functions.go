@@ -2876,12 +2876,12 @@ func init() {
 	MustRegisterFunction(grep)
 	MustRegisterFunction(group)
 	MustRegisterFunction(groupByNode).WithDefaultParams(map[uint8]interface{}{
-		3: "average", // fname
+		3: averageFnName, // fname
 	})
 	MustRegisterFunction(groupByNodes)
 	MustRegisterFunction(highest).WithDefaultParams(map[uint8]interface{}{
-		2: 1,         // n,
-		3: "average", // f
+		2: 1,             // n,
+		3: averageFnName, // f
 	})
 	MustRegisterFunction(highestAverage)
 	MustRegisterFunction(highestCurrent)
@@ -2909,8 +2909,8 @@ func init() {
 		2: 10.0, // base
 	})
 	MustRegisterFunction(lowest).WithDefaultParams(map[uint8]interface{}{
-		2: 1,         // n,
-		3: "average", // f
+		2: 1,             // n,
+		3: averageFnName, // f
 	})
 	MustRegisterFunction(lowestAverage)
 	MustRegisterFunction(lowestCurrent)
@@ -2985,8 +2985,8 @@ func init() {
 	MustRegisterFunction(scale)
 	MustRegisterFunction(scaleToSeconds)
 	MustRegisterFunction(sortBy).WithDefaultParams(map[uint8]interface{}{
-		2: "average", // fn
-		3: false,     // reverse
+		2: averageFnName, // fn
+		3: false,         // reverse
 	})
 	MustRegisterFunction(sortByMaxima)
 	MustRegisterFunction(sortByMinima)

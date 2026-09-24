@@ -122,7 +122,7 @@ func newBootstrapRetriesMetrics(scope tally.Scope) bootstrapRetriesMetrics {
 
 	reason := func(reason string) map[string]string {
 		return map[string]string{
-			"reason": reason,
+			reasonTag: reason,
 		}
 	}
 	return bootstrapRetriesMetrics{

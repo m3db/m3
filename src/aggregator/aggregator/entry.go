@@ -188,9 +188,9 @@ type entryMetrics struct {
 //nolint:revive
 func NewEntryMetrics(scope tally.Scope) *entryMetrics {
 	scope = scope.SubScope("entry")
-	untimedEntryScope := scope.Tagged(map[string]string{"entry-type": "untimed"})
-	timedEntryScope := scope.Tagged(map[string]string{"entry-type": "timed"})
-	forwardedEntryScope := scope.Tagged(map[string]string{"entry-type": "forwarded"})
+	untimedEntryScope := scope.Tagged(map[string]string{entryTypeLabel: untimedTypeStr})
+	timedEntryScope := scope.Tagged(map[string]string{entryTypeLabel: timedTypeStr})
+	forwardedEntryScope := scope.Tagged(map[string]string{entryTypeLabel: forwardedTypeStr})
 	// NB: add a histogram tracking the duration between writes to help tune entry TTL.
 	writeDurations := make(map[metricCategory]tally.Histogram, len(validMetricCategories))
 	for _, category := range validMetricCategories {

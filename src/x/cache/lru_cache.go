@@ -46,14 +46,15 @@ const (
 	loadsCounter        = "loads"
 	accessCounter       = "accesses"
 	entriesGauge        = "entries"
+	statusTag           = "status"
 )
 
 // Metrics tags
 var (
-	hitsTags    = map[string]string{"status": "hit"}
-	missesTags  = map[string]string{"status": "miss"}
-	successTags = map[string]string{"status": "success"}
-	failureTags = map[string]string{"status": "error"}
+	hitsTags    = map[string]string{statusTag: "hit"}
+	missesTags  = map[string]string{statusTag: "miss"}
+	successTags = map[string]string{statusTag: "success"}
+	failureTags = map[string]string{statusTag: "error"}
 )
 
 // An UncachedError can be used to wrap an error that should not be

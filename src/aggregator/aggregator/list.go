@@ -122,9 +122,9 @@ type baseMetricListMetrics struct {
 func newMetricListMetrics(scope tally.Scope) baseMetricListMetrics {
 	flushScope := scope.SubScope("flush")
 	flushBeforeScope := scope.SubScope("flush-before")
-	flushLocalScope := flushScope.Tagged(map[string]string{"flush-type": "local"})
+	flushLocalScope := flushScope.Tagged(map[string]string{flushTypeLabel: localTypeStr})
 	flushLocalWriterScope := flushLocalScope.SubScope("writer")
-	flushForwardedScope := flushScope.Tagged(map[string]string{"flush-type": "forwarded"})
+	flushForwardedScope := flushScope.Tagged(map[string]string{flushTypeLabel: forwardedTypeStr})
 	flushForwardedWriterScope := flushForwardedScope.SubScope("writer")
 	return baseMetricListMetrics{
 		flushLocal:                  newMetricProcessingMetrics(flushLocalScope),
@@ -191,10 +191,10 @@ func newBaseMetricList(
 	opts Options,
 ) (*baseMetricList, error) {
 	scope := opts.InstrumentOptions().MetricsScope().SubScope("list").Tagged(
-		map[string]string{"resolution": resolution.String()},
+		map[string]string{resolutionLabel: resolution.String()},
 	)
 	flushHandler := opts.FlushHandler()
-	localWriterScope := scope.Tagged(map[string]string{"writer-type": "local"}).SubScope("writer")
+	localWriterScope := scope.Tagged(map[string]string{writerTypeLabel: localTypeStr}).SubScope("writer")
 	localWriter, err := flushHandler.NewWriter(localWriterScope)
 	if err != nil {
 		return nil, err
@@ -565,7 +565,7 @@ func newStandardMetricList(
 	opts Options,
 ) (*standardMetricList, error) {
 	iOpts := opts.InstrumentOptions()
-	listScope := iOpts.MetricsScope().Tagged(map[string]string{"list-type": "standard"})
+	listScope := iOpts.MetricsScope().Tagged(map[string]string{listTypeLabel: standardTypeStr})
 	l, err := newBaseMetricList(
 		shard,
 		id.resolution,
@@ -653,7 +653,7 @@ func newForwardedMetricList(
 		maxLatenessAllowedFn = opts.MaxAllowedForwardingDelayFn()
 		maxLatenessAllowed   = maxLatenessAllowedFn(resolution, numForwardedTimes)
 		iOpts                = opts.InstrumentOptions()
-		listScope            = iOpts.MetricsScope().Tagged(map[string]string{"list-type": "forwarded"})
+		listScope            = iOpts.MetricsScope().Tagged(map[string]string{listTypeLabel: forwardedTypeStr})
 	)
 	// Forwarded metrics that have been kept for longer than the maximum lateness
 	// allowed will be flushed.
@@ -730,7 +730,7 @@ func newTimedMetricList(
 		fn                         = opts.BufferForPastTimedMetricFn()
 		timedAggregationBufferPast = fn(resolution)
 		iOpts                      = opts.InstrumentOptions()
-		listScope                  = iOpts.MetricsScope().Tagged(map[string]string{"list-type": "timed"})
+		listScope                  = iOpts.MetricsScope().Tagged(map[string]string{listTypeLabel: timedTypeStr})
 	)
 	// Timed metrics that have been kept for longer than the maximum buffer
 	// will be flushed.
@@ -795,11 +795,11 @@ const (
 func (t metricListType) String() string {
 	switch t {
 	case standardMetricListType:
-		return "standard"
+		return standardTypeStr
 	case forwardedMetricListType:
-		return "forwarded"
+		return forwardedTypeStr
 	case timedMetricListType:
-		return "timed"
+		return timedTypeStr
 	default:
 		// Should never get here.
 		return "unknown"

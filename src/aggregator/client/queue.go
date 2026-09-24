@@ -306,8 +306,8 @@ type queueMetrics struct {
 }
 
 func newQueueMetrics(s tally.Scope) queueMetrics {
-	enqueueScope := s.Tagged(map[string]string{"action": "enqueue"})
-	connWriteScope := s.Tagged(map[string]string{"action": "conn-write"})
+	enqueueScope := s.Tagged(map[string]string{actionTag: "enqueue"})
+	connWriteScope := s.Tagged(map[string]string{actionTag: "conn-write"})
 	return queueMetrics{
 		enqueueSuccesses: enqueueScope.Counter("successes"),
 		enqueueOldestDropped: enqueueScope.Tagged(map[string]string{"drop-type": "oldest"}).

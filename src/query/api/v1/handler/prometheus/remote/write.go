@@ -238,8 +238,8 @@ func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
 	}
 	return promWriteMetrics{
 		writeSuccess:             scope.SubScope("write").Counter("success"),
-		writeErrorsServer:        scope.SubScope("write").Tagged(map[string]string{"code": "5XX"}).Counter("errors"),
-		writeErrorsClient:        scope.SubScope("write").Tagged(map[string]string{"code": "4XX"}).Counter("errors"),
+		writeErrorsServer:        scope.SubScope("write").Tagged(map[string]string{statusCodeTag: "5XX"}).Counter("errors"),
+		writeErrorsClient:        scope.SubScope("write").Tagged(map[string]string{statusCodeTag: "4XX"}).Counter("errors"),
 		writeBatchLatency:        scope.SubScope("write").Histogram("batch-latency", buckets.WriteLatencyBuckets),
 		writeBatchLatencyBuckets: buckets.WriteLatencyBuckets,
 		ingestLatency:            scope.SubScope("ingest").Histogram("latency", buckets.IngestLatencyBuckets),

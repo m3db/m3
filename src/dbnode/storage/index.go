@@ -329,7 +329,7 @@ func newNamespaceIndexWithOptions(
 	scope := instrumentOpts.MetricsScope().
 		SubScope("dbindex").
 		Tagged(map[string]string{
-			"namespace": nsMD.ID().String(),
+			namespaceTag: nsMD.ID().String(),
 		})
 	instrumentOpts = instrumentOpts.SetMetricsScope(scope)
 	indexOpts = indexOpts.SetInstrumentOptions(instrumentOpts)
@@ -2472,6 +2472,11 @@ type nsIndexMetrics struct {
 	queryNonExhaustiveDocsLimitError   tally.Counter
 }
 
+const (
+	foregroundSegmentType = "foreground"
+	backgroundSegmentType = "background"
+)
+
 func newNamespaceIndexMetrics(
 	opts index.Options,
 	iopts instrument.Options,
@@ -2487,96 +2492,96 @@ func newNamespaceIndexMetrics(
 	m := nsIndexMetrics{
 		tick: scope.Counter("index-tick"),
 		asyncInsertAttemptTotal: scope.Tagged(map[string]string{
-			"stage": "process",
+			stageTag: "process",
 		}).Counter(indexAttemptName),
 		asyncInsertAttemptSkip: scope.Tagged(map[string]string{
-			"stage": "skip",
+			stageTag: "skip",
 		}).Counter(indexAttemptName),
 		asyncInsertAttemptWrite: scope.Tagged(map[string]string{
-			"stage": "write",
+			stageTag: "write",
 		}).Counter(indexAttemptName),
 		asyncInsertSuccess: scope.Counter("index-success"),
 		asyncInsertErrors: scope.Tagged(map[string]string{
-			"error_type": "async-insert",
+			errorTypeTag: "async-insert",
 		}).Counter("index-error"),
 		insertAfterClose: scope.Tagged(map[string]string{
-			"error_type": "insert-closed",
+			errorTypeTag: "insert-closed",
 		}).Counter("insert-after-close"),
 		queryAfterClose: scope.Tagged(map[string]string{
-			"error_type": "query-closed",
+			errorTypeTag: "query-closed",
 		}).Counter("query-after-error"),
 		forwardIndexHits: scope.Tagged(map[string]string{
-			"status": "hit",
+			statusTag: "hit",
 		}).Counter(forwardIndexName),
 		forwardIndexMisses: scope.Tagged(map[string]string{
-			"status": "miss",
+			statusTag: "miss",
 		}).Counter(forwardIndexName),
 		forwardIndexCounter: scope.Tagged(map[string]string{
-			"status": "count",
+			statusTag: "count",
 		}).Counter(forwardIndexName),
 		insertEndToEndLatency: instrument.NewTimer(scope,
 			"insert-end-to-end-latency", iopts.TimerOptions()),
 		blocksEvictedMutableSegments: scope.Counter("blocks-evicted-mutable-segments"),
 		blockMetrics:                 newNamespaceIndexBlocksMetrics(opts, blocksScope),
 		indexingConcurrencyMin: scope.Tagged(map[string]string{
-			"stat": "min",
+			statTag: "min",
 		}).Gauge(indexingConcurrency),
 		indexingConcurrencyMax: scope.Tagged(map[string]string{
-			"stat": "max",
+			statTag: "max",
 		}).Gauge(indexingConcurrency),
 		indexingConcurrencyAvg: scope.Tagged(map[string]string{
-			"stat": "avg",
+			statTag: "avg",
 		}).Gauge(indexingConcurrency),
 		flushIndexingConcurrency: scope.Gauge(flushIndexingConcurrency),
 		flushDocsNew: scope.Tagged(map[string]string{
-			"status": "new",
+			statusTag: "new",
 		}).Counter("flush-docs"),
 		flushDocsCached: scope.Tagged(map[string]string{
-			"status": "cached",
+			statusTag: "cached",
 		}).Counter("flush-docs"),
 		latestBlockNumSegmentsForeground: scope.Tagged(map[string]string{
-			"segment_type": "foreground",
+			segmentTypeTag: foregroundSegmentType,
 		}).Gauge("latest-block-num-segments"),
 		latestBlockNumDocsForeground: scope.Tagged(map[string]string{
-			"segment_type": "foreground",
+			segmentTypeTag: foregroundSegmentType,
 		}).Gauge("latest-block-num-docs"),
 		latestBlockNumSegmentsBackground: scope.Tagged(map[string]string{
-			"segment_type": "background",
+			segmentTypeTag: backgroundSegmentType,
 		}).Gauge("latest-block-num-segments"),
 		latestBlockNumDocsBackground: scope.Tagged(map[string]string{
-			"segment_type": "background",
+			segmentTypeTag: backgroundSegmentType,
 		}).Gauge("latest-block-num-docs"),
 		loadedDocsPerQuery: scope.Histogram(
 			"loaded-docs-per-query",
 			tally.MustMakeExponentialValueBuckets(10, 2, 16),
 		),
 		queryExhaustiveSuccess: scope.Tagged(map[string]string{
-			"exhaustive": "true",
-			"result":     "success",
+			exhaustiveTag: "true",
+			resultTag:     "success",
 		}).Counter("query"),
 		queryExhaustiveInternalError: scope.Tagged(map[string]string{
-			"exhaustive": "true",
-			"result":     "error_internal",
+			exhaustiveTag: "true",
+			resultTag:     "error_internal",
 		}).Counter("query"),
 		queryNonExhaustiveSuccess: scope.Tagged(map[string]string{
-			"exhaustive": "false",
-			"result":     "success",
+			exhaustiveTag: "false",
+			resultTag:     "success",
 		}).Counter("query"),
 		queryNonExhaustiveInternalError: scope.Tagged(map[string]string{
-			"exhaustive": "false",
-			"result":     "error_internal",
+			exhaustiveTag: "false",
+			resultTag:     "error_internal",
 		}).Counter("query"),
 		queryNonExhaustiveLimitError: scope.Tagged(map[string]string{
-			"exhaustive": "false",
-			"result":     "error_require_exhaustive",
+			exhaustiveTag: "false",
+			resultTag:     "error_require_exhaustive",
 		}).Counter("query"),
 		queryNonExhaustiveSeriesLimitError: scope.Tagged(map[string]string{
-			"exhaustive": "false",
-			"result":     "error_series_require_exhaustive",
+			exhaustiveTag: "false",
+			resultTag:     "error_series_require_exhaustive",
 		}).Counter("query"),
 		queryNonExhaustiveDocsLimitError: scope.Tagged(map[string]string{
-			"exhaustive": "false",
-			"result":     "error_docs_require_exhaustive",
+			exhaustiveTag: "false",
+			resultTag:     "error_docs_require_exhaustive",
 		}).Counter("query"),
 	}
 
@@ -2602,17 +2607,17 @@ func newNamespaceIndexBlocksMetrics(
 		ForegroundSegments: newNamespaceIndexBlocksSegmentsMetrics(
 			opts.ForegroundCompactionPlannerOptions(),
 			scope.Tagged(map[string]string{
-				"segment-type": "foreground",
+				blockSegmentTypeTag: foregroundSegmentType,
 			})),
 		BackgroundSegments: newNamespaceIndexBlocksSegmentsMetrics(
 			opts.BackgroundCompactionPlannerOptions(),
 			scope.Tagged(map[string]string{
-				"segment-type": "background",
+				blockSegmentTypeTag: backgroundSegmentType,
 			})),
 		FlushedSegments: newNamespaceIndexBlocksSegmentsMetrics(
 			opts.BackgroundCompactionPlannerOptions(),
 			scope.Tagged(map[string]string{
-				"segment-type": "flushed",
+				blockSegmentTypeTag: "flushed",
 			})),
 	}
 }
