@@ -1100,7 +1100,7 @@ func TestAddUntimed_ResendEnabled(t *testing.T) {
 	require.False(t, e.aggregations[1].resendEnabled)
 	vals = e.aggregations[1].elem.Value.(*GaugeElem).values
 	require.Len(t, vals, 1)
-	ts = xtime.ToUnixNano(time.Now().Truncate(testStoragePolicy.Resolution().Window))
+	ts = xtime.ToUnixNano(e.nowFn().Truncate(testStoragePolicy.Resolution().Window))
 	_, ok = vals[ts]
 	require.True(t, ok)
 }
