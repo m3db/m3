@@ -37,9 +37,11 @@ GO_BUILD_LDFLAGS_CMD      := $(abspath ./scripts/go-build-ldflags.sh)
 GO_BUILD_LDFLAGS          := $(shell $(GO_BUILD_LDFLAGS_CMD) LDFLAG)
 GO_BUILD_COMMON_ENV       := CGO_ENABLED=0
 LINUX_AMD64_ENV           := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
-# GO_RELEASER_DOCKER_IMAGE is latest goreleaser for go 1.18
-GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v1.8.3
-GO_RELEASER_RELEASE_ARGS  ?= --rm-dist
+LINUX_ARM64_ENV           := GOOS=linux GOARCH=arm64 $(GO_BUILD_COMMON_ENV)
+# GO_RELEASER_DOCKER_IMAGE bundles its own Go toolchain; keep it at or above the
+# go directive in go.mod.
+GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v2.18.2
+GO_RELEASER_RELEASE_ARGS  ?= --clean
 GO_RELEASER_WORKING_DIR   := /go/src/github.com/m3db/m3
 GOLANGCI_LINT_VERSION     := v2.12.0
 
@@ -132,6 +134,10 @@ endif
 $(SERVICE)-linux-amd64:
 	$(LINUX_AMD64_ENV) make $(SERVICE)
 
+.PHONY: $(SERVICE)-linux-arm64
+$(SERVICE)-linux-arm64:
+	$(LINUX_ARM64_ENV) make $(SERVICE)
+
 .PHONY: $(SERVICE)-docker-dev
 $(SERVICE)-docker-dev: clean-build $(SERVICE)-linux-amd64
 	make docker-dev-prep
@@ -159,19 +165,27 @@ $(TOOL): setup
 $(TOOL)-linux-amd64:
 	$(LINUX_AMD64_ENV) make $(TOOL)
 
+.PHONY: $(TOOL)-linux-arm64
+$(TOOL)-linux-arm64:
+	$(LINUX_ARM64_ENV) make $(TOOL)
+
 endef
 
 $(foreach TOOL,$(TOOLS),$(eval $(TOOL_RULES)))
 
-.PHONY: services services-linux-amd64
+.PHONY: services services-linux-amd64 services-linux-arm64
 services: $(SERVICES)
 services-linux-amd64:
 	$(LINUX_AMD64_ENV) make services
+services-linux-arm64:
+	$(LINUX_ARM64_ENV) make services
 
-.PHONY: tools tools-linux-amd64
+.PHONY: tools tools-linux-amd64 tools-linux-arm64
 tools: $(TOOLS)
 tools-linux-amd64:
 	$(LINUX_AMD64_ENV) make tools
+tools-linux-arm64:
+	$(LINUX_ARM64_ENV) make tools
 
 .PHONY: all
 all: test-ci-unit test-ci-integration services tools
@@ -201,7 +215,7 @@ release: check-for-goreleaser-github-token
 .PHONY: release-snapshot
 release-snapshot: check-for-goreleaser-github-token
 	@echo Creating snapshot release
-	make release GO_RELEASER_RELEASE_ARGS="--snapshot --rm-dist"
+	make release GO_RELEASER_RELEASE_ARGS="--snapshot --clean"
 
 # NB(schallert): if updating this target, be sure to update the commands used in
 # the .buildkite/docs_push.sh. We can't share the make targets because our
