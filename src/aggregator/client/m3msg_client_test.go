@@ -22,11 +22,17 @@ package client
 
 import (
 	"testing"
+	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/uber-go/tally"
 
+	"github.com/m3db/m3/src/metrics/metadata"
+	"github.com/m3db/m3/src/metrics/metric/id"
+	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/msg/producer"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 func TestNewM3MsgClient(t *testing.T) {
@@ -41,4 +47,44 @@ func TestNewM3MsgClient(t *testing.T) {
 	c, err := NewM3MsgClient(NewOptions().SetM3MsgOptions(opts))
 	assert.NotNil(t, c)
 	assert.NoError(t, err)
+}
+
+func TestTotalBytesAdded(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Mock dependencies
+	p := producer.NewMockProducer(ctrl)
+	p.EXPECT().Init()
+	p.EXPECT().NumShards().Return(uint32(1))
+	p.EXPECT().Produce(gomock.Any()).Return(nil).AnyTimes()
+
+	opts := NewM3MsgOptions().SetProducer(p)
+	client, err := NewM3MsgClient(NewOptions().SetM3MsgOptions(opts))
+	assert.NoError(t, err)
+
+	// Mock metric and metadata
+	counter := unaggregated.Counter{
+		ID:    id.RawID("testCounter"),
+		Value: 123,
+	}
+	metadatas := metadata.StagedMetadatas{}
+
+	// Mock time function
+	now := time.Now()
+	client.(*M3MsgClient).nowFn = func() time.Time { return now }
+
+	testScope := tally.NewTestScope("", make(map[string]string))
+	// Mock metrics
+	client.(*M3MsgClient).metrics = m3msgClientMetrics{
+		writeUntimedCounter: instrument.NewMethodMetrics(testScope, "writeUntimedCounter", instrument.TimerOptions{}),
+		totalBytesSent:      testScope.Counter("total-bytes-sent"),
+	}
+
+	// Call the method
+	err = client.WriteUntimedCounter(counter, metadatas)
+	assert.NoError(t, err)
+
+	// Verify the total bytes added
+	assert.Equal(t, int64(23), testScope.Snapshot().Counters()["total-bytes-sent+"].Value())
 }
