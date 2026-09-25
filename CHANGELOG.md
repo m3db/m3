@@ -1,5 +1,153 @@
 # Changelog
 
+# 1.6.0
+
+## Backwards Incompatible Changes
+
+These affect users who import M3 as a Go library. Deployed binaries, on-disk formats and wire formats are unchanged.
+
+- **All**: Metrics scopes now use `github.com/uber-go/tally/v4`; the `github.com/m3db/prometheus_*` forks are no longer used and the instrument package exposes a single upstream `prometheus/client_golang` registry type ([#4423])
+- **All**: `github.com/m3db/stackmurmur3` is replaced by `github.com/twmb/murmur3` (bit-identical output, verified by a parity test) ([#4420], [#4422])
+- **All**: Minimum Go version is now 1.26 ([#4410], [#4416], [#4425])
+- **All**: etcd dependency moved from 3.5.5 to 3.6.13; the embedded etcd config uses the renamed `embed.Config` URL fields (`ListenPeerUrls`, `ListenClientUrls`, `AdvertisePeerUrls`, `AdvertiseClientUrls`) ([#4407], [#4416])
+
+## Features
+
+- **M3Aggregator**: Support ingestion routing policies, with a routing policy filter in M3Msg and dynamic configuration of consumer service filters via topic updates ([#4297], [#4378], [#4381], [#4386], [#4388], [#4389], [#4390])
+- **M3Aggregator**: TLS support for the aggregator server and client, including TLS handshake on connect and a local TLS development environment ([#4283], [#4376], [#4377], [#4379])
+- **M3Aggregator**: Add percentage filter for consumer writers and allow multiple filters per consumer service ([#4223], [#4247])
+- **M3Aggregator**: Add read timeout, custom `DialContext`/`ContextDialer` and bytes emission metrics to the aggregator client ([#4131], [#4290], [#4300], [#4315])
+- **M3Aggregator**: Add `TimerBatchSizes` distribution metric and write success/error latency histograms ([#4320], [#4321], [#4384], [#4385])
+- **M3Aggregator**: Local Docker development environment with debug mode and a consumer service ([#4374], [#4375], [#4380])
+- **M3Coordinator**: Add `IncludeTags` to R2 rollup options ([#4277])
+- **M3Coordinator**: Add config for forwarding a percentage of unique series via remote write, and sampled logging of write/fetch host errors ([#4173], [#4190])
+- **M3Coordinator**: Sort Graphite find results ([#4163])
+- **M3DB**: Circuit breaker middleware for client host queue writes, tripping only on timeout errors ([#4335], [#4336], [#4373], [#4393])
+- **M3DB**: Sub-cluster placement algorithm with validation for partial sub-clusters ([#4355], [#4391])
+- **M3DB**: Support static topology config with more hosts than the replication factor ([#4239], [#4242])
+- **M3DB**: Add `x/encoding.Cloner` to shallow clone response iterators ([#4271])
+- **M3DB**: Add metrics for time taken to connect to the cluster at startup ([#4267])
+- **M3DB**: Add `verify_ids` tool ([#4244])
+- **M3DB**: Support etcd prefix KV retrievals and watches ([#4333])
+- **M3Msg**: Graceful close for message writers, abort on server close, and stop accepting new connections before disconnecting existing ones ([#4328], [#4329], [#4330], [#4387])
+- **M3Msg**: Consumer writer flush latency metrics ([#4326])
+- **All**: Optionally log build information as JSON, and expose a Zap config from the log config ([#4097], [#4100])
+- **All**: Release linux and darwin arm64 binaries and multi-arch (amd64 and arm64) Docker images ([#4442])
+
+## Bug Fixes
+
+- **M3Aggregator**: Fix colliding filters in `MultiCharSequenceFilter` by matching the most complete pattern rather than the first ([#4188])
+- **M3Aggregator**: Followers can lead before the first flush is persisted ([#4169])
+- **M3Aggregator**: Fix a memory allocation issue in `ConsumerServiceWriterMetrics` ([#4382])
+- **M3Aggregator**: Close the aggregator client connection asynchronously ([#4327])
+- **M3Coordinator**: Fix protobuf tag collision with Prometheus ([#4256])
+- **M3Coordinator**: Fix inverted interpretation of the Prometheus remote write shadow sampling config ([#4210])
+- **M3Coordinator**: Fix etcd config default value handling and only configure env configs when specified ([#4130], [#4216])
+- **M3Query**: Fix matching of disjunctions that include the empty string ([#4258])
+- **M3DB**: Fix regexp LRU cache bug ([#4250])
+- **M3DB**: Write datapoints that share timestamp, value and annotation but differ in time unit ([#4401])
+- **M3DB**: Add index results from subsequent bootstrap runs ([#4193])
+- **M3DB**: Fix strictly increasing order of the shard entry list for `FetchBlocksMetadata` pagination ([#4298])
+- **M3DB**: Count write acks from paired leaving/initializing shards ([#4191])
+- **M3DB**: Fix nil pointer panic on `SyncCluster` failure and the `Get` method of `writeBatchPooledReqPool` ([#4246], [#4253])
+- **M3DB**: Fix wrong error variable returned in two places, found by `nilnesserr` ([#4430])
+- **M3Msg**: Remove data race in the producer ([#4160])
+- **All**: Satisfy the yaml `Marshaler` interface on structs with custom unmarshalers ([#4213])
+
+## Performance
+
+- **M3Aggregator**: Pool locked aggregations, fix an unintended allocation during element flushing, and clean up the aggregated metric writer and encoder ([#4108], [#4109], [#4110], [#4112])
+- **M3Coordinator**: Optimize `m3.IsRollupID` to not allocate and allow iterator reuse in `ReverseMatch` ([#4304], [#4305], [#4307])
+- **M3Msg**: Message pooling cleanup, specialized message writer acker map, field alignment fix for `RefCountedMessage`, and parallel consumer writer flushes ([#4104], [#4105], [#4113], [#4331])
+- **M3DB**: Pass the shard set as part of tick instead of storing it in namespace readers ([#4323])
+
+[#4097]: https://github.com/m3db/m3/pull/4097
+[#4100]: https://github.com/m3db/m3/pull/4100
+[#4104]: https://github.com/m3db/m3/pull/4104
+[#4105]: https://github.com/m3db/m3/pull/4105
+[#4108]: https://github.com/m3db/m3/pull/4108
+[#4109]: https://github.com/m3db/m3/pull/4109
+[#4110]: https://github.com/m3db/m3/pull/4110
+[#4112]: https://github.com/m3db/m3/pull/4112
+[#4113]: https://github.com/m3db/m3/pull/4113
+[#4130]: https://github.com/m3db/m3/pull/4130
+[#4131]: https://github.com/m3db/m3/pull/4131
+[#4160]: https://github.com/m3db/m3/pull/4160
+[#4163]: https://github.com/m3db/m3/pull/4163
+[#4169]: https://github.com/m3db/m3/pull/4169
+[#4173]: https://github.com/m3db/m3/pull/4173
+[#4188]: https://github.com/m3db/m3/pull/4188
+[#4190]: https://github.com/m3db/m3/pull/4190
+[#4191]: https://github.com/m3db/m3/pull/4191
+[#4193]: https://github.com/m3db/m3/pull/4193
+[#4210]: https://github.com/m3db/m3/pull/4210
+[#4213]: https://github.com/m3db/m3/pull/4213
+[#4216]: https://github.com/m3db/m3/pull/4216
+[#4223]: https://github.com/m3db/m3/pull/4223
+[#4239]: https://github.com/m3db/m3/pull/4239
+[#4242]: https://github.com/m3db/m3/pull/4242
+[#4244]: https://github.com/m3db/m3/pull/4244
+[#4246]: https://github.com/m3db/m3/pull/4246
+[#4247]: https://github.com/m3db/m3/pull/4247
+[#4250]: https://github.com/m3db/m3/pull/4250
+[#4253]: https://github.com/m3db/m3/pull/4253
+[#4256]: https://github.com/m3db/m3/pull/4256
+[#4258]: https://github.com/m3db/m3/pull/4258
+[#4267]: https://github.com/m3db/m3/pull/4267
+[#4271]: https://github.com/m3db/m3/pull/4271
+[#4277]: https://github.com/m3db/m3/pull/4277
+[#4283]: https://github.com/m3db/m3/pull/4283
+[#4290]: https://github.com/m3db/m3/pull/4290
+[#4297]: https://github.com/m3db/m3/pull/4297
+[#4298]: https://github.com/m3db/m3/pull/4298
+[#4300]: https://github.com/m3db/m3/pull/4300
+[#4304]: https://github.com/m3db/m3/pull/4304
+[#4305]: https://github.com/m3db/m3/pull/4305
+[#4307]: https://github.com/m3db/m3/pull/4307
+[#4315]: https://github.com/m3db/m3/pull/4315
+[#4320]: https://github.com/m3db/m3/pull/4320
+[#4321]: https://github.com/m3db/m3/pull/4321
+[#4323]: https://github.com/m3db/m3/pull/4323
+[#4326]: https://github.com/m3db/m3/pull/4326
+[#4327]: https://github.com/m3db/m3/pull/4327
+[#4328]: https://github.com/m3db/m3/pull/4328
+[#4329]: https://github.com/m3db/m3/pull/4329
+[#4330]: https://github.com/m3db/m3/pull/4330
+[#4331]: https://github.com/m3db/m3/pull/4331
+[#4333]: https://github.com/m3db/m3/pull/4333
+[#4335]: https://github.com/m3db/m3/pull/4335
+[#4336]: https://github.com/m3db/m3/pull/4336
+[#4355]: https://github.com/m3db/m3/pull/4355
+[#4373]: https://github.com/m3db/m3/pull/4373
+[#4374]: https://github.com/m3db/m3/pull/4374
+[#4375]: https://github.com/m3db/m3/pull/4375
+[#4376]: https://github.com/m3db/m3/pull/4376
+[#4377]: https://github.com/m3db/m3/pull/4377
+[#4378]: https://github.com/m3db/m3/pull/4378
+[#4379]: https://github.com/m3db/m3/pull/4379
+[#4380]: https://github.com/m3db/m3/pull/4380
+[#4381]: https://github.com/m3db/m3/pull/4381
+[#4382]: https://github.com/m3db/m3/pull/4382
+[#4384]: https://github.com/m3db/m3/pull/4384
+[#4385]: https://github.com/m3db/m3/pull/4385
+[#4386]: https://github.com/m3db/m3/pull/4386
+[#4387]: https://github.com/m3db/m3/pull/4387
+[#4388]: https://github.com/m3db/m3/pull/4388
+[#4389]: https://github.com/m3db/m3/pull/4389
+[#4390]: https://github.com/m3db/m3/pull/4390
+[#4391]: https://github.com/m3db/m3/pull/4391
+[#4393]: https://github.com/m3db/m3/pull/4393
+[#4401]: https://github.com/m3db/m3/pull/4401
+[#4407]: https://github.com/m3db/m3/pull/4407
+[#4410]: https://github.com/m3db/m3/pull/4410
+[#4416]: https://github.com/m3db/m3/pull/4416
+[#4420]: https://github.com/m3db/m3/pull/4420
+[#4422]: https://github.com/m3db/m3/pull/4422
+[#4423]: https://github.com/m3db/m3/pull/4423
+[#4425]: https://github.com/m3db/m3/pull/4425
+[#4430]: https://github.com/m3db/m3/pull/4430
+[#4442]: https://github.com/m3db/m3/pull/4442
+
 # 1.5.0
 
 ## Features and Performance
