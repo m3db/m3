@@ -447,6 +447,7 @@ func validateSubclusteredPlacement(p Placement) error {
 	shardToSubclusterMap := make(map[uint32]map[uint32]struct{})
 	subClusterToInstanceMap := make(map[uint32]map[Instance]struct{})
 	shardToIsolationGroupMap := make(map[uint32]map[string]struct{})
+	subClusterToReplicaCount := make(map[uint32]int)
 	instancesPerSubCluster := p.InstancesPerSubCluster()
 
 	for _, instance := range p.Instances() {
@@ -463,6 +464,7 @@ func validateSubclusteredPlacement(p Placement) error {
 			if s.State() == shard.Leaving {
 				continue
 			}
+			subClusterToReplicaCount[subclusterID]++
 			if _, exist := shardToIsolationGroupMap[s.ID()]; !exist {
 				shardToIsolationGroupMap[s.ID()] = make(map[string]struct{})
 			}
@@ -490,6 +492,18 @@ func validateSubclusteredPlacement(p Placement) error {
 		return fmt.Errorf("invalid placement, more than one partial subcluster found: %d", partialSubclusters)
 	}
 
+	targetShardCounts := targetShardCountPerSubCluster(p, subClusterToInstanceMap)
+	// A subcluster is complete when it holds both its full share of instances and
+	// its full share of shard replicas. An incomplete subcluster is either being
+	// built up or drained, and shards are allowed to span it while that happens.
+	isComplete := func(subclusterID uint32) bool {
+		if len(subClusterToInstanceMap[subclusterID]) != instancesPerSubCluster {
+			return false
+		}
+		return subClusterToReplicaCount[subclusterID] >=
+			targetShardCounts[subclusterID]*p.ReplicaFactor()
+	}
+
 	for shard, subclusters := range shardToSubclusterMap {
 		firstReplica := true
 		shardSubclusterID := uninitializedSubClusterID
@@ -511,10 +525,7 @@ func validateSubclusteredPlacement(p Placement) error {
 					continue
 				}
 				currSubclusterID := subcluster
-				shardSubclusterInstances := subClusterToInstanceMap[shardSubclusterID]
-				currSubclusterInstances := subClusterToInstanceMap[currSubclusterID]
-				if len(shardSubclusterInstances) == instancesPerSubCluster &&
-					len(currSubclusterInstances) == instancesPerSubCluster {
+				if isComplete(shardSubclusterID) && isComplete(currSubclusterID) {
 					return fmt.Errorf("invalid shard %d, expected subcluster id %d, actual %d",
 						shard, shardSubclusterID, currSubclusterID)
 				}
@@ -529,6 +540,36 @@ func validateSubclusteredPlacement(p Placement) error {
 		}
 	}
 	return nil
+}
+
+// targetShardCountPerSubCluster returns the number of distinct shards each
+// subcluster is expected to own. It mirrors buildTargetSubclusterLoad in the
+// placement algorithm: the shards are divided evenly across the subclusters and
+// the remainder is handed out to the subclusters with the lowest ids. Both must
+// stay in sync; the algo package cannot be imported here.
+func targetShardCountPerSubCluster(
+	p Placement,
+	subClusterToInstanceMap map[uint32]map[Instance]struct{},
+) map[uint32]int {
+	subclusterIDs := make([]uint32, 0, len(subClusterToInstanceMap))
+	for subclusterID := range subClusterToInstanceMap {
+		subclusterIDs = append(subclusterIDs, subclusterID)
+	}
+	if len(subclusterIDs) == 0 {
+		return nil
+	}
+	sort.Slice(subclusterIDs, func(i, j int) bool { return subclusterIDs[i] < subclusterIDs[j] })
+
+	totalShards := len(p.Shards())
+	targetShardCounts := make(map[uint32]int, len(subclusterIDs))
+	for _, subclusterID := range subclusterIDs {
+		targetShardCounts[subclusterID] = totalShards / len(subclusterIDs)
+	}
+	for i := 0; i < totalShards%len(subclusterIDs); i++ {
+		targetShardCounts[subclusterIDs[i]]++
+	}
+
+	return targetShardCounts
 }
 
 func convertShardSliceToMap(ids []uint32) map[uint32]int {
