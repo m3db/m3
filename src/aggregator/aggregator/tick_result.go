@@ -51,16 +51,22 @@ func (r *tickResultForMetricCategory) merge(
 }
 
 type tickResult struct {
-	standard  tickResultForMetricCategory
-	forwarded tickResultForMetricCategory
-	timed     tickResultForMetricCategory
+	standard            tickResultForMetricCategory
+	forwarded           tickResultForMetricCategory
+	timed               tickResultForMetricCategory
+	cardinalityBySource map[string]int
 }
 
 // merge merges two results. Both input results may become invalid after merge is called.
 func (r *tickResult) merge(other tickResult) tickResult {
-	return tickResult{
-		standard:  r.standard.merge(other.standard),
-		forwarded: r.forwarded.merge(other.forwarded),
-		timed:     r.timed.merge(other.timed),
+	res := tickResult{
+		standard:            r.standard.merge(other.standard),
+		forwarded:           r.forwarded.merge(other.forwarded),
+		timed:               r.timed.merge(other.timed),
+		cardinalityBySource: r.cardinalityBySource,
 	}
+	for k, v := range other.cardinalityBySource {
+		res.cardinalityBySource[k] += v
+	}
+	return res
 }
