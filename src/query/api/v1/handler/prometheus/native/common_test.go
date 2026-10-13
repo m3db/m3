@@ -454,7 +454,7 @@ func TestRenderInstantaneousResultsJSONVector(t *testing.T) {
 	}
 
 	// Ensure idempotent by running first once with noop render.
-	r := renderResultsInstantaneousJSON(json.NewNoopWriter(), readResult, RenderResultsOptions{KeepNaNs: true})
+	r := RenderResultsInstantaneousJSON(json.NewNoopWriter(), readResult, RenderResultsOptions{KeepNaNs: true})
 	require.Equal(t, false, r.LimitedMaxReturnedData)
 	require.Equal(t, 3, r.Datapoints)
 	require.Equal(t, 3, r.Series)
@@ -462,7 +462,7 @@ func TestRenderInstantaneousResultsJSONVector(t *testing.T) {
 
 	buffer := bytes.NewBuffer(nil)
 	jw := json.NewWriter(buffer)
-	r = renderResultsInstantaneousJSON(jw, readResult, RenderResultsOptions{KeepNaNs: true})
+	r = RenderResultsInstantaneousJSON(jw, readResult, RenderResultsOptions{KeepNaNs: true})
 	require.NoError(t, jw.Close())
 	require.Equal(t, false, r.LimitedMaxReturnedData)
 	require.Equal(t, 3, r.Datapoints)
@@ -480,7 +480,7 @@ func TestRenderInstantaneousResultsJSONVector(t *testing.T) {
 	assert.Equal(t, expectedWithNaN, actualWithNaN, xtest.Diff(expectedWithNaN, actualWithNaN))
 
 	// Ensure idempotent by running first once with noop render.
-	r = renderResultsInstantaneousJSON(json.NewNoopWriter(),
+	r = RenderResultsInstantaneousJSON(json.NewNoopWriter(),
 		readResult,
 		RenderResultsOptions{KeepNaNs: false})
 	require.NoError(t, jw.Close())
@@ -491,7 +491,7 @@ func TestRenderInstantaneousResultsJSONVector(t *testing.T) {
 
 	buffer = bytes.NewBuffer(nil)
 	jw = json.NewWriter(buffer)
-	r = renderResultsInstantaneousJSON(jw, readResult, RenderResultsOptions{KeepNaNs: false})
+	r = RenderResultsInstantaneousJSON(jw, readResult, RenderResultsOptions{KeepNaNs: false})
 	require.NoError(t, jw.Close())
 	require.Equal(t, false, r.LimitedMaxReturnedData)
 	require.Equal(t, 2, r.Datapoints)
@@ -550,7 +550,7 @@ func TestRenderInstantaneousResultsNansOnlyJSON(t *testing.T) {
 	}
 
 	// Ensure idempotent by running first once with noop render.
-	r := renderResultsInstantaneousJSON(json.NewNoopWriter(), readResult, RenderResultsOptions{KeepNaNs: true})
+	r := RenderResultsInstantaneousJSON(json.NewNoopWriter(), readResult, RenderResultsOptions{KeepNaNs: true})
 	require.Equal(t, false, r.LimitedMaxReturnedData)
 	require.Equal(t, 2, r.Datapoints)
 	require.Equal(t, 2, r.Series)
@@ -558,7 +558,7 @@ func TestRenderInstantaneousResultsNansOnlyJSON(t *testing.T) {
 
 	buffer := bytes.NewBuffer(nil)
 	jw := json.NewWriter(buffer)
-	r = renderResultsInstantaneousJSON(jw, readResult, RenderResultsOptions{KeepNaNs: true})
+	r = RenderResultsInstantaneousJSON(jw, readResult, RenderResultsOptions{KeepNaNs: true})
 	require.NoError(t, jw.Close())
 	require.Equal(t, false, r.LimitedMaxReturnedData)
 	require.Equal(t, 2, r.Datapoints)
@@ -576,7 +576,7 @@ func TestRenderInstantaneousResultsNansOnlyJSON(t *testing.T) {
 	assert.Equal(t, expectedWithNaN, actualWithNaN, xtest.Diff(expectedWithNaN, actualWithNaN))
 
 	// Ensure idempotent by running first once with noop render.
-	r = renderResultsInstantaneousJSON(json.NewNoopWriter(), readResult, RenderResultsOptions{KeepNaNs: false})
+	r = RenderResultsInstantaneousJSON(json.NewNoopWriter(), readResult, RenderResultsOptions{KeepNaNs: false})
 	require.Equal(t, false, r.LimitedMaxReturnedData)
 	require.Equal(t, 0, r.Datapoints)
 	require.Equal(t, 0, r.Series)
@@ -584,7 +584,7 @@ func TestRenderInstantaneousResultsNansOnlyJSON(t *testing.T) {
 
 	buffer = bytes.NewBuffer(nil)
 	jw = json.NewWriter(buffer)
-	r = renderResultsInstantaneousJSON(jw, readResult, RenderResultsOptions{KeepNaNs: false})
+	r = RenderResultsInstantaneousJSON(jw, readResult, RenderResultsOptions{KeepNaNs: false})
 	require.NoError(t, jw.Close())
 	require.Equal(t, false, r.LimitedMaxReturnedData)
 	require.Equal(t, 0, r.Datapoints)
@@ -618,7 +618,7 @@ func TestRenderInstantaneousResultsJSONScalar(t *testing.T) {
 	}
 
 	// Ensure idempotent by running first once with noop render.
-	r := renderResultsInstantaneousJSON(json.NewNoopWriter(), readResult, RenderResultsOptions{KeepNaNs: false})
+	r := RenderResultsInstantaneousJSON(json.NewNoopWriter(), readResult, RenderResultsOptions{KeepNaNs: false})
 	require.Equal(t, false, r.LimitedMaxReturnedData)
 	require.Equal(t, 1, r.Datapoints)
 	require.Equal(t, 1, r.Series)
@@ -626,7 +626,7 @@ func TestRenderInstantaneousResultsJSONScalar(t *testing.T) {
 
 	buffer := bytes.NewBuffer(nil)
 	jw := json.NewWriter(buffer)
-	r = renderResultsInstantaneousJSON(jw, readResult, RenderResultsOptions{KeepNaNs: false})
+	r = RenderResultsInstantaneousJSON(jw, readResult, RenderResultsOptions{KeepNaNs: false})
 	require.NoError(t, jw.Close())
 	require.Equal(t, false, r.LimitedMaxReturnedData)
 	require.Equal(t, 1, r.Datapoints)
