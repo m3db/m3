@@ -1389,3 +1389,260 @@ func TestValidateSubclusteredPlacementEdgeCases(t *testing.T) {
 		})
 	}
 }
+
+// TestValidateSubclusteredPlacementIncompleteSubcluster covers placements where a
+// subcluster keeps its full set of instances but holds fewer shard replicas than
+// its share of the placement, which happens when shards are moved in or out of
+// the subcluster one replica at a time. A shard is allowed to be shared with the
+// subcluster it is moving to or from until both subclusters hold their full
+// share of instances and replicas.
+//
+// The topology below has two subclusters of three instances, one instance per
+// isolation group, replica factor three and eight shards, so each subcluster
+// owns four shards and holds twelve replicas when it is complete.
+func TestValidateSubclusteredPlacementIncompleteSubcluster(t *testing.T) {
+	tests := []struct {
+		name          string
+		instances     []Instance
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name: "balanced placement",
+			instances: []Instance{
+				availableSubclusteredInstance("i1", "r1", 1, 1, 2, 3, 4),
+				availableSubclusteredInstance("i2", "r2", 1, 1, 2, 3, 4),
+				availableSubclusteredInstance("i3", "r3", 1, 1, 2, 3, 4),
+				availableSubclusteredInstance("i4", "r1", 2, 5, 6, 7, 8),
+				availableSubclusteredInstance("i5", "r2", 2, 5, 6, 7, 8),
+				availableSubclusteredInstance("i6", "r3", 2, 5, 6, 7, 8),
+			},
+			expectError: false,
+		},
+		{
+			name: "replica of a shard moving out of a complete subcluster",
+			instances: func() []Instance {
+				// i3 is being drained one shard at a time: shard 1 is moving to i6
+				// while shards 2, 3 and 4 are still available on i3, so subcluster 1
+				// keeps all three of its instances and is only incomplete by replica
+				// count.
+				i3 := availableSubclusteredInstance("i3", "r3", 1, 2, 3, 4)
+				i3.Shards().Add(shard.NewShard(1).SetState(shard.Leaving))
+
+				i6 := availableSubclusteredInstance("i6", "r3", 2, 5, 6, 7, 8)
+				i6.Shards().Add(shard.NewShard(1).SetState(shard.Initializing).SetSourceID("i3"))
+
+				return []Instance{
+					availableSubclusteredInstance("i1", "r1", 1, 1, 2, 3, 4),
+					availableSubclusteredInstance("i2", "r2", 1, 1, 2, 3, 4),
+					i3,
+					availableSubclusteredInstance("i4", "r1", 2, 5, 6, 7, 8),
+					availableSubclusteredInstance("i5", "r2", 2, 5, 6, 7, 8),
+					i6,
+				}
+			}(),
+			expectError: false,
+		},
+		{
+			name: "replica moved out of a complete subcluster with no movement in flight",
+			instances: []Instance{
+				availableSubclusteredInstance("i1", "r1", 1, 1, 2, 3, 4),
+				availableSubclusteredInstance("i2", "r2", 1, 1, 2, 3, 4),
+				availableSubclusteredInstance("i3", "r3", 1, 2, 3, 4),
+				availableSubclusteredInstance("i4", "r1", 2, 5, 6, 7, 8),
+				availableSubclusteredInstance("i5", "r2", 2, 5, 6, 7, 8),
+				availableSubclusteredInstance("i6", "r3", 2, 1, 5, 6, 7, 8),
+			},
+			expectError: false,
+		},
+		{
+			name: "last replica of the drained instance in flight",
+			instances: func() []Instance {
+				// The drained instance is down to its last shard, so the subcluster
+				// holds only a third of its replicas but still has all its instances.
+				i3 := NewEmptyInstance("i3", "r3", "z1", "endpoint-i3", 1).SetSubClusterID(1)
+				i3.Shards().Add(shard.NewShard(4).SetState(shard.Leaving))
+
+				i6 := availableSubclusteredInstance("i6", "r3", 2, 1, 2, 3, 5, 6, 7, 8)
+				i6.Shards().Add(shard.NewShard(4).SetState(shard.Initializing).SetSourceID("i3"))
+
+				return []Instance{
+					availableSubclusteredInstance("i1", "r1", 1, 1, 2, 3, 4),
+					availableSubclusteredInstance("i2", "r2", 1, 1, 2, 3, 4),
+					i3,
+					availableSubclusteredInstance("i4", "r1", 2, 5, 6, 7, 8),
+					availableSubclusteredInstance("i5", "r2", 2, 5, 6, 7, 8),
+					i6,
+				}
+			}(),
+			expectError: false,
+		},
+		{
+			name: "drained instance removed from the placement",
+			instances: []Instance{
+				availableSubclusteredInstance("i1", "r1", 1, 1, 2, 3, 4),
+				availableSubclusteredInstance("i2", "r2", 1, 1, 2, 3, 4),
+				availableSubclusteredInstance("i4", "r1", 2, 5, 6, 7, 8),
+				availableSubclusteredInstance("i5", "r2", 2, 5, 6, 7, 8),
+				availableSubclusteredInstance("i6", "r3", 2, 1, 2, 3, 4, 5, 6, 7, 8),
+			},
+			expectError: false,
+		},
+		{
+			name: "replica of a shard moving into an incomplete subcluster",
+			instances: func() []Instance {
+				// Subcluster 2 has all its instances but is still being filled: it owns
+				// shard 5 and is now taking over shard 6 one replica at a time.
+				i1 := availableSubclusteredInstance("i1", "r1", 1, 1, 2, 3, 4, 7, 8)
+				i1.Shards().Add(shard.NewShard(6).SetState(shard.Leaving))
+
+				i4 := availableSubclusteredInstance("i4", "r1", 2, 5)
+				i4.Shards().Add(shard.NewShard(6).SetState(shard.Initializing).SetSourceID("i1"))
+
+				return []Instance{
+					i1,
+					availableSubclusteredInstance("i2", "r2", 1, 1, 2, 3, 4, 6, 7, 8),
+					availableSubclusteredInstance("i3", "r3", 1, 1, 2, 3, 4, 6, 7, 8),
+					i4,
+					availableSubclusteredInstance("i5", "r2", 2, 5),
+					availableSubclusteredInstance("i6", "r3", 2, 5),
+				}
+			}(),
+			expectError: false,
+		},
+		{
+			name: "shard shared by two complete subclusters",
+			instances: []Instance{
+				// Subcluster 1 gives a replica of shard 1 to subcluster 2 and takes a
+				// replica of shard 5 back, so both subclusters hold their full share
+				// of replicas while shards 1 and 5 are shared between them.
+				availableSubclusteredInstance("i1", "r1", 1, 1, 2, 3, 4),
+				availableSubclusteredInstance("i2", "r2", 1, 1, 2, 3, 4),
+				availableSubclusteredInstance("i3", "r3", 1, 2, 3, 4, 5),
+				availableSubclusteredInstance("i4", "r1", 2, 5, 6, 7, 8),
+				availableSubclusteredInstance("i5", "r2", 2, 5, 6, 7, 8),
+				availableSubclusteredInstance("i6", "r3", 2, 1, 6, 7, 8),
+			},
+			expectError:   true,
+			errorContains: "expected subcluster id",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := NewPlacement().
+				SetInstances(tt.instances).
+				SetShards([]uint32{1, 2, 3, 4, 5, 6, 7, 8}).
+				SetReplicaFactor(3).
+				SetIsSharded(true).
+				SetIsSubclustered(true).
+				SetInstancesPerSubCluster(3)
+
+			err := Validate(p)
+
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errorContains)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestValidateSubclusteredPlacementSharedByThreeSubclusters verifies that a shard
+// is never allowed to be shared by more than two subclusters, even when one of
+// them is incomplete.
+func TestValidateSubclusteredPlacementSharedByThreeSubclusters(t *testing.T) {
+	instances := []Instance{
+		availableSubclusteredInstance("i1", "r1", 1, 1, 2, 3),
+		availableSubclusteredInstance("i2", "r2", 1, 2, 3),
+		availableSubclusteredInstance("i3", "r3", 1, 2, 3),
+		availableSubclusteredInstance("i4", "r1", 2, 4, 5, 6),
+		availableSubclusteredInstance("i5", "r2", 2, 1, 4, 5, 6),
+		availableSubclusteredInstance("i6", "r3", 2, 4, 5, 6),
+		availableSubclusteredInstance("i7", "r1", 3, 7, 8, 9),
+		availableSubclusteredInstance("i8", "r2", 3, 7, 8, 9),
+		availableSubclusteredInstance("i9", "r3", 3, 1, 7, 8, 9),
+	}
+
+	p := NewPlacement().
+		SetInstances(instances).
+		SetShards([]uint32{1, 2, 3, 4, 5, 6, 7, 8, 9}).
+		SetReplicaFactor(3).
+		SetIsSharded(true).
+		SetIsSubclustered(true).
+		SetInstancesPerSubCluster(3)
+
+	err := Validate(p)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid shard 1, expected at most 2 subclusters")
+}
+
+func TestTargetShardCountPerSubCluster(t *testing.T) {
+	tests := []struct {
+		name         string
+		numShards    int
+		subclusterID []uint32
+		expected     map[uint32]int
+	}{
+		{
+			name:         "shards divide evenly",
+			numShards:    8,
+			subclusterID: []uint32{1, 2},
+			expected:     map[uint32]int{1: 4, 2: 4},
+		},
+		{
+			name:         "remainder goes to the lowest subcluster ids",
+			numShards:    8,
+			subclusterID: []uint32{1, 2, 3},
+			expected:     map[uint32]int{1: 3, 2: 3, 3: 2},
+		},
+		{
+			name:         "fewer shards than subclusters",
+			numShards:    2,
+			subclusterID: []uint32{2, 4, 6},
+			expected:     map[uint32]int{2: 1, 4: 1, 6: 0},
+		},
+		{
+			name:         "no subclusters",
+			numShards:    8,
+			subclusterID: nil,
+			expected:     nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			shards := make([]uint32, tt.numShards)
+			for i := range shards {
+				shards[i] = uint32(i)
+			}
+			subClusterToInstanceMap := make(map[uint32]map[Instance]struct{}, len(tt.subclusterID))
+			for _, subclusterID := range tt.subclusterID {
+				subClusterToInstanceMap[subclusterID] = map[Instance]struct{}{
+					availableSubclusteredInstance(
+						fmt.Sprintf("i%d", subclusterID), "r1", subclusterID): {},
+				}
+			}
+
+			p := NewPlacement().SetShards(shards)
+			assert.Equal(t, tt.expected, targetShardCountPerSubCluster(p, subClusterToInstanceMap))
+		})
+	}
+}
+
+// availableSubclusteredInstance returns an instance of the given subcluster and
+// isolation group holding all the given shards in available state.
+func availableSubclusteredInstance(
+	id, isolationGroup string,
+	subClusterID uint32,
+	shardIDs ...uint32,
+) Instance {
+	instance := NewEmptyInstance(id, isolationGroup, "z1", "endpoint-"+id, 1).
+		SetSubClusterID(subClusterID)
+	for _, shardID := range shardIDs {
+		instance.Shards().Add(shard.NewShard(shardID).SetState(shard.Available))
+	}
+	return instance
+}
