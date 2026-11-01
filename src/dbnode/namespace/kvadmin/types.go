@@ -42,8 +42,16 @@ type NamespaceMetadataAdminService interface {
 
 	// DeploySchema deploys a new version schema to the specified namespace.
 	// An opaque string (deployID) is returned if successful.
-	// Application developer is to include the deployID in their m3db client configuration
-	// when they upgrade their application to use the new schema version.
+	// name: namespace name.
+	// protoFile: name of the top level proto file.
+	// msgName: name of the top level proto message.
+	// protos: map of proto filename to proto strings.
+	//          Except for the top level proto file, other imported proto files' key must be exactly the same
+	//          as how they are imported in the import statement:
+	//          E.g. if import.proto is imported as below
+	//          import "mainpkg/imported.proto";
+	//          Then the map key for improted.proto must be "mainpkg/imported.proto"
+	//          See ns_admin_test.go for example.
 	DeploySchema(name, protoFileName, msgName string, protos map[string]string) (string, error)
 
 	// ResetSchema reset schema for the specified namespace.
