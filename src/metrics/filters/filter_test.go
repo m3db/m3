@@ -234,6 +234,41 @@ func TestRangeFilters(t *testing.T) {
 	}
 }
 
+func TestMultiCharSequenceFilterBacktracking(t *testing.T) {
+	// A multi char sequence ({...}) followed by more of the pattern must be
+	// able to try each alternative, not just the longest one, so that the rest
+	// of the chain still gets a chance to match.
+	tests := []struct {
+		pattern string
+		val     string
+		match   bool
+	}{
+		// "a" is a prefix of "ab", and only picking "a" lets "bc" match.
+		{"prefix{a,ab}bc", "prefixabc", true},
+		{"prefix{ab,a}bc", "prefixabc", true},
+		{"prefix{a,ab}bc", "prefixabbc", true},
+		{"prefix{a,ab}bc", "prefixbc", false},
+		{"prefix{a,ab}bc", "prefixac", false},
+		// Backwards variant (wildcard at the start).
+		{"*{a,ab}bc.end", "xxabc.end", true},
+		{"*{ab,a}bc.end", "xxabc.end", true},
+		{"*{a,ab}bc.end", "xxabbc.end", true},
+		{"*{a,ab}bc.end", "xxbc.end", false},
+		// Regression cases from issue #4124 where the longest match is correct.
+		{"*ending.{bar,foobar}", "some_ending.bar", true},
+		{"*ending.{bar,foobar}", "some_ending.foobar", true},
+		{"*ending.{foobar,bar}", "some_ending.bar", true},
+		{"*ending.{foobar,bar}", "some_ending.foobar", true},
+	}
+
+	for _, tt := range tests {
+		f, err := NewFilter([]byte(tt.pattern))
+		require.NoError(t, err)
+		require.Equal(t, tt.match, f.Matches([]byte(tt.val)),
+			fmt.Sprintf("pattern: %s, val: %s, filter: %s", tt.pattern, tt.val, f.String()))
+	}
+}
+
 func TestMultiFilter(t *testing.T) {
 	cf, _ := newContainsFilter([]byte("bar"))
 	filters := []Filter{

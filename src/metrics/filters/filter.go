@@ -375,6 +375,19 @@ type chainFilter interface {
 	matches(val []byte) ([]byte, bool)
 }
 
+// backtrackChainFilter is an optional interface for chain filters that can
+// match an input in more than one way, each consuming a different number of
+// characters. A multiChainFilter uses it to try every option so a later
+// filter in the chain still gets a chance to match. For example, the pattern
+// "prefix{a,ab}bc" must be able to pick "a" over the longer "ab" so that the
+// trailing "bc" matches "prefixabc".
+type backtrackChainFilter interface {
+	chainFilter
+
+	// matchesAll returns the remainder for every way this filter matches val.
+	matchesAll(val []byte) [][]byte
+}
+
 // equalityChainFilter is a filter that performs equality string matches
 // from either the front or back of the string.
 type equalityChainFilter struct {
@@ -627,6 +640,35 @@ func (f *multiCharSequenceFilter) matches(val []byte) ([]byte, bool) {
 	return nil, false
 }
 
+// matchesAll returns the remainder for every pattern that matches val, so the
+// enclosing multiChainFilter can backtrack when the longest match would stop a
+// later filter in the chain from matching. Empty patterns are skipped to keep
+// the same behavior as matches.
+func (f *multiCharSequenceFilter) matchesAll(val []byte) [][]byte {
+	if len(val) == 0 {
+		return nil
+	}
+
+	var remainders [][]byte
+	for _, pattern := range f.patterns {
+		if len(pattern) == 0 || len(pattern) > len(val) {
+			continue
+		}
+
+		if f.backwards {
+			if bytes.HasSuffix(val, pattern) {
+				remainders = append(remainders, val[:len(val)-len(pattern)])
+			}
+		} else {
+			if bytes.HasPrefix(val, pattern) {
+				remainders = append(remainders, val[len(pattern):])
+			}
+		}
+	}
+
+	return remainders
+}
+
 // multiChainFilter chains multiple chainFilters together with &&.
 type multiChainFilter struct {
 	filters   []chainFilter
@@ -670,30 +712,43 @@ func (f *multiChainFilter) Matches(val []byte) bool {
 		return true
 	}
 
-	var match bool
+	return f.matchesFrom(val, 0)
+}
 
-	if f.backwards {
-		for i := len(f.filters) - 1; i >= 0; i-- {
-			val, match = f.filters[i].matches(val)
-			if !match {
-				return false
-			}
+// matchesFrom applies the chain filters starting at the given step, trying
+// every remainder a backtracking filter offers so a greedy match earlier in
+// the chain can't hide a match that exists further along.
+func (f *multiChainFilter) matchesFrom(val []byte, step int) bool {
+	if step == len(f.filters) {
+		if f.seg == middle && len(val) != 0 {
+			// chain was middle segment and some value was left over at end of chain.
+			return false
 		}
-	} else {
-		for i := range len(f.filters) {
-			val, match = f.filters[i].matches(val)
-			if !match {
-				return false
-			}
-		}
+		return true
 	}
 
-	if f.seg == middle && len(val) != 0 {
-		// chain was middle segment and some value was left over at end of chain.
+	// Filters consume from the back of the input when the chain is backwards,
+	// so walk them in reverse order in that case.
+	idx := step
+	if f.backwards {
+		idx = len(f.filters) - 1 - step
+	}
+
+	if bt, ok := f.filters[idx].(backtrackChainFilter); ok {
+		for _, remainder := range bt.matchesAll(val) {
+			if f.matchesFrom(remainder, step+1) {
+				return true
+			}
+		}
 		return false
 	}
 
-	return true
+	remainder, match := f.filters[idx].matches(val)
+	if !match {
+		return false
+	}
+
+	return f.matchesFrom(remainder, step+1)
 }
 
 type immutableFilter struct {
